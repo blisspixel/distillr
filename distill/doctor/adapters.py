@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import tomllib
 from collections.abc import Callable, Mapping, Sequence
@@ -16,6 +15,7 @@ from typing import Any, cast
 from distill.doctor.adapter_manifest import adapter_result_manifest_contract
 from distill.doctor.adapter_native_usage import adapter_native_usage_contract
 from distill.doctor.adapter_workload import adapter_workload_contract
+from distill.process_security import package_install_context, resolve_executable
 
 __all__ = [
     "AdapterDoctorReport",
@@ -488,7 +488,7 @@ def _probe_adapter(
     home_dir: Path,
     timeout_seconds: int,
 ) -> AdapterProbe:
-    executable = shutil.which(spec.binary)
+    executable = resolve_executable(spec.binary)
     installed = executable is not None
     env_blockers_present = [name for name in spec.env_blockers if env.get(name)]
     config_result = _scan_config_probes(spec.config_probes, home_dir)
@@ -575,6 +575,7 @@ def _probe_adapter(
 
 
 def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str, str]:
+    trusted_cwd, child_env = package_install_context()
     try:
         result = subprocess.run(
             list(command),
@@ -583,6 +584,8 @@ def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str
             timeout=timeout_seconds,
             check=False,
             shell=False,
+            cwd=trusted_cwd,
+            env=child_env,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 124, "", str(exc)

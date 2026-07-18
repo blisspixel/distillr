@@ -2,6 +2,7 @@
 
 import json
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -276,6 +277,23 @@ class TestDetectRampSource:
         assert _detect_ramp_source("https://arxiv.org.evil/abs/2601.00001") == "website"
         assert _detect_ramp_source("https://youtube.com.evil/watch?v=abc") == "website"
         assert _detect_ramp_source("https://youtu.be.evil/abc") == "website"
+
+    def test_rejects_unc_before_filesystem_probe(self, monkeypatch):
+        def fail_probe(_path):
+            raise AssertionError("remote target reached filesystem I/O")
+
+        monkeypatch.setattr(Path, "exists", fail_probe)
+
+        with pytest.raises(ValueError, match="remote filesystem"):
+            _detect_ramp_source(r"\\attacker.invalid\share\seeds.txt")
+
+    def test_http_target_does_not_probe_filesystem(self, monkeypatch):
+        def fail_probe(_path):
+            raise AssertionError("URL reached filesystem I/O")
+
+        monkeypatch.setattr(Path, "exists", fail_probe)
+
+        assert _detect_ramp_source("https://example.com/page") == "website"
 
 
 class TestResolveRequiredTopicForChannel:

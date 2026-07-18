@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 
 import typer
@@ -62,6 +63,11 @@ topic_watch_app = typer.Typer(
     invoke_without_command=True,
     rich_markup_mode="rich",
 )
+
+
+def _validate_budget_option(value: float | None, option_name: str) -> None:
+    if value is not None and (not math.isfinite(value) or value < 0):
+        raise typer.BadParameter(f"{option_name} must be a finite non-negative number")
 
 
 def register(app: typer.Typer) -> None:
@@ -135,6 +141,8 @@ def topic_watch_add(
     """Add a recurring topic watch for stay-current workflows."""
     if cadence not in {"daily", "weekly"}:
         raise typer.BadParameter("--cadence must be 'daily' or 'weekly'")
+    _validate_budget_option(max_run_cost, "--max-run-cost")
+    _validate_budget_option(monthly_budget, "--monthly-budget")
     ranking_mode = normalize_topic_watch_ranking_mode(ranking)
     _learning_flow_support.validate_learning_options(sort, limit, days, per_channel_cap)
 
@@ -246,6 +254,8 @@ def topic_watch_budget(
     """Set budget guardrails for a topic watch."""
     if max_run_cost is None and monthly_budget is None:
         raise typer.BadParameter("Provide --max-run-cost and/or --monthly-budget")
+    _validate_budget_option(max_run_cost, "--max-run-cost")
+    _validate_budget_option(monthly_budget, "--monthly-budget")
     config = get_config()
     lib = Library(config)
     if lib.update_topic_watch_budget(

@@ -42,6 +42,7 @@ from distill.library.paths import (
     write_markdown_artifact,
 )
 from distill.config import DistillConfig
+from distill.target_safety import is_http_url, require_local_filesystem_target
 from distill.commands._report_helpers import run_scope_report
 from distill.commands._formatting import (
     duration_str,
@@ -386,19 +387,19 @@ file_link = _file_link
 
 def _detect_ramp_source(target: str) -> str:
     """Classify a ramp-up target by structural argument shape."""
-    target_path = Path(target)
-    if target_path.exists():
-        return "website-batch"
+    require_local_filesystem_target(target)
     lowered = target.lower()
     if lowered == "arxiv.org" or lowered.startswith(("arxiv.org/", "www.arxiv.org/")):
         return "paper"
-    if lowered.startswith("http://") or lowered.startswith("https://"):
+    if is_http_url(target):
         host = (urlparse(target).hostname or "").lower()
         if _host_matches(host, "arxiv.org"):
             return "paper"
         if _host_matches(host, "youtube.com") or _host_matches(host, "youtu.be"):
             return "youtube-url"
         return "website"
+    if Path(target).exists():
+        return "website-batch"
     return "youtube-query"
 
 

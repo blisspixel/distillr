@@ -16,6 +16,7 @@ instead of crashing a downstream read.
 
 import contextlib
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -163,7 +164,19 @@ def _int(value: object, default: int) -> int:
 def _float(value: object, default: float) -> float:
     if isinstance(value, bool):
         return default
-    return float(value) if isinstance(value, int | float) else default
+    if not isinstance(value, int | float):
+        return default
+    parsed = float(value)
+    return parsed if math.isfinite(parsed) and parsed >= 0 else default
+
+
+def _validated_budget(value: object, *, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0:
+        raise ValueError(f"{field_name} must be a finite non-negative number")
+    return parsed
 
 
 def _bool(value: object, default: bool = False) -> bool:
@@ -275,7 +288,10 @@ class Library:
         return _parse_library(raw)
 
     def _save(self):
-        atomic_write_text(self.library_file, json.dumps(self._data, indent=2, ensure_ascii=False))
+        atomic_write_text(
+            self.library_file,
+            json.dumps(self._data, indent=2, ensure_ascii=False, allow_nan=False),
+        )
 
     def add_channel(self, topic: str, url: str, name: str):
         """Add a channel to a topic."""
@@ -517,6 +533,8 @@ class Library:
         monthly_budget: float = 0.0,
     ) -> bool:
         topic = sanitize_topic(topic)
+        max_run_cost = _validated_budget(max_run_cost, field_name="max_run_cost")
+        monthly_budget = _validated_budget(monthly_budget, field_name="monthly_budget")
         twl = self._data["topic_watchlist"]
         if any(e["name"].lower() == name.lower() for e in twl):
             return False
@@ -593,12 +611,22 @@ class Library:
     def update_topic_watch_budget(
         self, name: str, *, max_run_cost: float | None = None, monthly_budget: float | None = None
     ) -> bool:
+        validated_run_cost = (
+            _validated_budget(max_run_cost, field_name="max_run_cost")
+            if max_run_cost is not None
+            else None
+        )
+        validated_monthly_budget = (
+            _validated_budget(monthly_budget, field_name="monthly_budget")
+            if monthly_budget is not None
+            else None
+        )
         for e in self._data["topic_watchlist"]:
             if e["name"].lower() == name.lower():
-                if max_run_cost is not None:
-                    e["max_run_cost"] = max_run_cost
-                if monthly_budget is not None:
-                    e["monthly_budget"] = monthly_budget
+                if validated_run_cost is not None:
+                    e["max_run_cost"] = validated_run_cost
+                if validated_monthly_budget is not None:
+                    e["monthly_budget"] = validated_monthly_budget
                 self._save()
                 return True
         return False
@@ -631,7 +659,10 @@ class ChannelState:
         return _parse_channel_state(raw)
 
     def _save(self):
-        atomic_write_text(self.state_file, json.dumps(self._data, indent=2, ensure_ascii=False))
+        atomic_write_text(
+            self.state_file,
+            json.dumps(self._data, indent=2, ensure_ascii=False, allow_nan=False),
+        )
 
     def is_processed(self, video_id: str) -> bool:
         return video_id in self._data["processed_videos"]

@@ -86,6 +86,15 @@ def test_worker_cli_claim_list_submit_flow(worker_config: DistillConfig) -> None
     assert claimed.exit_code == 0
     claim = _data(claimed.output)
     assert claim["claimed"] is True
+    assert claim["submit_command"] == [
+        "distill",
+        "--json",
+        "worker",
+        "submit",
+        task_id,
+    ]
+    assert claim["claim_token_env"] == "DISTILL_WORKER_CLAIM_TOKEN"
+    assert str(claim["claim_token"]) not in json.dumps(claim["submit_command"])
     Path(str(claim["result_path"])).write_text("# Complete\n", encoding="utf-8")
 
     submitted = runner.invoke(
@@ -95,8 +104,6 @@ def test_worker_cli_claim_list_submit_flow(worker_config: DistillConfig) -> None
             "worker",
             "submit",
             task_id,
-            "--claim-token",
-            str(claim["claim_token"]),
             "--model",
             "gpt-test",
             "--input-tokens",
@@ -104,6 +111,7 @@ def test_worker_cli_claim_list_submit_flow(worker_config: DistillConfig) -> None
             "--output-tokens",
             "3",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": str(claim["claim_token"])},
     )
     assert submitted.exit_code == 0
     submission = _data(submitted.output)
@@ -122,6 +130,8 @@ def test_worker_human_claim_submit_and_abandon_flow(worker_config: DistillConfig
     assert f"Claimed task {task_id}" in claimed.output
     assert "Billing is host-managed" in claimed.output
     assert "Distill has not proved this session is no-metered" in claimed.output
+    assert "DISTILL_WORKER_CLAIM_TOKEN" in claimed.output
+    assert "process arguments" in claimed.output
     token_match = re.search(r"Claim token: (\S+)", claimed.output)
     assert token_match is not None
     token = token_match.group(1)
@@ -131,7 +141,8 @@ def test_worker_human_claim_submit_and_abandon_flow(worker_config: DistillConfig
 
     submitted = runner.invoke(
         cli.app,
-        ["worker", "submit", task_id, "--claim-token", token],
+        ["worker", "submit", task_id],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": token},
     )
     assert submitted.exit_code == 0
     assert f"Submitted task {task_id}" in submitted.output
@@ -147,11 +158,10 @@ def test_worker_human_claim_submit_and_abandon_flow(worker_config: DistillConfig
             "worker",
             "abandon",
             second_id,
-            "--claim-token",
-            str(second_claim["claim_token"]),
             "--reason",
             "manual stop",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": str(second_claim["claim_token"])},
     )
     assert abandoned.exit_code == 0
     assert f"Released task {second_id}" in abandoned.output

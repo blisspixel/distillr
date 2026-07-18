@@ -3,6 +3,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
+import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
@@ -112,6 +113,50 @@ def test_topic_watch_budget_and_pause_round_trip(config):
     assert entry.max_run_cost == 0.25
     assert entry.monthly_budget == 3.0
     assert entry.paused is True
+
+
+@pytest.mark.parametrize("bad_budget", [float("nan"), float("inf"), float("-inf"), -0.01])
+def test_topic_watch_library_rejects_invalid_budgets_without_mutation(config, bad_budget):
+    lib = Library(config)
+
+    with pytest.raises(ValueError, match="finite non-negative"):
+        lib.add_to_topic_watchlist("bad", "query", max_run_cost=bad_budget)
+
+    assert lib.get_topic_watchlist() == []
+    assert not lib.library_file.exists()
+
+
+def test_topic_watch_load_normalizes_nonfinite_legacy_budget(config):
+    config.library_dir.mkdir(parents=True, exist_ok=True)
+    (config.library_dir / "library.json").write_text(
+        '{"topics":{},"watchlist":[],"topic_watchlist":['
+        '{"name":"legacy","query":"q","topic":"t",'
+        '"max_run_cost":NaN,"monthly_budget":Infinity}]}',
+        encoding="utf-8",
+    )
+
+    entry = Library(config).get_topic_watch_entry("legacy")
+
+    assert entry is not None
+    assert entry.max_run_cost == 0.0
+    assert entry.monthly_budget == 0.0
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1"])
+def test_topic_watch_cli_rejects_nonfinite_or_negative_budget(tmp_path, value):
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    original = _topic_watch_cmd.get_config
+    _topic_watch_cmd.get_config = lambda: config
+    try:
+        result = runner.invoke(
+            cli.app,
+            ["topic-watch", "add", "query", "--max-run-cost", value],
+        )
+    finally:
+        _topic_watch_cmd.get_config = original
+
+    assert result.exit_code != 0
+    assert "finite non-negative" in _plain_cli_output(result.output)
 
 
 def test_topic_watch_cli_add_and_list(tmp_path):

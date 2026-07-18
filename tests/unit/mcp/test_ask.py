@@ -45,6 +45,24 @@ def test_ask_missing_topic_returns_error(tmp_path, monkeypatch) -> None:
     assert "not found" in result["error"]
 
 
+def test_ask_rejects_oversized_question_before_model_check(tmp_path, monkeypatch) -> None:
+    from distill.mcp import server as _server
+    from distill.mcp.tools.ask import ask
+
+    config = _config(tmp_path)
+    monkeypatch.setattr(_server, "_config", lambda: config)
+
+    def unexpected_model_check(*_args, **_kwargs):
+        raise AssertionError("oversized question reached model preflight")
+
+    monkeypatch.setattr("distill.mcp.tools.ask.model_available", unexpected_model_check)
+
+    result = json.loads(ask("t", "q" * 4_097))
+
+    assert result["status"] == "error"
+    assert "4096" in result["error"]
+
+
 def test_ask_no_coverage_returns_status(tmp_path, monkeypatch) -> None:
     from distill.mcp import server as _server
     from distill.mcp.tools.ask import ask

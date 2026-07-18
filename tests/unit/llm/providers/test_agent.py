@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import json
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from distill.llm.providers import agent as agent_mod
 from distill.llm.providers.agent import AgentProvider
 from distill.llm.router import ConfigurationError, LLM_Response, PendingTaskError
 from distill.llm.usage import LLMUsageAttempt, usage_attempts_from_exception
+from distill.worker.tasks import AgentTaskQueue
 
 # ---------------------------------------------------------------------------
 # Strategies
@@ -37,11 +39,44 @@ _result_text = st.text(
     alphabet=st.characters(blacklist_characters="\r", blacklist_categories=("Cs",)),
     min_size=1,
     max_size=500,
-)
+).filter(lambda text: bool(text.strip()))
 
 
 def _expected_prompt_hash(prompt: str, workload_tag: str) -> str:
     return hashlib.sha256(f"{workload_tag}:{prompt}".encode()).hexdigest()[:16]
+
+
+def _submit_task_result(
+    ops_dir: Path,
+    result_text: str,
+    *,
+    model: str = "test-model",
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+) -> tuple[Path, Path]:
+    """Complete the first pending task through the supported worker protocol."""
+
+    queue = AgentTaskQueue(ops_dir)
+    claim = queue.claim(host="pytest", worker_id="test-worker")
+    assert claim is not None
+    task_id = str(claim["task_id"])
+    result_path = Path(str(claim["result_path"]))
+    result_path.write_text(result_text, encoding="utf-8")
+    queue.submit(
+        task_id,
+        claim_token=str(claim["claim_token"]),
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+    task_path = next((ops_dir / "tasks" / "pending").glob(f"*_{task_id}.json"))
+    published_result = ops_dir / "tasks" / "pending" / f"{task_path.stem}_result.md"
+    return task_path, published_result
+
+
+def _published_text(text: str) -> str:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized if normalized.endswith("\n") else f"{normalized}\n"
 
 
 class InspectableAgentProvider(AgentProvider):
@@ -128,23 +163,22 @@ def test_result_round_trip(prompt: str, workload_tag: str, result_text: str) -> 
         with pytest.raises(PendingTaskError):
             asyncio.run(provider.call("agent", prompt, call_type=workload_tag))
 
-        # Find the task file and write the result
+        # Complete the task through the ownership-bound worker protocol.
         pending_dir = ops_dir / "tasks" / "pending"
         task_files = list(pending_dir.glob("*.json"))
         assert len(task_files) == 1
-
-        task_data: dict[str, object] = json.loads(task_files[0].read_text(encoding="utf-8"))
-        result_path = Path(str(task_data["result_path"]))
-        result_path.write_text(result_text, encoding="utf-8")
+        _submit_task_result(ops_dir, result_text)
 
         # Second call: should find the result and return it
         response = asyncio.run(provider.call("agent", prompt, call_type=workload_tag))
 
         assert isinstance(response, LLM_Response)
-        assert response.text == result_text
+        assert response.text == _published_text(result_text)
         assert response.input_tokens > 0
         assert response.output_tokens > 0
-        assert response.model == "agent"
+        assert response.model == "test-model"
+        assert response.provider_name == "pytest"
+        assert response.provider_type == "host-managed"
         assert response.usage_source == "conservative"
         assert len(response.usage_attempts) == 1
         assert response.usage_attempts[0].usage_source == "conservative"
@@ -178,6 +212,67 @@ def test_usage_is_accepted_before_pending_task_becomes_visible(tmp_path: Path) -
     assert emitted[0].input_tokens > 0
     assert emitted[0].output_tokens == 64
     assert len(list(pending_dir.glob("*.json"))) == 1
+
+
+def test_repeated_pending_call_reuses_one_task_identity(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+
+    with pytest.raises(PendingTaskError) as first:
+        asyncio.run(provider.call("agent", "same prompt", call_type="analysis"))
+    with pytest.raises(PendingTaskError) as second:
+        asyncio.run(provider.call("agent", "same prompt", call_type="analysis"))
+
+    assert second.value.task_path == first.value.task_path
+    assert "already awaiting" in str(second.value)
+    assert len(list((ops_dir / "tasks" / "pending").glob("*.json"))) == 1
+
+
+def test_concurrent_pending_calls_publish_one_task(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+
+    def call_provider() -> str:
+        with pytest.raises(PendingTaskError) as raised:
+            asyncio.run(provider.call("agent", "same prompt", call_type="analysis"))
+        return raised.value.task_path
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        paths = list(executor.map(lambda _index: call_provider(), range(2)))
+
+    assert paths[0] == paths[1]
+    assert len(list((ops_dir / "tasks" / "pending").glob("*.json"))) == 1
+
+
+def test_result_without_worker_receipt_remains_pending(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    provider = AgentProvider(str(ops_dir))
+
+    with pytest.raises(PendingTaskError) as created:
+        asyncio.run(provider.call("agent", "same prompt", call_type="analysis"))
+    task_path = Path(created.value.task_path)
+    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
+    Path(str(task_data["result_path"])).write_text("unreceipted", encoding="utf-8")
+
+    with pytest.raises(PendingTaskError, match="valid worker submission receipt") as replay:
+        asyncio.run(provider.call("agent", "same prompt", call_type="analysis"))
+
+    assert replay.value.task_path == str(task_path)
+    assert len(list((ops_dir / "tasks" / "pending").glob("*.json"))) == 1
+
+
+def test_pending_queue_capacity_fails_closed_before_task_write(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    pending_dir = ops_dir / "tasks" / "pending"
+    pending_dir.mkdir(parents=True)
+    for index in range(agent_mod.MAX_AGENT_PENDING_TASKS):
+        (pending_dir / f"invalid_{index:03d}.json").write_text("{}", encoding="utf-8")
+    provider = AgentProvider(str(ops_dir))
+
+    with pytest.raises(ConfigurationError, match="pending task limit"):
+        asyncio.run(provider.call("agent", "new prompt", call_type="analysis"))
+
+    assert len(list(pending_dir.glob("*.json"))) == agent_mod.MAX_AGENT_PENDING_TASKS
 
 
 def test_task_write_rejects_regular_directory_replacement_before_publication(
@@ -526,9 +621,7 @@ def test_cached_result_reuses_admitted_usage_identity(tmp_path: Path) -> None:
             )
         )
 
-    task_path = next((ops_dir / "tasks" / "pending").glob("*.json"))
-    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
-    Path(str(task_data["result_path"])).write_text("done", encoding="utf-8")
+    _submit_task_result(ops_dir, "done")
     collected: list[LLMUsageAttempt] = []
 
     response = asyncio.run(
@@ -829,7 +922,7 @@ def test_pending_result_path_rejects_missing_root_and_resolution_error(
     assert not provider._is_pending_result_path(result_path)
 
 
-def test_cached_result_survives_already_removed_task_file(
+def test_cached_result_without_receipt_is_rejected_after_task_removed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -841,9 +934,10 @@ def test_cached_result_survives_already_removed_task_file(
         lambda *_args, **_kwargs: (missing_task, "completed result"),
     )
 
-    response = asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
+    with pytest.raises(PendingTaskError, match="valid worker submission receipt") as raised:
+        asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
 
-    assert response.text == "completed result"
+    assert raised.value.task_path == str(missing_task)
     assert not missing_task.exists()
 
 
@@ -898,9 +992,7 @@ def test_cached_result_is_preserved_when_accounting_rejects(tmp_path: Path) -> N
     with pytest.raises(PendingTaskError):
         asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
 
-    task_path = next((ops_dir / "tasks" / "pending").glob("*.json"))
-    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
-    Path(str(task_data["result_path"])).write_text("done", encoding="utf-8")
+    task_path, _result_path = _submit_task_result(ops_dir, "done")
 
     def reject(_attempt: LLMUsageAttempt) -> None:
         raise RuntimeError("ledger unavailable")
@@ -926,9 +1018,7 @@ def test_cached_result_does_not_mutate_a_replaced_pending_directory(tmp_path: Pa
         asyncio.run(provider.call("agent", "test prompt", call_type="analysis"))
 
     pending_dir = ops_dir / "tasks" / "pending"
-    task_path = next(pending_dir.glob("*.json"))
-    task_data: dict[str, object] = json.loads(task_path.read_text(encoding="utf-8"))
-    Path(str(task_data["result_path"])).write_text("trusted result", encoding="utf-8")
+    task_path, _result_path = _submit_task_result(ops_dir, "trusted result")
     original_dir = tmp_path / "original-pending"
 
     def replace_pending(_attempt: LLMUsageAttempt) -> None:
@@ -945,7 +1035,7 @@ def test_cached_result_does_not_mutate_a_replaced_pending_directory(tmp_path: Pa
         )
     )
 
-    assert response.text == "trusted result"
+    assert response.text == "trusted result\n"
     assert (pending_dir / task_path.name).read_text(encoding="utf-8") == "replacement marker"
     assert (original_dir / task_path.name).exists()
 
@@ -1247,14 +1337,12 @@ class TestAgentProviderLifecycle:
         task_files = list(pending_dir.glob("synthesis_*.json"))
         assert len(task_files) == 1
 
-        task_data: dict[str, object] = json.loads(task_files[0].read_text(encoding="utf-8"))
-        result_path = Path(str(task_data["result_path"]))
-        result_path.write_text("completed result", encoding="utf-8")
+        _task_path, result_path = _submit_task_result(ops_dir, "completed result")
 
         first = asyncio.run(provider.call("agent", "test prompt", call_type="synthesis"))
         second = asyncio.run(provider.call("agent", "test prompt", call_type="synthesis"))
 
-        assert first.text == second.text == "completed result"
+        assert first.text == second.text == "completed result\n"
         assert task_files[0].exists()
         assert result_path.exists()
         assert list(pending_dir.glob("synthesis_*.json")) == task_files

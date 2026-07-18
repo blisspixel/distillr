@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
-from distill.llm.usage import MAX_USAGE_TOKENS
+import hashlib
+
+from distill.llm.providers._agent_protocol import HostSubmission
+from distill.llm.usage import MAX_USAGE_TOKENS, LLMUsageAttempt
 
 _CONSERVATIVE_INPUT_OVERHEAD_TOKENS = 1024
 
@@ -14,6 +17,52 @@ def conservative_usage(*, prompt: str, max_tokens: int) -> tuple[int, int]:
     return (
         max(1, len(prompt.encode("utf-8")) + _CONSERVATIVE_INPUT_OVERHEAD_TOKENS),
         min(MAX_USAGE_TOKENS, max(0, max_tokens)),
+    )
+
+
+def deferred_usage_attempt(
+    *,
+    prompt: str,
+    prompt_hash: str,
+    task_filename: str,
+    max_tokens: int,
+    submission: HostSubmission | None = None,
+) -> LLMUsageAttempt:
+    """Build stable conservative evidence for one deferred external task."""
+
+    attempt_id = hashlib.sha256(f"agent:{prompt_hash}:{task_filename}".encode()).hexdigest()
+    if submission is None:
+        input_tokens, output_tokens = conservative_usage(
+            prompt=prompt,
+            max_tokens=max_tokens,
+        )
+        model = "agent"
+        provider_name = "agent"
+        provider_type = "cloud"
+        usage_source = "conservative"
+    else:
+        if submission.input_tokens is None:
+            input_tokens, output_tokens = conservative_usage(
+                prompt=prompt,
+                max_tokens=max_tokens,
+            )
+            usage_source = "conservative"
+        else:
+            input_tokens = submission.input_tokens
+            output_tokens = submission.output_tokens or 0
+            usage_source = submission.usage_source
+        model = submission.model_label
+        provider_name = submission.host
+        provider_type = "host-managed"
+    return LLMUsageAttempt(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        model=model,
+        provider_name=provider_name,
+        provider_type=provider_type,
+        usage_source=usage_source,
+        outcome="success",
+        attempt_id=attempt_id,
     )
 
 

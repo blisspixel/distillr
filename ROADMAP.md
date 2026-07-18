@@ -32,7 +32,7 @@ Distill is a source-to-intelligence platform covering eight source types, all on
 - **Newsletters / feeds** (new adapter) - full feed bodies when available, routed by substance rather than attached narration
 - **Local files and media** (new adapter) - PDF / Markdown / text / HTML documents, plus local audio/video through the transcription ladder
 
-`distill discover` is the goal-aware front door across papers, videos, curated website seed files, and trusted-site page expansion. Docs-heavy workflows can pass repeated `--trusted-site` domains or section URLs so Distill enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links before the goal-aware rerank, instead of requiring every page seed by hand. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls for operators who want one section hop. Website preview rows now include exact URL, section label, discovery source, and sitemap freshness date when known. Website batch seed files can mix explicit exact-page and shallow-crawl modes, and `distill site-batch --preview` shows the resolved crawl plan before writes. With global `--json`, that preview emits the same plan as loop-readable rows. MCP `site_batch` honors the same JSON seed modes for relative seed files inside the library root, and `preview=true` returns the plan even in read-only deployments.
+`distill discover` is the goal-aware front door across papers, videos, curated website seed files, and trusted-site page expansion. Docs-heavy workflows can pass repeated `--trusted-site` domains or section URLs so Distill enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links before the goal-aware rerank, instead of requiring every page seed by hand. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls for operators who want one section hop. Website preview rows now include exact URL, section label, discovery source, and sitemap freshness date when known. Website batch seed files can mix explicit exact-page and shallow-crawl modes, and `distill site-batch --preview` shows the resolved crawl plan before writes. With global `--json`, that preview emits the same plan as loop-readable rows. MCP `site_batch` honors the same JSON seed modes only for bounded manifests under `library/site-seeds/`, and `preview=true` returns the plan even in read-only deployments.
 
 Everything produces plain markdown in a local `library/` directory. An MCP server exposes the corpus to AI assistants and agent systems.
 
@@ -72,7 +72,7 @@ Distillr should not chase that crowd - the vault-maintenance fight is lost to 35
 - **AGENTS.md won the cross-vendor baseline** (Linux Foundation / Agentic AI Foundation; supported in Codex, Cursor, Gemini CLI, and 30+ tools) - but Claude Code reads CLAUDE.md, so the corpus emits *both* per topic. `llms.txt` is not the core interface, but once OKF export ships it can become a thin optional pointer to the exported bundle for tools that look there.
 - **SKILL.md went vendor-neutral** ([agentskills.io](https://agentskills.io), ~32 tools by March 2026), and the winning vendor pattern is exactly distillr's shape: *a CLI plus one skill teaching the agent to use it*. One canonical SKILL.md is one file, ~100 tokens until invoked - categorically different from the symlink-machinery model this roadmap still rejects.
 - **The MCP server stays but slims.** Token-efficiency is now canon: Anthropic measured ~85% schema savings from deferred tool loading and large gains from [code-execution over tool calls](https://www.anthropic.com/engineering/code-execution-with-mcp); GitHub cut agentic-workflow tokens ~62% partly by replacing MCP calls with the `gh` CLI; Claude Code's own best practices call CLI tools "the most context-efficient way to interact with external services." At ~500-1,000 schema tokens per tool, 22 always-loaded tools is the pattern the ecosystem is punishing. Consolidate to a handful of workflow-shaped tools that return **paths into the corpus plus short previews, never full payloads** - the corpus being plain files makes this natural. The server remains the only route to claude.ai web/mobile and hosted agents, so it stays; it becomes a thin window onto the files.
-- **MCP 2026-07-28 is a near-term compatibility checkpoint, not a product pivot.** The May 21 release candidate for the July 28, 2026 MCP spec makes the protocol core stateless, adds `server/discover`, cache metadata for tool and resource lists, first-class extensions, a redesigned Tasks extension, MCP Apps, authorization hardening, full JSON Schema 2020-12 for tool schemas, and annotation-only deprecations for roots, sampling, and logging. Distill should track the final spec as soon as it lands, then run a focused compatibility spike before freezing the 1.0 MCP contract: inventory deprecated features, validate schemas, decide whether long-running ingest/report/profile commands should expose Tasks, and keep stdio/local deployments working while remote HTTP compatibility catches up to SDK support.
+- **MCP 2026-07-28 is a near-term compatibility checkpoint, not a product pivot.** The May 21 release candidate for the July 28, 2026 MCP spec makes the protocol core stateless, adds `server/discover`, cache metadata for tool and resource lists, first-class extensions, a redesigned Tasks extension, MCP Apps, authorization hardening, full JSON Schema 2020-12 for tool schemas, and annotation-only deprecations for roots, sampling, and logging. Distill should track the final spec as soon as it lands, then run a focused compatibility spike while the 1.0 MCP surface remains a candidate: inventory deprecated features, validate schemas, decide whether long-running ingest/report/profile commands should expose Tasks, and keep stdio/local deployments working while remote HTTP compatibility catches up to SDK support.
 - **Registries don't distribute.** MCP registry usage concentrates in ~10 famous servers (top 10 take ~46% of attention); skills marketplaces have a measured 13.4% critical-flaw rate (Snyk ToxicSkills, Feb 2026). The adoption levers that work: a good `uvx`-runnable CLI, agent-readable docs in the repo, and a self-describing corpus - plus the security story ("your research is local plain files; no third-party server in the loop"), which MCP's 2026 CVE record turned into a real selling point.
 
 **Why not "just make it an MCP skill"?** Distillr already *is* an MCP server (MCP-first since 0.5). But a thin MCP wrapper or agent skill would be useless for what distillr actually does - long-running batch ingestion, persistent corpus maintenance, and compounding knowledge across sessions are exactly what interactive agents (Claude Code, Cursor, Windsurf) are terrible at. The architecture is separation of concerns: distillr is the dedicated research-corpus layer; agents query it via MCP or read it as files. Shipping one canonical SKILL.md that *teaches agents the CLI* is distribution for that architecture, not a replacement of it. It's "and," not "or."
@@ -81,7 +81,7 @@ Distillr should not chase that crowd - the vault-maintenance fight is lost to 35
 
 The longer horizon - what 1.0, 2.0, and 3.0 each *promise*, the maybe-later parking lot, and the design-doc ledger - lives in [`docs/design/version-architecture.md`](docs/design/version-architecture.md); this section remains the operational spine to 1.0.
 
-The goal of 1.0 is a stable, agent-drivable research tool that an external agent can use without surprises and that a human can run as a daily-driver knowledge system. Milestones are ordered by dependency, not by calendar - each one unblocks the next. Seven themes run through every version:
+The goal of 1.0 is a stable, agent-drivable research tool that an external agent can use without surprises and that a human can run as a daily-driver knowledge system. This roadmap does not schedule a freeze. Readiness follows evidence from the current product surface, not a calendar or a claim that feature breadth is done. Seven themes run through every version:
 
 - **Agent-first, with parallel surfaces.** Workflows expose stable library calls through the CLI, plain files, and MCP where hosted or structured access helps. The CLI and MCP remain thin wrappers over the same implementation, while the corpus itself stays the lowest-overhead agent interface.
 - **Effective-context-aware.** Cloud models in 2026 have 1M+ context windows - a 100K paper fits whole. Chunking is not a universal concern; it is a local-model concern. The system should be adaptive: send content whole when the provider's window allows it, chunk intelligently when it does not (local models with 8K-32K windows). The 2025-2026 context-engineering literature (lost-in-the-middle, ACE-style playbooks, just-in-time retrieval) informs the design, but the implementation targets where it actually matters.
@@ -109,7 +109,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 Shipped: **0.1 through 0.19** (latest release 0.19.37, 2026-07-16). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
-- **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Remaining to 1.0). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+- **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
   Cost visibility tightened after the xAI spend review: `distill doctor` reports
   the active cost mode and warns when `auto` mode has metered API keys
@@ -118,7 +118,7 @@ Shipped: **0.1 through 0.19** (latest release 0.19.37, 2026-07-16). Per-release 
   dashboard also surface structural surprise-cost warnings from the ledger,
   including high daily spend, spend spikes, configured per-workflow budget
   overruns, and any recorded xAI media-generation model ids.
-- **0.18 Batch-run visibility** - the `_logic.py` monolith fully retired, per-item / per-phase progress with running cost and ETA on the long ingest and report loops, and `-q` / `-v` / `--json` verbosity controls before the CLI contracts freeze.
+- **0.18 Batch-run visibility** - the `_logic.py` monolith fully retired, per-item / per-phase progress with running cost and ETA on the long ingest and report loops, and `-q` / `-v` / `--json` verbosity controls while the CLI contracts remain candidates.
 - **0.17 OKF interop + loop-ready stewardship** - `distill export --what bundle --format okf` and `distill okf validate` (OKF v0.1 bundles projected over the native corpus), plus `distill audit --next-actions --json` as the loop handoff surface. Design: [`docs/design/okf-loop-readiness.md`](docs/design/okf-loop-readiness.md).
 - **0.13-0.16 Engineering legibility + CLI-UX** - the entailment tier + verify-on-every-synthesis (0.13), agent-grade `--json` / strict stdout-stderr split (0.14), in-place `distill update` (0.15), the blocking structural golden-corpus eval gate (0.16), and the full `_logic.py` monolith removal. Design: [`docs/design/logic-decomposition.md`](docs/design/logic-decomposition.md).
 - **0.12 Compounding corpus** - the `distill ask` loop with strict-by-definition `--save` promotion, revision-cached sub-agent MCP summaries, read-only MCP + per-call spend caps + ingest allowlist, semantic dedup, the prompt-version registry + staleness rollup, and per-item failure isolation. Design: [`docs/design/ask-loop.md`](docs/design/ask-loop.md).
@@ -127,14 +127,39 @@ Shipped: **0.1 through 0.19** (latest release 0.19.37, 2026-07-16). Per-release 
 - **0.9 Agent-legible corpus** - AGENTS.md beside CLAUDE.md per topic, one canonical SKILL.md, the paths-not-payloads MCP consolidation, the public example corpus, and the "research corpus, not memory layer" positioning refresh.
 - **0.1-0.8 Foundations** - the MCP-first surface, local inference, the concept/entity playbook + recovery surface, the reproducible `uv` toolchain + engineering baseline, the discovery loop, two-pass synthesis, local-file ingest, and the X + Whisper adapter; interleaved with the 0.9.20-0.9.23 security/robustness hardening series.
 
-**Remaining to 1.0.** The feature spine is complete through 0.19; the distance left is the quality bar, not new surface. Forward milestones, detail below:
+**Current refinement program.** The 0.19 surface is broad, but breadth is not a
+freeze signal. The active backlog is grouped by product-quality debt so each
+cycle can improve a real workflow without opening unrelated feature scope:
 
-- **MCP 2026-07-28 compatibility spike (near-term, after the July 28 final spec)** - validate Distill's MCP server against the finalized stateless protocol, extension model, Tasks lifecycle, cache metadata, JSON Schema 2020-12 schemas, deprecations, and authorization-hardening implications before the 1.0 MCP contract freezes. [detail](docs/roadmap.md#0b-mcp-2026-07-28-compatibility-spike)
-- **1.0 Stability commitment + quality bar** - the real remaining distance: versioned and frozen CLI / MCP / library / frontmatter / OKF / next-action / profile contracts; a published, reproducible performance baseline; completion of the Pyright strict-mode and "parse, don't validate" boundary ratchets (the full package-surface run already blocks at 0 diagnostics); verification depth on the deterministic core; the maintained >=95% branch-coverage floor; and the presentation pass. [detail](#100---stability-commitment--quality-bar)
-- **Provider breadth + plan-quota compute (committed, post-1.0)** - the eval-gated adapter contract across cloud APIs (xAI, Google, opt-in Anthropic in-tree, OpenAI reserved, AWS Bedrock, Microsoft Foundry) and the plan-quota CLI class. This subsumes the 0.19 route-graduation tail, whose open gates are vendor-gated rather than effort-gated: current no-metered support statements, plan-quota auth proof, native schema enforcement where the CLI supports it, and `distill eval` route graduation. [detail](#looking-beyond-10)
-- **Beyond 1.0 (exploratory)** - semantic alias resolution over `mentions.jsonl`, provider-aware prompt or context caching research, and shared LLM-intermediate caching as a load-bearing pattern. [detail](#looking-beyond-10)
+- **Feature work:** defer new breadth unless a current workflow cannot be made
+  trustworthy without it. The final MCP compatibility spike remains a bounded
+  compatibility task after the 2026-07-28 specification publishes.
+- **UX flow debt:** compress setup choices, keep preview-first paths obvious,
+  and make worker, retry, resume, and recovery flows self-explanatory.
+- **Visual polish debt:** review terminal density, dashboard hierarchy, empty
+  states, responsive behavior, and representative media from current builds.
+- **Observability debt:** make every bounded refusal identify the affected
+  phase, limit, run or task identity, and local receipt or telemetry path.
+- **Reliability debt:** continue end-to-end deadline, byte, attempt, process,
+  memory, state-transition, replay, and cross-platform fault-injection work.
+- **Security debt:** close validated findings, keep MCP reads least-capability,
+  preserve trusted executable identity, and rerun adversarial boundary reviews.
+- **Accessibility debt:** verify keyboard order, focus visibility, semantic
+  structure, contrast, reduced motion, no-color CLI comprehension, and
+  screen-reader-friendly status and error copy.
+- **Documentation debt:** keep README, usage, security, MCP, operator, and
+  migration guidance synchronized with tested behavior and billing truth.
 
-A harden pass is slotted in whenever the surface a recent feature added warrants it (the 0.9.20-0.9.23 series is the precedent), so the sequence above is the feature spine, not the whole release stream. Detail for each forward milestone follows; shipped releases - and the design rationale behind them - are recorded in [`docs/CHANGELOG.md`](docs/CHANGELOG.md). The "[intentionally not in scope](#intentionally-not-in-scope)" section at the bottom is the deliberate exclusions list.
+The future 1.0 stability commitment is a readiness gate, not the next release
+instruction. Candidate contracts can keep improving during this program. The
+stability decision requires compatibility and migration evidence, a published
+performance baseline, sustained clean cross-platform release evidence,
+representative user and operator journey reviews, accessibility and security
+closure, and a materially reduced high-impact refinement backlog. Detail for
+the eventual commitment remains below. Shipped work and rationale live in
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md). The
+"[intentionally not in scope](#intentionally-not-in-scope)" section remains the
+deliberate exclusions list.
 
 ### Shipped milestone detail -> the changelog
 
@@ -218,7 +243,11 @@ workflow that makes unsupported certainty hard to write and easy to audit.
 
 ### 1.0.0 - Stability commitment + quality bar
 
-Public-API freeze plus a documented quality posture. The shape of distillr stops changing under users and agents, and the codebase ships at the polish bar a 1.0 release deserves.
+This is a future readiness decision, not the current implementation phase. No
+public-API freeze is scheduled. When the conditions below are supported by
+release evidence, 1.0 can make a documented compatibility promise without
+locking in shapes that still need product, security, accessibility, or operator
+refinement.
 
 **Stability.**
 
@@ -232,7 +261,7 @@ Public-API freeze plus a documented quality posture. The shape of distillr stops
   - Optimization order is measurement, repeated-scan and data-movement removal, algorithm and cache improvements, bounded concurrency, then a conditional native spike. No language extraction precedes that sequence.
   - Status 2026-07-12: correlated command evidence is readable through `distill costs`; corpus-scale result v2 isolates every sample in a timeout-bounded child process, fingerprints the measured source, labels the warmed filesystem state, and withholds p95 below 20 samples; and the first profiled algorithm seam now uses an exact indexed candidate pass that reduced 499,500 possible pairs to 150 at 1,000 insights. The canonical scale matrix, frozen workflow replay, comparable scheduled history, live reference journeys, and published baseline remain open. The evidence does not yet admit Rust, Go, Mojo, or free-threaded Python into the product.
 
-**Stability is about contracts, not about prompts. Prompt-revision cadence is separate.**
+**A future stability commitment is about contracts, not about prompts. Prompt-revision cadence is separate.**
 
 The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP schemas, library layout, frontmatter fields). It deliberately does **not** freeze the *prompts* that drive analysis, synthesis, concept extraction, and verification. Agent behavior changes as models change; distillr's prompts are no different. What works on one model version may regress on the next, and over-fitting prompts to the last validated model is its own kind of brittleness.
 
@@ -309,13 +338,22 @@ The gates above prove *coverage* and *types*. These prove the tests and the code
 - **Stateful property testing of the playbook lifecycle - shipped.** A Hypothesis state machine (`tests/unit/concepts/test_playbook_stateful.py`) models the concept layer's real lifecycle - append mentions to `mentions.jsonl`, merge, write notes, snapshot to `.history/`, roll back, re-merge - and asserts the invariants hold across arbitrary operation orderings (merge consistency, idempotence, order independence, rollback round-trip, evidence intervals never invert). This is the class of bug (ordering, accumulation, rollback-after-merge) that single-shot example tests miss.
 - **Fault-injection at the external boundaries.** Deterministic tests that inject malformed LLM JSON, truncated/empty transcripts, network timeouts, and yt-dlp failures, asserting the pipeline degrades cleanly (resume-friendly, no half-written artifacts) and that the "no silent error swallowing" rule actually holds under turbulence - verified, not assumed. Distill's primary concurrency model is I/O plus external workers, with subprocesses, thread-backed helpers, and synchronous phases also present. Async safety, cancellation, bounded fan-out, and write-scope isolation are the current disciplines; a future free-threaded or native path must add the race and shared-state tests its own design requires.
 
-**Polish.**
+**Polish and release confidence.**
 
-- Repo presentation pass: README screenshots/gifs (terminal dashboard, sample report, web UI, library in Obsidian), GitHub repo description and topics, and contributor onboarding that gets a new contributor from clone to a verified first contribution path. The legacy duplicate setup script was retired on 2026-07-09, and both source installers now hand first-run configuration to the tested `distill init` flow.
-- All public APIs documented (concise docstrings on the public surface; longer where the rationale isn't obvious from naming).
-- `docs/CONTRIBUTING.md` covers the full quality posture above so contributors know the bar before they open a PR.
+- Complete evidence-backed reviews of onboarding, daily use, recovery,
+  operator diagnostics, accessibility, and current visual hierarchy before
+  treating presentation as a media-capture task.
+- Document all public APIs with concise contracts and longer rationale only
+  where naming cannot explain the boundary.
+- Keep `docs/CONTRIBUTING.md` aligned with the full quality posture so a new
+  contributor can reach a verified first contribution without hidden gates.
+- Capture README screenshots or recordings only from representative, tested
+  current builds. Media is evidence of the product surface, not a substitute
+  for fixing it.
 
-Why this version: 1.0 is a stability *and* quality claim. It's the version external systems can build on without expecting churn, and the version a new contributor can land a clean PR in without a long onboarding tail. Competitively, the agent-integration story now ships much earlier (the agent-legible 0.9 pass); 1.0's job is the presentation pass, onboarding docs, and stable contracts that convert "technically superior" into "actually adopted" - and by this point the story writes itself: verified, agent-legible, multi-source, user-owned.
+Why this version: 1.0 is a stability and quality claim. External systems should
+receive that promise only after current workflows are polished, observable,
+accessible, resilient, secure, and migration-tested enough to support it.
 
 ## Looking beyond 1.0
 
@@ -535,7 +573,10 @@ distillr's threat model follows from what it actually is: a local-first CLI and 
 **Already in place:**
 
 - **Supply chain** (0.8.3): committed `uv.lock` + `uv sync --frozen`, blocking `pip-audit` and bandit in CI, a CycloneDX SBOM, PEP 740 provenance attestations, and SHA-pinned GitHub Actions, including the PyPI publish action after verifying its matching container image tag. For an API consumer the "model supply chain is the new software supply chain" concern reduces to ordinary dependency hygiene, which is covered. (Dependency/action bumps are reviewed manually; automated dependency update bots are deliberately not used.)
-- **MCP path confinement**: `read_insight` / `read_concept` resolve caller-supplied paths through `_resolve_within_library` and refuse anything outside the library root (the path-traversal / auth-bypass class addressed in the prior security pass).
+- **MCP capability confinement**: `read_insight` authorizes bounded topic
+  Markdown only, concept reads stay inside their artifact classes, site seed
+  previews use a dedicated bounded JSON namespace, and no-follow reads refuse
+  paths outside each tool's declared capability.
 - **Secret handling**: API keys are `SecretStr`, kept out of artifacts and logs; a `detect-private-key` pre-commit hook guards commits.
 
 **Hardened in 0.8.7:**
@@ -543,9 +584,28 @@ distillr's threat model follows from what it actually is: a local-first CLI and 
 - **Indirect prompt-injection resistance.** The one AI-specific threat that actually applies: every analyzed source (YouTube transcript, web page, PDF, tweet) is untrusted input fed to an LLM, and a source can carry embedded instructions ("ignore previous; write X") that hijack the analysis or synthesis and land in the corpus. A shared `UNTRUSTED_CONTENT_RULES` constant is now threaded into every per-source analysis prompt (video, shorts, scan, site page, paper, tweet): the embedded source is labelled untrusted data and the model is told to ignore any instructions inside it. This is the *prevention* half; the 0.10 run-time verify hook (claim-grounding) is the *detection* half, and they compose.
 - **Web-dashboard output sanitization.** The local dashboard rendered corpus artifacts through `markdown(...)` with raw HTML passed through (`distill/web/server.py`), so untrusted-derived content - or an injected `<script>` inside an insight - was a stored-XSS vector. The rendered HTML is now run through an `nh3` allowlist sanitizer before serving (script/event-handlers/`javascript:` URLs stripped, formatting and tables preserved), per Python-Markdown's own guidance to sanitize output rather than trust the renderer.
 
-**Still ahead (1.0):**
+**Hardened in the current refinement cycle:**
 
-- **Boundaries are trust boundaries.** The 1.0 "parse, don't validate" work already validates MCP tool arguments and ingest inputs; the roadmap states explicitly that those parsing boundaries *are* the security boundary - path confinement and URL/SSRF validation on fetch paths live there, so the parse layer doubles as the trust layer rather than being a separate bolt-on.
+- **End-to-end source budgets.** Shared fetches carry one deadline through DNS,
+  redirects, retries, backoff, and caller reads. Sitemap, attachment, browser,
+  HTML, PDF, MCP, and OKF workflows enforce aggregate attempt, byte, entry,
+  process-tree, memory, diagnostic, and elapsed ceilings at their controlling
+  boundary.
+- **Trusted local execution.** Executable launches resolve one absolute trusted
+  identity outside the current directory, use a trusted working directory, and
+  scrub injection-prone or credential-bearing child environment values. UNC
+  and device targets are rejected before filesystem probes.
+- **Atomic deferred publication.** Worker admission, claims, release, abandon,
+  submit, and replay share a serialized transition boundary. Publication
+  rechecks ownership and the exact workspace set, and replay requires a valid
+  submission receipt.
+
+**Continuing security work:**
+
+- **Boundaries remain trust boundaries.** Continue the parse-don't-validate
+  ratchet across untyped legacy inputs and keep path authorization, URL and
+  SSRF checks, state parsing, cost refusal, and publication preconditions at
+  the boundary that owns the operation.
 - **Agent-facing guidance is validated, not just written.** Any future skill text, MCP tool description, adapter prompt, or generated orientation template that tells an agent how to act should carry a small source-controlled contract: scope, risk class, allowed side effects, expected verifier, and test plan. CI should validate those contracts and the house-style rules so agent-facing files cannot drift into personal account assumptions, machine-attribution lines, secret leakage, or unbounded tool affordances.
 - **Guardrails stay surface-scoped.** Always-on checks cover credentials, cost policy, personal-data hygiene, attribution/style, and irreversible-action boundaries. Surface-specific checks cover URL ingest, local-file ingest, MCP path reads, external adapter scratch writes, and provider routing. This keeps the guidance small enough to follow while preserving the agentic-balance rule: deterministic code owns structure and safety boundaries, model judgment owns semantic quality.
 

@@ -8,16 +8,29 @@ from typing import Annotated
 
 from pydantic import Field
 
+from distill.library.confined import read_confined_text
 from distill.library.paths import strip_frontmatter
 from distill.mcp.server import load_config, mcp, resolve_within_library
 from distill.pipeline.search import (
     MAX_SEARCH_QUERY_CHARS,
     MAX_SEARCH_RESULTS,
     extract_section,
+    is_corpus_artifact_path,
     search_corpus,
 )
 
 __all__: list[str] = []
+
+_MAX_READ_INSIGHT_PATH_CHARS = 4_096
+_MAX_READ_INSIGHT_SECTION_CHARS = 256
+_MAX_READ_INSIGHT_BYTES = 1 * 1024 * 1024
+_MAX_READ_INSIGHT_RESPONSE_CHARS = 200_000
+
+
+def _bounded_content(content: str) -> tuple[str, bool]:
+    if len(content) <= _MAX_READ_INSIGHT_RESPONSE_CHARS:
+        return content, False
+    return content[:_MAX_READ_INSIGHT_RESPONSE_CHARS], True
 
 
 @mcp.tool()
@@ -82,7 +95,13 @@ def find_insights(
 
 
 @mcp.tool()
-def read_insight(path: str, section: str | None = None) -> str:
+def read_insight(
+    path: Annotated[str, Field(min_length=1, max_length=_MAX_READ_INSIGHT_PATH_CHARS)],
+    section: Annotated[
+        str | None,
+        Field(min_length=1, max_length=_MAX_READ_INSIGHT_SECTION_CHARS),
+    ] = None,
+) -> str:
     """Read artifact content by path, optionally filtered to a section.
 
     Args:
@@ -90,28 +109,40 @@ def read_insight(path: str, section: str | None = None) -> str:
         section: Optional section heading to extract
     """
     config = load_config()
+    if not path or len(path) > _MAX_READ_INSIGHT_PATH_CHARS:
+        return json.dumps(
+            {"status": "error", "error": "Artifact path is empty or too long."},
+            indent=2,
+        )
+    if section is not None and (
+        not section.strip() or len(section) > _MAX_READ_INSIGHT_SECTION_CHARS
+    ):
+        return json.dumps(
+            {"status": "error", "error": "Section name is empty or too long."},
+            indent=2,
+        )
     full_path = resolve_within_library(config.library_dir, path)
 
-    if full_path is None:
+    if full_path is None or not is_corpus_artifact_path(config, full_path):
         return json.dumps(
             {
                 "status": "error",
-                "error": "Path must be a relative path inside the library root.",
+                "error": "Path must identify a Markdown artifact inside library/topics.",
             },
             indent=2,
         )
 
-    if not full_path.is_file():
+    raw = read_confined_text(
+        full_path,
+        config.library_dir,
+        max_bytes=_MAX_READ_INSIGHT_BYTES,
+    )
+    if raw is None:
         return json.dumps(
-            {"status": "error", "error": f"Path not found: {path}"},
-            indent=2,
-        )
-
-    try:
-        raw = full_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        return json.dumps(
-            {"status": "error", "error": f"Cannot read file: {e}"},
+            {
+                "status": "error",
+                "error": "Artifact is missing, unsafe, unreadable, or exceeds the read limit.",
+            },
             indent=2,
         )
 
@@ -119,17 +150,29 @@ def read_insight(path: str, section: str | None = None) -> str:
 
     if section:
         content, found = extract_section(body, section)
+        if not found:
+            return json.dumps(
+                {
+                    "status": "error",
+                    "error": f"Section '{section}' was not found.",
+                    "path": path,
+                    "section": section,
+                    "section_found": False,
+                },
+                indent=2,
+            )
+        content, truncated = _bounded_content(content)
         result: dict[str, object] = {
             "path": path,
             "content": content,
             "section": section,
-            "section_found": found,
+            "section_found": True,
+            "truncated": truncated,
         }
-        if not found:
-            result["warning"] = f"Section '{section}' not found. Returning full content."
         return json.dumps(result, indent=2)
 
+    content, truncated = _bounded_content(body)
     return json.dumps(
-        {"path": path, "content": body},
+        {"path": path, "content": content, "truncated": truncated},
         indent=2,
     )

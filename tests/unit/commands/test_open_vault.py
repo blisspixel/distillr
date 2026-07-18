@@ -53,7 +53,14 @@ class TestOpenVault:
 
         with (
             patch("distill.commands.maintain.get_config", return_value=mock_config),
-            patch("shutil.which", return_value="/usr/bin/obsidian"),
+            patch(
+                "distill.process_security.resolve_executable",
+                return_value="/usr/bin/obsidian",
+            ),
+            patch(
+                "distill.process_security.package_install_context",
+                return_value=("/trusted", {"PATH": "/usr/bin"}),
+            ),
             patch("subprocess.run") as mock_run,
             patch("distill.commands.maintain.console"),
         ):
@@ -61,7 +68,12 @@ class TestOpenVault:
 
             open_cmd(topic=None, channel=None, what="output", vault=True, path="")
 
-            mock_run.assert_called_once_with(["/usr/bin/obsidian", str(library_dir.resolve())])
+            mock_run.assert_called_once_with(
+                ["/usr/bin/obsidian", str(library_dir.resolve())],
+                cwd="/trusted",
+                env={"PATH": "/usr/bin"},
+                check=False,
+            )
 
     def test_vault_missing_library_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -167,7 +179,7 @@ class TestOpenVault:
 
         with (
             patch("distill.commands.maintain.get_config", return_value=mock_config),
-            patch("shutil.which", return_value=None),
+            patch("distill.process_security.resolve_executable", return_value=None),
             patch("distill.commands.maintain.console"),
         ):
             from distill.commands.maintain import open_cmd

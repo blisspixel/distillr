@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -449,8 +450,8 @@ class TestBrowserSetup:
     def test_install_uses_fixed_argv_and_strips_python_injection(self, monkeypatch):
         observed = {}
 
-        def run(argv, *, env, check):
-            observed.update(argv=argv, env=env, check=check)
+        def run(argv, *, cwd, env, check):
+            observed.update(argv=argv, cwd=cwd, env=env, check=check)
             return SimpleNamespace(returncode=0)
 
         monkeypatch.setenv("PYTHONPATH", "injected-path")
@@ -461,6 +462,7 @@ class TestBrowserSetup:
         assert init_mod._install_chromium() is True
         assert observed["argv"] == [
             sys.executable,
+            "-P",
             "-m",
             "playwright",
             "install",
@@ -469,11 +471,14 @@ class TestBrowserSetup:
         assert observed["env"]["DISTILL_TEST_MARKER"] == "kept"
         assert "PYTHONPATH" not in observed["env"]
         assert "PYTHONHOME" not in observed["env"]
+        assert observed["env"]["PYTHONSAFEPATH"] == "1"
+        assert observed["cwd"] == str(Path(sys.executable).resolve().parent)
         assert observed["check"] is False
 
     def test_install_failure_returns_false(self, monkeypatch):
-        def fail_run(argv, *, env, check):
+        def fail_run(argv, *, cwd, env, check):
             assert argv[-2:] == ["install", "chromium"]
+            assert Path(cwd).is_absolute()
             assert isinstance(env, dict)
             assert check is False
             raise OSError("process unavailable")

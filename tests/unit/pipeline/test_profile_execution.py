@@ -110,9 +110,49 @@ def test_windows_tree_kill_falls_back_to_process_kill(monkeypatch) -> None:
     monkeypatch.setattr(profile_execution.os, "name", "nt")
     monkeypatch.setattr(profile_execution.subprocess, "run", lambda *_args, **_kwargs: None)
 
-    profile_execution._kill_process_tree_root(process)  # type: ignore[arg-type]
+    profile_execution._kill_process_tree_root(process)  # type: ignore[arg-type] - subprocess test double
 
     assert process.kills == 1
+
+
+def test_windows_tree_kill_uses_resolved_tool_and_trusted_context(monkeypatch) -> None:
+    class Process:
+        pid = 12345
+
+        def poll(self) -> int:
+            return 0
+
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(argv: list[str], **kwargs: object) -> None:
+        calls.append((argv, kwargs))
+
+    monkeypatch.setattr(profile_execution.os, "name", "nt")
+    monkeypatch.setattr(
+        profile_execution, "resolve_executable", lambda _name: "C:/Windows/System32/taskkill.exe"
+    )
+    monkeypatch.setattr(
+        profile_execution,
+        "package_install_context",
+        lambda: ("C:/trusted", {"PATH": "C:/Windows/System32"}),
+    )
+    monkeypatch.setattr(profile_execution.subprocess, "run", run)
+
+    profile_execution._kill_process_tree_root(Process())  # type: ignore[arg-type] - subprocess test double
+
+    assert calls == [
+        (
+            ["C:/Windows/System32/taskkill.exe", "/PID", "12345", "/T", "/F"],
+            {
+                "cwd": "C:/trusted",
+                "env": {"PATH": "C:/Windows/System32"},
+                "stdout": subprocess.DEVNULL,
+                "stderr": subprocess.DEVNULL,
+                "check": False,
+                "timeout": 5,
+            },
+        )
+    ]
 
 
 def test_posix_tree_kill_falls_back_when_process_group_is_missing(monkeypatch) -> None:
@@ -133,7 +173,7 @@ def test_posix_tree_kill_falls_back_when_process_group_is_missing(monkeypatch) -
         raising=False,
     )
 
-    profile_execution._kill_process_tree_root(process)  # type: ignore[arg-type]
+    profile_execution._kill_process_tree_root(process)  # type: ignore[arg-type] - subprocess test double
 
     assert process.kills == 1
 

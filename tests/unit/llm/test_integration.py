@@ -37,6 +37,7 @@ from distill.llm.telemetry import top_n_by_tokens
 
 _DISTILL_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "distill"
 _LLM_ROOT = _DISTILL_ROOT / "llm"
+_ALLOWED_LLM_FOUNDATIONAL_IMPORTS = frozenset({"distill.library.locking"})
 # The doctor package legitimately constructs provider clients to live-validate
 # keys (key health is its whole job); excluded from the no-OpenAI-outside-llm scan
 # the same way distill/llm/ is. (Previously this lived in _logic and was skipped
@@ -205,8 +206,8 @@ def test_ops_dir_separation() -> None:
 
 def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy, will refactor
     """Parse all .py files in distill/llm/ with AST.
-    Assert no import distill.* or from distill.* statements except
-    from distill.llm.
+    Assert imports stay inside distill.llm except for reviewed foundational
+    primitives that have no product-layer dependencies.
 
     **Validates: Requirements 1.4, 9.3**
     """
@@ -229,8 +230,10 @@ def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy,
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        if alias.name.startswith("distill") and not alias.name.startswith(
-                            "distill.llm"
+                        if (
+                            alias.name.startswith("distill")
+                            and not alias.name.startswith("distill.llm")
+                            and alias.name not in _ALLOWED_LLM_FOUNDATIONAL_IMPORTS
                         ):
                             violations.append(f"{fpath}:{node.lineno} — import {alias.name}")
                 elif (
@@ -238,6 +241,7 @@ def test_no_external_distill_imports_in_llm() -> None:  # noqa: C901 — legacy,
                     and node.module
                     and node.module.startswith("distill")
                     and not node.module.startswith("distill.llm")
+                    and node.module not in _ALLOWED_LLM_FOUNDATIONAL_IMPORTS
                 ):
                     violations.append(f"{fpath}:{node.lineno} — from {node.module} import ...")
 
@@ -435,12 +439,21 @@ def test_end_to_end_idempotency_agent_mode(
         task_path = exc_info.value.task_path
         assert task_path
 
-        # Read the task file to find the result_path
+        # Claim through the worker boundary so replay has a validated receipt.
         task_data = json.loads(Path(task_path).read_text(encoding="utf-8"))
-        result_path = Path(task_data["result_path"])
+        from distill.worker.tasks import AgentTaskQueue
 
-        # Simulate agent writing the result
+        queue = AgentTaskQueue(ops_dir)
+        claim = queue.claim(host="worker-a", worker_id="property-test")
+        assert claim is not None
+        result_path = Path(claim["result_path"])
+
         result_path.write_text(result_text, encoding="utf-8")
+        queue.submit(
+            task_data["task_id"],
+            claim_token=claim["claim_token"],
+            model="agent",
+        )
 
         # Second call: should succeed with the result
         response = asyncio.run(
@@ -451,13 +464,9 @@ def test_end_to_end_idempotency_agent_mode(
             )
         )
 
-        assert response.text == result_text
+        expected_text = result_text if result_text.endswith("\n") else result_text + "\n"
+        assert response.text == expected_text
         assert response.input_tokens > 0
         assert response.output_tokens > 0
         assert response.model == "agent"
         assert response.usage_source == "conservative"
-
-        # Third call with same prompt: should also succeed (idempotent)
-        # The task was moved to completed/, but the prompt_hash lookup
-        # won't find it in pending/ anymore. A new task file will be created.
-        # This is expected behavior — the result was already consumed.

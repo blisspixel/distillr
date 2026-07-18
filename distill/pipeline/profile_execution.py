@@ -17,6 +17,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import IO, Any, Protocol
 
+from distill.process_security import package_install_context, resolve_executable
+
 __all__ = [
     "MAX_PROFILE_TIMEOUT_SECONDS",
     "CommandExecution",
@@ -191,14 +193,19 @@ def _drain_stream(stream: IO[bytes] | None, tail: _BoundedTextTail) -> None:
 
 def _kill_process_tree_root(process: subprocess.Popen[bytes]) -> None:
     if os.name == "nt":
-        with suppress(OSError, subprocess.TimeoutExpired):
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-                timeout=5,
-            )
+        taskkill = resolve_executable("taskkill")
+        if taskkill is not None:
+            trusted_cwd, child_env = package_install_context()
+            with suppress(OSError, subprocess.TimeoutExpired):
+                subprocess.run(
+                    [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                    cwd=trusted_cwd,
+                    env=child_env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                    timeout=5,
+                )
         if process.poll() is None:
             process.kill()
         return

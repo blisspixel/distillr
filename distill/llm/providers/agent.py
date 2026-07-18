@@ -21,10 +21,19 @@ from distill.llm.providers._agent_files import (
     validated_task_root,
     write_task_bytes,
 )
-from distill.llm.providers._agent_protocol import HostSubmission
+from distill.llm.providers._agent_pending import find_existing_task, pending_task_paths
+from distill.llm.providers._agent_protocol import (
+    AGENT_TASK_SCHEMA_VERSION,
+    MAX_AGENT_PENDING_TASKS,
+    MAX_AGENT_TASK_BYTES,
+    WORKER_TRANSITION_LOCK_NAME,
+    HostSubmission,
+    agent_result_byte_limit,
+)
 from distill.llm.providers._agent_submission import read_host_submission
-from distill.llm.providers._usage import conservative_usage
-from distill.llm.router import PendingTaskError
+from distill.llm.providers._agent_transition import serialized_agent_call
+from distill.llm.providers._usage import deferred_usage_attempt
+from distill.llm.router import ConfigurationError, PendingTaskError
 from distill.llm.types import LLM_Response
 from distill.llm.usage import (
     LLMUsageAttempt,
@@ -32,20 +41,6 @@ from distill.llm.usage import (
     attach_usage_attempts,
     emit_usage_attempt,
 )
-
-AGENT_TASK_SCHEMA_VERSION = "agent-task.v1"
-MAX_AGENT_TASK_BYTES = 1 * 1024 * 1024
-MAX_AGENT_RESULT_BYTES = 16 * 1024 * 1024
-RESULT_BYTES_PER_TOKEN = 16
-
-
-def agent_result_byte_limit(max_tokens: int) -> int:
-    """Return the bounded result size accepted for a deferred agent task."""
-
-    return min(
-        MAX_AGENT_RESULT_BYTES,
-        max(4_096, max_tokens * RESULT_BYTES_PER_TOKEN),
-    )
 
 
 class AgentProvider:
@@ -69,6 +64,13 @@ class AgentProvider:
             )
         self._ops_dir = Path(ops_dir)
         self._pending_dir = self._ops_dir / "tasks" / "pending"
+        self._transition_lock_path = self._ops_dir / "tasks" / WORKER_TRANSITION_LOCK_NAME
+
+    @property
+    def transition_lock_path(self) -> Path:
+        """Return the lock shared with worker-side task transitions."""
+
+        return self._transition_lock_path
 
     @staticmethod
     def _prompt_hash(prompt: str, workload_tag: str) -> str:
@@ -88,53 +90,6 @@ class AgentProvider:
             for char in raw_tag
         ).strip("_-")
         return tag or "unknown"
-
-    def _usage_attempt(
-        self,
-        *,
-        prompt: str,
-        workload_tag: str,
-        task_filename: str,
-        max_tokens: int,
-        submission: HostSubmission | None = None,
-    ) -> LLMUsageAttempt:
-        """Build stable conservative evidence for one deferred external task."""
-
-        prompt_hash = self._prompt_hash(prompt, workload_tag)
-        attempt_id = hashlib.sha256(f"agent:{prompt_hash}:{task_filename}".encode()).hexdigest()
-        if submission is None:
-            input_tokens, output_tokens = conservative_usage(
-                prompt=prompt,
-                max_tokens=max_tokens,
-            )
-            model = "agent"
-            provider_name = "agent"
-            provider_type = "cloud"
-            usage_source = "conservative"
-        else:
-            if submission.input_tokens is None:
-                input_tokens, output_tokens = conservative_usage(
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                )
-                usage_source = "conservative"
-            else:
-                input_tokens = submission.input_tokens
-                output_tokens = submission.output_tokens or 0
-                usage_source = submission.usage_source
-            model = submission.model_label
-            provider_name = submission.host
-            provider_type = "host-managed"
-        return LLMUsageAttempt(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            model=model,
-            provider_name=provider_name,
-            provider_type=provider_type,
-            usage_source=usage_source,
-            outcome="success",
-            attempt_id=attempt_id,
-        )
 
     def _task_root(self, task_dir: Path, directory_name: str) -> Path | None:
         """Resolve a task subdirectory only when it remains under ops_dir/tasks."""
@@ -301,6 +256,23 @@ class AgentProvider:
             bound_root=bound_root,
         )
 
+    def _find_existing_task(
+        self,
+        prompt: str,
+        workload_tag: str,
+        *,
+        bound_root: tuple[Path, tuple[int, int]],
+    ) -> Path | None:
+        """Find one existing task for an exact prompt, whether completed or pending."""
+
+        return find_existing_task(
+            prompt,
+            workload_tag,
+            target_hash=self._prompt_hash(prompt, workload_tag),
+            bound_root=bound_root,
+            direct_result_path=self._direct_pending_result_path,
+        )
+
     def _find_existing_result(
         self,
         prompt: str,
@@ -331,13 +303,10 @@ class AgentProvider:
         # runners may expose an 8.3 path that resolves to a long path. Mixing the
         # lexical root with its canonical identity would make safe files appear
         # to have escaped the directory and strand replayable receipts.
-        try:
-            task_paths = tuple(pending_root.glob(f"{workload_tag}_*.json"))
-        except OSError:
-            return None
-        if not task_root_is_unchanged(pending_root, root_identity):
-            return None
-        for task_path in task_paths:
+        prefix = f"{workload_tag}_"
+        for task_path in pending_task_paths(pending_root, root_identity):
+            if not task_path.name.startswith(prefix):
+                continue
             result_text = self._read_matching_result(
                 task_path,
                 pending_root,
@@ -349,6 +318,7 @@ class AgentProvider:
                 return task_path, result_text
         return None
 
+    @serialized_agent_call
     async def call(
         self,
         model: str,
@@ -399,21 +369,27 @@ class AgentProvider:
                 self._prompt_hash(prompt, workload_tag),
                 bound_root=(pending_root, pending_identity),
             )
+            if submission is None:
+                pending = PendingTaskError(
+                    f"Task result requires a valid worker submission receipt: {task_src}",
+                    task_path=str(task_src),
+                )
+                raise pending
             attempts: list[LLMUsageAttempt] = []
             attempt = emit_usage_attempt(
                 attempts,
-                self._usage_attempt(
+                deferred_usage_attempt(
                     prompt=prompt,
-                    workload_tag=workload_tag,
+                    prompt_hash=self._prompt_hash(prompt, workload_tag),
                     task_filename=task_src.name,
                     max_tokens=max_tokens,
                     submission=submission,
                 ),
                 usage_sink,
             )
-            response_model = submission.model_label if submission is not None else "agent"
-            response_provider = submission.host if submission is not None else ""
-            response_provider_type = "host-managed" if submission is not None else ""
+            response_model = submission.model_label
+            response_provider = submission.host
+            response_provider_type = "host-managed"
             return LLM_Response(
                 text=result_text,
                 input_tokens=attempt.input_tokens,
@@ -423,6 +399,22 @@ class AgentProvider:
                 provider_type=response_provider_type,
                 usage_source=attempt.usage_source,
                 usage_attempts=tuple(attempts),
+            )
+
+        matching_task = self._find_existing_task(
+            prompt,
+            workload_tag,
+            bound_root=(pending_root, pending_identity),
+        )
+        if matching_task is not None:
+            pending = PendingTaskError(
+                f"Task already awaiting agent processing: {matching_task}",
+                task_path=str(matching_task),
+            )
+            raise pending
+        if len(pending_task_paths(pending_root, pending_identity)) >= MAX_AGENT_PENDING_TASKS:
+            raise ConfigurationError(
+                f"AgentProvider pending task limit is {MAX_AGENT_PENDING_TASKS}."
             )
 
         # Write the task file with prompt_hash for idempotent lookup
@@ -454,9 +446,9 @@ class AgentProvider:
         attempts = []
         emit_usage_attempt(
             attempts,
-            self._usage_attempt(
+            deferred_usage_attempt(
                 prompt=prompt,
-                workload_tag=workload_tag,
+                prompt_hash=self._prompt_hash(prompt, workload_tag),
                 task_filename=task_filename,
                 max_tokens=max_tokens,
             ),

@@ -14,15 +14,13 @@ from typing import Any, Protocol, cast
 
 from distill.llm.providers._agent_files import read_task_text
 from distill.llm.providers._agent_protocol import (
-    MAX_AGENT_SIDECAR_BYTES,
-    validate_host_submission,
-)
-from distill.llm.providers.agent import (
     AGENT_TASK_SCHEMA_VERSION,
     MAX_AGENT_RESULT_BYTES,
+    MAX_AGENT_SIDECAR_BYTES,
     MAX_AGENT_TASK_BYTES,
-    AgentProvider,
+    validate_host_submission,
 )
+from distill.llm.providers.agent import AgentProvider
 from distill.llm.usage import MAX_USAGE_TOKENS
 
 _TASK_ID_RE = re.compile(r"^[0-9a-f]{12}$")

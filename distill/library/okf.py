@@ -4,13 +4,17 @@
 
 from __future__ import annotations
 
+import math
+import os
 import re
 import secrets
 import shutil
+import stat
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
 from urllib.parse import unquote, urlparse
 
@@ -54,6 +58,50 @@ _MAX_LOG_HISTORY = 20
 _MAX_PROFILE_STATE_BYTES = 10 * 1024 * 1024
 _MAX_COST_LOG_BYTES = 8 * 1024 * 1024
 _MAX_COST_LOG_ROWS = 10_000
+
+
+def _is_positive_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+
+def _is_positive_finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class OkfValidationLimits:
+    """Deterministic work ceilings for one OKF tree validation."""
+
+    max_entries: int = 50_000
+    max_files: int = 10_000
+    max_file_bytes: int = 16 * 1024 * 1024
+    max_total_bytes: int = 512 * 1024 * 1024
+    max_tree_depth: int = 64
+    max_yaml_depth: int = 64
+    max_links_per_file: int = 4_096
+    max_issues: int = 2_000
+    timeout_seconds: float = 60.0
+
+    def __post_init__(self) -> None:
+        integer_limits: tuple[object, ...] = (
+            self.max_entries,
+            self.max_files,
+            self.max_file_bytes,
+            self.max_total_bytes,
+            self.max_tree_depth,
+            self.max_yaml_depth,
+            self.max_links_per_file,
+            self.max_issues,
+        )
+        if any(not _is_positive_integer(value) for value in integer_limits):
+            raise ValueError("OKF validation integer limits must be positive integers")
+        if not _is_positive_finite_number(self.timeout_seconds):
+            raise ValueError("OKF validation timeout must be finite and positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +164,11 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def validate_okf_bundle(root: Path) -> OkfValidationResult:
+def validate_okf_bundle(  # noqa: C901 - validation keeps every budget stop explicit
+    root: Path,
+    *,
+    limits: OkfValidationLimits | None = None,
+) -> OkfValidationResult:
     """Validate an OKF bundle directory.
 
     The validator enforces the structural OKF v0.1 requirements Distill relies
@@ -125,34 +177,65 @@ def validate_okf_bundle(root: Path) -> OkfValidationResult:
     accept partially built bundles while still surfacing cleanup work.
     """
 
+    limits = limits or OkfValidationLimits()
     errors: list[OkfIssue] = []
     warnings: list[OkfIssue] = []
     root = Path(root)
+    deadline = time.monotonic() + limits.timeout_seconds
 
-    if not root.exists():
+    try:
+        root_stat = root.lstat()
+    except FileNotFoundError:
         errors.append(OkfIssue("error", str(root), "Bundle path does not exist"))
         return OkfValidationResult(root=root, files_checked=0, errors=tuple(errors), warnings=())
-    if not root.is_dir():
+    except OSError:
+        errors.append(OkfIssue("error", str(root), "Bundle path is unreadable"))
+        return OkfValidationResult(root=root, files_checked=0, errors=tuple(errors), warnings=())
+    if stat.S_ISLNK(root_stat.st_mode) or (hasattr(root, "is_junction") and root.is_junction()):
+        errors.append(OkfIssue("error", str(root), "Bundle path must not be a symbolic link"))
+        return OkfValidationResult(root=root, files_checked=0, errors=tuple(errors), warnings=())
+    if not stat.S_ISDIR(root_stat.st_mode):
         errors.append(OkfIssue("error", str(root), "Bundle path is not a directory"))
         return OkfValidationResult(root=root, files_checked=0, errors=tuple(errors), warnings=())
 
     root_index = root / "index.md"
     root_log = root / "log.md"
-    if not root_index.exists():
+    try:
+        root_index.lstat()
+    except OSError:
         warnings.append(OkfIssue("warning", "index.md", "Root index.md is missing"))
-    if not root_log.exists():
+    try:
+        root_log.lstat()
+    except OSError:
         warnings.append(OkfIssue("warning", "log.md", "Root log.md is missing"))
 
-    root_resolved = root.resolve()
-    md_files = sorted(path for path in root.rglob("*.md") if path.is_file() or path.is_symlink())
+    md_files, traversal_error = _bounded_okf_markdown_files(root, limits, deadline)
+    if traversal_error is not None:
+        errors.append(OkfIssue("error", str(root), traversal_error))
+        return OkfValidationResult(
+            root=root, files_checked=0, errors=tuple(errors), warnings=tuple(warnings)
+        )
+
+    files_checked = 0
     for md_file in md_files:
+        if time.monotonic() > deadline:
+            errors.append(OkfIssue("error", str(root), "OKF validation deadline exceeded"))
+            break
         rel = _display_path(root, md_file)
-        if md_file.is_symlink() or not md_file.resolve().is_relative_to(root_resolved):
+        if md_file.is_symlink() or (hasattr(md_file, "is_junction") and md_file.is_junction()):
             errors.append(OkfIssue("error", rel, "Markdown file is a symbolic link"))
             continue
-        text = md_file.read_text(encoding="utf-8")
+        text = read_confined_text(md_file, root, max_bytes=limits.max_file_bytes)
+        if text is None:
+            errors.append(OkfIssue("error", rel, "Markdown file is unsafe or unreadable"))
+            continue
+        files_checked += 1
         meta = _parse_frontmatter(
-            text, rel, errors, require_frontmatter=md_file.name not in _RESERVED_NAMES
+            text,
+            rel,
+            errors,
+            require_frontmatter=md_file.name not in _RESERVED_NAMES,
+            max_yaml_depth=limits.max_yaml_depth,
         )
 
         if md_file.name not in _RESERVED_NAMES and meta is not None:
@@ -163,14 +246,98 @@ def validate_okf_bundle(root: Path) -> OkfValidationResult:
         if md_file.name in _RESERVED_NAMES and meta is None and text.startswith("---"):
             errors.append(OkfIssue("error", rel, "Reserved file frontmatter is not parseable"))
 
-        _collect_link_warnings(root, md_file, text, warnings)
+        link_error = _collect_link_warnings(
+            root,
+            md_file,
+            text,
+            warnings,
+            max_links=limits.max_links_per_file,
+            max_issues=limits.max_issues,
+            deadline=deadline,
+        )
+        if link_error is not None:
+            errors.append(OkfIssue("error", rel, link_error))
+            break
+        if len(errors) + len(warnings) >= limits.max_issues:
+            errors.append(OkfIssue("error", str(root), "OKF validation issue limit exceeded"))
+            break
 
     return OkfValidationResult(
         root=root,
-        files_checked=len(md_files),
+        files_checked=files_checked,
         errors=tuple(errors),
         warnings=tuple(warnings),
     )
+
+
+def _bounded_okf_markdown_files(  # noqa: C901 - one bounded no-follow tree walk
+    root: Path,
+    limits: OkfValidationLimits,
+    deadline: float,
+) -> tuple[list[Path], str | None]:
+    files: list[Path] = []
+    stack: list[tuple[Path, int]] = [(root, 0)]
+    entries_seen = 0
+    total_bytes = 0
+
+    while stack:
+        if time.monotonic() > deadline:
+            return files, "OKF validation deadline exceeded"
+        directory, depth = stack.pop()
+        entries: list[os.DirEntry[str]] = []
+        try:
+            with os.scandir(directory) as iterator:
+                for entry in iterator:
+                    entries_seen += 1
+                    if entries_seen > limits.max_entries:
+                        return files, f"OKF validation entry limit exceeded ({limits.max_entries})"
+                    entries.append(entry)
+        except OSError:
+            return files, f"Cannot scan bundle directory: {_display_path(root, directory)}"
+        for entry in sorted(entries, key=lambda item: item.name.casefold(), reverse=True):
+            if time.monotonic() > deadline:
+                return files, "OKF validation deadline exceeded"
+            path = directory / entry.name
+            try:
+                if entry.is_symlink():
+                    if entry.name.casefold().endswith(".md"):
+                        if len(files) >= limits.max_files:
+                            return files, f"OKF validation file limit exceeded ({limits.max_files})"
+                        files.append(path)
+                    else:
+                        return files, f"Symbolic link encountered: {_display_path(root, path)}"
+                    continue
+                if entry.is_dir(follow_symlinks=False):
+                    if depth + 1 > limits.max_tree_depth:
+                        return files, f"OKF validation tree depth exceeds {limits.max_tree_depth}"
+                    if validate_confined_path(path, root, expect_directory=True) is None:
+                        return files, f"Unsafe bundle directory: {_display_path(root, path)}"
+                    stack.append((path, depth + 1))
+                    continue
+                if not entry.name.casefold().endswith(".md"):
+                    continue
+                file_stat = entry.stat(follow_symlinks=False)
+            except OSError:
+                return files, f"Cannot inspect bundle entry: {_display_path(root, path)}"
+            if not stat.S_ISREG(file_stat.st_mode):
+                return files, f"Markdown path is not a regular file: {_display_path(root, path)}"
+            if len(files) >= limits.max_files:
+                return files, f"OKF validation file limit exceeded ({limits.max_files})"
+            if file_stat.st_size > limits.max_file_bytes:
+                return (
+                    files,
+                    f"OKF validation per-file byte limit exceeded ({limits.max_file_bytes})",
+                )
+            total_bytes += file_stat.st_size
+            if total_bytes > limits.max_total_bytes:
+                return (
+                    files,
+                    f"OKF validation aggregate byte limit exceeded ({limits.max_total_bytes})",
+                )
+            files.append(path)
+
+    files.sort(key=lambda path: path.relative_to(root).as_posix().casefold())
+    return files, None
 
 
 def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
@@ -254,12 +421,39 @@ def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
     )
 
 
+class _DepthLimitedSafeLoader(yaml.SafeLoader):
+    """PyYAML safe loader with a hard compose-depth ceiling."""
+
+    def __init__(self, stream: str, *, max_depth: int) -> None:
+        super().__init__(stream)
+        self._max_depth = max_depth
+        self._compose_depth = 0
+
+    def compose_node(self, parent: Any, index: Any) -> Any:
+        self._compose_depth += 1
+        try:
+            if self._compose_depth > self._max_depth:
+                raise yaml.YAMLError(f"YAML nesting exceeds {self._max_depth}")
+            return super().compose_node(parent, index)
+        finally:
+            self._compose_depth -= 1
+
+
+def _load_bounded_yaml(block: str, *, max_depth: int) -> object:
+    loader = _DepthLimitedSafeLoader(block, max_depth=max_depth)
+    try:
+        return loader.get_single_data()
+    finally:
+        loader.dispose()  # pyright: ignore[reportUnknownMemberType] - PyYAML stubs omit return type
+
+
 def _parse_frontmatter(
     text: str,
     rel_path: str,
     errors: list[OkfIssue],
     *,
     require_frontmatter: bool,
+    max_yaml_depth: int,
 ) -> dict[str, Any] | None:
     block, _ = split_frontmatter(text)
     if block is None:
@@ -267,7 +461,7 @@ def _parse_frontmatter(
             errors.append(OkfIssue("error", rel_path, "Missing YAML frontmatter"))
         return None
     try:
-        data: object = yaml.safe_load(block) or {}
+        data: object = _load_bounded_yaml(block, max_depth=max_yaml_depth) or {}
     except yaml.YAMLError as exc:
         errors.append(OkfIssue("error", rel_path, f"Invalid YAML frontmatter: {exc}"))
         return None
@@ -282,34 +476,54 @@ def _collect_link_warnings(
     source_file: Path,
     text: str,
     warnings: list[OkfIssue],
-) -> None:
-    for raw_target in _MARKDOWN_LINK_RE.findall(text):
+    *,
+    max_links: int,
+    max_issues: int,
+    deadline: float,
+) -> str | None:
+    for index, match in enumerate(_MARKDOWN_LINK_RE.finditer(text), start=1):
+        if index > max_links:
+            return f"Markdown link limit exceeded ({max_links})"
+        if time.monotonic() > deadline:
+            return "OKF validation deadline exceeded"
+        raw_target = match.group(1)
         candidate = _resolve_markdown_link(root, source_file, raw_target)
         if candidate is None:
             continue
         rel = _display_path(root, source_file)
         if candidate == "escape":
             warnings.append(OkfIssue("warning", rel, f"Markdown link escapes bundle: {raw_target}"))
-        elif isinstance(candidate, Path) and not candidate.exists():
+        elif (
+            isinstance(candidate, Path)
+            and validate_confined_path(candidate, root, expect_directory=False) is None
+        ):
             warnings.append(OkfIssue("warning", rel, f"Broken Markdown link: {raw_target}"))
+        if len(warnings) >= max_issues:
+            return "OKF validation issue limit exceeded"
+    return None
 
 
 def _resolve_markdown_link(root: Path, source_file: Path, raw_target: str) -> Path | str | None:
     target = raw_target.strip()
-    parsed = urlparse(target)
-    if parsed.scheme or parsed.netloc or target.startswith("#"):
+    if target.startswith("#"):
         return None
     clean = unquote(target.split("#", 1)[0].split("?", 1)[0])
+    if "\x00" in clean or "\\" in clean:
+        return "escape"
+    if re.match(r"^[A-Za-z]:", clean):
+        return "escape"
+    parsed = urlparse(clean)
+    if parsed.scheme or parsed.netloc:
+        return None
     if not clean.lower().endswith(".md"):
         return None
-
-    if clean.startswith("/"):
-        candidate = root / clean.lstrip("/")
-    else:
-        candidate = source_file.parent / clean
-
+    parts = tuple(part for part in PurePosixPath(clean).parts if part != "/")
+    if not parts or any(part in {"", ".", ".."} or ":" in part for part in parts):
+        return "escape"
+    base = root if clean.startswith("/") else source_file.parent
+    candidate = base.joinpath(*parts)
     try:
-        candidate.resolve().relative_to(root.resolve())
+        candidate.relative_to(root)
     except ValueError:
         return "escape"
     return candidate

@@ -44,11 +44,13 @@ Then ask Claude things like:
 | `site_batch` | Ingest direct URLs or a curated website seed set |
 | `catch_up` | Refresh watched channels (scan for new videos) |
 
-`site_batch` accepts direct `urls` or a relative `seed_file` inside the library
-root. Direct URL lists and TXT seed files stay exact-page by default. JSON seed
-files use the same seed parser as the CLI, including `mode: "exact-page"`,
-`mode: "shallow-crawl"`, `crawl: true/false`, and `crawl_prefix`; unsupported
-mode names return a structured error before any ingest work starts. With
+`site_batch` accepts direct `urls` or a relative JSON `seed_file` under the
+dedicated `library/site-seeds/` namespace. It never treats an ordinary corpus,
+operational, TXT, or arbitrary library file as a seed preview. Direct arrays
+contain at most 50 bounded public HTTPS URLs. JSON files use the same seed
+parser as the CLI, including `mode: "exact-page"`, `mode: "shallow-crawl"`,
+`crawl: true/false`, and `crawl_prefix`; the file, entry count, field sizes,
+URL syntax, and crawl plan are checked before any ingest work starts. With
 `preview=true`, the tool returns the resolved plan without model checks,
 crawling, writes, or spend, and that preview is allowed even when
 `DISTILL_MCP_READ_ONLY=1`.
@@ -77,6 +79,12 @@ crawling, writes, or spend, and that preview is allowed even when
 | `concept_history` | List a concept/entity note's `.history` snapshots with per-step change summaries |
 | `concept_diff` | Structured diff of a concept note across versions (source/interval/contested deltas + body diff) |
 
+`read_insight` accepts only Markdown artifacts under `library/topics/`, refuses
+hidden and operational namespaces plus answer artifacts, reads at most 1 MiB,
+and returns at most 200,000 content characters. A missing section is an error
+and never falls back to returning the full artifact. `ask` limits question and
+answer size before an oversized prompt or response can cross the MCP boundary.
+
 **Watch & ops**
 
 | Tool | What it does |
@@ -91,6 +99,10 @@ crawling, writes, or spend, and that preview is allowed even when
 |---|---|
 | `okf_export` | Write a read-only OKF v0.1 bundle under `output/`; returns paths and a short preview, not full payloads |
 | `okf_validate` | Structural OKF bundle validation (read-only; works in `DISTILL_MCP_READ_ONLY=1`) |
+
+MCP validation is limited to regular `output/okf-*` bundle directories. It
+uses no-follow reads plus entry, file, byte, depth, YAML, link, issue, and
+elapsed-time ceilings. Preview responses are independently byte-limited.
 
 ## Resources
 

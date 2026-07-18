@@ -35,6 +35,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -70,13 +71,16 @@ __all__ = [
 # tier stands alone, exactly as before the tier existed.
 _checker_loaded = False
 _checker: EntailmentChecker | None = None
+_checker_lock = threading.Lock()
 
 
 def _entailment_checker() -> EntailmentChecker | None:
     global _checker_loaded, _checker
     if not _checker_loaded:
-        _checker = load_default_checker()
-        _checker_loaded = True
+        with _checker_lock:
+            if not _checker_loaded:
+                _checker = load_default_checker()
+                _checker_loaded = True
     return _checker
 
 

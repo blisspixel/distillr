@@ -20,6 +20,7 @@ class _FakeResponse:
         self.status_code = status_code
         self.headers = headers or {}
         self._chunks = chunks or [b"%PDF-1.4"]
+        self._chunk_index = 0
 
     def __enter__(self):
         return self
@@ -27,11 +28,13 @@ class _FakeResponse:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def raise_for_status(self):
-        return None
-
-    def iter_content(self, chunk_size=65536):
-        yield from self._chunks
+    def read(self, size=-1):
+        del size
+        if self._chunk_index >= len(self._chunks):
+            return b""
+        chunk = self._chunks[self._chunk_index]
+        self._chunk_index += 1
+        return chunk
 
 
 def test_collect_page_attachments_builds_pdf_and_video_records():
@@ -72,7 +75,7 @@ def test_ingest_page_attachments_extracts_pdf_and_youtube(monkeypatch, tmp_path)
 
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments._ingest_pdf_attachment",
-        lambda attachment, attachments_dir: (
+        lambda attachment, attachments_dir, **_kwargs: (
             type(attachment)(
                 **{
                     **attachment.to_dict(),
@@ -158,19 +161,19 @@ def test_pdf_attachment_rejects_private_url_before_request(monkeypatch, tmp_path
     calls = []
 
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
+        "distill.ingestors.sites.attachments.safe_urlopen",
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
     updated, context = _ingest_pdf_attachment(attachment, attachments_dir)
 
     assert updated.status == "failed"
-    assert "public http(s)" in updated.note
+    assert "public HTTPS" in updated.note
     assert context == ""
     assert calls == []
 
 
-def test_pdf_attachment_revalidates_redirect_targets(monkeypatch, tmp_path):
+def test_pdf_attachment_reports_rejected_redirect_targets(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     attachment = collect_page_attachments(
@@ -185,33 +188,25 @@ def test_pdf_attachment_revalidates_redirect_targets(monkeypatch, tmp_path):
     )[0]
     calls = []
 
-    monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.is_public_web_url",
-        lambda url: not url.startswith("http://127.0.0.1"),
-    )
+    def fake_open(request, **kwargs):
+        calls.append((request.full_url, kwargs))
+        from distill.ingestors.net import NetworkError
 
-    def fake_get(url, **kwargs):
-        calls.append((url, kwargs))
-        return _FakeResponse(
-            status_code=302,
-            headers={"Location": "http://127.0.0.1/private.pdf"},
-        )
+        raise NetworkError("refusing redirect to non-public URL")
 
-    monkeypatch.setattr("distill.ingestors.sites.attachments.requests.get", fake_get)
+    monkeypatch.setattr("distill.ingestors.sites.attachments.safe_urlopen", fake_open)
 
     updated, context = _ingest_pdf_attachment(attachment, attachments_dir)
 
     assert updated.status == "failed"
-    assert "public http(s)" in updated.note
+    assert "refusing redirect" in updated.note
     assert context == ""
     assert calls == [
         (
             "https://example.com/guide.pdf",
             {
-                "timeout": 30,
-                "stream": True,
-                "allow_redirects": False,
-                "proxies": {"http": "", "https": ""},
+                "timeout": 30.0,
+                "retries": 1,
             },
         )
     ]
@@ -234,11 +229,12 @@ def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
     )[0]
 
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments._download_pdf_bytes", lambda url: b"pdf"
+        "distill.ingestors.sites.attachments._download_pdf_bytes",
+        lambda url, **_kwargs: b"pdf",
     )
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
-        lambda path, *, max_chars, max_pages: "",
+        lambda path, *, max_chars, max_pages, timeout_seconds: "",
     )
     updated_pdf, pdf_context = _ingest_pdf_attachment(pdf_attachment, attachments_dir)
     assert updated_pdf.status == "failed"
@@ -350,17 +346,18 @@ def test_pdf_attachment_success_extracts_and_writes(monkeypatch, tmp_path):
     attachments_dir.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
             status_code=200,
             headers={"Content-Type": "application/pdf"},
             chunks=[b"%PDF-1.4 data"],
         ),
     )
 
-    def extract(path, *, max_chars, max_pages):
+    def extract(path, *, max_chars, max_pages, timeout_seconds):
         assert path.read_bytes() == b"%PDF-1.4 data"
         assert (max_chars, max_pages) == (30_000, 10)
+        assert timeout_seconds == 30.0
         return "Extracted text."
 
     monkeypatch.setattr(
@@ -381,8 +378,11 @@ def test_pdf_download_rejects_unexpected_content_type(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(status_code=200, headers={"Content-Type": "text/html"}),
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+        ),
     )
     updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
     assert updated.status == "failed"
@@ -394,8 +394,8 @@ def test_pdf_download_rejects_oversized_content_length(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
             status_code=200,
             headers={"Content-Type": "application/pdf", "Content-Length": str(60 * 1024 * 1024)},
         ),
@@ -410,8 +410,8 @@ def test_pdf_download_ignores_invalid_content_length(monkeypatch, tmp_path, decl
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
             status_code=200,
             headers={"Content-Type": "application/pdf", "Content-Length": declared},
             chunks=[b"%PDF-1.4 data"],
@@ -419,7 +419,7 @@ def test_pdf_download_ignores_invalid_content_length(monkeypatch, tmp_path, decl
     )
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
-        lambda path, *, max_chars, max_pages: "Extracted text.",
+        lambda path, *, max_chars, max_pages, timeout_seconds: "Extracted text.",
     )
 
     updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
@@ -433,8 +433,8 @@ def test_pdf_download_enforces_streaming_size_cap(monkeypatch, tmp_path):
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("distill.ingestors.sites.attachments._PDF_DOWNLOAD_CAP_BYTES", 10)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
             status_code=200,
             headers={"Content-Type": "application/pdf"},
             chunks=[b"x" * 20],  # exceeds the 10-byte cap mid-stream
@@ -445,30 +445,35 @@ def test_pdf_download_enforces_streaming_size_cap(monkeypatch, tmp_path):
     assert "size cap" in updated.note
 
 
-def test_pdf_download_redirect_missing_location_fails(monkeypatch, tmp_path):
+def test_pdf_download_rejects_content_encoding(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(status_code=302, headers={}),
-    )
-    updated, _ = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
-    assert updated.status == "failed"
-    assert "Location" in updated.note
-
-
-def test_pdf_download_redirect_limit_exceeded(monkeypatch, tmp_path):
-    attachments_dir = tmp_path / "attachments"
-    attachments_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
-            status_code=302, headers={"Location": "https://8.8.8.8/next.pdf"}
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
+            headers={
+                "Content-Type": "application/pdf",
+                "Content-Encoding": "gzip",
+            }
         ),
     )
     updated, _ = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
     assert updated.status == "failed"
-    assert "redirect limit" in updated.note
+    assert "content-encoding" in updated.note
+
+
+def test_pdf_download_reports_network_deadline(monkeypatch, tmp_path):
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    from distill.ingestors.net import NetworkError
+
+    def fail_open(request, **kwargs):
+        raise NetworkError("fetch exceeded its deadline")
+
+    monkeypatch.setattr("distill.ingestors.sites.attachments.safe_urlopen", fail_open)
+    updated, _ = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
+    assert updated.status == "failed"
+    assert "deadline" in updated.note
 
 
 def test_youtube_attachment_success(monkeypatch, tmp_path):
@@ -500,21 +505,21 @@ def test_extract_youtube_id_returns_empty_for_youtube_without_id():
     assert _extract_youtube_video_id("https://www.youtube.com/feed/subscriptions") == ""
 
 
-def test_pdf_download_skips_empty_chunks_and_reports_no_text(monkeypatch, tmp_path):
+def test_pdf_download_reports_no_extractable_text(monkeypatch, tmp_path):
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(
-        "distill.ingestors.sites.attachments.requests.get",
-        lambda url, **kwargs: _FakeResponse(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
             status_code=200,
             headers={"Content-Type": "application/pdf"},
-            chunks=[b"", b"%PDF data"],  # the empty chunk is skipped by the streamer
+            chunks=[b"%PDF data"],
         ),
     )
 
     monkeypatch.setattr(
         "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
-        lambda path, *, max_chars, max_pages: "",
+        lambda path, *, max_chars, max_pages, timeout_seconds: "",
     )
     updated, context = _ingest_pdf_attachment(_pdf_attachment(), attachments_dir)
 

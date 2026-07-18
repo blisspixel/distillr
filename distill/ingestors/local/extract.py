@@ -8,6 +8,8 @@ network. Mirrors the surrogate-sanitization the arXiv PDF path already uses.
 
 from __future__ import annotations
 
+import contextlib
+import math
 import os
 import re
 import stat
@@ -19,6 +21,15 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from distill.library.confined import read_confined_bytes
+from distill.process_resources import (
+    ProcessBudgetExceeded,
+    assign_windows_memory_job,
+    close_windows_job,
+    start_bounded_pipe_drain,
+    terminate_process_tree,
+    wait_for_process_budget,
+)
+from distill.process_security import package_install_context
 
 __all__ = [
     "LocalDocument",
@@ -35,10 +46,18 @@ _TEXT_EXTS = frozenset({".txt", ".text", ".rst", ""})
 # Hard byte/page caps so a hostile or accidentally-huge local file can't exhaust
 # memory. Analysis chunks long documents when the provider window requires it.
 _MAX_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
+HTML_WORKER_INPUT_BYTES = _MAX_FILE_BYTES
 _PDF_PAGE_LIMIT = 200
 _MAX_PDF_TEXT_CHARS = 2_000_000
 _PDF_WORKER_MEMORY_BYTES = 256 * 1024 * 1024
 _PDF_WORKER_TIMEOUT_SECONDS = 60
+_PDF_WORKER_DIAGNOSTIC_BYTES = 4_096
+_HTML_WORKER_MEMORY_BYTES = 192 * 1024 * 1024
+_HTML_WORKER_TIMEOUT_SECONDS = 10.0
+_HTML_WORKER_DIAGNOSTIC_BYTES = 4_096
+_MAX_HTML_TEXT_CHARS = 2_000_000
+_MAX_HTML_PARSE_EVENTS = 250_000
+_MAX_HTML_PARSE_DEPTH = 512
 
 
 class LocalExtractionError(RuntimeError):
@@ -84,9 +103,9 @@ def _extract_snapshot(
             snapshot = Path(temp_dir) / f"document{extension}"
             snapshot.write_bytes(raw)
             return _extract_pdf(snapshot, max_chars=max_chars), "pdf"
-    decoded = raw.decode("utf-8", errors="replace")
     if extension in _HTML_EXTS:
-        return _html_to_text(decoded), "html"
+        return _extract_html_snapshot(raw, max_chars=max_chars), "html"
+    decoded = raw.decode("utf-8", errors="replace")
     if extension in _MARKDOWN_EXTS:
         return decoded, "markdown"
     if extension in _TEXT_EXTS:
@@ -169,18 +188,121 @@ def _extract_pdf(path: Path, *, max_chars: int | None) -> str:
     return extract_pdf_text_bounded(path, max_chars=limit, max_pages=_PDF_PAGE_LIMIT)
 
 
-def extract_pdf_text_bounded(path: Path, *, max_chars: int, max_pages: int) -> str:
+def extract_pdf_text_bounded(
+    path: Path,
+    *,
+    max_chars: int,
+    max_pages: int,
+    timeout_seconds: float | None = None,
+) -> str:
     """Extract bounded PDF text in an isolated worker with resource limits."""
 
     if max_chars <= 0 or max_pages <= 0:
         return ""
-    return _run_pdf_worker(path, max_chars, max_pages)
+    timeout = _PDF_WORKER_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError("PDF worker timeout must be a positive number")
+    return _run_pdf_worker(path, max_chars, max_pages, min(timeout, _PDF_WORKER_TIMEOUT_SECONDS))
 
 
-def _run_pdf_worker(path: Path, limit: int, max_pages: int) -> str:
+def _stop_pdf_worker(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is None:
+        process.kill()
+    process.wait()
+
+
+def _extract_html_snapshot(raw: bytes, *, max_chars: int | None) -> str:
+    limit = _MAX_HTML_TEXT_CHARS
+    if max_chars is not None:
+        limit = min(limit, max(0, max_chars))
+    if limit <= 0:
+        return ""
+    with tempfile.TemporaryDirectory(prefix="distill-html-") as temp_dir:
+        root = Path(temp_dir)
+        input_path = root / "document.html"
+        output_path = root / "extracted.txt"
+        input_path.write_bytes(raw)
+        trusted_cwd, child_env = package_install_context()
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-P",
+                "-m",
+                "distill.ingestors.local._html_worker",
+                str(input_path),
+                str(output_path),
+                str(limit),
+            ],
+            cwd=trusted_cwd,
+            env=child_env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=creationflags,
+            start_new_session=os.name != "nt",
+        )
+        stderr_stream = process.stderr
+        if stderr_stream is None:
+            terminate_process_tree(process)
+            raise LocalExtractionError("HTML worker did not expose a diagnostic pipe.")
+        diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
+            stderr_stream,
+            limit=_HTML_WORKER_DIAGNOSTIC_BYTES,
+            thread_name="distill-html-diagnostics",
+        )
+        job_handle: int | None = None
+        try:
+            job_handle = assign_windows_memory_job(
+                process,
+                process_memory_bytes=_HTML_WORKER_MEMORY_BYTES,
+            )
+            worker_stdin = process.stdin
+            if worker_stdin is None:
+                raise LocalExtractionError("HTML worker did not expose a control pipe.")
+            worker_stdin.write(b"1")
+            worker_stdin.close()
+            process.stdin = None
+            wait_for_process_budget(
+                process,
+                timeout_seconds=_HTML_WORKER_TIMEOUT_SECONDS,
+                memory_limit_bytes=_HTML_WORKER_MEMORY_BYTES,
+            )
+        except ProcessBudgetExceeded as exc:
+            terminate_process_tree(process)
+            raise LocalExtractionError(f"HTML parsing exceeded its {exc.kind} budget.") from exc
+        except BaseException:
+            terminate_process_tree(process)
+            raise
+        finally:
+            close_windows_job(job_handle)
+            diagnostic_thread.join(timeout=1)
+            with contextlib.suppress(OSError):
+                stderr_stream.close()
+            diagnostic_thread.join(timeout=1)
+        if process.returncode != 0:
+            detail = diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()[-200:]
+            suffix = f": {detail}" if detail else ""
+            raise LocalExtractionError(
+                f"Could not parse local HTML; worker exited with status "
+                f"{process.returncode}{suffix}"
+            )
+        output = read_confined_bytes(output_path, root, max_bytes=_MAX_HTML_TEXT_CHARS * 4)
+        if output is None:
+            return ""
+        return output.decode("utf-8", errors="replace")[:limit]
+
+
+def _run_pdf_worker(path: Path, limit: int, max_pages: int, timeout_seconds: float) -> str:
     with tempfile.TemporaryDirectory(prefix="distill-pdf-") as temp_dir:
         output_path = Path(temp_dir) / "extracted.txt"
         creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        trusted_cwd, child_env = package_install_context()
         process = subprocess.Popen(
             [
                 sys.executable,
@@ -196,7 +318,20 @@ def _run_pdf_worker(path: Path, limit: int, max_pages: int) -> str:
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            cwd=trusted_cwd,
+            env=child_env,
             creationflags=creationflags,
+            start_new_session=os.name != "nt",
+        )
+        stderr_stream = process.stderr
+        if stderr_stream is None:
+            process.kill()
+            process.wait()
+            raise LocalExtractionError("PDF worker did not expose a diagnostic pipe.")
+        diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
+            stderr_stream,
+            limit=_PDF_WORKER_DIAGNOSTIC_BYTES,
+            thread_name="distill-pdf-diagnostics",
         )
         job_handle: int | None = None
         try:
@@ -209,24 +344,24 @@ def _run_pdf_worker(path: Path, limit: int, max_pages: int) -> str:
                 worker_stdin.close()
                 process.stdin = None
                 try:
-                    _, stderr = process.communicate(timeout=_PDF_WORKER_TIMEOUT_SECONDS)
+                    process.wait(timeout=timeout_seconds)
                 except subprocess.TimeoutExpired as exc:
-                    process.kill()
-                    process.communicate()
+                    _stop_pdf_worker(process)
                     raise LocalExtractionError(
-                        f"PDF text extraction timed out after "
-                        f"{_PDF_WORKER_TIMEOUT_SECONDS} seconds."
+                        f"PDF text extraction timed out after {timeout_seconds:g} seconds."
                     ) from exc
             except BaseException:
-                if process.poll() is None:
-                    process.kill()
-                process.communicate()
+                _stop_pdf_worker(process)
                 raise
         finally:
             _close_windows_job(job_handle)
+            diagnostic_thread.join(timeout=1)
+            with contextlib.suppress(OSError):
+                stderr_stream.close()
+            diagnostic_thread.join(timeout=1)
 
         if process.returncode != 0:
-            detail = stderr.decode("utf-8", errors="replace").strip()[:200]
+            detail = diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()[-200:]
             suffix = f": {detail}" if detail else ""
             raise LocalExtractionError(
                 f"Could not extract PDF text from {path.name}; worker exited "
@@ -238,90 +373,11 @@ def _run_pdf_worker(path: Path, limit: int, max_pages: int) -> str:
 
 
 def _assign_windows_memory_job(process: subprocess.Popen[bytes], limit_bytes: int) -> int | None:
-    if os.name != "nt":
-        return None
-    import ctypes
-    from ctypes import wintypes
-
-    class _IoCounters(ctypes.Structure):
-        _fields_ = [
-            ("ReadOperationCount", ctypes.c_ulonglong),
-            ("WriteOperationCount", ctypes.c_ulonglong),
-            ("OtherOperationCount", ctypes.c_ulonglong),
-            ("ReadTransferCount", ctypes.c_ulonglong),
-            ("WriteTransferCount", ctypes.c_ulonglong),
-            ("OtherTransferCount", ctypes.c_ulonglong),
-        ]
-
-    class _BasicLimitInformation(ctypes.Structure):
-        _fields_ = [
-            ("PerProcessUserTimeLimit", ctypes.c_longlong),
-            ("PerJobUserTimeLimit", ctypes.c_longlong),
-            ("LimitFlags", wintypes.DWORD),
-            ("MinimumWorkingSetSize", ctypes.c_size_t),
-            ("MaximumWorkingSetSize", ctypes.c_size_t),
-            ("ActiveProcessLimit", wintypes.DWORD),
-            ("Affinity", ctypes.c_size_t),
-            ("PriorityClass", wintypes.DWORD),
-            ("SchedulingClass", wintypes.DWORD),
-        ]
-
-    class _ExtendedLimitInformation(ctypes.Structure):
-        _fields_ = [
-            ("BasicLimitInformation", _BasicLimitInformation),
-            ("IoInfo", _IoCounters),
-            ("ProcessMemoryLimit", ctypes.c_size_t),
-            ("JobMemoryLimit", ctypes.c_size_t),
-            ("PeakProcessMemoryUsed", ctypes.c_size_t),
-            ("PeakJobMemoryUsed", ctypes.c_size_t),
-        ]
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
-    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
-    kernel32.SetInformationJobObject.argtypes = [
-        wintypes.HANDLE,
-        ctypes.c_int,
-        ctypes.c_void_p,
-        wintypes.DWORD,
-    ]
-    kernel32.SetInformationJobObject.restype = wintypes.BOOL
-    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
-    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel32.CloseHandle.restype = wintypes.BOOL
-    job = kernel32.CreateJobObjectW(None, None)
-    if not job:
-        raise ctypes.WinError(ctypes.get_last_error())
-    information = _ExtendedLimitInformation()
-    information.BasicLimitInformation.LimitFlags = 0x100 | 0x2000
-    information.ProcessMemoryLimit = limit_bytes
-    process_handle = getattr(process, "_handle", None)
-    if not isinstance(process_handle, int):
-        kernel32.CloseHandle(job)
-        raise OSError("Python did not expose the PDF worker process handle")
-    if not kernel32.SetInformationJobObject(
-        job,
-        9,
-        ctypes.byref(information),
-        ctypes.sizeof(information),
-    ) or not kernel32.AssignProcessToJobObject(job, wintypes.HANDLE(process_handle)):
-        error = ctypes.get_last_error()
-        kernel32.CloseHandle(job)
-        raise ctypes.WinError(error)
-    return int(job)
+    return assign_windows_memory_job(process, process_memory_bytes=limit_bytes)
 
 
 def _close_windows_job(job_handle: int | None) -> None:
-    if job_handle is None:
-        return
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel32.CloseHandle.restype = wintypes.BOOL
-    kernel32.CloseHandle(wintypes.HANDLE(job_handle))
+    close_windows_job(job_handle)
 
 
 def _sanitize_surrogates(text: str) -> str:
@@ -334,27 +390,83 @@ class _TextExtractor(HTMLParser):
 
     _SKIP = frozenset({"script", "style", "head", "noscript", "template"})
     _BLOCK = frozenset({"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"})
+    _VOID = frozenset(
+        {
+            "area",
+            "base",
+            "br",
+            "col",
+            "embed",
+            "hr",
+            "img",
+            "input",
+            "link",
+            "meta",
+            "param",
+            "source",
+            "track",
+            "wbr",
+        }
+    )
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        max_chars: int = _MAX_HTML_TEXT_CHARS,
+        max_events: int = _MAX_HTML_PARSE_EVENTS,
+        max_depth: int = _MAX_HTML_PARSE_DEPTH,
+    ) -> None:
+        if min(max_chars, max_events, max_depth) <= 0:
+            raise ValueError("HTML parser budgets must be positive")
         super().__init__(convert_charrefs=True)
         self._chunks: list[str] = []
         self._skip_depth = 0
+        self._depth = 0
+        self._events = 0
+        self._chars = 0
+        self._max_chars = max_chars
+        self._max_events = max_events
+        self._max_depth = max_depth
+
+    def _record_event(self) -> None:
+        self._events += 1
+        if self._events > self._max_events:
+            raise _HTMLParseLimit
+
+    def _append(self, value: str) -> None:
+        remaining = self._max_chars - self._chars
+        if remaining <= 0:
+            raise _HTMLParseLimit
+        fragment = value[:remaining]
+        self._chunks.append(fragment)
+        self._chars += len(fragment)
+        if len(fragment) < len(value):
+            raise _HTMLParseLimit
 
     def handle_starttag(self, tag: str, attrs: object) -> None:
+        self._record_event()
+        if tag not in self._VOID:
+            self._depth += 1
+            if self._depth > self._max_depth:
+                raise _HTMLParseLimit
         if tag in self._SKIP:
             self._skip_depth += 1
         elif tag in self._BLOCK:
-            self._chunks.append("\n")
+            self._append("\n")
 
     def handle_endtag(self, tag: str) -> None:
+        self._record_event()
         if tag in self._SKIP and self._skip_depth > 0:
             self._skip_depth -= 1
         elif tag in self._BLOCK:
-            self._chunks.append("\n")
+            self._append("\n")
+        if tag not in self._VOID:
+            self._depth = max(0, self._depth - 1)
 
     def handle_data(self, data: str) -> None:
+        self._record_event()
         if self._skip_depth == 0 and data.strip():
-            self._chunks.append(data)
+            self._append(data)
 
     def text(self) -> str:
         joined = "".join(self._chunks)
@@ -362,15 +474,21 @@ class _TextExtractor(HTMLParser):
         return re.sub(r"\n[ \t]*\n[ \t]*\n+", "\n\n", joined).strip()
 
 
-def _html_to_text(html: str) -> str:
-    parser = _TextExtractor()
+class _HTMLParseLimit(Exception):
+    """Internal signal that returns the safely retained HTML prefix."""
+
+
+def _html_to_text(html: str, *, max_chars: int = _MAX_HTML_TEXT_CHARS) -> str:
+    parser = _TextExtractor(max_chars=max_chars)
     try:
         parser.feed(html)
+    except _HTMLParseLimit:
+        return parser.text()
     except Exception as exc:
         raise LocalExtractionError(f"Could not parse HTML: {exc}") from exc
     return parser.text()
 
 
-def html_to_text(html: str) -> str:
+def html_to_text(html: str, *, max_chars: int = _MAX_HTML_TEXT_CHARS) -> str:
     """Public HTML-to-text reduction (also used by the newsletter adapter)."""
-    return _html_to_text(html)
+    return _html_to_text(html, max_chars=max_chars)

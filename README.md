@@ -354,28 +354,29 @@ budget or poison the corpus by tool call. Ingest happens via the CLI by a named
 operator. Deployments that do expose write tools get two narrower guardrails:
 `DISTILL_MCP_MAX_SPEND_PER_CALL` (per-call spend ceiling, enforced on actual
 recorded spend) and `DISTILL_MCP_INGEST_ALLOWLIST` (URL ingest confined to
-operator-approved domains). The MCP `site_batch` tool accepts relative JSON
-seed files with the same exact-page and shallow-crawl modes as the CLI, and its
+operator-approved domains). The MCP `site_batch` tool accepts bounded JSON
+seed files only from `library/site-seeds/`, validates every entry as public
+HTTPS, and cannot use an ordinary library file as a preview source. Its
 `preview=true` mode returns the plan even in read-only deployments. See
 [`docs/mcp.md`](docs/mcp.md) for the list.
 
 **Path 2 - file system (the corpus IS the interface).** When a coding agent `cd`s into `library/topics/<your-topic>/`, the directory is plain Markdown with stable filenames and YAML frontmatter, so `grep`, `cat`, `ls`, and `find` are first-class query primitives - no schema to learn, no MCP setup required. Every topic directory (and the library root) ships auto-generated **`CLAUDE.md` and `AGENTS.md`** orientation files with identical content - `CLAUDE.md` for Claude Code, `AGENTS.md` for Codex, Cursor, Gemini CLI, and the 30+ tools on the cross-vendor AGENTS.md standard - so any agent that enters the directory gets oriented. This matches what Anthropic's Agent SDK material recommends for agent design: file system + composable tools as the substrate, with structured APIs layered on top when they help, not as the only entry point.
 
 **Path 3 - active host session (bounded deferred work).** When an `agent`
-provider call creates a pending task, an already active Codex, Claude Code,
-Grok, Gemini-style, Antigravity-style, or similar session can complete it through
-`distill worker`. The host claims one task into an isolated scratch workspace,
+provider call creates a pending task, an already active host session can
+complete it through `distill worker`. The host claims one task into an isolated scratch workspace,
 reads `prompt.md` and `task.json`, writes only `result.md`, and submits an
 ownership-bound receipt. Distill validates the staged inputs, write set, result
-size and hash, then replays the result through its normal verification and
+size and hash, rechecks ownership at publication, then replays the result through its normal verification and
 corpus-write path when the original command is rerun. A failed worker can
 abandon its claim so a different host can take over; stale claims require an
 explicit operator release.
 
 ```bash
 distill --json worker list
-distill --json worker claim --host codex
-distill --json worker submit <task-id> --claim-token <claim-token>
+distill --json worker claim --host worker-a
+# Set DISTILL_WORKER_CLAIM_TOKEN through the host's secret environment.
+distill --json worker submit <task-id>
 ```
 
 This handoff does not invoke a vendor CLI, inspect its credentials, or prove its
@@ -443,7 +444,7 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 **What's enforced** (every release clears the same CI gate): more than 5,100 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
 
-**Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file access is confined to the library root (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
+**Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file reads are confined to explicit namespaces, artifact classes, and byte limits (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 
 **What verification means here:** analysis output is LLM-generated and can err; provenance fields on every artifact exist so you can check receipts, and distill checks them itself. A **write-time verify hook** grounds every numeric claim in every insight, on every source type, against its source receipt before the artifact is committed (`--verify warn|strict|off`; strict refuses to write a flagged insight). Answers from `distill ask` only re-enter the corpus if they pass that gate. The **entailment tier** (`pip install distillr[entailment]`) extends the same gate to prose claims: a small local cross-encoder (HHEM-2.1-Open, Apache 2.0, no cloud calls) scores every substantive sentence against the source receipt, and `--verify strict` refuses on prose flags too; without the extra installed, the deterministic tier stands alone. A **prompt-version registry** lets the audit flag artifacts produced by since-improved prompts instead of letting them age silently. **`distill audit <topic>`** rolls verification coverage, prompt staleness, synthesis freshness (a synthesis older than the sources under it is flagged in the report, the dashboard, and the topic's own orientation files, because confident prose is the most dangerous place for staleness to hide), exact duplicate video identities, health warnings, contested concepts, link integrity, and coverage gaps into a per-topic report artifact, free and deterministically. **`distill audit <topic|all> --next-actions --json`** returns the same findings as bounded actions with commands, approval class, write scope, loop metadata, and verifier stop conditions for external agents or schedulers. Full posture: [`docs/SECURITY.md`](docs/SECURITY.md) and the [security section of the roadmap](ROADMAP.md#security-posture).
 
@@ -461,33 +462,34 @@ Start at the [documentation index](docs/README.md), which groups everything belo
 - [`docs/briefing-contexts/TEMPLATE.md`](docs/briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts
 - [`private/README.md`](private/README.md) - where personal/client-specific files go (git-ignored)
 
-## Project status, and the road to 1.0
+## Project status and active refinement
 
-Distillr is in active use and ships frequent patch releases; the feature spine -
-eight source types, goal-aware discovery, the write-time verify gate,
-cross-source synthesis, `ask`, `audit`, MCP, and the dashboard - is complete. The
-`0.x` version is deliberate and does **not** mean "unfinished" or "unreliable":
-every release clears the same CI gate (5,100+ tests at 95%+ **branch** coverage,
-ruff + Pyright + import-linter + bandit + pip-audit, Linux on Python 3.12-3.14,
-macOS and Windows smoke tests on Python 3.12, and PEP 740 build provenance).
-What `0.x` means is that
-the **public contracts are not frozen yet**.
+Distillr is an active beta with a broad working surface: eight source types,
+goal-aware discovery, write-time verification, cross-source synthesis, `ask`,
+`audit`, MCP, a loopback dashboard, recurring profiles, and bounded deferred
+workers. Every change still clears the same release gate: at least 95% branch
+coverage, Ruff, Pyright, import-linter, Bandit, pip-audit, the supported Python
+matrix, cross-platform smoke tests, and build provenance.
 
-1.0 is a *stability commitment*, not a feature milestone - and that distinction
-is why it is a deliberate step rather than an imminent one. It is the point where
-the CLI flags, MCP tool/resource/prompt schemas, `library/` layout, and
-frontmatter fields become versioned and promised not to break until 2.0 (a 0.5
-corpus opens cleanly in 1.0), backed by a documented backwards-compatibility
-policy and a published performance baseline. Crossing it is a one-way door:
-distillr keeps evolving those shapes while the agent ecosystem (MCP conventions,
-OKF, context-engineering practice) is still moving, and freezing early would mean
-freezing the wrong shape. The remaining distance is four things, none of them a
-calendar item: the tail of the CI-enforced quality ratchet (Pyright-strict
-across the full surface and parse-don't-validate at every boundary), the
-contract freeze itself, the published performance baseline, and a presentation
-pass (README media, onboarding docs). The branch-coverage gate already reached
-95%. Full definition:
-[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
+The current program is refinement, not a countdown to a contract freeze. No
+freeze date is scheduled or implied. Existing workflows remain open to small,
+evidence-backed improvements in UX, copy, security, reliability,
+observability, accessibility, and documentation. Candidate contract snapshots
+detect accidental drift today; they are review evidence, not a declaration
+that the current shapes are final.
+
+The priority order is current-surface quality: close validated security paths,
+bound slow or oversized work end to end, make failures and recovery diagnostic,
+remove onboarding ambiguity, verify accessible CLI and dashboard behavior, and
+keep documentation aligned with what the product actually does. New feature
+work stays secondary unless it is necessary to repair one of those workflows.
+
+1.0 remains a future stability commitment. It becomes a sensible decision only
+after the refinement backlog is materially reduced, representative user and
+operator paths are repeatedly clean, compatibility and migration evidence is
+published, the performance baseline exists, and the candidate public contracts
+have survived real use. Those are readiness conditions, not a calendar plan.
+Full definition: [`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
 
 Performance work follows an evidence gate, not a language quota. Distill stays
 Python-first while repeated scans and algorithms can still deliver the larger
@@ -497,9 +499,9 @@ before any Rust, Go, Mojo, or free-threaded Python spike is considered. The
 decision record and admission budgets are in
 [`docs/design/performance-and-language-admission.md`](docs/design/performance-and-language-admission.md).
 
-Practically: build on the `library/` plain files and the CLI today; if you
-integrate against the MCP schemas or frontmatter fields, pin the version until
-1.0 freezes them.
+Practically: build on the `library/` plain files and the CLI today. If you
+integrate against MCP schemas or frontmatter fields, pin the version and review
+release notes because those candidate contracts can still improve.
 
 ## Roadmap and changelog
 

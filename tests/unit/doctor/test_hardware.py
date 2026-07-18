@@ -30,7 +30,7 @@ class TestDetectNvidia:
         mock_result.stdout = "NVIDIA Test GPU, 24564\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", return_value=mock_result),
         ):
             result = _detect_nvidia()
@@ -42,7 +42,7 @@ class TestDetectNvidia:
         assert vram_gb == pytest.approx(24.0, abs=0.1)
 
     def test_nvidia_not_found(self) -> None:
-        with patch("distill.doctor.hardware.shutil.which", return_value=None):
+        with patch("distill.doctor.hardware.resolve_executable", return_value=None):
             result = _detect_nvidia()
         assert result is None
 
@@ -52,7 +52,7 @@ class TestDetectNvidia:
         mock_result.stdout = ""
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", return_value=mock_result),
         ):
             result = _detect_nvidia()
@@ -60,7 +60,7 @@ class TestDetectNvidia:
 
     def test_nvidia_smi_timeout(self) -> None:
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", side_effect=subprocess.TimeoutExpired("nvidia-smi", 5)),
         ):
             result = _detect_nvidia()
@@ -72,7 +72,7 @@ class TestDetectNvidia:
         mock_result.stdout = ""
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", return_value=mock_result),
         ):
             result = _detect_nvidia()
@@ -84,7 +84,7 @@ class TestDetectNvidia:
         mock_result.stdout = "NVIDIA Test GPU\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", return_value=mock_result),
         ):
             result = _detect_nvidia()
@@ -97,7 +97,7 @@ class TestDetectNvidia:
         mock_result.stdout = "NVIDIA Test GPU, not-a-number\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="nvidia-smi"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="nvidia-smi"),
             patch("subprocess.run", return_value=mock_result),
         ):
             result = _detect_nvidia()
@@ -114,14 +114,14 @@ class TestAppleChipName:
         mock_result.stdout = "Apple Test Chip\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             name = _get_apple_chip_name()
         assert name == "Apple Test Chip"
 
     def test_apple_chip_fallback(self) -> None:
-        with patch("distill.doctor.hardware.shutil.which", return_value=None):
+        with patch("distill.doctor.hardware.resolve_executable", return_value=None):
             name = _get_apple_chip_name()
         assert name == "Apple Silicon"
 
@@ -131,7 +131,7 @@ class TestAppleChipName:
         mock_result.stdout = "\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             name = _get_apple_chip_name()
@@ -150,7 +150,7 @@ class TestSystemRam:
 
         with (
             patch("platform.system", return_value="Darwin"),
-            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             ram = _get_system_ram()
@@ -185,7 +185,7 @@ class TestSystemRam:
         mock_result.stdout = "not-an-int\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             assert _get_macos_ram() == 0.0
@@ -196,7 +196,7 @@ class TestSystemRam:
         mock_result.stdout = "\n"
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="sysctl"),
+            patch("distill.doctor.hardware.resolve_executable", return_value="sysctl"),
             patch("subprocess.run", return_value=mock_result),
         ):
             assert _get_macos_ram() == 0.0
@@ -306,7 +306,14 @@ class TestRunTool:
         )
 
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value="resolved-tool"),
+            patch(
+                "distill.doctor.hardware.resolve_executable",
+                return_value="resolved-tool",
+            ),
+            patch(
+                "distill.doctor.hardware.package_install_context",
+                return_value=("/trusted", {"PATH": "/usr/bin"}),
+            ),
             patch("subprocess.run", return_value=completed) as run,
         ):
             result = _run_tool("tool", "--version")
@@ -317,6 +324,8 @@ class TestRunTool:
             capture_output=True,
             text=True,
             timeout=5,
+            cwd="/trusted",
+            env={"PATH": "/usr/bin"},
         )
 
 
@@ -340,7 +349,7 @@ class TestDetectHardware:
             raise FileNotFoundError
 
         with (
-            patch("distill.doctor.hardware.shutil.which", side_effect=lambda cmd: cmd),
+            patch("distill.doctor.hardware.resolve_executable", side_effect=lambda cmd: cmd),
             patch("subprocess.run", side_effect=mock_run),
             patch("platform.system", return_value="Linux"),
             patch("pathlib.Path.exists", return_value=False),
@@ -355,7 +364,7 @@ class TestDetectHardware:
 
     def test_no_gpu_system(self) -> None:
         with (
-            patch("distill.doctor.hardware.shutil.which", return_value=None),
+            patch("distill.doctor.hardware.resolve_executable", return_value=None),
             patch("subprocess.run", side_effect=FileNotFoundError),
             patch("platform.system", return_value="Linux"),
             patch("platform.machine", return_value="x86_64"),

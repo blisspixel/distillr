@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import re
 import secrets
 from collections.abc import Callable, Mapping
@@ -22,18 +23,18 @@ from distill.llm.providers._agent_files import (
     write_task_bytes,
 )
 from distill.llm.providers._agent_protocol import (
+    MAX_AGENT_PENDING_TASKS,
     MAX_AGENT_SIDECAR_BYTES,
+    MAX_AGENT_TASK_BYTES,
     WORKER_ABANDONMENT_SCHEMA_VERSION,
     WORKER_CLAIM_SCHEMA_VERSION,
     WORKER_PROTOCOL_VERSION,
     WORKER_SUBMISSION_SCHEMA_VERSION,
+    WORKER_TRANSITION_LOCK_NAME,
+    agent_result_byte_limit,
     validate_host_submission,
 )
-from distill.llm.providers.agent import (
-    MAX_AGENT_TASK_BYTES,
-    AgentProvider,
-    agent_result_byte_limit,
-)
+from distill.llm.providers.agent import AgentProvider
 from distill.worker._contracts import (
     WorkerTaskConflict,
     WorkerTaskError,
@@ -64,6 +65,7 @@ from distill.worker._contracts import (
 from distill.worker._models import BoundRoot as _BoundRoot
 from distill.worker._models import Claim as _Claim
 from distill.worker._models import PendingTask as _PendingTask
+from distill.worker._transition import serialized_transition
 
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _TOKEN_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -105,9 +107,11 @@ class AgentTaskQueue:
         self._provider = AgentProvider(text)
         self._pending_dir = self._ops_dir / "tasks" / "pending"
         self._work_dir = self._ops_dir / "tasks" / "work"
+        self.transition_lock_path = self._ops_dir / "tasks" / WORKER_TRANSITION_LOCK_NAME
         self._now = now or (lambda: datetime.now(UTC))
         self._token_factory = token_factory or (lambda: secrets.token_urlsafe(32))
 
+    @serialized_transition
     def list_tasks(self) -> list[dict[str, Any]]:
         """Return prompt-free status rows for every structurally visible task."""
 
@@ -129,6 +133,7 @@ class AgentTaskQueue:
                 )
         return rows
 
+    @serialized_transition
     def claim(
         self,
         *,
@@ -166,6 +171,7 @@ class AgentTaskQueue:
             )
         return None
 
+    @serialized_transition
     def submit(
         self,
         task_id: str,
@@ -204,6 +210,7 @@ class AgentTaskQueue:
         existing_submission = self._load_submission(task, root)
         if existing_submission is not None:
             _validate_existing_submission(task, claim, existing_submission, result_bytes)
+            self._assert_publication_authorized(task, root, claim, workspace, workspace_root)
             self._publish_result(task, root, result_bytes)
             return self._submission_result(
                 task,
@@ -233,6 +240,7 @@ class AgentTaskQueue:
             raise WorkerTaskInvalid(f"generated submission receipt is invalid: {exc}") from exc
         submission_bytes = _json_bytes(submission)
         submission_path = self._submission_path(task)
+        self._assert_publication_authorized(task, root, claim, workspace, workspace_root)
         self._publish_receipt(
             submission_path,
             submission_bytes,
@@ -270,6 +278,7 @@ class AgentTaskQueue:
             "billing": submission["billing"],
         }
 
+    @serialized_transition
     def abandon(
         self,
         task_id: str,
@@ -323,6 +332,7 @@ class AgentTaskQueue:
             "abandonment_receipt_path": str(event_path),
         }
 
+    @serialized_transition
     def release_expired(self, task_id: str) -> dict[str, Any]:
         """Release an expired claim when no submission has started."""
 
@@ -401,13 +411,22 @@ class AgentTaskQueue:
         return _BoundRoot(*validated)
 
     def _task_paths(self, root: _BoundRoot) -> tuple[Path, ...]:
+        paths: list[Path] = []
         try:
-            paths = tuple(sorted(root.path.glob("*.json"), key=lambda path: path.name))
+            with os.scandir(root.path) as entries:
+                for entry in entries:
+                    if not entry.name.endswith(".json"):
+                        continue
+                    if len(paths) >= MAX_AGENT_PENDING_TASKS:
+                        raise WorkerTaskInvalid(
+                            f"worker queue task limit is {MAX_AGENT_PENDING_TASKS}"
+                        )
+                    paths.append(root.path / entry.name)
         except OSError as exc:
             raise WorkerTaskInvalid("pending task directory could not be enumerated") from exc
         if not task_root_is_unchanged(root.path, root.identity):
             raise WorkerTaskInvalid("pending task directory changed during enumeration")
-        return paths
+        return tuple(sorted(paths, key=lambda path: path.name))
 
     def _load_task(self, path: Path, root: _BoundRoot) -> _PendingTask:
         text = read_task_text(
@@ -604,15 +623,14 @@ class AgentTaskQueue:
             "task_path": str(workspace_path / "task.json"),
             "result_path": str(workspace_path / "result.md"),
             "allowed_write_paths": [str(workspace_path / "result.md")],
-            "submit_argv": [
+            "submit_command": [
                 "distill",
                 "--json",
                 "worker",
                 "submit",
                 task.task_id,
-                "--claim-token",
-                claim_token,
             ],
+            "claim_token_env": "DISTILL_WORKER_CLAIM_TOKEN",
             "billing": {
                 "class": "host-managed",
                 "no_metered_proven": False,
@@ -776,6 +794,23 @@ class AgentTaskQueue:
         staged_payload = _json_mapping(staged_task, label="staged worker task")
         if staged_payload != self._staged_task_payload(task):
             raise WorkerTaskConflict("staged task metadata no longer matches the pending task")
+
+    def _assert_publication_authorized(
+        self,
+        task: _PendingTask,
+        pending_root: _BoundRoot,
+        claim: _Claim,
+        workspace: Path,
+        workspace_root: _BoundRoot,
+    ) -> None:
+        """Recheck ownership and the exact scratch file set at publication."""
+
+        _validate_workspace_names(workspace)
+        if not task_root_is_unchanged(workspace_root.path, workspace_root.identity):
+            raise WorkerTaskInvalid("worker workspace changed before publication")
+        current = self._required_claim(task, pending_root, claim.token_hash)
+        if not hmac.compare_digest(current.raw_bytes, claim.raw_bytes):
+            raise WorkerTaskConflict("claim changed before terminal publication")
 
     def _submission_payload(
         self,

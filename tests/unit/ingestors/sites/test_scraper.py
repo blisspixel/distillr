@@ -1,10 +1,15 @@
 import contextlib
+import io
 import json
 import sys
+from dataclasses import asdict
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from distill.ingestors.sites import _site_urls as site_urls
+from distill.ingestors.sites import scraper as scraper_module
 from distill.ingestors.sites.scraper import (
     SitePage,
     SiteSeed,
@@ -16,12 +21,14 @@ from distill.ingestors.sites.scraper import (
     classify_page_type,
     crawl_prefix_from_url,
     crawl_site,
+    crawl_site_in_browser_worker,
     dedupe_urls,
     is_crawlable_url,
     is_same_section,
     load_site_batch,
     normalize_host,
     page_id_from_url,
+    parse_site_batch_json,
     site_section_key,
 )
 from distill.library.paths import site_name_from_url
@@ -258,10 +265,119 @@ def test_load_site_batch_rejects_oversized_limits_at_every_json_level(tmp_path, 
         load_site_batch(path)
 
 
+def test_parse_site_batch_rejects_malformed_json() -> None:
+    with pytest.raises(ValueError, match="valid JSON"):
+        parse_site_batch_json("{")
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (None, "object or array"),
+        ({"crawl": []}, "'crawl' must be an object"),
+        ({"urls": {}}, "'urls' must be an array"),
+        ({"collections": {}}, "'collections' must be an array"),
+        (
+            {
+                "urls": ["https://example.com/a"],
+                "collections": [{"seeds": ["https://example.com/b"]}],
+            },
+            "either 'urls' or 'collections'",
+        ),
+        ({"collections": [{}] * 501}, "too many collections"),
+        ({"collections": ["invalid"]}, "collection 1 must be an object"),
+        ({"collections": [{"seeds": {}}]}, "field 'seeds' must be an array"),
+        (
+            {"collections": [{"seeds": ["https://example.com"] * 501}]},
+            "too many seeds",
+        ),
+        ({"collections": [{"seeds": [""]}]}, "must be a URL string"),
+        ({"collections": [{"seeds": [73]}]}, "must be a URL string"),
+        ({"urls": ["https://example.com"] * 501}, "too many seeds"),
+        ({"urls": [""]}, "must not be empty"),
+        ({"urls": [73]}, "must be a URL or object"),
+        ({"urls": [{}]}, "requires a URL string"),
+        ({"topic": 73}, "field 'topic' must be a string"),
+        (
+            {"urls": [{"url": "https://example.com", "label": 73}]},
+            "field 'label' must be a string",
+        ),
+        (
+            {"urls": [{"url": "https://example.com", "discover_crawl": "yes"}]},
+            "field 'discover_crawl' must be a boolean",
+        ),
+        (
+            {"urls": [{"url": "https://example.com", "crawl": "yes"}]},
+            "field 'crawl' must be a boolean",
+        ),
+        (
+            {"urls": [{"url": "https://example.com", "max_pages": True}]},
+            "field 'max_pages' must be an integer",
+        ),
+        (
+            {"urls": [{"url": "https://example.com", "source_hint": "x" * 4_097}]},
+            "field 'source_hint' is too long",
+        ),
+    ],
+)
+def test_parse_site_batch_rejects_unbounded_or_mistyped_manifest_shapes(
+    payload: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        parse_site_batch_json(json.dumps(payload))
+
+
 def test_classify_page_type_prefers_video_when_flagged():
     assert classify_page_type("https://example.com/page", "Title", "", True) == "video"
     assert classify_page_type("https://example.com/topic/ai", "Title", "", False) == "topic"
     assert classify_page_type("https://example.com/partner/tool", "Title", "", False) == "partner"
+
+
+@pytest.mark.parametrize(
+    ("path", "page_type"),
+    [
+        ("lab", "lab"),
+        ("research", "research"),
+        ("research-and-insights", "research"),
+        ("insights", "research"),
+        ("category", "category"),
+        ("overview", "overview"),
+        ("explore", "explore"),
+        ("ecosystem", "ecosystem"),
+        ("plain", "page"),
+    ],
+)
+def test_classify_page_type_covers_supported_content_families(path: str, page_type: str) -> None:
+    assert classify_page_type(f"https://example.com/{path}/item", "Title", "", False) == page_type
+
+
+def test_site_url_helpers_cover_scope_and_canonicalization_edges() -> None:
+    assert site_urls.is_within_crawl_prefix("https://example.com/anything", "") is True
+    assert site_urls.canonicalize_url("https://[2001:db8::1]:443/docs") == (
+        "https://[2001:db8::1]/docs"
+    )
+    assert site_urls.canonicalize_url("https://Example.COM:bad/docs") == (
+        "https://example.com:bad/docs"
+    )
+    assert site_urls.is_crawlable_url("ftp://example.com/docs") is False
+    assert site_urls.is_same_section("https://example.com/", "https://example.com/docs") is False
+    assert (
+        site_urls.canonical_url_in_seed_scope(
+            "http://example.com/docs",
+            seed=SiteSeed(url="https://example.com/docs", topic="web"),
+            root_host="example.com",
+        )
+        is None
+    )
+    assert (
+        site_urls.link_relevance_score(
+            "https://example.com/docs/start",
+            "https://example.com/docs/start",
+            "https://example.com/docs/current",
+        )
+        >= 100
+    )
 
 
 def test_build_page_document_includes_transcript_when_present():
@@ -367,6 +483,55 @@ def test_public_web_route_aborts_private_requests(monkeypatch):
         "https://example.com/page",
         "https://example.com/asset.js",
     ]
+
+
+def test_public_web_route_bounds_requests_and_blocks_non_text_assets(monkeypatch):
+    class FakeRoute:
+        def __init__(self):
+            self.action = ""
+
+        def continue_(self):
+            self.action = "continue"
+
+        def abort(self):
+            self.action = "abort"
+
+    class FakeContext:
+        def route(self, pattern, handler):
+            self.handler = handler
+
+    monkeypatch.setattr("distill.ingestors.net.is_public_web_url", lambda _url: True)
+    context = FakeContext()
+    budget = _install_public_web_route(context)
+
+    image = FakeRoute()
+    context.handler(
+        image,
+        SimpleNamespace(url="https://example.com/image.png", resource_type="image"),
+    )
+    assert image.action == "abort"
+
+    routes = []
+    for index in range(129):
+        route = FakeRoute()
+        routes.append(route)
+        context.handler(
+            route,
+            SimpleNamespace(
+                url=f"https://example.com/data/{index}",
+                resource_type="fetch",
+            ),
+        )
+    assert all(route.action == "continue" for route in routes[:128])
+    assert routes[-1].action == "abort"
+
+    budget.reset()
+    after_reset = FakeRoute()
+    context.handler(
+        after_reset,
+        SimpleNamespace(url="https://example.com/next", resource_type="document"),
+    )
+    assert after_reset.action == "continue"
 
 
 def test_site_section_key_uses_first_two_segments():
@@ -504,7 +669,7 @@ def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, obser
 
     observed = observed if observed is not None else {}
 
-    page = SimpleNamespace(set_default_timeout=lambda timeout: None)
+    page = SimpleNamespace(set_default_timeout=lambda timeout: None, close=lambda: None)
     context = SimpleNamespace(
         route=lambda pattern, handler: None,
         new_page=lambda: page,
@@ -729,6 +894,116 @@ def test_crawl_site_revalidates_mutated_limits_before_browser_launch(monkeypatch
         crawl_site(seed)
 
 
+def test_crawl_site_delegates_valid_seed_to_isolated_worker(monkeypatch):
+    seed = SiteSeed(url="https://example.com/docs", topic="web")
+    expected = [
+        SitePage(
+            url=seed.url,
+            title="Worker page",
+            site_name="example.com",
+            page_type="page",
+            text="body",
+        )
+    ]
+    monkeypatch.setattr("distill.ingestors.net.is_public_web_url", lambda _url: True)
+    monkeypatch.setattr(
+        "distill.ingestors.sites.scraper._run_browser_worker",
+        lambda received: expected if received is seed else [],
+    )
+
+    assert crawl_site(seed) == expected
+
+
+class _BrowserControlPipe:
+    def __init__(self) -> None:
+        self.data = b""
+
+    def write(self, data: bytes) -> None:
+        self.data += data
+
+    def close(self) -> None:
+        return None
+
+
+class _FakeBrowserProcess:
+    pid = 73
+
+    def __init__(self, *, returncode: int = 0, stderr: bytes = b"") -> None:
+        self.stdin = _BrowserControlPipe()
+        self.stderr = io.BytesIO(stderr)
+        self.returncode = returncode
+        self.killed = False
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+    def kill(self) -> None:
+        self.killed = True
+        self.returncode = -9
+
+
+def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: Path) -> None:
+    seed = SiteSeed(url="https://example.com/docs", topic="web", max_depth=0, max_pages=1)
+    page = SitePage(
+        url=seed.url,
+        title="Docs",
+        site_name="example.com",
+        page_type="page",
+        text="body",
+    )
+    process = _FakeBrowserProcess()
+    observed = {}
+
+    def popen(argv, **kwargs):
+        observed["argv"] = argv
+        observed["kwargs"] = kwargs
+        Path(argv[5]).write_text(
+            json.dumps({"schema_version": 1, "pages": [asdict(page)]}),
+            encoding="utf-8",
+        )
+        return process
+
+    monkeypatch.setattr(scraper_module.subprocess, "Popen", popen)
+    monkeypatch.setattr(scraper_module, "package_install_context", lambda: (str(tmp_path), {}))
+    monkeypatch.setattr(scraper_module, "assign_windows_memory_job", lambda *a, **k: None)
+    monkeypatch.setattr(scraper_module, "close_windows_job", lambda _handle: None)
+    monkeypatch.setattr(scraper_module, "wait_for_process_budget", lambda *a, **k: 100)
+
+    assert scraper_module._run_browser_worker(seed) == [page]
+    assert process.stdin is None
+    assert observed["argv"][:4] == [
+        sys.executable,
+        "-P",
+        "-m",
+        "distill.ingestors.sites._browser_worker",
+    ]
+    assert observed["kwargs"]["cwd"] == str(tmp_path)
+
+
+def test_browser_worker_parent_terminates_on_memory_budget(monkeypatch, tmp_path: Path) -> None:
+    seed = SiteSeed(url="https://example.com/docs", topic="web", max_depth=0, max_pages=1)
+    process = _FakeBrowserProcess()
+    terminated = []
+    monkeypatch.setattr(scraper_module.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(scraper_module, "package_install_context", lambda: (str(tmp_path), {}))
+    monkeypatch.setattr(scraper_module, "assign_windows_memory_job", lambda *a, **k: None)
+    monkeypatch.setattr(scraper_module, "close_windows_job", lambda _handle: None)
+    monkeypatch.setattr(
+        scraper_module,
+        "wait_for_process_budget",
+        lambda *a, **k: (_ for _ in ()).throw(
+            scraper_module.ProcessBudgetExceeded("memory", 100, 101)
+        ),
+    )
+    monkeypatch.setattr(scraper_module, "terminate_process_tree", terminated.append)
+
+    assert scraper_module._run_browser_worker(seed) == []
+    assert terminated == [process]
+
+
 def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
     pages_by_url = {
         "https://example.com/start": SitePage(
@@ -764,7 +1039,7 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract)
 
-    pages = crawl_site(
+    pages = crawl_site_in_browser_worker(
         SiteSeed(url="https://example.com/start", topic="web", max_depth=1, max_pages=5)
     )
 
@@ -787,12 +1062,14 @@ def test_crawl_site_uses_pinned_proxy_and_blocks_service_workers(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract, observed=observed)
 
-    pages = crawl_site(SiteSeed(url="https://example.com/start", topic="web"))
+    pages = crawl_site_in_browser_worker(SiteSeed(url="https://example.com/start", topic="web"))
 
     assert len(pages) == 1
     assert observed["context"] == {
         "proxy": {"server": "http://127.0.0.1:43123"},
         "service_workers": "block",
+        "accept_downloads": False,
+        "extra_http_headers": {"Accept-Encoding": "identity"},
     }
     assert "--disable-quic" in observed["launch"]["args"]
     assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in observed["launch"]["args"]
@@ -837,7 +1114,7 @@ def test_crawl_site_respects_crawl_prefix(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract)
 
-    pages = crawl_site(
+    pages = crawl_site_in_browser_worker(
         SiteSeed(
             url="https://example.com/docs/agents",
             topic="web",
@@ -880,7 +1157,9 @@ def test_crawl_site_drops_off_host_redirect(monkeypatch):
     # Treat every host as public so only the same-host confinement can drop it.
     _install_fake_playwright(monkeypatch, fake_extract, is_public=lambda url: True)
 
-    pages = crawl_site(SiteSeed(url="https://example.com/start", topic="web", max_pages=5))
+    pages = crawl_site_in_browser_worker(
+        SiteSeed(url="https://example.com/start", topic="web", max_pages=5)
+    )
 
     assert pages == []
 
@@ -918,7 +1197,7 @@ def test_crawl_site_drops_redirect_outside_seed_path_scope(seed, landed_url, mon
 
     _install_fake_playwright(monkeypatch, lambda *_args: redirected)
 
-    assert crawl_site(seed) == []
+    assert crawl_site_in_browser_worker(seed) == []
 
 
 def test_crawl_site_keeps_redirect_within_seed_path_scope(monkeypatch):
@@ -939,4 +1218,4 @@ def test_crawl_site_keeps_redirect_within_seed_path_scope(monkeypatch):
 
     _install_fake_playwright(monkeypatch, lambda *_args: redirected)
 
-    assert crawl_site(seed) == [redirected]
+    assert crawl_site_in_browser_worker(seed) == [redirected]

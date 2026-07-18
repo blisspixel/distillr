@@ -12,7 +12,9 @@ import pytest
 import distill.library.okf as okf_module
 from distill.config import DistillConfig
 from distill.library.okf import (
+    OkfValidationLimits,
     _display_path,
+    _publish_staged_output,
     _replace_output_dir,
     _rewrite_wikilinks,
     _tags_for,
@@ -31,6 +33,11 @@ def _write(path: Path, content: str) -> None:
 
 
 class TestValidateOkfBundle:
+    @pytest.mark.parametrize("timeout", [True, 0, -1, float("nan"), float("inf"), "1"])
+    def test_validation_limits_reject_invalid_timeout(self, timeout: object) -> None:
+        with pytest.raises(ValueError, match="timeout"):
+            OkfValidationLimits(timeout_seconds=timeout)  # type: ignore[arg-type] - runtime validator receives invalid values
+
     def test_accepts_valid_bundle(self, tmp_path: Path) -> None:
         bundle = tmp_path / "bundle"
         _write(
@@ -81,6 +88,85 @@ class TestValidateOkfBundle:
 
         assert result.ok
         assert any("Broken Markdown link" in issue.message for issue in result.warnings)
+
+    def test_file_count_budget_stops_before_parsing_tree(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        for index in range(3):
+            _write(bundle / f"concept-{index}.md", "---\ntype: Concept\n---\n")
+
+        result = validate_okf_bundle(bundle, limits=OkfValidationLimits(max_files=2))
+
+        assert not result.ok
+        assert result.files_checked == 0
+        assert any("file limit exceeded" in issue.message for issue in result.errors)
+
+    def test_per_file_byte_budget_stops_before_read(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "concept.md", "---\ntype: Concept\n---\n" + "x" * 128)
+
+        result = validate_okf_bundle(
+            bundle,
+            limits=OkfValidationLimits(max_file_bytes=64),
+        )
+
+        assert not result.ok
+        assert result.files_checked == 0
+        assert any("per-file byte limit" in issue.message for issue in result.errors)
+
+    def test_aggregate_byte_budget_stops_before_read(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "a.md", "---\ntype: A\n---\n")
+        _write(bundle / "b.md", "---\ntype: B\n---\n")
+
+        result = validate_okf_bundle(
+            bundle,
+            limits=OkfValidationLimits(max_file_bytes=100, max_total_bytes=30),
+        )
+
+        assert not result.ok
+        assert result.files_checked == 0
+        assert any("aggregate byte limit" in issue.message for issue in result.errors)
+
+    def test_tree_depth_budget_stops_nested_walk(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "a" / "b" / "c" / "concept.md", "---\ntype: C\n---\n")
+
+        result = validate_okf_bundle(
+            bundle,
+            limits=OkfValidationLimits(max_tree_depth=2),
+        )
+
+        assert not result.ok
+        assert any("tree depth" in issue.message for issue in result.errors)
+
+    def test_monotonic_deadline_stops_walk(self, tmp_path: Path, monkeypatch) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "concept.md", "---\ntype: C\n---\n")
+        ticks = iter((0.0, 2.0))
+        monkeypatch.setattr(okf_module.time, "monotonic", lambda: next(ticks, 2.0))
+
+        result = validate_okf_bundle(
+            bundle,
+            limits=OkfValidationLimits(timeout_seconds=1.0),
+        )
+
+        assert not result.ok
+        assert any("deadline exceeded" in issue.message for issue in result.errors)
+
+    def test_yaml_depth_budget_rejects_nested_frontmatter(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(
+            bundle / "concept.md",
+            "---\ntype: Concept\na:\n  b:\n    c:\n      d: value\n---\n",
+        )
+
+        result = validate_okf_bundle(
+            bundle,
+            limits=OkfValidationLimits(max_yaml_depth=3),
+        )
+
+        assert not result.ok
+        assert any("YAML nesting exceeds" in issue.message for issue in result.errors)
 
 
 class TestExportOkfBundle:
@@ -227,6 +313,92 @@ class TestValidateEdgeCases:
         assert result.files_checked == 0
         assert any("does not exist" in e.message for e in result.errors)
 
+    def test_unreadable_root_is_reported_without_traversal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        original_lstat = Path.lstat
+
+        def guarded_lstat(path: Path):
+            if path == bundle:
+                raise OSError("unreadable")
+            return original_lstat(path)
+
+        monkeypatch.setattr(Path, "lstat", guarded_lstat)
+
+        result = validate_okf_bundle(bundle)
+
+        assert result.files_checked == 0
+        assert [issue.message for issue in result.errors] == ["Bundle path is unreadable"]
+
+    def test_entry_budget_and_scan_failures_are_visible(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", "# Index\n")
+        _write(bundle / "log.md", "# Log\n")
+        _write(bundle / "concept.md", "---\ntype: Concept\n---\n")
+
+        limited = validate_okf_bundle(bundle, limits=OkfValidationLimits(max_entries=1))
+        assert any("entry limit exceeded" in issue.message for issue in limited.errors)
+
+        monkeypatch.setattr(
+            okf_module.os,
+            "scandir",
+            lambda _path: (_ for _ in ()).throw(OSError("scan failed")),
+        )
+        unreadable = validate_okf_bundle(bundle)
+        assert any("Cannot scan bundle directory" in issue.message for issue in unreadable.errors)
+
+    def test_validation_deadline_and_unsafe_read_are_visible(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        concept = bundle / "concept.md"
+        _write(concept, "---\ntype: Concept\n---\n")
+        monkeypatch.setattr(
+            okf_module,
+            "_bounded_okf_markdown_files",
+            lambda *_args: ([concept], None),
+        )
+        ticks = iter((0.0, 2.0))
+        monkeypatch.setattr(okf_module.time, "monotonic", lambda: next(ticks, 2.0))
+
+        expired = validate_okf_bundle(bundle, limits=OkfValidationLimits(timeout_seconds=1))
+        assert any("deadline exceeded" in issue.message for issue in expired.errors)
+
+        monkeypatch.setattr(okf_module.time, "monotonic", lambda: 0.0)
+        monkeypatch.setattr(okf_module, "read_confined_text", lambda *_args, **_kwargs: None)
+        unreadable = validate_okf_bundle(bundle)
+        assert any("unsafe or unreadable" in issue.message for issue in unreadable.errors)
+
+    def test_link_and_issue_budgets_stop_validation(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", "# Index\n")
+        _write(bundle / "log.md", "# Log\n")
+        _write(
+            bundle / "concept.md",
+            "---\ntype: Concept\n---\n\n[a](a.md) [b](b.md)\n",
+        )
+
+        links = validate_okf_bundle(bundle, limits=OkfValidationLimits(max_links_per_file=1))
+        assert any("link limit exceeded" in issue.message for issue in links.errors)
+
+        issues = validate_okf_bundle(bundle, limits=OkfValidationLimits(max_issues=1))
+        assert any("issue limit exceeded" in issue.message for issue in issues.errors)
+
+        direct = okf_module._collect_link_warnings(
+            bundle,
+            bundle / "concept.md",
+            "[a](a.md)",
+            [],
+            max_links=1,
+            max_issues=10,
+            deadline=-1,
+        )
+        assert direct == "OKF validation deadline exceeded"
+
     def test_path_that_is_a_file_is_error(self, tmp_path: Path) -> None:
         target = tmp_path / "f.md"
         target.write_text("x", encoding="utf-8")
@@ -267,6 +439,32 @@ class TestValidateEdgeCases:
         _write(bundle / "sub" / "concept.md", "---\ntype: C\n---\n\n[up](../../outside.md)\n")
         result = validate_okf_bundle(bundle)
         assert any("escapes bundle" in w.message for w in result.warnings)
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            r"\\server\share.md",
+            r"%5C%5Cserver%5Cshare.md",
+            r"C:%5Coutside.md",
+            r"folder%5Coutside.md",
+        ],
+    )
+    def test_link_rejects_cross_platform_remote_or_drive_syntax(
+        self,
+        tmp_path: Path,
+        target: str,
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", "# I\n")
+        _write(bundle / "log.md", "# L\n")
+        _write(
+            bundle / "concept.md",
+            f"---\ntype: C\n---\n\n[remote]({target})\n",
+        )
+
+        result = validate_okf_bundle(bundle)
+
+        assert any("escapes bundle" in warning.message for warning in result.warnings)
 
     def test_absolute_link_to_existing_file_is_not_broken(self, tmp_path: Path) -> None:
         bundle = tmp_path / "bundle"
@@ -381,6 +579,68 @@ class TestExportEdgeCases:
 
         with pytest.raises(ValueError, match="Refusing output outside"):
             _replace_output_dir(config, output_parent)
+
+    def test_replace_output_dir_removes_only_the_validated_existing_bundle(
+        self, tmp_path: Path
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        output = okf_bundle_output_dir(config.library_dir, "ai")
+        _write(output / "old.txt", "old")
+
+        _replace_output_dir(config, output)
+
+        assert output.is_dir()
+        assert not (output / "old.txt").exists()
+
+    def test_publish_staged_output_replaces_prior_bundle_and_cleans_backup(
+        self, tmp_path: Path
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        output = okf_bundle_output_dir(config.library_dir, "ai")
+        staging = output.with_name(".okf-ai.staging-test")
+        _write(output / "prior.txt", "prior")
+        _write(staging / "current.txt", "current")
+
+        _publish_staged_output(config, staging, output)
+
+        assert (output / "current.txt").read_text(encoding="utf-8") == "current"
+        assert not (output / "prior.txt").exists()
+        assert not output.with_name(".okf-ai.previous").exists()
+
+    def test_publish_staged_output_rolls_back_prior_bundle_on_rename_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        output = okf_bundle_output_dir(config.library_dir, "ai")
+        staging = output.with_name(".okf-ai.staging-test")
+        _write(output / "prior.txt", "prior")
+        _write(staging / "current.txt", "current")
+        original_rename = Path.rename
+
+        def guarded_rename(path: Path, target: Path):
+            if path == staging:
+                raise OSError("publish failed")
+            return original_rename(path, target)
+
+        monkeypatch.setattr(Path, "rename", guarded_rename)
+
+        with pytest.raises(OSError, match="publish failed"):
+            _publish_staged_output(config, staging, output)
+
+        assert (output / "prior.txt").read_text(encoding="utf-8") == "prior"
+        assert (staging / "current.txt").read_text(encoding="utf-8") == "current"
+
+    def test_publish_staged_output_refuses_unvalidated_staging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        output = okf_bundle_output_dir(config.library_dir, "ai")
+        staging = output.with_name(".okf-ai.staging-test")
+        _write(staging / "current.txt", "current")
+        monkeypatch.setattr(okf_module, "validate_confined_path", lambda *_args, **_kwargs: None)
+
+        with pytest.raises(ValueError, match="unsafe staging"):
+            _publish_staged_output(config, staging, output)
 
     def test_export_excludes_reserved_and_dotfile_sources(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -581,6 +841,16 @@ class TestOkfExportStaleness:
     def test_detect_staleness_none_when_bundle_missing(self, tmp_path: Path) -> None:
         library = tmp_path / "library"
         _write(library / "topics" / "ai" / "x.md", "# x\n")
+        assert detect_okf_export_staleness(library, "ai") is None
+
+    def test_detect_staleness_none_when_topic_or_bundle_anchors_are_missing(
+        self, tmp_path: Path
+    ) -> None:
+        library = tmp_path / "library"
+        assert detect_okf_export_staleness(library, "ai") is None
+
+        _write(library / "topics" / "ai" / ".hidden" / "ignored.md", "# hidden\n")
+        (tmp_path / "output" / "okf-ai").mkdir(parents=True)
         assert detect_okf_export_staleness(library, "ai") is None
 
     def test_detect_staleness_none_when_bundle_is_current(self, tmp_path: Path) -> None:

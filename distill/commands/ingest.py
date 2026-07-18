@@ -38,6 +38,7 @@ from distill.pipeline.analysis.podcast import ingest_podcast
 from distill.pipeline.analysis.repo import ingest_repo
 from distill.pipeline.analysis.tweet import ingest_tweet
 from distill.pipeline.costs import CostTracker, save_run_log
+from distill.target_safety import is_http_url, require_local_filesystem_target
 
 __all__ = ["ingest_cmd", "register"]
 
@@ -94,11 +95,17 @@ def ingest_cmd(
     source_type = "unknown"
 
     try:
+        try:
+            require_local_filesystem_target(url)
+        except ValueError as exc:
+            console.print(f"[red]Invalid target: {exc}.[/red]")
+            raise typer.Exit(2) from None
+
         # Local file path takes precedence: if the target exists on disk, ingest it
         # through the media pipeline (audio/video -> transcript -> insight) or the
         # local-document pipeline, rather than treating it as a URL.
-        local_path = Path(url).expanduser()
-        if local_path.is_file():
+        local_path = None if is_http_url(url) else Path(url).expanduser()
+        if local_path is not None and local_path.is_file():
             if is_media_file(local_path):
                 source_type = "media"
                 set_command_cost_metadata(tracker, topic=topic, source_type=source_type)

@@ -321,16 +321,16 @@ def _install_chromium() -> bool:
     """Run ``playwright install chromium`` with a hardened subprocess env (same
     discipline as the yt-dlp updater: no PYTHONPATH/PYTHONHOME injection).
     Returns True on success."""
-    import os
     import subprocess
     import sys
 
-    # Fixed argv from sys.executable, no shell, PYTHONPATH/PYTHONHOME stripped --
-    # same hardening as the yt-dlp updater (bandit B404/B603 are LOW and clear).
-    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONHOME")}
+    from distill.process_security import package_install_context
+
+    cwd, env = package_install_context()
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
+            [sys.executable, "-P", "-m", "playwright", "install", "chromium"],
+            cwd=cwd,
             env=env,
             check=False,
         )

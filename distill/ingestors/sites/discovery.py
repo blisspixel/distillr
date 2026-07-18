@@ -9,10 +9,16 @@ from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from itertools import islice
 
 from defusedxml.ElementTree import fromstring as xml_fromstring
 
-from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
+from distill.ingestors.net import (
+    NetworkDeadline,
+    NetworkError,
+    is_public_web_url,
+    safe_urlopen,
+)
 from distill.ingestors.sites.scraper import (
     SiteSeed,
     canonicalize_url,
@@ -38,6 +44,9 @@ _MAX_LANDING_ANCHORS = 4_096
 _MAX_LANDING_ANCHOR_TEXT_CHARS = 1_024
 _MAX_LANDING_ATTRIBUTES = 256
 _MAX_LANDING_HREF_CHARS = 8_192
+_MAX_SITEMAP_FETCH_ATTEMPTS = 16
+_MAX_SITEMAP_URLS_PER_DOCUMENT = 2_000
+_TRUSTED_SITE_DISCOVERY_TIMEOUT_SECONDS = 120.0
 
 
 @dataclass(frozen=True)
@@ -183,34 +192,52 @@ def discover_trusted_site_seeds(
     """
     if max_candidates <= 0:
         return TrustedSiteDiscoveryResult([], 0, 0, 0)
-    fetch = fetch_text or _fetch_text
+    deadline: NetworkDeadline | None = None
+    if fetch_text is None:
+        deadline = NetworkDeadline(
+            _TRUSTED_SITE_DISCOVERY_TIMEOUT_SECONDS,
+            label="trusted-site discovery",
+        )
+
+        def fetch(url: str, /) -> str:
+            return _fetch_text(url, deadline=deadline)
+
+    else:
+        fetch = fetch_text
     seeds: list[SiteSeed] = []
     seen: set[str] = set()
     fetched_sitemaps = 0
     fetched_landing_pages = 0
     normalized_sources = [src for src in (_normalize_source(s) for s in sources) if src]
 
-    for source_url in normalized_sources:
-        if len(seeds) >= max_candidates:
-            break
-        source_result = _collect_source_seeds(
-            source_url,
-            topic=topic,
-            fetch_text=fetch,
-            seen=seen,
-            remaining=max_candidates - len(seeds),
-            max_sitemaps=max_sitemaps_per_source,
-        )
-        seeds.extend(source_result.seeds)
-        fetched_sitemaps += source_result.fetched_sitemaps
-        fetched_landing_pages += source_result.fetched_landing_pages
+    try:
+        for source_url in normalized_sources:
+            if len(seeds) >= max_candidates:
+                break
+            source_result = _collect_source_seeds(
+                source_url,
+                topic=topic,
+                fetch_text=fetch,
+                seen=seen,
+                remaining=max_candidates - len(seeds),
+                max_sitemaps=min(
+                    max(0, max_sitemaps_per_source),
+                    _MAX_SITEMAP_FETCH_ATTEMPTS,
+                ),
+            )
+            seeds.extend(source_result.seeds)
+            fetched_sitemaps += source_result.fetched_sitemaps
+            fetched_landing_pages += source_result.fetched_landing_pages
 
-    return TrustedSiteDiscoveryResult(
-        seeds=seeds[:max_candidates],
-        source_count=len(normalized_sources),
-        fetched_sitemaps=fetched_sitemaps,
-        fetched_landing_pages=fetched_landing_pages,
-    )
+        return TrustedSiteDiscoveryResult(
+            seeds=seeds[:max_candidates],
+            source_count=len(normalized_sources),
+            fetched_sitemaps=fetched_sitemaps,
+            fetched_landing_pages=fetched_landing_pages,
+        )
+    finally:
+        if deadline is not None:
+            deadline.cancel()
 
 
 @dataclass(frozen=True)
@@ -338,24 +365,39 @@ def _candidate_urls_from_sitemaps(
     fetch_text: FetchText,
     max_sitemaps: int,
 ) -> tuple[list[_SitemapPageCandidate], int]:
-    queue: deque[str] = deque(_default_sitemap_urls(source_url))
+    queue: deque[str] = deque(_default_sitemap_urls(source_url)[:max_sitemaps])
+    scheduled = set(queue)
     seen_sitemaps: set[str] = set()
+    attempted = 0
     fetched = 0
     found_urls: list[_SitemapPageCandidate] = []
-    while queue and fetched < max_sitemaps:
+    while queue and attempted < max_sitemaps:
         sitemap_url = queue.popleft()
         normalized_sitemap = _trusted_same_host_url(sitemap_url, source_url)
         if not normalized_sitemap or normalized_sitemap in seen_sitemaps:
             continue
         seen_sitemaps.add(normalized_sitemap)
+        attempted += 1
         text = _try_fetch(fetch_text, normalized_sitemap)
         if not text:
             continue
         fetched += 1
-        nested, sitemap_page_urls = _parse_sitemap(text)
+        nested, sitemap_page_urls = _parse_sitemap(
+            text,
+            max_entries=_MAX_SITEMAP_URLS_PER_DOCUMENT,
+        )
         for nested_url in nested:
-            if _trusted_same_host_url(nested_url, source_url):
-                queue.append(nested_url)
+            normalized_nested = _trusted_same_host_url(nested_url, source_url)
+            if (
+                not normalized_nested
+                or normalized_nested in seen_sitemaps
+                or normalized_nested in scheduled
+            ):
+                continue
+            if attempted + len(queue) >= max_sitemaps:
+                break
+            scheduled.add(normalized_nested)
+            queue.append(normalized_nested)
         found_urls.extend(sitemap_page_urls)
     return found_urls, fetched
 
@@ -403,30 +445,47 @@ def _dedupe_landing_candidates(
     return toc + landing
 
 
-def _parse_sitemap(text: str) -> tuple[list[str], list[_SitemapPageCandidate]]:
+def _parse_sitemap(
+    text: str,
+    *,
+    max_entries: int = _MAX_SITEMAP_URLS_PER_DOCUMENT,
+) -> tuple[list[str], list[_SitemapPageCandidate]]:
+    if max_entries <= 0:
+        return [], []
     try:
         root = xml_fromstring(text.encode("utf-8"))
     except Exception:
-        locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", text, flags=re.IGNORECASE)
+        locs = [
+            match.group(1)
+            for match in islice(
+                re.finditer(r"<loc>\s*([^<]+?)\s*</loc>", text, flags=re.IGNORECASE),
+                max_entries,
+            )
+        ]
         return [], [_SitemapPageCandidate(url=loc) for loc in locs]
     root_name = _strip_namespace(root.tag).lower()
     if root_name == "sitemapindex":
-        return _sitemap_locs(root), []
-    entries = _sitemap_page_candidates(root)
+        return _sitemap_locs(root, max_entries=max_entries), []
+    entries = _sitemap_page_candidates(root, max_entries=max_entries)
     if entries:
         return [], entries
-    return [], [_SitemapPageCandidate(url=loc) for loc in _sitemap_locs(root)]
-
-
-def _sitemap_locs(root) -> list[str]:
-    return [
-        (node.text or "").strip()
-        for node in root.iter()
-        if _strip_namespace(node.tag).lower() == "loc" and (node.text or "").strip()
+    return [], [
+        _SitemapPageCandidate(url=loc) for loc in _sitemap_locs(root, max_entries=max_entries)
     ]
 
 
-def _sitemap_page_candidates(root) -> list[_SitemapPageCandidate]:
+def _sitemap_locs(root, *, max_entries: int) -> list[str]:
+    values: list[str] = []
+    for node in root.iter():
+        value = (node.text or "").strip()
+        if _strip_namespace(node.tag).lower() == "loc" and value:
+            values.append(value)
+            if len(values) >= max_entries:
+                break
+    return values
+
+
+def _sitemap_page_candidates(root, *, max_entries: int) -> list[_SitemapPageCandidate]:
     entries: list[_SitemapPageCandidate] = []
     for child in root:
         if _strip_namespace(child.tag).lower() != "url":
@@ -442,6 +501,8 @@ def _sitemap_page_candidates(root) -> list[_SitemapPageCandidate]:
                 lastmod = text
         if loc:
             entries.append(_SitemapPageCandidate(loc, _clean_lastmod(lastmod)))
+            if len(entries) >= max_entries:
+                break
     return entries
 
 
@@ -551,9 +612,10 @@ def _is_toc_container(tag: str, attrs: list[tuple[str, str | None]]) -> bool:
 _MAX_FETCH_BYTES = 5_000_000
 
 
-def _fetch_text(url: str) -> str:
+def _fetch_text(url: str, *, deadline: NetworkDeadline | None = None) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with safe_urlopen(req, timeout=20, retries=1) as resp:
+    timeout = 20.0 if deadline is None else min(20.0, deadline.remaining())
+    with safe_urlopen(req, timeout=timeout, retries=1, deadline=deadline) as resp:
         data = resp.read(_MAX_FETCH_BYTES + 1)
     if len(data) > _MAX_FETCH_BYTES:
         raise ValueError(f"response from {url} exceeds the {_MAX_FETCH_BYTES:,}-byte cap")

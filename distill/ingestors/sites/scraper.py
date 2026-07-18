@@ -2,22 +2,81 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
+import os
 import re
+import subprocess
+import sys
+import tempfile
 from collections import deque
-from dataclasses import dataclass, field
-from hashlib import sha256
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from distill.ingestors.browser_network import install_public_web_route
+from distill.ingestors.sites._site_render import build_page_document, classify_page_type
+from distill.ingestors.sites._site_urls import (
+    MAX_SITE_BATCH_PAGES,
+    MAX_SITE_CRAWL_DEPTH,
+    MAX_SITE_CRAWL_PAGES,
+    canonicalize_url,
+    crawl_prefix_from_url,
+    dedupe_urls,
+    is_crawlable_url,
+    is_same_section,
+    normalize_host,
+    page_id_from_url,
+    site_page_id,
+    site_section_key,
+)
+from distill.ingestors.sites._site_urls import (
+    canonical_url_in_seed_scope as _canonical_url_in_seed_scope,
+)
+from distill.ingestors.sites._site_urls import (
+    crawl_max_depth as _crawl_max_depth,
+)
+from distill.ingestors.sites._site_urls import (
+    crawl_max_pages as _crawl_max_pages,
+)
+from distill.ingestors.sites._site_urls import (
+    crawl_prefix_from_mapping as _crawl_prefix_from_mapping,
+)
+from distill.ingestors.sites._site_urls import (
+    dedupe_strings as _dedupe_strings,
+)
+from distill.ingestors.sites._site_urls import (
+    link_is_crawlable_for_seed as _link_is_crawlable_for_seed,
+)
+from distill.ingestors.sites._site_urls import (
+    normalized_crawl_prefix as _normalize_crawl_prefix,
+)
+from distill.ingestors.sites._site_urls import (
+    prioritize_links as _prioritize_links,
+)
+from distill.ingestors.sites._site_urls import (
+    validate_site_crawl_limits as _validate_site_crawl_limits,
+)
 from distill.ingestors.sites.browser_extract import (
     bounded_page_expression,
     evaluate_bounded_page,
 )
 from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
-from distill.library.paths import site_name_from_url, slugify_title
+from distill.library.confined import read_confined_bytes
+from distill.library.paths import site_name_from_url
+from distill.process_resources import (
+    ProcessBudgetExceeded,
+    assign_windows_memory_job,
+    close_windows_job,
+    start_bounded_pipe_drain,
+    terminate_process_tree,
+    wait_for_process_budget,
+)
+from distill.process_security import package_install_context
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MAX_SITE_BATCH_PAGES",
@@ -37,6 +96,7 @@ __all__ = [
     "load_site_batch",
     "normalize_host",
     "page_id_from_url",
+    "parse_site_batch_json",
     "site_page_id",
     "site_section_key",
 ]
@@ -58,6 +118,11 @@ _PAGE_METADATA_CHAR_LIMIT = 4_096
 _PAGE_ATTRIBUTE_CHAR_LIMIT = 2_048
 _PAGE_LOCAL_TEXT_NODE_LIMIT = 512
 _PAGE_METADATA_ELEMENT_LIMIT = 256
+_BROWSER_TREE_MEMORY_BYTES = 768 * 1024 * 1024
+_BROWSER_WORKER_TIMEOUT_SECONDS = 180.0
+BROWSER_WORKER_RESULT_BYTES = 64 * 1024 * 1024
+_BROWSER_WORKER_DIAGNOSTIC_BYTES = 8_192
+BROWSER_WORKER_SCHEMA_VERSION = 1
 _EXTRACTION_TRUNCATION_REASONS = frozenset(
     {
         "authors",
@@ -73,9 +138,8 @@ _EXTRACTION_TRUNCATION_REASONS = frozenset(
         "video_links",
     }
 )
-MAX_SITE_CRAWL_DEPTH = 4
-MAX_SITE_CRAWL_PAGES = 100
-MAX_SITE_BATCH_PAGES = 500
+_MAX_SITE_BATCH_MANIFEST_SEEDS = 500
+_MAX_SITE_BATCH_MANIFEST_TEXT_CHARS = 4_096
 
 _BOUNDED_PAGE_LIMITS = {
     "maxDomNodes": _PAGE_DOM_NODE_LIMIT,
@@ -184,12 +248,133 @@ class SiteBatch:
 
 def load_site_batch(path: Path, topic_override: str = "") -> SiteBatch:
     if path.suffix.lower() == ".json":
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return _batch_from_json(data, topic_override)
+        return parse_site_batch_json(path.read_text(encoding="utf-8"), topic_override)
     lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
     urls = [line for line in lines if line and not line.startswith("#")]
     topic = topic_override or "web"
     return SiteBatch(topic=topic, seeds=[SiteSeed(url=url, topic=topic) for url in urls])
+
+
+def parse_site_batch_json(content: str, topic_override: str = "") -> SiteBatch:
+    """Parse one bounded-shape JSON site manifest from already-read text."""
+
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, RecursionError) as exc:
+        raise ValueError("Site seed manifest must contain valid JSON.") from exc
+    _validate_site_batch_manifest(data)
+    return _batch_from_json(data, topic_override)
+
+
+def _validate_site_batch_manifest(data: object) -> None:
+    if isinstance(data, list):
+        _validate_manifest_items(data, context="urls")
+        return
+    if not isinstance(data, dict):
+        raise ValueError("Site seed manifest must be a JSON object or array.")
+
+    _validate_site_batch_object(data)
+
+
+def _validate_site_batch_object(data: dict[object, object]) -> None:
+    _validate_manifest_text(data.get("topic", "web"), field_name="topic")
+    crawl = data.get("crawl", {})
+    if not isinstance(crawl, dict):
+        raise ValueError("Site seed manifest field 'crawl' must be an object.")
+    _validate_manifest_mapping(crawl, context="crawl")
+
+    raw_urls = data.get("urls", [])
+    raw_collections = data.get("collections", [])
+    if not isinstance(raw_urls, list):
+        raise ValueError("Site seed manifest field 'urls' must be an array.")
+    if not isinstance(raw_collections, list):
+        raise ValueError("Site seed manifest field 'collections' must be an array.")
+    if raw_urls and raw_collections:
+        raise ValueError("Site seed manifest must use either 'urls' or 'collections', not both.")
+    if len(raw_collections) > _MAX_SITE_BATCH_MANIFEST_SEEDS:
+        raise ValueError("Site seed manifest has too many collections.")
+    _validate_manifest_items(raw_urls, context="urls")
+    _validate_manifest_collections(raw_collections, initial_seed_count=len(raw_urls))
+
+
+def _validate_manifest_collections(
+    raw_collections: list[object],
+    *,
+    initial_seed_count: int,
+) -> None:
+    total_seeds = initial_seed_count
+    for index, raw_collection in enumerate(raw_collections):
+        if not isinstance(raw_collection, dict):
+            raise ValueError(f"Site seed collection {index + 1} must be an object.")
+        _validate_manifest_mapping(raw_collection, context=f"collection {index + 1}")
+        seeds = raw_collection.get("seeds", [])
+        if not isinstance(seeds, list):
+            raise ValueError(f"Site seed collection {index + 1} field 'seeds' must be an array.")
+        total_seeds += len(seeds)
+        if total_seeds > _MAX_SITE_BATCH_MANIFEST_SEEDS:
+            raise ValueError("Site seed manifest has too many seeds.")
+        for seed_index, seed in enumerate(seeds):
+            if not isinstance(seed, str) or not seed:
+                raise ValueError(
+                    f"Site seed collection {index + 1} entry {seed_index + 1} must be a URL string."
+                )
+            _validate_manifest_text(seed, field_name="url")
+
+
+def _validate_manifest_items(items: list[object], *, context: str) -> None:
+    if len(items) > _MAX_SITE_BATCH_MANIFEST_SEEDS:
+        raise ValueError("Site seed manifest has too many seeds.")
+    for index, item in enumerate(items):
+        if isinstance(item, str):
+            if not item:
+                raise ValueError(f"Site seed {context} entry {index + 1} must not be empty.")
+            _validate_manifest_text(item, field_name="url")
+            continue
+        if not isinstance(item, dict):
+            raise ValueError(f"Site seed {context} entry {index + 1} must be a URL or object.")
+        _validate_manifest_mapping(item, context=f"{context} entry {index + 1}")
+        url = item.get("url")
+        if not isinstance(url, str) or not url:
+            raise ValueError(f"Site seed {context} entry {index + 1} requires a URL string.")
+        _validate_manifest_text(url, field_name="url")
+
+
+def _validate_manifest_mapping(data: dict[object, object], *, context: str) -> None:
+    text_fields = {
+        "topic",
+        "site_name",
+        "label",
+        "name",
+        "section_label",
+        "source_hint",
+        "freshness_hint",
+        "crawl_prefix",
+        "path_prefix",
+        "mode",
+        "crawl_mode",
+    }
+    boolean_fields = {"discover_crawl", "same_section_only"}
+    integer_fields = {"max_depth", "max_pages", "max_pages_per_seed"}
+    for field_name in text_fields:
+        if field_name in data:
+            _validate_manifest_text(data[field_name], field_name=field_name)
+    for field_name in boolean_fields:
+        if field_name in data and not isinstance(data[field_name], bool):
+            raise ValueError(f"Site seed {context} field '{field_name}' must be a boolean.")
+    if "crawl" in data and not isinstance(data["crawl"], bool):
+        raise ValueError(f"Site seed {context} field 'crawl' must be a boolean.")
+    for field_name in integer_fields:
+        if field_name in data and (
+            not isinstance(data[field_name], int) or isinstance(data[field_name], bool)
+        ):
+            raise ValueError(f"Site seed {context} field '{field_name}' must be an integer.")
+
+
+def _validate_manifest_text(value: object, *, field_name: str) -> None:
+    if not isinstance(value, str):
+        raise ValueError(f"Site seed manifest field '{field_name}' must be a string.")
+    if len(value) > _MAX_SITE_BATCH_MANIFEST_TEXT_CHARS:
+        raise ValueError(f"Site seed manifest field '{field_name}' is too long.")
 
 
 def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
@@ -263,70 +448,221 @@ def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
     return SiteBatch(topic=topic, seeds=seeds)
 
 
-def _link_is_crawlable_for_seed(
-    link: str,
-    *,
-    seed: SiteSeed,
-    root_host: str,
-    visited: set[str],
-) -> str | None:
-    """Return the canonicalized link if it should be crawled, else ``None``.
-
-    Extracted from ``crawl_site`` to keep that function under ruff's
-    mccabe complexity budget. Mirrors the same-host / scheme / public-IP /
-    section / dedupe filters that protect the crawler from SSRF and runaway
-    cross-site recursion.
-    """
-    link_norm = _canonical_url_in_seed_scope(link, seed=seed, root_host=root_host)
-    if link_norm is None:
-        return None
-    if link_norm in visited:
-        return None
-    return link_norm
-
-
-def _canonical_url_in_seed_scope(
-    url: str,
-    *,
-    seed: SiteSeed,
-    root_host: str,
-) -> str | None:
-    """Return a canonical public HTTPS URL confined to the seed's crawl scope."""
-    from distill.ingestors.net import is_public_web_url
-
-    if urlparse(url).scheme.lower() != "https":
-        return None
-    if normalize_host(url) != root_host or not is_public_web_url(url):
-        return None
-    if not is_crawlable_url(url):
-        return None
-    normalized = canonicalize_url(url)
-    if seed.crawl_prefix and not _is_within_crawl_prefix(normalized, seed.crawl_prefix):
-        return None
-    if seed.same_section_only and not is_same_section(normalized, seed.url):
-        return None
-    return normalized
-
-
-def _install_public_web_route(context) -> None:
+def _install_public_web_route(context):
     """Abort non-HTTPS or non-public requests before they reach the pinned proxy."""
-    install_public_web_route(context)
+    return install_public_web_route(context)
 
 
-def crawl_site(seed: SiteSeed) -> list[SitePage]:
+def _seed_is_crawlable(seed: SiteSeed) -> bool:
     from distill.ingestors.net import is_public_web_url
 
     _validate_site_crawl_limits(seed.max_depth, seed.max_pages)
-
-    # Reject seeds that point at the local browser host, RFC1918 networks, the
-    # cloud-metadata link-local range, or non-http(s) schemes such as
-    # ``file://``. Without this gate, Playwright would dutifully ``page.goto``
-    # whatever the user/agent supplied and surface the response as page text.
-    if (
+    return not (
         urlparse(seed.url).scheme.lower() != "https"
         or not is_public_web_url(seed.url)
         or not is_crawlable_url(seed.url)
+    )
+
+
+def crawl_site(seed: SiteSeed) -> list[SitePage]:
+    """Crawl one seed in an isolated, memory-limited browser worker."""
+
+    if not _seed_is_crawlable(seed):
+        return []
+    return _run_browser_worker(seed)
+
+
+def _worker_string(row: dict[str, Any], key: str, maximum: int) -> str:
+    value = row.get(key, "")
+    if not isinstance(value, str) or len(value) > maximum:
+        raise ValueError(f"browser worker returned invalid {key}")
+    return value
+
+
+def _worker_strings(
+    row: dict[str, Any],
+    key: str,
+    *,
+    maximum_items: int,
+    maximum_chars: int,
+) -> list[str]:
+    values = row.get(key, [])
+    if not isinstance(values, list) or len(values) > maximum_items:
+        raise ValueError(f"browser worker returned invalid {key}")
+    result: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or len(value) > maximum_chars:
+            raise ValueError(f"browser worker returned invalid {key}")
+        result.append(value)
+    return result
+
+
+def _site_page_from_worker(row: object) -> SitePage:
+    if not isinstance(row, dict):
+        raise ValueError("browser worker returned a malformed page")
+    typed = {str(key): value for key, value in row.items()}
+    has_video = typed.get("has_video", False)
+    depth = typed.get("depth", 0)
+    if not isinstance(has_video, bool):
+        raise ValueError("browser worker returned invalid has_video")
+    if isinstance(depth, bool) or not isinstance(depth, int) or not 0 <= depth <= 4:
+        raise ValueError("browser worker returned invalid depth")
+    reasons = _worker_strings(
+        typed,
+        "truncation_reasons",
+        maximum_items=len(_EXTRACTION_TRUNCATION_REASONS),
+        maximum_chars=32,
+    )
+    if any(reason not in _EXTRACTION_TRUNCATION_REASONS for reason in reasons):
+        raise ValueError("browser worker returned invalid truncation reasons")
+    return SitePage(
+        url=_worker_string(typed, "url", _PAGE_URL_CHAR_LIMIT),
+        title=_worker_string(typed, "title", _PAGE_TITLE_CHAR_LIMIT),
+        site_name=_worker_string(typed, "site_name", 253),
+        page_type=_worker_string(typed, "page_type", 64),
+        text=_worker_string(typed, "text", _TEXT_LIMIT),
+        final_url=_worker_string(typed, "final_url", _PAGE_URL_CHAR_LIMIT),
+        canonical_url=_worker_string(typed, "canonical_url", _PAGE_URL_CHAR_LIMIT),
+        description=_worker_string(typed, "description", _PAGE_DESCRIPTION_CHAR_LIMIT),
+        published_at=_worker_string(typed, "published_at", _PAGE_PUBLISHED_AT_CHAR_LIMIT),
+        authors=_worker_strings(
+            typed,
+            "authors",
+            maximum_items=_PAGE_AUTHOR_LIMIT,
+            maximum_chars=512,
+        ),
+        tags=_worker_strings(
+            typed,
+            "tags",
+            maximum_items=_PAGE_TAG_LIMIT,
+            maximum_chars=256,
+        ),
+        links=_worker_strings(
+            typed,
+            "links",
+            maximum_items=_PAGE_LINK_LIMIT,
+            maximum_chars=_PAGE_URL_CHAR_LIMIT,
+        ),
+        pdf_links=_worker_strings(
+            typed,
+            "pdf_links",
+            maximum_items=_PAGE_PDF_LINK_LIMIT,
+            maximum_chars=_PAGE_URL_CHAR_LIMIT,
+        ),
+        video_links=_worker_strings(
+            typed,
+            "video_links",
+            maximum_items=_PAGE_VIDEO_LINK_LIMIT,
+            maximum_chars=_PAGE_URL_CHAR_LIMIT,
+        ),
+        has_video=has_video,
+        transcript=_worker_string(typed, "transcript", _TRANSCRIPT_LIMIT),
+        attachment_context=_worker_string(typed, "attachment_context", _TEXT_LIMIT),
+        truncation_reasons=reasons,
+        source_url=_worker_string(typed, "source_url", _PAGE_URL_CHAR_LIMIT),
+        depth=depth,
+    )
+
+
+def _read_browser_worker_result(path: Path, root: Path, max_pages: int) -> list[SitePage]:
+    raw = read_confined_bytes(path, root, max_bytes=BROWSER_WORKER_RESULT_BYTES)
+    if raw is None:
+        raise ValueError("browser worker result is missing or unsafe")
+    try:
+        payload = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("browser worker result is not valid JSON") from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != BROWSER_WORKER_SCHEMA_VERSION
+        or not isinstance(payload.get("pages"), list)
+        or len(payload["pages"]) > max_pages
     ):
+        raise ValueError("browser worker result has an invalid schema")
+    return [_site_page_from_worker(row) for row in payload["pages"]]
+
+
+def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
+    with tempfile.TemporaryDirectory(prefix="distill-browser-") as temp_dir:
+        root = Path(temp_dir)
+        input_path = root / "seed.json"
+        output_path = root / "pages.json"
+        input_path.write_text(
+            json.dumps(asdict(seed), ensure_ascii=False, allow_nan=False),
+            encoding="utf-8",
+        )
+        trusted_cwd, child_env = package_install_context()
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-P",
+                "-m",
+                "distill.ingestors.sites._browser_worker",
+                str(input_path),
+                str(output_path),
+            ],
+            cwd=trusted_cwd,
+            env=child_env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=creationflags,
+            start_new_session=os.name != "nt",
+        )
+        stderr_stream = process.stderr
+        if stderr_stream is None:
+            terminate_process_tree(process)
+            return []
+        diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
+            stderr_stream,
+            limit=_BROWSER_WORKER_DIAGNOSTIC_BYTES,
+            thread_name="distill-browser-diagnostics",
+        )
+        job_handle: int | None = None
+        try:
+            job_handle = assign_windows_memory_job(
+                process,
+                job_memory_bytes=_BROWSER_TREE_MEMORY_BYTES,
+            )
+            worker_stdin = process.stdin
+            if worker_stdin is None:
+                raise RuntimeError("browser worker did not expose a control pipe")
+            worker_stdin.write(b"1")
+            worker_stdin.close()
+            process.stdin = None
+            wait_for_process_budget(
+                process,
+                timeout_seconds=_BROWSER_WORKER_TIMEOUT_SECONDS,
+                memory_limit_bytes=_BROWSER_TREE_MEMORY_BYTES,
+            )
+        except (ProcessBudgetExceeded, OSError, RuntimeError) as exc:
+            logger.warning("Browser crawl stopped at its resource boundary: %s", exc)
+            terminate_process_tree(process)
+            return []
+        finally:
+            close_windows_job(job_handle)
+            diagnostic_thread.join(timeout=1)
+            with contextlib.suppress(OSError):
+                stderr_stream.close()
+            diagnostic_thread.join(timeout=1)
+
+        if process.returncode != 0:
+            detail = diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()[-500:]
+            if detail:
+                logger.warning("Browser crawl worker failed: %s", detail)
+            return []
+        try:
+            return _read_browser_worker_result(output_path, root, seed.max_pages)
+        except ValueError as exc:
+            logger.warning("Browser crawl worker returned an invalid result: %s", exc)
+            return []
+
+
+def crawl_site_in_browser_worker(seed: SiteSeed) -> list[SitePage]:
+    """Browser-worker implementation; callers should use :func:`crawl_site`."""
+
+    if not _seed_is_crawlable(seed):
         return []
 
     from playwright.sync_api import sync_playwright
@@ -340,54 +676,74 @@ def crawl_site(seed: SiteSeed) -> list[SitePage]:
         browser = playwright.chromium.launch(
             headless=True,
             args=[
+                "--disable-background-networking",
+                "--disable-extensions",
                 "--disable-quic",
+                "--disable-sync",
                 "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                "--metrics-recording-only",
+                "--no-first-run",
             ],
         )
-        context = browser.new_context(
-            proxy={"server": proxy_server},
-            service_workers="block",
-        )
-        _install_public_web_route(context)
-        page = context.new_page()
-        page.set_default_timeout(30_000)
-
-        while queue and len(pages) < seed.max_pages:
-            current_url, depth, source_url = queue.popleft()
-            normalized = canonicalize_url(current_url)
-            if normalized in visited:
-                continue
-            visited.add(normalized)
-
-            extracted = _extract_page(
-                page,
-                normalized,
-                seed.resolved_site_name(),
-                source_url,
-                depth,
+        try:
+            context = browser.new_context(
+                proxy={"server": proxy_server},
+                service_workers="block",
+                accept_downloads=False,
+                extra_http_headers={"Accept-Encoding": "identity"},
             )
-            if extracted is None:
-                continue
-            landed = extracted.final_url or extracted.url
-            # Reapply the complete crawl boundary after navigation because an
-            # allowed seed can redirect outside its configured path or section.
-            if _canonical_url_in_seed_scope(landed, seed=seed, root_host=root_host) is None:
-                continue
-            pages.append(extracted)
+            try:
+                request_budget = _install_public_web_route(context)
+                while queue and len(pages) < seed.max_pages:
+                    current_url, depth, source_url = queue.popleft()
+                    normalized = canonicalize_url(current_url)
+                    if normalized in visited:
+                        continue
+                    visited.add(normalized)
+                    request_budget.reset()
+                    page = context.new_page()
+                    page.set_default_timeout(30_000)
+                    try:
+                        extracted = _extract_page(
+                            page,
+                            normalized,
+                            seed.resolved_site_name(),
+                            source_url,
+                            depth,
+                        )
+                    finally:
+                        with contextlib.suppress(Exception):
+                            page.close()
+                    if extracted is None:
+                        continue
+                    landed = extracted.final_url or extracted.url
+                    if (
+                        _canonical_url_in_seed_scope(
+                            landed,
+                            seed=seed,
+                            root_host=root_host,
+                        )
+                        is None
+                    ):
+                        continue
+                    pages.append(extracted)
 
-            if depth >= seed.max_depth:
-                continue
+                    if depth >= seed.max_depth:
+                        continue
 
-            for link in _prioritize_links(extracted.links, seed.url, normalized):
-                link_norm = _link_is_crawlable_for_seed(
-                    link, seed=seed, root_host=root_host, visited=visited
-                )
-                if link_norm is None:
-                    continue
-                queue.append((link_norm, depth + 1, normalized))
-
-        context.close()
-        browser.close()
+                    for link in _prioritize_links(extracted.links, seed.url, normalized):
+                        link_norm = _link_is_crawlable_for_seed(
+                            link,
+                            seed=seed,
+                            root_host=root_host,
+                            visited=visited,
+                        )
+                        if link_norm is not None:
+                            queue.append((link_norm, depth + 1, normalized))
+            finally:
+                context.close()
+        finally:
+            browser.close()
 
     return pages
 
@@ -604,332 +960,6 @@ def _bounded_payload_strings(
         if len(value) > maximum_chars:
             truncation_reasons.add(reason)
         result.append(value[:maximum_chars])
-    return result
-
-
-def classify_page_type(url: str, title: str, description: str, has_video: bool) -> str:
-    lowered = f"{url} {title} {description}".lower()
-    if "/video/" in lowered or has_video:
-        return "video"
-    if "/partner/" in lowered:
-        return "partner"
-    if "/topic/" in lowered:
-        return "topic"
-    if "/lab/" in lowered:
-        return "lab"
-    if "/research/" in lowered or "/research-and-insights/" in lowered or "/insights/" in lowered:
-        return "research"
-    if "/category/" in lowered:
-        return "category"
-    if "/overview" in lowered:
-        return "overview"
-    if "/explore" in lowered:
-        return "explore"
-    if "/ecosystem" in lowered:
-        return "ecosystem"
-    return "page"
-
-
-def build_page_document(page: SitePage) -> str:
-    transcript_block = f"\n\n## Transcript\n{page.transcript}" if page.transcript.strip() else ""
-    video_block = (
-        "\n\n## Video Links\n" + "\n".join(f"- {link}" for link in page.video_links)
-        if page.video_links
-        else ""
-    )
-    pdf_block = (
-        "\n\n## PDF Links\n" + "\n".join(f"- {link}" for link in page.pdf_links)
-        if page.pdf_links
-        else ""
-    )
-    attachment_block = (
-        f"\n\n## Attachment Extracts\n{page.attachment_context}"
-        if page.attachment_context.strip()
-        else ""
-    )
-    return f"""# {page.title}
-
-- URL: {page.url}
-- Final URL: {page.final_url or page.url}
-- Canonical URL: {page.canonical_url or page.final_url or page.url}
-- Site: {page.site_name}
-- Page Type: {page.page_type}
-- Published: {page.published_at or "Unknown"}
-- Authors: {", ".join(page.authors) or "Unknown"}
-- Tags: {", ".join(page.tags) or "None"}
-- Has Video: {"yes" if page.has_video else "no"}
-- Discovered From: {page.source_url or page.url}
-- Crawl Depth: {page.depth}
-
-## Description
-{page.description or "None"}
-
-## Content
-{page.text}{transcript_block}{video_block}{pdf_block}{attachment_block}
-"""
-
-
-def page_id_from_url(url: str) -> str:
-    parsed = urlparse(url)
-    base = parsed.path.strip("/") or parsed.netloc
-    return slugify_title(base, max_len=20)
-
-
-def site_page_id(url: str) -> str:
-    """Return a stable, collision-resistant identity for a landed page URL."""
-
-    canonical_url = canonicalize_url(url)
-    return sha256(canonical_url.encode("utf-8")).hexdigest()
-
-
-def crawl_prefix_from_url(url: str) -> str:
-    return _normalize_crawl_prefix(urlparse(url).path)
-
-
-def _crawl_prefix_from_mapping(data: dict[str, Any], fallback: str = "") -> str:
-    raw = data.get("crawl_prefix", data.get("path_prefix", fallback))
-    return _normalize_crawl_prefix(str(raw or ""))
-
-
-def _crawl_mode(data: dict[str, Any]) -> str:
-    raw_value = data.get("mode", data.get("crawl_mode", ""))
-    raw = str(raw_value).strip().lower()
-    aliases = {
-        "exact": "exact-page",
-        "seed": "exact-page",
-        "seed-only": "exact-page",
-        "seed_only": "exact-page",
-        "page": "exact-page",
-        "exact-page": "exact-page",
-        "exact_page": "exact-page",
-        "crawl": "shallow-crawl",
-        "shallow": "shallow-crawl",
-        "shallow-crawl": "shallow-crawl",
-        "shallow_crawl": "shallow-crawl",
-    }
-    mode = aliases.get(raw, raw)
-    crawl_flag = data.get("crawl")
-    if isinstance(crawl_flag, bool):
-        return "shallow-crawl" if crawl_flag else "exact-page"
-    if mode and mode not in {"exact-page", "shallow-crawl"}:
-        raise ValueError(
-            f"Unsupported site crawl mode {raw_value!r}. Use exact-page or shallow-crawl."
-        )
-    return mode
-
-
-def _crawl_max_depth(data: dict[str, Any], *, default: object) -> int:
-    if _crawl_mode(data) == "exact-page":
-        return 0
-    return _validated_crawl_limit(
-        "max_depth",
-        data.get("max_depth", default),
-        minimum=0,
-        maximum=MAX_SITE_CRAWL_DEPTH,
-    )
-
-
-def _crawl_max_pages(data: dict[str, Any], *, default: object) -> int:
-    if _crawl_mode(data) == "exact-page":
-        return 1
-    return _validated_crawl_limit(
-        "max_pages",
-        data.get("max_pages", data.get("max_pages_per_seed", default)),
-        minimum=1,
-        maximum=MAX_SITE_CRAWL_PAGES,
-    )
-
-
-def _validate_site_crawl_limits(max_depth: object, max_pages: object) -> None:
-    _validated_crawl_limit(
-        "max_depth",
-        max_depth,
-        minimum=0,
-        maximum=MAX_SITE_CRAWL_DEPTH,
-    )
-    _validated_crawl_limit(
-        "max_pages",
-        max_pages,
-        minimum=1,
-        maximum=MAX_SITE_CRAWL_PAGES,
-    )
-
-
-def _validated_crawl_limit(name: str, value: object, *, minimum: int, maximum: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
-    if value < minimum or value > maximum:
-        raise ValueError(f"{name} must be between {minimum} and {maximum}")
-    return value
-
-
-def _normalize_crawl_prefix(value: str) -> str:
-    raw = value.strip()
-    if "://" in raw:
-        raw = urlparse(raw).path
-    tokens = [token for token in raw.strip("/").split("/") if token]
-    if not tokens:
-        return ""
-    return "/" + "/".join(tokens)
-
-
-def _is_within_crawl_prefix(url: str, crawl_prefix: str) -> bool:
-    prefix = _normalize_crawl_prefix(crawl_prefix)
-    if not prefix:
-        return True
-    path = urlparse(url).path.rstrip("/") or "/"
-    return path == prefix or path.startswith(prefix + "/")
-
-
-def site_section_key(url: str) -> str:
-    tokens = [token for token in urlparse(url).path.strip("/").split("/") if token]
-    if not tokens:
-        return "root"
-    if len(tokens) == 1:
-        return tokens[0]
-    return "/".join(tokens[:2])
-
-
-def canonicalize_url(url: str) -> str:
-    parsed = urlparse(url)
-    netloc = parsed.netloc
-    if parsed.hostname:
-        try:
-            host = parsed.hostname.encode("idna").decode("ascii").lower().rstrip(".")
-            if ":" in host:
-                host = f"[{host}]"
-            port = parsed.port
-            if (parsed.scheme.lower(), port) in {("http", 80), ("https", 443)}:
-                port = None
-            host_port = f"{host}:{port}" if port is not None else host
-            userinfo, separator, _authority = parsed.netloc.rpartition("@")
-            netloc = f"{userinfo}@{host_port}" if separator else host_port
-        except (UnicodeError, ValueError):
-            netloc = parsed.netloc.lower()
-    path = parsed.path or "/"
-    if path != "/":
-        path = path.rstrip("/") or "/"
-    query = ""
-    if parsed.query:
-        keep = [
-            part
-            for part in parsed.query.split("&")
-            if not part.startswith(("utm_", "fbclid=", "gclid="))
-        ]
-        query = "&".join(sorted(filter(None, keep)))
-    normalized = parsed._replace(
-        scheme=parsed.scheme.lower(),
-        netloc=netloc,
-        fragment="",
-        query=query,
-        path=path,
-    )
-    return normalized.geturl()
-
-
-def normalize_host(url: str) -> str:
-    host = urlparse(url).netloc.lower()
-    return host.removeprefix("www.")
-
-
-def is_crawlable_url(url: str) -> bool:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
-        return False
-    lowered = url.lower()
-    blocked = ("/login", "/search", ".pdf", ".jpg", ".png", ".gif", ".svg", ".zip")
-    return not any(token in lowered for token in blocked)
-
-
-def dedupe_urls(urls: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for url in urls:
-        normalized = canonicalize_url(url)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        result.append(normalized)
-    return result
-
-
-def is_same_section(url: str, seed_url: str) -> bool:
-    url_path = [token for token in urlparse(url).path.strip("/").split("/") if token]
-    seed_path = [token for token in urlparse(seed_url).path.strip("/").split("/") if token]
-    if not url_path or not seed_path:
-        return False
-    return url_path[0] == seed_path[0]
-
-
-def _prioritize_links(links: list[str], seed_url: str, current_url: str) -> list[str]:
-    return sorted(
-        dedupe_urls(links),
-        key=lambda link: (
-            -_link_relevance_score(link, seed_url, current_url),
-            len(urlparse(link).path),
-            link,
-        ),
-    )
-
-
-def _link_relevance_score(link: str, seed_url: str, current_url: str) -> int:
-    link_path = urlparse(link).path.strip("/")
-    seed_path = urlparse(seed_url).path.strip("/")
-    current_path = urlparse(current_url).path.strip("/")
-    score = 0
-    if not link_path:
-        return score
-    if link_path == seed_path:
-        score += 100
-    if seed_path and link_path.startswith(seed_path):
-        score += 40
-    seed_tokens = [token for token in seed_path.split("/") if token]
-    current_tokens = [token for token in current_path.split("/") if token]
-    link_tokens = {token for token in link_path.split("/") if token}
-    score += sum(8 for token in seed_tokens if token in link_tokens)
-    score += sum(4 for token in current_tokens if token in link_tokens)
-    if any(
-        segment in link_path
-        for segment in (
-            "video",
-            "topic",
-            "partner",
-            "lab",
-            "research",
-            "insights",
-            "docs",
-        )
-    ):
-        score += 8
-    if link_path in {"", "/", "home"} or link_path.count("/") < 1:
-        score -= 20
-    if any(
-        token in link_path
-        for token in (
-            "contact",
-            "careers",
-            "about",
-            "news",
-            "press",
-            "privacy",
-            "cookies",
-            "locations",
-        )
-    ):
-        score -= 12
-    return score
-
-
-def _dedupe_strings(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        cleaned = value.strip()
-        key = cleaned.lower()
-        if not cleaned or key in seen:
-            continue
-        seen.add(key)
-        result.append(cleaned)
     return result
 
 

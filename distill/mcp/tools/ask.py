@@ -11,16 +11,23 @@ mutation, and connected agents do not get it silently.
 from __future__ import annotations
 
 import json
+from typing import Annotated
+
+from pydantic import Field
 
 from distill.llm.availability import model_available
 from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
+from distill.pipeline.ask import MAX_ASK_ANSWER_CHARS, MAX_ASK_QUESTION_CHARS
 
 __all__: list[str] = []
 
 
 @mcp.tool()
 @write_tool("ask")
-def ask(topic: str, question: str) -> str:
+def ask(
+    topic: Annotated[str, Field(min_length=1, max_length=128)],
+    question: Annotated[str, Field(min_length=1, max_length=MAX_ASK_QUESTION_CHARS)],
+) -> str:
     """Answer a question from a topic's corpus, grounded-only with citations.
 
     Args:
@@ -29,6 +36,16 @@ def ask(topic: str, question: str) -> str:
     """
     from distill.pipeline.ask import ask_corpus
 
+    if not topic.strip() or len(topic) > 128:
+        return json.dumps({"status": "error", "error": "Topic is empty or too long."}, indent=2)
+    if not question.strip() or len(question) > MAX_ASK_QUESTION_CHARS:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": f"Question must contain 1 to {MAX_ASK_QUESTION_CHARS} characters.",
+            },
+            indent=2,
+        )
     config = load_config()
     if not model_available("qa"):
         return json.dumps(
@@ -43,6 +60,14 @@ def ask(topic: str, question: str) -> str:
 
     tracker = capped_tracker()
     result = ask_corpus(question, topic=topic, config=config, save=False, tracker=tracker)
+    if len(result.answer_text) > MAX_ASK_ANSWER_CHARS:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "Answer exceeded the MCP response limit.",
+            },
+            indent=2,
+        )
     if result.no_coverage:
         return json.dumps(
             {

@@ -47,11 +47,13 @@ from distill.pipeline.verify import (
 from distill.prompts.ask import ask_prompt
 from distill.prompts.registry import PROMPT_IDS
 
-__all__ = ["AskResult", "ask_corpus"]
+__all__ = ["MAX_ASK_ANSWER_CHARS", "MAX_ASK_QUESTION_CHARS", "AskResult", "ask_corpus"]
 
 PROMPT_ID = PROMPT_IDS["ask"]
 _TOP_K = 6
 _MAX_SOURCE_CHARS = 6_000
+MAX_ASK_QUESTION_CHARS = 4_096
+MAX_ASK_ANSWER_CHARS = 64_000
 _SAVE_VERIFIER_REFUSAL = (
     "save requires semantic verification; install distillr[entailment] and ensure "
     "the pinned local checker can load"
@@ -233,6 +235,16 @@ def ask_corpus(
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="ask"))
     answer = response.text.strip()
+    if len(answer) > MAX_ASK_ANSWER_CHARS:
+        refusal = f"answer exceeds the {MAX_ASK_ANSWER_CHARS}-character artifact limit"
+        return AskResult(
+            question=question,
+            answer_path=None,
+            answer_text=answer[:MAX_ASK_ANSWER_CHARS],
+            answer_refused_reason=refusal,
+            save_refused_reason=refusal if save else "",
+            estimated_cost=projected_cost,
+        )
     answer_citations = extract_source_citations(answer)
     cited = [citation for citation in answer_citations if citation in stems]
     if _looks_like_no_coverage(answer):

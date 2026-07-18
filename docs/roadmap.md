@@ -25,9 +25,9 @@ Current UX priorities:
 - Keep the YouTube "stay current" path fast and obvious
 - Goal-aware discovery as the front door when the user has a research goal rather than a keyword query
 - Track the final MCP 2026-07-28 spec and run a near-term compatibility spike
-  before freezing Distill's 1.0 MCP contract
-- Freeze the candidate CLI, MCP, library, frontmatter, OKF, next-action, and
-  profile contracts after that compatibility checkpoint
+  while Distill's 1.0 MCP surface remains a candidate
+- Keep the candidate CLI, MCP, library, frontmatter, OKF, next-action, and
+  profile contracts open to evidence-backed refinement after that checkpoint
 - Finish the Pyright strict-mode, boundary-type, and deterministic-core
   verification ratchets while preserving the branch-coverage floor
 - Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
@@ -80,7 +80,7 @@ Knowledge Format makes Markdown + YAML-frontmatter interop a formal ecosystem
 target, which moves Distill's advantage from "plain files" to "verified corpus
 producer." The spine was reordered accordingly: agent legibility promoted out of
 1.0 polish, the verify hook pulled forward to 0.10, breadth behind the trust
-gate at 0.11, and OKF/loop-readiness before the 1.0 contract freeze. See
+gate at 0.11, and OKF/loop-readiness before any future stability commitment. See
 [`../ROADMAP.md#competitive-landscape-june-2026`](../ROADMAP.md#competitive-landscape-june-2026) for the full analysis.
 
 Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
@@ -117,8 +117,9 @@ be moved to `CHANGELOG.md` on next release).
   legacy migration remain separate contract slices.
 - [ ] **MCP 2026-07-28 compatibility spike.** After the final spec publishes on
   July 28, 2026 and the Python SDK support path is clear, validate Distill's MCP
-  surface before the 1.0 contract freeze. This is a near-term compatibility
-  checkpoint, not a product pivot: stdio/local deployments stay supported while
+  surface while the public contracts remain candidates. This is a near-term
+  compatibility checkpoint, not a product pivot: stdio/local deployments stay
+  supported while
   remote HTTP compatibility catches up to the new stateless protocol. Acceptance:
   inventory whether Distill depends on removed handshake or session behavior,
   check `server/discover` and cache metadata implications for tool/resource

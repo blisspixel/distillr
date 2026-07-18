@@ -219,9 +219,10 @@ def test_pdf_has_default_extracted_text_limit(tmp_path, monkeypatch):
 
     limits: list[int] = []
 
-    def run_worker(path: Path, limit: int, max_pages: int) -> str:
+    def run_worker(path: Path, limit: int, max_pages: int, timeout_seconds: float) -> str:
         limits.append(limit)
         assert max_pages == 200
+        assert timeout_seconds == 60
         return "abcde"
 
     monkeypatch.setattr(ex, "_run_pdf_worker", run_worker)
@@ -426,21 +427,23 @@ class _FakeWorkerProcess:
     def __init__(self, *, returncode: int, stderr: bytes = b"", times_out: bool = False):
         self.stdin = _FakeWorkerStdin()
         self.returncode = returncode
-        self.stderr = stderr
+        self.stderr = BytesIO(stderr)
         self.times_out = times_out
         self.killed = False
+        self.finished = False
 
-    def communicate(self, timeout=None):
+    def wait(self, timeout=None):
         if timeout is not None and self.times_out and not self.killed:
             raise __import__("subprocess").TimeoutExpired("worker", timeout)
-        return b"", self.stderr
+        self.finished = True
+        return self.returncode
 
     def kill(self) -> None:
         self.killed = True
         self.returncode = -9
 
     def poll(self):
-        return self.returncode if self.killed else None
+        return self.returncode if self.killed or self.finished else None
 
 
 def test_pdf_worker_preserves_user_site_packages_with_safe_path(tmp_path, monkeypatch):

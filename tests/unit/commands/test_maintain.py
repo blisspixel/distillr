@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -681,8 +680,18 @@ def test_open_non_vault_uses_platform_opener_and_browser_fallback(tmp_path, monk
     monkeypatch.setattr(
         _maintain.os, "uname", lambda: SimpleNamespace(sysname="Linux"), raising=False
     )
-    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(subprocess, "run", lambda argv: opened_by_process.append(list(argv)))
+    monkeypatch.setattr(
+        "distill.process_security.resolve_executable", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "distill.process_security.package_install_context",
+        lambda: ("/trusted", {"PATH": "/usr/bin"}),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda argv, **_kwargs: opened_by_process.append(list(argv)),
+    )
     monkeypatch.setattr(
         _maintain.webbrowser, "open", lambda target: opened_by_browser.append(target)
     )
@@ -691,7 +700,7 @@ def test_open_non_vault_uses_platform_opener_and_browser_fallback(tmp_path, monk
 
     assert opened_by_process == [["/usr/bin/xdg-open", str(output_dir)]]
 
-    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    monkeypatch.setattr("distill.process_security.resolve_executable", lambda _name: None)
     _maintain.open_cmd(topic=None, channel=None, what="library", vault=False, path="")
 
     assert opened_by_browser == [str(config.library_dir)]

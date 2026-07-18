@@ -103,6 +103,7 @@ from distill.pipeline.discovery import (
 from distill.pipeline.report.synthesize import run_synthesis
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary, log_preview_cost
 from distill.pipeline.synthesis.corpus import synthesize_corpus
+from distill.target_safety import is_http_url, require_local_filesystem_target
 
 __all__ = [
     "discover",
@@ -323,12 +324,18 @@ def ramp_up(
 ):
     """Intent-first entry point for learning a source set quickly."""
     resolved_source = source
+    try:
+        require_local_filesystem_target(target)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="target") from None
     if source == "auto":
         resolved_source = _detect_ramp_source(target)
     elif source == "youtube":
         resolved_source = "youtube-query"
     elif source == "website":
-        resolved_source = "website-batch" if Path(target).exists() else "website"
+        resolved_source = (
+            "website-batch" if not is_http_url(target) and Path(target).exists() else "website"
+        )
     elif source == "paper":
         resolved_source = "paper"
     else:

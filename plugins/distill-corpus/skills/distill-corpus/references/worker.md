@@ -7,18 +7,19 @@ performing any later corpus write.
 
 ## What this protocol is
 
-The worker handoff lets an already active Codex, Claude Code, Grok, Gemini-style,
-Antigravity-style, or other agent session complete a deferred `AgentProvider`
-task. Distill does not invoke that host's CLI and does not inspect or reuse its
-credentials.
+The worker handoff lets an already active agent session complete a deferred
+`AgentProvider` task. Distill does not invoke that host's CLI and does not
+inspect or reuse its credentials.
 
 The accepted boundary is narrow:
 
 - one task is claimed atomically;
 - only `prompt.md` and `task.json` are staged into a private scratch workspace;
 - only `result.md` may be added;
+- provider admission, claim, submit, abandon, expiry release, and replay share
+  one serialized transition boundary;
 - the pending prompt, staged files, ownership token, result size, result hash,
-  and submission receipt are checked before publication;
+  and submission receipt are rechecked before publication;
 - the corpus is never writable through this protocol.
 
 The active host process is not sandboxed by Distill itself. Keep the host's own
@@ -32,24 +33,26 @@ Start with the prompt-free inventory:
 distill --json worker list
 ```
 
-Claim one eligible task. Use a truthful, stable host label such as `codex`,
-`claude`, `grok`, `gemini`, or `antigravity`:
+Claim one eligible task. Use a truthful, stable host label such as `worker-a`:
 
 ```bash
-distill --json worker claim --host codex --worker-id interactive
+distill --json worker claim --host worker-a --worker-id interactive
 ```
 
 An empty queue is a successful no-op with `claimed: false`. A successful claim
 returns:
 
-- `task_id` and `claim_token`;
+- `task_id`, `claim_token`, and the supported
+  `DISTILL_WORKER_CLAIM_TOKEN` environment name;
 - the isolated `workspace`;
 - read paths for `task.json` and `prompt.md`;
 - the single allowed `result_path`;
 - the lease expiry and billing classification.
 
-Keep the claim token private. Do not edit the `.claim` file or any file under
-the pending queue.
+Keep the claim token private. Do not put it in process arguments, scripts,
+logs, or shell history. Expose it only to the submit or abandon process through
+the host's secret-environment mechanism, then clear it. Do not edit the
+`.claim` file or any file under the pending queue.
 
 ## Produce the result
 
@@ -74,9 +77,19 @@ Submission rejects an unexpected path even if the result itself is valid.
 Submit the completed result:
 
 ```bash
-distill --json worker submit <task-id> \
-  --claim-token <claim-token> \
-  --model <model-label>
+distill --json worker submit <task-id> --model <model-label>
+```
+
+The submit process reads `DISTILL_WORKER_CLAIM_TOKEN` when `--claim-token` is
+omitted. In an interactive shell, read the token without echo rather than
+typing it into a recorded command:
+
+```bash
+read -rsp "Claim token: " DISTILL_WORKER_CLAIM_TOKEN
+printf '\n'
+export DISTILL_WORKER_CLAIM_TOKEN
+distill --json worker submit <task-id> --model <model-label>
+unset DISTILL_WORKER_CLAIM_TOKEN
 ```
 
 Add `--input-tokens` and `--output-tokens` only when the host reports both
@@ -84,17 +97,18 @@ counts. Never estimate them yourself. When counts are unavailable, omit both;
 Distill records conservative usage and preserves the fact that native host
 usage was unavailable.
 
-Submission is idempotent for the same claim and exact result. After a successful
-submission, rerun the original Distill command so `AgentProvider` can replay the
-validated result and continue its normal verify and corpus-write path.
+Submission rechecks ownership and the exact workspace file set immediately
+before publication. It is idempotent for the same claim and exact result. A
+result without a valid submission receipt remains pending and is never
+replayed. After a successful submission, rerun the original Distill command so
+`AgentProvider` can replay the validated result and continue its normal verify
+and corpus-write path.
 
 If the host cannot complete the task because of quota, context, policy, or a
 tool failure, release it explicitly:
 
 ```bash
-distill --json worker abandon <task-id> \
-  --claim-token <claim-token> \
-  --reason "quota exhausted"
+distill --json worker abandon <task-id> --reason "quota exhausted"
 ```
 
 The abandonment leaves an immutable receipt and makes the task available to a

@@ -297,13 +297,10 @@ def discover_generate_queries(
     video_qs = dedupe_query_strings(
         _string_list(data_obj.get("video_queries", [])) if data_obj is not None else []
     )
-    # Honor the requested counts even if the LLM produced more on the disabled
-    # side — keeps --papers-only / --videos-only from accidentally fetching the
-    # excluded source type.
-    if paper_count <= 0:
-        paper_qs = []
-    if video_count <= 0:
-        video_qs = []
+    # Treat model-produced arrays as proposals. The deterministic caller count
+    # is authoritative for both disabled and enabled source types.
+    paper_qs = paper_qs[: max(0, paper_count)]
+    video_qs = video_qs[: max(0, video_count)]
     return paper_qs, video_qs
 
 

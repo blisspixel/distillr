@@ -112,6 +112,31 @@ def test_discover_generate_queries_drops_disabled_side_after_llm(config, monkeyp
     assert video_queries == ["walkthrough"]
 
 
+def test_discover_generate_queries_enforces_requested_cardinality(config, monkeypatch):
+    monkeypatch.setattr(
+        discover,
+        "llm_call",
+        lambda rc, workload_tag, prompt, **kwargs: LLM_Response(
+            text=('{"paper_queries":["p1","p2","p3"],"video_queries":["v1","v2","v3"]}'),
+            input_tokens=0,
+            output_tokens=0,
+            model="grok-4.3",
+        ),
+    )
+
+    paper_queries, video_queries = discover.discover_generate_queries(
+        "goal",
+        config,
+        None,
+        paper_count=1,
+        video_count=2,
+        dedupe_query_strings=lambda items: items,
+    )
+
+    assert paper_queries == ["p1"]
+    assert video_queries == ["v1", "v2"]
+
+
 def test_discover_fetch_videos_dedupes_filters_and_enriches(monkeypatch):
     video_short = VideoInfo("v1", "Short", "20260420", 30, "https://youtube.com/watch?v=v1")
     video_full = VideoInfo(

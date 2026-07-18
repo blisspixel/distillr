@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 import platform
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
+from distill.process_security import package_install_context, resolve_executable
 
 logger = logging.getLogger(__name__)
 
@@ -154,14 +155,17 @@ def _get_macos_ram() -> float:
 
 def _run_tool(name: str, *args: str) -> subprocess.CompletedProcess[str]:
     """Run an external diagnostic tool after resolving it from PATH."""
-    executable = shutil.which(name)
+    executable = resolve_executable(name)
     if executable is None:
         raise FileNotFoundError(name)
+    trusted_cwd, child_env = package_install_context()
     return subprocess.run(
         [executable, *args],
         capture_output=True,
         text=True,
         timeout=5,
+        cwd=trusted_cwd,
+        env=child_env,
     )
 
 

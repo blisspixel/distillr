@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -476,6 +477,13 @@ class TestPapersTool:
 
 
 class TestSiteBatchTool:
+    @staticmethod
+    def _write_seed_manifest(mock_config, name, payload):
+        seed_dir = mock_config.library_dir / "site-seeds"
+        seed_dir.mkdir(parents=True, exist_ok=True)
+        (seed_dir / name).write_text(json.dumps(payload), encoding="utf-8")
+        return f"site-seeds/{name}"
+
     def test_resolve_seed_file_rejects_empty_null_and_parent_escape(self, tmp_path):
         from distill.mcp.tools.sites import _resolve_seed_file
 
@@ -487,6 +495,145 @@ class TestSiteBatchTool:
         assert _resolve_seed_file(library_dir, "") is None
         assert _resolve_seed_file(library_dir, "seed\x00file.txt") is None
         assert _resolve_seed_file(library_dir, "../outside.txt") is None
+
+    def test_seed_url_validator_accepts_public_ipv6_and_rejects_private_ipv6(self):
+        from distill.mcp.tools.sites import _is_public_https_seed_url
+
+        assert _is_public_https_seed_url("https://[2606:4700:4700::1111]/docs") is True
+        assert _is_public_https_seed_url("https://[::1]/private") is False
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            None,
+            "",
+            "x" * 2_049,
+            "https://example.com/line\nbreak",
+            "https://example.com\\private",
+            "https://example.com:invalid/docs",
+            "http://example.com/docs",
+            "https://user@example.com/docs",
+            "https://\ud800.example/docs",
+            "https://localhost/docs",
+            "https://service.internal/docs",
+            "https://singlelabel/docs",
+        ],
+    )
+    def test_seed_url_validator_rejects_ambiguous_or_private_authorities(self, url):
+        from distill.mcp.tools.sites import _is_public_https_seed_url
+
+        assert _is_public_https_seed_url(url) is False
+
+    def test_resolve_seed_file_handles_filesystem_resolution_failure(self, tmp_path, monkeypatch):
+        from distill.mcp.tools.sites import _resolve_seed_file
+
+        library_dir = tmp_path / "library"
+        (library_dir / "site-seeds").mkdir(parents=True)
+        monkeypatch.setattr(
+            Path,
+            "resolve",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unavailable")),
+        )
+
+        assert _resolve_seed_file(library_dir, "site-seeds/seeds.json") is None
+
+    def test_site_batch_reports_optional_dependency_import_failure(self, mock_config, monkeypatch):
+        import builtins
+
+        original_import = builtins.__import__
+
+        def guarded_import(name, *args, **kwargs):
+            if name == "distill.commands._site_batch":
+                raise ImportError("site adapter unavailable")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", guarded_import)
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", urls=["https://example.com/docs"])))
+
+        assert result == {
+            "status": "error",
+            "error": "Site dependencies missing: site adapter unavailable",
+        }
+
+    def test_site_batch_rejects_excess_or_invalid_direct_urls(self, mock_config):
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            excess = json.loads(
+                asyncio.run(
+                    site_batch(
+                        "ai",
+                        urls=[f"https://example.com/{index}" for index in range(51)],
+                    )
+                )
+            )
+            invalid = json.loads(asyncio.run(site_batch("ai", urls=["http://example.com"])))
+
+        assert "at most 50" in excess["error"]
+        assert "public HTTPS" in invalid["error"]
+
+    def test_site_batch_reports_manifest_read_failure(self, mock_config, monkeypatch):
+        seed_file = self._write_seed_manifest(
+            mock_config, "seeds.json", {"urls": ["https://example.com/docs"]}
+        )
+        monkeypatch.setattr(
+            "distill.mcp.tools.sites.read_confined_text", lambda *_args, **_kwargs: None
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
+
+        assert result == {"status": "error", "error": "Seed manifest is unavailable."}
+
+    @pytest.mark.parametrize(
+        ("payload", "message"),
+        [
+            (
+                {"urls": [f"https://example.com/{index}" for index in range(51)]},
+                "at most 50",
+            ),
+            ({"urls": ["http://example.com/docs"]}, "invalid or non-public HTTPS URL"),
+        ],
+    )
+    def test_site_batch_rejects_excess_or_invalid_manifest_urls(
+        self,
+        mock_config,
+        payload,
+        message,
+    ):
+        seed_file = self._write_seed_manifest(mock_config, "seeds.json", payload)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
+
+        assert message in result["error"]
+
+    def test_site_batch_rejects_empty_resolved_batch_and_host_refusal(
+        self, mock_config, monkeypatch
+    ):
+        seed_file = self._write_seed_manifest(mock_config, "empty.json", {"urls": []})
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            empty = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
+            monkeypatch.setattr(
+                "distill.mcp.tools.sites.refuse_if_host_not_allowed",
+                lambda _url: json.dumps({"status": "error", "error": "host refused"}),
+            )
+            refused = json.loads(
+                asyncio.run(site_batch("ai", urls=["https://example.com/docs"], preview=True))
+            )
+
+        assert empty == {"status": "error", "error": "No URLs to process."}
+        assert refused == {"status": "error", "error": "host refused"}
 
     def test_no_urls_or_seed(self, mock_config):
         with patch("distill.mcp.server._config", return_value=mock_config):
@@ -500,31 +647,42 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="/nonexistent.txt")))
+        result = json.loads(asyncio.run(site_batch("ai", seed_file="/nonexistent.txt")))
         assert result["status"] == "error"
-        assert "inside the library root" in result["error"]
+        assert "library/site-seeds" in result["error"]
 
     def test_seed_file_size_cap_refuses_large_file(self, mock_config):
-        seed_file = mock_config.library_dir / "huge-seeds.txt"
+        seed_dir = mock_config.library_dir / "site-seeds"
+        seed_dir.mkdir(parents=True)
+        seed_file = seed_dir / "huge-seeds.json"
         seed_file.write_bytes(b"x" * 1_000_001)
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="huge-seeds.txt")))
+            result = json.loads(
+                asyncio.run(site_batch("ai", seed_file="site-seeds/huge-seeds.json"))
+            )
 
-        assert result == {"status": "error", "error": "Seed file is too large."}
+        assert result["status"] == "error"
+        assert "site-seeds" in result["error"]
 
-    def test_comment_only_seed_file_refuses_empty_seed_set(self, mock_config):
-        seed_file = mock_config.library_dir / "comments.txt"
-        seed_file.write_text("# docs\n\n   # more docs\n", encoding="utf-8")
+    def test_ordinary_library_file_is_rejected_without_reading(self, mock_config, monkeypatch):
+        ordinary = mock_config.library_dir / "README.md"
+        ordinary.write_text("private sentinel", encoding="utf-8")
+
+        def unexpected_read(*_args, **_kwargs):
+            raise AssertionError("ordinary library file was read")
+
+        monkeypatch.setattr("distill.mcp.tools.sites.read_confined_text", unexpected_read)
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="comments.txt")))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file="README.md", preview=True)))
 
-        assert result == {"status": "error", "error": "No URLs to process."}
+        assert result["status"] == "error"
+        assert "private sentinel" not in json.dumps(result)
 
     def test_seed_file_must_stay_inside_library(self, mock_config, tmp_path):
         outside = tmp_path / "seeds.txt"
@@ -536,12 +694,13 @@ class TestSiteBatchTool:
             result = json.loads(asyncio.run(site_batch("ai", seed_file=str(outside))))
 
         assert result["status"] == "error"
-        assert "inside the library root" in result["error"]
+        assert "library/site-seeds" in result["error"]
         assert "private.example" not in json.dumps(result)
 
     def test_seed_file_inside_library_processes_site_seed(self, mock_config, monkeypatch):
-        seed_file = mock_config.library_dir / "seeds.txt"
-        seed_file.write_text("https://example.com/guide\n", encoding="utf-8")
+        seed_file = self._write_seed_manifest(
+            mock_config, "seeds.json", {"urls": ["https://example.com/guide"]}
+        )
         seen = []
 
         def fake_process_site_seed(seed, config, tracker, summary):
@@ -555,7 +714,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="seeds.txt")))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
 
         assert result["status"] == "complete"
         assert result["pages"] == [
@@ -569,32 +728,30 @@ class TestSiteBatchTool:
         assert seen == [("https://example.com/guide", "ai", mock_config, "site-batch")]
 
     def test_json_seed_file_honors_mixed_crawl_modes(self, mock_config, monkeypatch):
-        seed_file = mock_config.library_dir / "sites.json"
-        seed_file.write_text(
-            json.dumps(
-                {
-                    "topic": "web",
-                    "crawl": {
-                        "max_depth": 1,
-                        "max_pages_per_seed": 4,
-                        "same_section_only": True,
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "sites.json",
+            {
+                "topic": "web",
+                "crawl": {
+                    "max_depth": 1,
+                    "max_pages_per_seed": 4,
+                    "same_section_only": True,
+                },
+                "collections": [
+                    {
+                        "name": "overview",
+                        "mode": "exact-page",
+                        "seeds": ["https://example.com/overview"],
                     },
-                    "collections": [
-                        {
-                            "name": "overview",
-                            "mode": "exact-page",
-                            "seeds": ["https://example.com/overview"],
-                        },
-                        {
-                            "name": "docs",
-                            "mode": "shallow-crawl",
-                            "crawl_prefix": "/docs",
-                            "seeds": ["https://example.com/docs/start"],
-                        },
-                    ],
-                }
-            ),
-            encoding="utf-8",
+                    {
+                        "name": "docs",
+                        "mode": "shallow-crawl",
+                        "crawl_prefix": "/docs",
+                        "seeds": ["https://example.com/docs/start"],
+                    },
+                ],
+            },
         )
         seen = []
 
@@ -617,7 +774,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json")))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
 
         assert result["status"] == "complete"
         assert [page["url"] for page in result["pages"]] == [
@@ -630,20 +787,18 @@ class TestSiteBatchTool:
         ]
 
     def test_json_seed_file_rejects_unknown_mode_without_processing(self, mock_config, monkeypatch):
-        seed_file = mock_config.library_dir / "sites.json"
-        seed_file.write_text(
-            json.dumps(
-                {
-                    "topic": "web",
-                    "urls": [
-                        {
-                            "url": "https://example.com/guide",
-                            "mode": "wide-open",
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "sites.json",
+            {
+                "topic": "web",
+                "urls": [
+                    {
+                        "url": "https://example.com/guide",
+                        "mode": "wide-open",
+                    }
+                ],
+            },
         )
         calls = []
         monkeypatch.setattr(
@@ -654,7 +809,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json")))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
 
         assert result["status"] == "error"
         assert "Unsupported site crawl mode" in result["error"]
@@ -663,20 +818,18 @@ class TestSiteBatchTool:
     def test_json_seed_file_rejects_aggregate_page_budget_before_preview(
         self, mock_config, monkeypatch
     ):
-        seed_file = mock_config.library_dir / "sites.json"
-        seed_file.write_text(
-            json.dumps(
-                {
-                    "urls": [
-                        {
-                            "url": f"https://example.com/{index}",
-                            "max_pages": 100,
-                        }
-                        for index in range(6)
-                    ]
-                }
-            ),
-            encoding="utf-8",
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "sites.json",
+            {
+                "urls": [
+                    {
+                        "url": f"https://example.com/{index}",
+                        "max_pages": 100,
+                    }
+                    for index in range(6)
+                ]
+            },
         )
         calls = []
         monkeypatch.setattr(
@@ -687,7 +840,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json", preview=True)))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file, preview=True)))
 
         assert result == {
             "status": "error",
@@ -697,32 +850,30 @@ class TestSiteBatchTool:
 
     def test_preview_returns_plan_without_model_or_processing(self, mock_config, monkeypatch):
         monkeypatch.setenv("DISTILL_PROVIDER", "openai")
-        seed_file = mock_config.library_dir / "sites.json"
-        seed_file.write_text(
-            json.dumps(
-                {
-                    "topic": "web",
-                    "crawl": {
-                        "max_depth": 1,
-                        "max_pages_per_seed": 4,
-                        "same_section_only": True,
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "sites.json",
+            {
+                "topic": "web",
+                "crawl": {
+                    "max_depth": 1,
+                    "max_pages_per_seed": 4,
+                    "same_section_only": True,
+                },
+                "collections": [
+                    {
+                        "name": "overview",
+                        "mode": "exact-page",
+                        "seeds": ["https://example.com/overview"],
                     },
-                    "collections": [
-                        {
-                            "name": "overview",
-                            "mode": "exact-page",
-                            "seeds": ["https://example.com/overview"],
-                        },
-                        {
-                            "name": "docs",
-                            "mode": "shallow-crawl",
-                            "crawl_prefix": "/docs",
-                            "seeds": ["https://example.com/docs/start"],
-                        },
-                    ],
-                }
-            ),
-            encoding="utf-8",
+                    {
+                        "name": "docs",
+                        "mode": "shallow-crawl",
+                        "crawl_prefix": "/docs",
+                        "seeds": ["https://example.com/docs/start"],
+                    },
+                ],
+            },
         )
         calls = []
         monkeypatch.setattr(
@@ -733,7 +884,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="sites.json", preview=True)))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file, preview=True)))
 
         assert result["status"] == "preview"
         assert result["plan"]["workflow"] == "site-batch"
@@ -775,10 +926,10 @@ class TestSiteBatchTool:
             async def report_progress(self, *, progress, total):
                 self.calls.append((progress, total))
 
-        seed_file = mock_config.library_dir / "seeds.txt"
-        seed_file.write_text(
-            "https://example.com/fails\nhttps://example.com/works\n",
-            encoding="utf-8",
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "seeds.json",
+            {"urls": ["https://example.com/fails", "https://example.com/works"]},
         )
         ctx = ProgressContext()
 
@@ -815,7 +966,7 @@ class TestSiteBatchTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.sites import site_batch
 
-            result = json.loads(asyncio.run(site_batch("ai", seed_file="seeds.txt", ctx=ctx)))
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file, ctx=ctx)))
 
         assert result["status"] == "complete"
         assert result["pages"] == [

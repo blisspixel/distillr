@@ -699,9 +699,10 @@ def test_published_iso_empty_when_no_date() -> None:
 
 
 class _FakeResponse:
-    def __init__(self, data: Any, status_code: int = 200) -> None:
+    def __init__(self, data: Any, status_code: int = 200, headers: dict | None = None) -> None:
         self._data = data
         self.status_code = status_code
+        self.headers = headers or {}
 
     def __enter__(self) -> _FakeResponse:
         return self
@@ -713,7 +714,8 @@ class _FakeResponse:
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("err", request=None, response=None)  # type: ignore[arg-type]
 
-    def iter_bytes(self) -> list[bytes]:
+    def iter_raw(self, chunk_size: int) -> list[bytes]:
+        assert chunk_size == 64 * 1024
         if isinstance(self._data, bytes):
             return [self._data]
         return [json.dumps(self._data).encode("utf-8")]
@@ -744,6 +746,7 @@ def test_fetch_tweet_accepts_bare_id() -> None:
     assert rec.text == "raw id path"
     # Token was supplied (any string is fine, just verify it's there)
     assert "token" in fake.stream_calls[0][1]
+    assert fake.stream_calls[0][2]["Accept-Encoding"] == "identity"
 
 
 def test_fetch_tweet_canonicalizes_zero_padded_bare_id() -> None:
@@ -811,3 +814,32 @@ def test_fetch_tweet_empty_payload_raises() -> None:
         pytest.raises(ValueError, match="syndication payload"),
     ):
         fetch_tweet("https://x.com/u/status/1")
+
+
+def test_fetch_tweet_rejects_encoded_response_before_iteration() -> None:
+    class EncodedClient(_FakeClient):
+        def stream(self, method: str, url: str, params: dict, headers: dict) -> _FakeResponse:
+            return _FakeResponse(
+                b"compressed",
+                headers={"Content-Encoding": "gzip"},
+            )
+
+    with (
+        patch(
+            "distill.ingestors.x.syndication.httpx.Client",
+            return_value=EncodedClient({}),
+        ),
+        pytest.raises(ValueError, match="content encoding"),
+    ):
+        fetch_tweet("42")
+
+
+def test_fetch_tweet_rejects_oversized_raw_chunk_before_copy(monkeypatch) -> None:
+    monkeypatch.setattr("distill.ingestors.x.syndication._MAX_SYNDICATION_BYTES", 4)
+    fake = _FakeClient(b"12345")
+
+    with (
+        patch("distill.ingestors.x.syndication.httpx.Client", return_value=fake),
+        pytest.raises(ValueError, match="payload exceeds"),
+    ):
+        fetch_tweet("42")

@@ -5,17 +5,17 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+import time
+import urllib.request
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol
-from urllib.parse import parse_qs, urljoin, urlparse
-
-import requests
+from urllib.parse import parse_qs, urlparse
 
 from distill.config import DistillConfig
 from distill.ingestors.local.extract import extract_pdf_text_bounded
-from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
+from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.library.paths import slugify_title
@@ -35,8 +35,11 @@ _ATTACHMENT_TEXT_LIMIT = 30_000
 # prevents an internal SSRF target from returning an unbounded body that
 # would otherwise be fully read into memory by ``response.content``.
 _PDF_DOWNLOAD_CAP_BYTES = 50 * 1024 * 1024
-_PDF_MAX_REDIRECTS = 5
-_DIRECT_PROXIES = {"http": "", "https": ""}
+_PDF_BATCH_DOWNLOAD_CAP_BYTES = 75 * 1024 * 1024
+_PDF_TRANSFER_TIMEOUT_SECONDS = 30.0
+_PDF_BATCH_TIMEOUT_SECONDS = 90.0
+_MAX_PDF_ATTACHMENTS_PER_PAGE = 8
+_MAX_VIDEO_ATTACHMENTS_PER_PAGE = 8
 
 
 class _TranscriptionCostTracker(Protocol):
@@ -72,8 +75,12 @@ class AttachmentRecord:
 def collect_page_attachments(page: SitePage) -> list[AttachmentRecord]:
     attachments: list[AttachmentRecord] = []
     seen: set[tuple[str, str]] = set()
+    pdf_count = 0
+    video_count = 0
 
     for url in page.pdf_links:
+        if pdf_count >= _MAX_PDF_ATTACHMENTS_PER_PAGE:
+            break
         key = ("pdf", url)
         if key in seen:
             continue
@@ -86,8 +93,11 @@ def collect_page_attachments(page: SitePage) -> list[AttachmentRecord]:
                 source="pdf_link",
             )
         )
+        pdf_count += 1
 
     for url in page.video_links:
+        if video_count >= _MAX_VIDEO_ATTACHMENTS_PER_PAGE:
+            break
         provider = _provider_for_url(url)
         key = ("video", url)
         if key in seen:
@@ -101,6 +111,7 @@ def collect_page_attachments(page: SitePage) -> list[AttachmentRecord]:
                 source="video_link",
             )
         )
+        video_count += 1
 
     return attachments
 
@@ -120,10 +131,15 @@ def ingest_page_attachments(
     attachments_dir.mkdir(parents=True, exist_ok=True)
     context_parts: list[str] = []
     updated: list[AttachmentRecord] = []
+    pdf_budget = _AttachmentBatchBudget()
 
     for attachment in attachments:
         if attachment.kind == "pdf":
-            updated_attachment, context = _ingest_pdf_attachment(attachment, attachments_dir)
+            updated_attachment, context = _ingest_pdf_attachment(
+                attachment,
+                attachments_dir,
+                budget=pdf_budget,
+            )
         elif attachment.kind == "video" and attachment.provider == "youtube":
             updated_attachment, context = _ingest_youtube_attachment(
                 attachment, attachments_dir, config, tracker=tracker
@@ -159,83 +175,130 @@ class _AttachmentFetchError(Exception):
         self.note = note
 
 
-def _download_pdf_bytes(url: str) -> bytes:
+@dataclass
+class _AttachmentBatchBudget:
+    """Aggregate PDF count, bytes, and elapsed time for one crawled page."""
+
+    timeout_seconds: float = _PDF_BATCH_TIMEOUT_SECONDS
+    byte_limit: int = _PDF_BATCH_DOWNLOAD_CAP_BYTES
+    max_pdfs: int = _MAX_PDF_ATTACHMENTS_PER_PAGE
+    started_at: float = 0.0
+    pdfs_started: int = 0
+    bytes_consumed: int = 0
+
+    def __post_init__(self) -> None:
+        if self.started_at == 0.0:
+            self.started_at = time.monotonic()
+
+    def remaining_seconds(self) -> float:
+        remaining = self.timeout_seconds - (time.monotonic() - self.started_at)
+        if remaining <= 0:
+            raise _AttachmentFetchError("PDF attachment batch deadline exceeded")
+        return remaining
+
+    def start_pdf(self) -> None:
+        self.remaining_seconds()
+        if self.pdfs_started >= self.max_pdfs:
+            raise _AttachmentFetchError("PDF attachment count limit exceeded")
+        self.pdfs_started += 1
+
+    def consume_bytes(self, amount: int) -> None:
+        self.remaining_seconds()
+        if amount > self.byte_limit - self.bytes_consumed:
+            raise _AttachmentFetchError("PDF attachment batch byte limit exceeded")
+        self.bytes_consumed += amount
+
+
+def _download_pdf_bytes(
+    url: str,
+    *,
+    budget: _AttachmentBatchBudget | None = None,
+) -> bytes:
     """Stream a PDF response with content-type and size guards.
 
     Raises ``_AttachmentFetchError`` if the response is the wrong content
     type or exceeds the configured size cap; the caller turns that into an
     ``attachment.status = "failed"`` record.
     """
-    current_url = url
-    for _ in range(_PDF_MAX_REDIRECTS + 1):
-        # Resolve+validate to a public IP and pin the connection to it, so a
-        # DNS rebind between the check and the fetch (or on a redirect hop)
-        # cannot point requests at an internal address. TLS still uses the host.
-        pinned_ip = resolve_public_ip(current_url)
-        if pinned_ip is None:
-            raise _AttachmentFetchError("PDF URL is not a public http(s) resource")
-        host = urlparse(current_url).hostname or ""
-        with (
-            pin_host_to_ip(host, pinned_ip),
-            requests.get(
-                current_url,
-                timeout=30,
-                stream=True,
-                allow_redirects=False,
-                proxies=_DIRECT_PROXIES,
-            ) as response,
-        ):
-            if 300 <= response.status_code < 400:
-                location = response.headers.get("Location")
-                if not location:
-                    raise _AttachmentFetchError("PDF redirect missing Location header")
-                current_url = urljoin(current_url, location)
-                continue
-            response.raise_for_status()
+    batch = budget or _AttachmentBatchBudget(max_pdfs=1)
+    batch.start_pdf()
+    timeout = min(_PDF_TRANSFER_TIMEOUT_SECONDS, batch.remaining_seconds())
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/pdf, application/octet-stream;q=0.8",
+            "Accept-Encoding": "identity",
+            "User-Agent": "distillr",
+        },
+    )
+    try:
+        with safe_urlopen(request, timeout=timeout, retries=1) as response:
+            content_encoding = (response.headers.get("Content-Encoding") or "").strip().lower()
+            if content_encoding not in {"", "identity"}:
+                raise _AttachmentFetchError(f"Unexpected content-encoding: {content_encoding}")
             content_type = (
                 (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
             )
-            if content_type and content_type not in {"application/pdf", "application/octet-stream"}:
+            if content_type and content_type not in {
+                "application/pdf",
+                "application/octet-stream",
+            }:
                 raise _AttachmentFetchError(f"Unexpected content-type: {content_type}")
             declared = response.headers.get("Content-Length")
             declared_size = parse_ascii_uint(declared or "")
             if declared_size is not None and declared_size > _PDF_DOWNLOAD_CAP_BYTES:
                 raise _AttachmentFetchError("PDF exceeds size cap")
+            if (
+                declared_size is not None
+                and declared_size > batch.byte_limit - batch.bytes_consumed
+            ):
+                raise _AttachmentFetchError("PDF attachment batch byte limit exceeded")
             buf = BytesIO()
             total = 0
-            for chunk in response.iter_content(chunk_size=64 * 1024):
+            while True:
+                chunk = response.read(min(64 * 1024, _PDF_DOWNLOAD_CAP_BYTES - total + 1))
                 if not chunk:
-                    continue
+                    break
                 total += len(chunk)
                 if total > _PDF_DOWNLOAD_CAP_BYTES:
                     raise _AttachmentFetchError("PDF exceeds size cap")
+                batch.consume_bytes(len(chunk))
                 buf.write(chunk)
             return buf.getvalue()
-    raise _AttachmentFetchError("PDF redirect limit exceeded")
+    except NetworkError as exc:
+        raise _AttachmentFetchError(f"PDF fetch failed: {exc}") from exc
 
 
 def _ingest_pdf_attachment(
     attachment: AttachmentRecord,
     attachments_dir: Path,
+    *,
+    budget: _AttachmentBatchBudget | None = None,
 ) -> tuple[AttachmentRecord, str]:
     # SSRF guard: refuse to fetch attachments that point at the local browser
     # host, RFC1918 networks, or cloud metadata endpoints. Without this, a
     # malicious page can embed a ``href="http://169.254.169.254/.../pdf"``
     # link and have the crawler exfiltrate internal responses through the
     # downstream LLM prompt.
-    if not is_public_web_url(attachment.url):
+    if urlparse(attachment.url).scheme.lower() != "https" or not is_public_web_url(attachment.url):
         attachment.status = "failed"
-        attachment.note = "PDF URL is not a public http(s) resource"
+        attachment.note = "PDF URL is not a public HTTPS resource"
         return attachment, ""
     try:
-        data = _download_pdf_bytes(attachment.url)
+        data = _download_pdf_bytes(attachment.url, budget=budget)
         with tempfile.TemporaryDirectory(prefix="distill-attachment-pdf-") as temp_dir:
             pdf_path = Path(temp_dir) / "attachment.pdf"
             pdf_path.write_bytes(data)
+            parse_timeout = (
+                _PDF_TRANSFER_TIMEOUT_SECONDS
+                if budget is None
+                else min(_PDF_TRANSFER_TIMEOUT_SECONDS, budget.remaining_seconds())
+            )
             extracted = extract_pdf_text_bounded(
                 pdf_path,
                 max_chars=_ATTACHMENT_TEXT_LIMIT,
                 max_pages=10,
+                timeout_seconds=parse_timeout,
             ).strip()
         if not extracted:
             attachment.status = "failed"

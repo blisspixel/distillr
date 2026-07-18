@@ -16,6 +16,12 @@ WORKER_PROTOCOL_VERSION = "agent-worker.v1"
 WORKER_CLAIM_SCHEMA_VERSION = "agent-worker-claim.v1"
 WORKER_SUBMISSION_SCHEMA_VERSION = "agent-worker-submission.v1"
 WORKER_ABANDONMENT_SCHEMA_VERSION = "agent-worker-abandonment.v1"
+WORKER_TRANSITION_LOCK_NAME = ".worker-transition.lock"
+AGENT_TASK_SCHEMA_VERSION = "agent-task.v1"
+MAX_AGENT_TASK_BYTES = 1 * 1024 * 1024
+MAX_AGENT_RESULT_BYTES = 16 * 1024 * 1024
+RESULT_BYTES_PER_TOKEN = 16
+MAX_AGENT_PENDING_TASKS = 256
 MAX_AGENT_SIDECAR_BYTES = 128 * 1024
 
 _LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -64,6 +70,15 @@ class HostSubmission:
     @property
     def model_label(self) -> str:
         return self.model or f"host:{self.host}"
+
+
+def agent_result_byte_limit(max_tokens: int) -> int:
+    """Return the bounded result size accepted for a deferred agent task."""
+
+    return min(
+        MAX_AGENT_RESULT_BYTES,
+        max(4_096, max_tokens * RESULT_BYTES_PER_TOKEN),
+    )
 
 
 def validate_host_submission(

@@ -61,6 +61,17 @@ GROUNDED = (
 
 
 class TestAsk:
+    def test_oversized_model_answer_is_bounded_and_not_written(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(monkeypatch, "x" * 64_001)
+
+        result = ask_mod.ask_corpus("which checker?", topic="t", config=config)
+
+        assert result.answer_path is None
+        assert len(result.answer_text) == 64_000
+        assert "artifact limit" in result.answer_refused_reason
+        assert not (config.topic_dir("t") / "answers").exists()
+
     def test_answer_artifact_with_citations_and_sidecar(self, config, monkeypatch):
         _seed_corpus(config)
         _llm(monkeypatch, GROUNDED)

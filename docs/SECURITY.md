@@ -39,6 +39,39 @@ Out of scope:
 - Cost overruns from normal use - that's a budget issue, not a security issue (though budget-guardrail bugs that bypass user-set limits are in scope)
 - Issues that require the attacker to already have write access to the user's library directory
 
+## Enforced runtime boundaries
+
+Current source and integration paths apply several independent controls so one
+malicious input cannot turn a narrow operation into broad host authority:
+
+- The shared public-source opener accepts HTTPS, canonicalizes hostnames to one
+  IDNA ASCII identity, rejects any DNS set containing a non-public address,
+  pins the validated address for the connection, revalidates redirects, and
+  carries one monotonic deadline through DNS, lock wait, connect, TLS, response
+  headers, retry backoff, and caller body reads.
+- Website discovery caps sitemap attempts and entries. PDF attachment ingest
+  caps attachments, aggregate bytes, per-transfer time, and batch time. X
+  syndication requests identity encoding and caps raw response bytes before
+  JSON decoding.
+- Local HTML, PDF, and browser work runs in isolated child processes with
+  elapsed-time, memory, process-tree cleanup, output, and diagnostic-tail
+  limits. Browser requests also use HTTPS, public-address checks, a per-page
+  request budget, and a restricted resource-type set.
+- Process launches resolve one absolute executable identity outside the current
+  directory, use a trusted working directory, and remove Python injection
+  variables and provider credentials from child environments. Python module
+  launches use safe-path mode.
+- CLI target classification rejects UNC and Windows device paths before any
+  filesystem probe. Persistent budget fields reject negative and non-finite
+  values before mutation and serialize with strict JSON.
+- MCP file tools use workflow-specific namespaces and artifact classes rather
+  than broad library-root readability. Reads are no-follow and bounded. OKF
+  validation has aggregate tree-work ceilings.
+
+Resource-boundary failures are explicit. User-facing commands return a refusal
+or failed-item record, bounded child diagnostics retain only a small tail, and
+no partial insight or worker result is accepted as success.
+
 ## Active host-worker boundary
 
 `distill worker` accepts results from an already active external agent session.
@@ -49,9 +82,18 @@ The protocol limits what Distill accepts: one atomic claim, identity-bound task
 and scratch directories, no-follow bounded reads, unchanged staged prompt and
 metadata hashes, an exact workspace file set, one result path, bounded output,
 an ownership token, immutable abandonment or release receipts, and a validated
-submission receipt before replay. Worker output still passes through the normal
-Distill verification and corpus-write path. Queue files and receipts are not a
-public editing surface.
+submission receipt before replay. Provider admission, claim, submit, abandon,
+and expired release share one cross-process transition lock. Submit rechecks
+the exact active claim and workspace set immediately before receipt and result
+publication, so revoked or replaced ownership cannot publish later. Duplicate
+pending prompts converge on one task, and the queue has a fixed task ceiling.
+Worker output still passes through the normal Distill verification and
+corpus-write path. Queue files and receipts are not a public editing surface.
+
+Supported examples pass the claim token through
+`DISTILL_WORKER_CLAIM_TOKEN`, not a process argument. Keep it out of scripts,
+logs, and shell history, expose it only to the submit or abandon process, and
+clear it afterward.
 
 Host billing is outside this security boundary. Results are labeled
 `host-managed`, never proven no-metered, because the enclosing session may use

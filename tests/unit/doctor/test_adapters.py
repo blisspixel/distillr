@@ -6,7 +6,7 @@ from distill.doctor import adapters
 
 
 def test_adapter_doctor_blocks_missing_binaries(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda _binary: None)
+    monkeypatch.setattr(adapters, "resolve_executable", lambda _binary: None)
 
     report = adapters.adapter_doctor_report(environ={}, runner=lambda _cmd, _timeout: (0, "", ""))
 
@@ -34,7 +34,7 @@ def test_adapter_doctor_blocks_missing_binaries(monkeypatch):
 
 
 def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
         text = (
@@ -59,7 +59,7 @@ def test_adapter_doctor_records_required_flags_and_env_blockers(monkeypatch):
 
 
 def test_adapter_doctor_blocks_google_api_key_for_gemini(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     report = adapters.adapter_doctor_report(
         environ={"GOOGLE_API_KEY": "key"},
@@ -77,7 +77,7 @@ def test_adapter_doctor_blocks_google_api_key_for_gemini(monkeypatch):
 
 
 def test_adapter_doctor_blocks_google_cloud_credential_routes(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     report = adapters.adapter_doctor_report(
         environ={"GOOGLE_APPLICATION_CREDENTIALS": "creds.json"},
@@ -95,7 +95,7 @@ def test_adapter_doctor_blocks_google_cloud_credential_routes(monkeypatch):
 
 
 def test_adapter_doctor_blocks_claude_gateway_and_cloud_provider_routes(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     report = adapters.adapter_doctor_report(
         environ={"ANTHROPIC_BASE_URL": "https://gateway.example", "CLAUDE_CODE_USE_VERTEX": "1"},
@@ -110,7 +110,7 @@ def test_adapter_doctor_blocks_claude_gateway_and_cloud_provider_routes(monkeypa
 
 
 def test_adapter_doctor_blocks_gateway_and_credential_config_routes(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     claude_dir = tmp_path / ".claude"
     claude_dir.mkdir()
     (claude_dir / "settings.json").write_text(
@@ -147,7 +147,7 @@ def test_adapter_doctor_blocks_gateway_and_credential_config_routes(monkeypatch,
 
 
 def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     report = adapters.adapter_doctor_report(environ={}, runner=lambda _cmd, _timeout: (0, "", ""))
 
@@ -165,7 +165,7 @@ def test_credit_metered_copilot_is_not_no_metered_candidate(monkeypatch):
 
 
 def test_adapter_doctor_detects_metered_config_without_leaking_secret(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".codex"
     config_dir.mkdir()
     (config_dir / "config.toml").write_text(
@@ -189,7 +189,7 @@ def test_adapter_doctor_detects_metered_config_without_leaking_secret(monkeypatc
 
 
 def test_adapter_doctor_reports_session_config_but_keeps_route_blocked(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".grok"
     config_dir.mkdir()
     (config_dir / "config.toml").write_text(
@@ -212,7 +212,7 @@ def test_adapter_doctor_reports_session_config_but_keeps_route_blocked(monkeypat
 
 
 def test_adapter_doctor_reads_bom_prefixed_toml_config(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".grok"
     config_dir.mkdir()
     (config_dir / "config.toml").write_text(
@@ -234,7 +234,7 @@ def test_adapter_doctor_reads_bom_prefixed_toml_config(monkeypatch, tmp_path):
 
 
 def test_adapter_doctor_reports_malformed_config_without_leaking_values(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".codex"
     config_dir.mkdir()
     (config_dir / "config.toml").write_text(
@@ -258,7 +258,7 @@ def test_adapter_doctor_reports_malformed_config_without_leaking_values(monkeypa
 
 
 def test_antigravity_uses_current_agy_cli_and_config_path(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     config_dir = tmp_path / ".gemini" / "antigravity-cli"
     config_dir.mkdir(parents=True)
     (config_dir / "settings.json").write_text(
@@ -287,7 +287,7 @@ def test_antigravity_uses_current_agy_cli_and_config_path(monkeypatch, tmp_path)
 
 
 def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
         if _command_key(command) == ("claude", "auth", "status", "--json"):
@@ -310,7 +310,7 @@ def test_adapter_doctor_reports_session_auth_command_without_leaking_values(monk
 
 
 def test_adapter_doctor_reports_metered_auth_command(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     def runner(command: Sequence[str], _timeout: int) -> tuple[int, str, str]:
         if _command_key(command) == ("claude", "auth", "status", "--json"):
@@ -327,7 +327,7 @@ def test_adapter_doctor_reports_metered_auth_command(monkeypatch):
 
 
 def test_adapter_doctor_blocks_unknown_auth_for_installed_candidate(monkeypatch, tmp_path):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
 
     report = adapters.adapter_doctor_report(
         environ={},
@@ -345,7 +345,7 @@ def test_adapter_doctor_windows_probes_use_exact_discovered_executables(monkeypa
         binary: rf"C:\Program Files\adapter shims\{binary}.cmd"
         for binary in ("agy", "claude", "codex", "gemini", "gh", "grok")
     }
-    monkeypatch.setattr(adapters.shutil, "which", resolved.get)
+    monkeypatch.setattr(adapters, "resolve_executable", resolved.get)
     monkeypatch.setattr(adapters, "_is_windows", lambda: True)
     commands: list[tuple[str, ...]] = []
 
@@ -368,7 +368,7 @@ def test_adapter_doctor_windows_probes_use_exact_discovered_executables(monkeypa
 
 
 def test_adapter_doctor_gives_slow_startup_probes_bounded_headroom(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/bin/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/bin/{binary}")
     default_timeouts: list[int] = []
     override_timeouts: list[int] = []
 
@@ -388,7 +388,7 @@ def test_adapter_doctor_gives_slow_startup_probes_bounded_headroom(monkeypatch):
 
 
 def test_adapter_doctor_posix_probes_keep_planned_argv(monkeypatch):
-    monkeypatch.setattr(adapters.shutil, "which", lambda binary: f"/opt/adapters/{binary}")
+    monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/opt/adapters/{binary}")
     monkeypatch.setattr(adapters, "_is_windows", lambda: False)
     commands: list[tuple[str, ...]] = []
 
@@ -412,6 +412,11 @@ def test_adapter_command_runner_keeps_shell_disabled(monkeypatch):
         return adapters.subprocess.CompletedProcess(command, 0, "codex 0.140.0\n", "")
 
     monkeypatch.setattr(adapters.subprocess, "run", run)
+    monkeypatch.setattr(
+        adapters,
+        "package_install_context",
+        lambda: ("/trusted", {"PATH": "/opt/adapters"}),
+    )
 
     result = adapters._run_command((executable, "--version"), 7)
 
@@ -425,6 +430,8 @@ def test_adapter_command_runner_keeps_shell_disabled(monkeypatch):
                 "timeout": 7,
                 "check": False,
                 "shell": False,
+                "cwd": "/trusted",
+                "env": {"PATH": "/opt/adapters"},
             },
         )
     ]

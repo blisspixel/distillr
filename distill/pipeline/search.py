@@ -28,6 +28,7 @@ __all__ = [
     "MAX_SEARCH_RESULTS",
     "SearchResult",
     "extract_section",
+    "is_corpus_artifact_path",
     "read_search_result",
     "search_corpus",
 ]
@@ -75,6 +76,21 @@ class SearchResult:
     score: float  # Relevance score (higher = more relevant)
     artifact_type: str  # insights | synthesis | diff | trends | corpus | paper
     content_sha256: str = ""  # Digest of the exact content snapshot that was ranked
+
+
+def is_corpus_artifact_path(config: DistillConfig, path: Path) -> bool:
+    """Return whether a path belongs to the searchable topic-artifact namespace."""
+
+    try:
+        relative = path.relative_to(config.library_dir)
+    except ValueError:
+        return False
+    parts = relative.parts
+    if len(parts) < 3 or parts[0] != "topics" or path.suffix.casefold() != ".md":
+        return False
+    if any(part.startswith(".") for part in parts[1:]):
+        return False
+    return not path.name.casefold().endswith("_answer.md")
 
 
 def read_search_result(config: DistillConfig, result: SearchResult) -> str | None:
@@ -126,7 +142,7 @@ def search_corpus(
     }
 
     for md_file in topic_dir.rglob("*.md"):
-        if not md_file.is_file():
+        if not md_file.is_file() or not is_corpus_artifact_path(config, md_file):
             continue
         artifact_name = md_file.name.casefold()
         if artifact_name.endswith("_answer.md"):

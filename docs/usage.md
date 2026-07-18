@@ -284,26 +284,48 @@ task without Distill invoking the vendor CLI or handling its credentials:
 distill --json worker list
 
 # Claim one task into an isolated scratch workspace
-distill --json worker claim --host codex --worker-id interactive
+distill --json worker claim --host worker-a --worker-id interactive
 
-# After writing only the returned result.md path
-distill --json worker submit <task-id> \
-  --claim-token <claim-token> \
-  --model <model-label>
+# After writing only the returned result.md path, provide the token by environment
+distill --json worker submit <task-id> --model <model-label>
 
-# Release an incomplete task for another host
-distill --json worker abandon <task-id> \
-  --claim-token <claim-token> \
-  --reason "quota exhausted"
+# Release an incomplete task for another host using the same environment variable
+distill --json worker abandon <task-id> --reason "quota exhausted"
 ```
 
 `worker claim` returns exact read paths for `task.json` and `prompt.md`, the one
-allowed `result.md` write path, an opaque ownership token, and a lease. Submit
-rejects changed staged inputs, extra workspace files, unsafe paths, oversized
-results, wrong ownership, conflicting results, and malformed receipts. It is
-idempotent for the same claim and exact result. After submission, rerun the
-original Distill command so `AgentProvider` can replay the validated result and
-continue through the normal verify and corpus-write path.
+allowed `result.md` write path, an opaque ownership token, the
+`DISTILL_WORKER_CLAIM_TOKEN` environment name, and a lease. Do not put the real
+token in process arguments, scripts, logs, or shell history. Inject it into the
+submit or abandon process through the host's secret-environment mechanism and
+clear it immediately afterward. For an interactive shell, read it without echo
+instead of typing it into a recorded command:
+
+```bash
+read -rsp "Claim token: " DISTILL_WORKER_CLAIM_TOKEN
+printf '\n'
+export DISTILL_WORKER_CLAIM_TOKEN
+distill --json worker submit <task-id> --model <model-label>
+unset DISTILL_WORKER_CLAIM_TOKEN
+```
+
+```powershell
+$claimToken = Read-Host "Claim token" -AsSecureString
+$env:DISTILL_WORKER_CLAIM_TOKEN = [Net.NetworkCredential]::new("", $claimToken).Password
+distill --json worker submit <task-id> --model <model-label>
+Remove-Item Env:DISTILL_WORKER_CLAIM_TOKEN
+```
+
+Submit rejects changed staged inputs, extra workspace files, unsafe paths,
+oversized results, wrong ownership, conflicting results, and malformed
+receipts. Claim, submit, abandon, release, and provider replay share one
+serialized transition boundary. Ownership and the exact workspace file set are
+rechecked immediately before publication, so an abandoned, expired, or
+replaced claim cannot publish afterward. Submission is idempotent for the same
+claim and exact result. A result without a valid submission receipt remains
+pending and is never replayed. After submission, rerun the original Distill
+command so `AgentProvider` can replay the validated result and continue through
+the normal verify and corpus-write path.
 
 If a worker cannot finish, `worker abandon` records why and makes the task
 claimable by another host. `worker release-expired <task-id>` is preview-only;
@@ -917,8 +939,10 @@ For deployments that do expose the write tools, two narrower guardrails:
 - `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines the
   URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to
   the listed hosts and their subdomains -- the corpus-poisoning guard.
-  `site_batch` applies the allowlist after expanding TXT or JSON seed files,
-  including mixed exact-page and shallow-crawl JSON seeds. Hosts match exactly
+  MCP `site_batch` accepts direct URL arrays or bounded JSON manifests under
+  `library/site-seeds/`; it does not read TXT or ordinary library files. The
+  allowlist applies after expanding mixed exact-page and shallow-crawl JSON
+  seeds. Hosts match exactly
   or as subdomains (`www.youtube.com` passes `youtube.com`; `evilyoutube.com`
   does not).
 

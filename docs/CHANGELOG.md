@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Security
+
+- Closed the current deep-review findings across public-source fetches,
+  website crawling, PDF attachments, local parsers, subprocess launch,
+  MCP reads, OKF validation, Windows target classification, and deferred worker
+  publication. Network paths now use canonical IDNA identities and end-to-end
+  deadlines; browser, HTML, and PDF work has process-tree resource ceilings;
+  sitemap and attachment batches have aggregate work budgets.
+- Hardened process execution for browser setup, vault opening, adapter and
+  hardware diagnostics, and timeout cleanup. Executables resolve to trusted
+  absolute paths outside the current directory, Python children use safe-path
+  mode, and child environments remove Python injection variables and provider
+  credentials.
+- Narrowed MCP file capability. `site_batch` reads bounded JSON only from
+  `library/site-seeds/` and validates public HTTPS entries;
+  `read_insight` reads bounded topic Markdown only; MCP OKF validation accepts
+  regular generated bundle directories and enforces aggregate tree limits.
+
+### Fixed
+
+- Serialized deferred-provider admission and worker claim, submit, abandon,
+  and expired-release transitions on one cross-process lock. Publication now
+  rechecks exact ownership and the workspace file set, result replay requires a
+  valid submission receipt, duplicate pending prompts converge, and the queue
+  has a fixed capacity.
+- Added `DISTILL_WORKER_CLAIM_TOKEN` support for submit and abandon so supported
+  workflows no longer place bearer claim tokens in process arguments.
+- Rejected non-finite or negative recurring-watch budgets before state writes,
+  bounded ask questions and answers, and enforced requested discovery-query
+  cardinality on model-produced arrays.
+- Bounded raw X syndication responses before decoding and capped retained PDF
+  worker diagnostics so compressed or diagnostic output cannot grow unchecked.
+
+### Changed
+
+- Reframed README and roadmap status around continuing product refinement. No
+  contract freeze is scheduled; future stability is gated on compatibility,
+  migration, performance, security, accessibility, operator, and sustained
+  release evidence.
+- Documented current worker token handling, atomic publication, MCP namespaces,
+  resource ceilings, and explicit bounded-failure behavior.
+
 ## 0.19.37 - 2026-07-16
 
 ### Fixed

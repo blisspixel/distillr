@@ -194,7 +194,7 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                             if raise_on_error and _upload_date_overlaps_window(
                                 video.upload_date,
                                 cutoff,
-                                freshness_ceiling,
+                                now,
                             ):
                                 raise RuntimeError(
                                     "YouTube discovery returned a potentially fresh video "
@@ -203,7 +203,7 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
                             continue
                         if not _is_recent_enough_precise(video, cutoff, freshness_ceiling):
                             continue
-                    elif not _is_recent_enough(video.upload_date, cutoff, freshness_ceiling):
+                    elif not _is_recent_enough(video.upload_date, cutoff, now):
                         continue
 
                     if video.video_id in seen_ids:
@@ -293,7 +293,6 @@ def search_videos(
     search_expr = _search_expression(query, search_limit, sort)
     now = datetime.now(UTC)
     cutoff = now - timedelta(days=days)
-    freshness_ceiling = now + _MAX_FUTURE_CLOCK_SKEW
 
     ydl_opts: dict[str, object] = {
         "quiet": True,
@@ -330,7 +329,7 @@ def search_videos(
         video = _entry_to_video_info(entry)
         if not video:
             continue
-        if not _is_recent_enough(video.upload_date, cutoff, freshness_ceiling):
+        if not _is_recent_enough(video.upload_date, cutoff, now):
             continue
         candidates.append(video)
 
@@ -443,7 +442,7 @@ def _is_recent_enough(
     except ValueError:
         return False
     normalized_cutoff = _as_utc(cutoff)
-    ceiling = _as_utc(freshness_ceiling or datetime.now(UTC) + _MAX_FUTURE_CLOCK_SKEW)
+    ceiling = _as_utc(freshness_ceiling or datetime.now(UTC))
     return normalized_cutoff.date() <= published.date() <= ceiling.date()
 
 

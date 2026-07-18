@@ -19,12 +19,13 @@ The promise being built: one tool takes a research goal to a verified,
 agent-legible, self-auditing local corpus. As of 0.19.21, the feature spine is
 complete through OKF export/validation, loop-ready audit next-actions,
 recurring research profiles, cost-mode routing, adapter doctors, and the route
-availability primitives. The remaining 0.x work is the 1.0 quality gate:
-contract freeze, Pyright strict completion, parse-don't-validate boundaries,
-verification-depth work on deterministic core packages, the branch-coverage
-ratchet to at least 95%, a published performance baseline with explicit
-implementation-language admission gates, and the final presentation/onboarding
-pass.
+availability primitives. The remaining 0.x work is an evidence-driven
+refinement program: keep candidate contracts open while UX, security,
+reliability, observability, accessibility, operator recovery, Pyright
+strictness, parse-don't-validate boundaries, and verification depth improve.
+The branch-coverage floor has reached 95%. A published performance baseline,
+compatibility and migration evidence, and representative onboarding and
+presentation work remain readiness conditions for a future stability decision.
 
 Harden passes stay interleaved until 1.0. They cover security, robustness,
 dependency, CI/CD supply chain, and parse-don't-crash sweeps without expanding
@@ -48,8 +49,8 @@ An external system -- Deepr, a stranger's agent stack, a lab's cron job -- can d
 distill without expecting churn.
 
 Full spec: [`../../ROADMAP.md`](../../ROADMAP.md), "1.0.0 -- Stability
-commitment + quality bar". Decision due before the freeze: the project name
-(rename window closes at 1.0).
+commitment + quality bar". Decision due before the 1.0 stability commitment:
+the project name (rename window closes at 1.0).
 
 ### 2.0 -- "Runs on whatever you have, unattended, and compounds"
 

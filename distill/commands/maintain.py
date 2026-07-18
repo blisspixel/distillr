@@ -520,8 +520,9 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
       distill open --vault            # Open library as Obsidian vault
       distill open --vault --path topics/ai-agents  # Open subdirectory
     """
-    import shutil
     import subprocess
+
+    from distill.process_security import package_install_context, resolve_executable
 
     config = get_config()
 
@@ -556,7 +557,7 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
         # Check for DISTILL_VAULT_EDITOR env var
         vault_editor = os.environ.get("DISTILL_VAULT_EDITOR")
         if vault_editor:
-            editor_path = shutil.which(vault_editor)
+            editor_path = resolve_executable(vault_editor)
             if not editor_path:
                 console.print(
                     f"[red]Error: DISTILL_VAULT_EDITOR program not found: {vault_editor}[/red]\n"
@@ -564,7 +565,13 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
                 )
                 raise typer.Exit(1)
             console.print(f"Opening [bold]{target}[/bold] with {vault_editor}")
-            subprocess.run([editor_path, str(target)])
+            trusted_cwd, child_env = package_install_context()
+            subprocess.run(
+                [editor_path, str(target)],
+                cwd=trusted_cwd,
+                env=child_env,
+                check=False,
+            )
         else:
             console.print(f"Opening [bold]{target}[/bold]")
             webbrowser.open(str(target))
@@ -610,9 +617,15 @@ def open_cmd(  # noqa: C901 -- legacy, will refactor
         startfile(target)
     else:
         opener_name = "open" if os.uname().sysname == "Darwin" else "xdg-open"
-        opener_path = shutil.which(opener_name)
+        opener_path = resolve_executable(opener_name)
         if opener_path:
-            subprocess.run([opener_path, str(target)])
+            trusted_cwd, child_env = package_install_context()
+            subprocess.run(
+                [opener_path, str(target)],
+                cwd=trusted_cwd,
+                env=child_env,
+                check=False,
+            )
         else:
             webbrowser.open(str(target))
 

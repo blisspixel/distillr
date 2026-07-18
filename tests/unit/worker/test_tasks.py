@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from distill.llm.providers.agent import AgentProvider, agent_result_byte_limit
+from distill.llm.providers._agent_protocol import (
+    MAX_AGENT_PENDING_TASKS,
+    agent_result_byte_limit,
+)
+from distill.llm.providers.agent import AgentProvider
 from distill.llm.router import PendingTaskError
 from distill.worker import _contracts as worker_contracts
 from distill.worker import tasks as worker_tasks
@@ -178,6 +184,17 @@ def test_empty_queue_filter_and_claim_argument_validation(tmp_path: Path) -> Non
             queue.claim(**kwargs)
 
 
+def test_worker_queue_enumeration_is_bounded(tmp_path: Path) -> None:
+    ops_dir = tmp_path / ".distill"
+    pending_dir = ops_dir / "tasks" / "pending"
+    pending_dir.mkdir(parents=True)
+    for index in range(MAX_AGENT_PENDING_TASKS + 1):
+        (pending_dir / f"invalid_{index:03d}.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(WorkerTaskInvalid, match="queue task limit"):
+        _queue(ops_dir).list_tasks()
+
+
 def test_abandon_releases_claim_and_allows_reclaim(tmp_path: Path) -> None:
     ops_dir = tmp_path / ".distill"
     task_id, _task_path, _provider = _seed_task(ops_dir)
@@ -214,6 +231,9 @@ def test_abandon_releases_claim_and_allows_reclaim(tmp_path: Path) -> None:
             claim_token=first["claim_token"],
             reason="old claim",
         )
+    Path(first["result_path"]).write_text("stale result", encoding="utf-8")
+    with pytest.raises(WorkerTaskConflict, match="does not own"):
+        queue.submit(task_id, claim_token=first["claim_token"])
 
 
 def test_release_expired_claim_requires_expiry(tmp_path: Path) -> None:
@@ -240,6 +260,108 @@ def test_release_expired_claim_requires_expiry(tmp_path: Path) -> None:
         queue.release_expired(task_id)
 
 
+def test_released_expired_worker_cannot_publish_after_replacement(tmp_path: Path) -> None:
+    ops_dir = tmp_path / ".distill"
+    task_id, _task_path, _provider = _seed_task(ops_dir)
+    current = [NOW]
+    replacement_token = "replacement-worker-token-value-123456"
+    token_values = iter([TOKEN, replacement_token])
+    queue = AgentTaskQueue(
+        ops_dir,
+        now=lambda: current[0],
+        token_factory=lambda: next(token_values),
+    )
+    expired = queue.claim(host="worker-a", lease_seconds=60)
+    assert expired is not None
+    current[0] += timedelta(seconds=61)
+    assert queue.release_expired(task_id)["released"] is True
+    replacement = queue.claim(host="worker-b")
+    assert replacement is not None
+    assert replacement["claim_token"] == replacement_token
+
+    Path(expired["result_path"]).write_text("stale expired result", encoding="utf-8")
+    with pytest.raises(WorkerTaskConflict, match="does not own"):
+        queue.submit(task_id, claim_token=expired["claim_token"])
+
+
+def test_submit_and_abandon_are_one_serialized_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ops_dir = tmp_path / ".distill"
+    task_id, _task_path, _provider = _seed_task(ops_dir)
+    submit_queue = _queue(ops_dir)
+    abandon_queue = AgentTaskQueue(ops_dir, now=lambda: NOW)
+    claim = submit_queue.claim(host="worker-a")
+    assert claim is not None
+    Path(claim["result_path"]).write_text("final result", encoding="utf-8")
+
+    submit_paused = threading.Event()
+    allow_submit = threading.Event()
+    abandon_entered = threading.Event()
+    real_validate = AgentTaskQueue._validated_workspace
+    real_required_root = AgentTaskQueue._required_pending_root
+
+    def pause_submit(self, *args, **kwargs):
+        result = real_validate(self, *args, **kwargs)
+        if self is submit_queue:
+            submit_paused.set()
+            assert allow_submit.wait(timeout=5)
+        return result
+
+    def note_abandon_entry(self):
+        if self is abandon_queue:
+            abandon_entered.set()
+        return real_required_root(self)
+
+    monkeypatch.setattr(AgentTaskQueue, "_validated_workspace", pause_submit)
+    monkeypatch.setattr(AgentTaskQueue, "_required_pending_root", note_abandon_entry)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        submit_future = executor.submit(
+            submit_queue.submit,
+            task_id,
+            claim_token=claim["claim_token"],
+        )
+        assert submit_paused.wait(timeout=5)
+        abandon_future = executor.submit(
+            abandon_queue.abandon,
+            task_id,
+            claim_token=claim["claim_token"],
+            reason="racing release",
+        )
+        assert not abandon_entered.wait(timeout=0.2)
+        allow_submit.set()
+        assert submit_future.result(timeout=5)["submitted"] is True
+        with pytest.raises(WorkerTaskConflict, match="completed tasks"):
+            abandon_future.result(timeout=5)
+
+
+def test_submit_rechecks_workspace_file_set_at_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ops_dir = tmp_path / ".distill"
+    task_id, task_path, _provider = _seed_task(ops_dir)
+    queue = _queue(ops_dir)
+    claim = queue.claim(host="worker-a")
+    assert claim is not None
+    workspace = Path(claim["workspace"])
+    Path(claim["result_path"]).write_text("final result", encoding="utf-8")
+    real_validate = worker_tasks.validate_host_submission
+
+    def add_unexpected_file(*args, **kwargs):
+        result = real_validate(*args, **kwargs)
+        (workspace / "late-file.txt").write_text("late", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(worker_tasks, "validate_host_submission", add_unexpected_file)
+    with pytest.raises(WorkerTaskInvalid, match="unexpected paths"):
+        queue.submit(task_id, claim_token=claim["claim_token"])
+
+    assert not task_path.with_suffix(".submission").exists()
+    assert not task_path.with_name(f"{task_path.stem}_result.md").exists()
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
@@ -263,7 +385,7 @@ def test_submit_rejects_workspace_contract_violations(
     workspace = Path(claim["workspace"])
     result = Path(claim["result_path"])
     if mutation == "missing":
-        pass
+        assert not result.exists()
     elif mutation == "unexpected":
         result.write_text("valid", encoding="utf-8")
         (workspace / "notes.txt").write_text("unexpected", encoding="utf-8")

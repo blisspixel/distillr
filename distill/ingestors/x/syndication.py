@@ -225,6 +225,7 @@ def fetch_tweet(url_or_id: str, *, timeout: float = 20.0) -> TweetRecord:
             "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
         ),
         "Accept": "application/json",
+        "Accept-Encoding": "identity",
     }
 
     with (
@@ -232,11 +233,17 @@ def fetch_tweet(url_or_id: str, *, timeout: float = 20.0) -> TweetRecord:
         client.stream("GET", SYNDICATION_BASE, params=params, headers=headers) as resp,
     ):
         resp.raise_for_status()
+        content_encoding = resp.headers.get("Content-Encoding", "").strip().casefold()
+        if content_encoding not in {"", "identity"}:
+            raise ValueError(f"unsupported syndication content encoding: {content_encoding}")
+        declared_size = parse_ascii_uint(resp.headers.get("Content-Length", ""))
+        if declared_size is not None and declared_size > _MAX_SYNDICATION_BYTES:
+            raise ValueError(f"syndication payload exceeds {_MAX_SYNDICATION_BYTES}-byte cap")
         buf = bytearray()
-        for chunk in resp.iter_bytes():
-            buf += chunk
-            if len(buf) > _MAX_SYNDICATION_BYTES:
+        for chunk in resp.iter_raw(chunk_size=64 * 1024):
+            if len(chunk) > _MAX_SYNDICATION_BYTES - len(buf):
                 raise ValueError(f"syndication payload exceeds {_MAX_SYNDICATION_BYTES}-byte cap")
+            buf.extend(chunk)
         data = json.loads(bytes(buf), parse_int=parse_bounded_json_int)
 
     if not data or not isinstance(data, dict):

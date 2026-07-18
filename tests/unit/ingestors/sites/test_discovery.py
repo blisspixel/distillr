@@ -4,10 +4,55 @@ from distill.ingestors.sites.discovery import (
     LandingParseLimit,
     _AnchorParser,
     _candidate_urls_from_landing,
+    _candidate_urls_from_sitemaps,
     _dedupe_landing_candidates,
     _LandingPageCandidate,
     discover_trusted_site_seeds,
 )
+
+
+def test_sitemap_quota_counts_failed_fetch_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "distill.ingestors.sites.discovery.is_public_web_url",
+        lambda url: url.startswith("https://example.com/"),
+    )
+    nested = "".join(
+        f"<sitemap><loc>https://example.com/child-{index}.xml</loc></sitemap>"
+        for index in range(100)
+    )
+    sitemap_index = f"<sitemapindex>{nested}</sitemapindex>"
+    calls: list[str] = []
+
+    def fetch(url: str) -> str:
+        calls.append(url)
+        return sitemap_index if url.endswith("/sitemap.xml") else ""
+
+    urls, fetched = _candidate_urls_from_sitemaps(
+        "https://example.com/docs",
+        fetch_text=fetch,
+        max_sitemaps=4,
+    )
+
+    assert urls == []
+    assert fetched == 1
+    assert len(calls) == 4
+
+
+def test_sitemap_parser_caps_nested_entries() -> None:
+    from distill.ingestors.sites.discovery import _parse_sitemap
+
+    nested = "".join(
+        f"<sitemap><loc>https://example.com/child-{index}.xml</loc></sitemap>"
+        for index in range(20)
+    )
+
+    sitemap_urls, page_urls = _parse_sitemap(
+        f"<sitemapindex>{nested}</sitemapindex>",
+        max_entries=3,
+    )
+
+    assert len(sitemap_urls) == 3
+    assert page_urls == []
 
 
 def test_discover_trusted_site_seeds_enumerates_sitemaps_and_landing_links(monkeypatch):

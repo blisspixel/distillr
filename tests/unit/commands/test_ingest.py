@@ -366,6 +366,29 @@ def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
     assert not (tmp_path / "lib" / ".distill" / "cost_log.jsonl").exists()
 
 
+def test_ingest_cmd_rejects_unc_before_filesystem_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from distill.cli import app
+
+    monkeypatch.setattr(_ingest, "get_config", lambda: _config(tmp_path))
+    monkeypatch.setattr(
+        _ingest,
+        "Path",
+        lambda _target: (_ for _ in ()).throw(
+            AssertionError("remote target reached filesystem I/O")
+        ),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["ingest", r"\\127.0.0.1@65535\DavWWWRoot\payload.md"],
+    )
+
+    assert result.exit_code == 2
+    assert "remote filesystem targets are not supported" in result.output
+
+
 def test_ingest_cmd_no_transcribe_flag_passes_through(tmp_path: Path) -> None:
     from distill.cli import app
 

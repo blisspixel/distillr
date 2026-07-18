@@ -160,9 +160,9 @@ class TestReadInsight:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.find import read_insight
 
-            result = json.loads(read_insight("nonexistent/path.md"))
+            result = json.loads(read_insight("topics/ai/nonexistent.md"))
         assert result["status"] == "error"
-        assert "not found" in result["error"].lower()
+        assert "missing" in result["error"].lower()
 
     def test_rejects_absolute_path(self, mock_config, tmp_path):
         outside = tmp_path / "secret.txt"
@@ -171,10 +171,10 @@ class TestReadInsight:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.find import read_insight
 
-            result = json.loads(read_insight(str(outside)))
+        result = json.loads(read_insight(str(outside)))
 
         assert result["status"] == "error"
-        assert "relative path inside the library root" in result["error"]
+        assert "library/topics" in result["error"]
         assert "secret" not in json.dumps(result)
 
     def test_rejects_relative_traversal(self, mock_config):
@@ -184,20 +184,20 @@ class TestReadInsight:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.find import read_insight
 
-            result = json.loads(read_insight("../.env"))
+        result = json.loads(read_insight("../.env"))
 
         assert result["status"] == "error"
-        assert "relative path inside the library root" in result["error"]
+        assert "library/topics" in result["error"]
         assert "secret" not in json.dumps(result)
 
     def test_rejects_windows_rooted_path(self, mock_config):
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.find import read_insight
 
-            result = json.loads(read_insight(r"\Users\nicks\.env"))
+        result = json.loads(read_insight(r"\Users\nicks\.env"))
 
         assert result["status"] == "error"
-        assert "relative path inside the library root" in result["error"]
+        assert "library/topics" in result["error"]
 
     def test_read_full_content(self, mock_config):
         # Get relative path to the insight file
@@ -226,7 +226,7 @@ class TestReadInsight:
         assert result["section_found"] is True
         assert "Machine learning" in result["content"]
 
-    def test_section_not_found_returns_full_with_warning(self, mock_config):
+    def test_section_not_found_fails_without_returning_full_artifact(self, mock_config):
         topic_dir = mock_config.topic_dir("ai")
         insight_path = topic_dir / "channels" / "ch1" / "videos" / "v1" / "insights.md"
         rel_path = str(insight_path.relative_to(mock_config.library_dir))
@@ -236,5 +236,44 @@ class TestReadInsight:
 
             result = json.loads(read_insight(rel_path, section="Nonexistent"))
         assert result["section_found"] is False
-        assert "warning" in result
-        assert "content" in result
+        assert result["status"] == "error"
+        assert "content" not in result
+        assert "Machine learning" not in json.dumps(result)
+
+    def test_rejects_operational_file_namespace(self, mock_config):
+        operational = mock_config.library_dir / ".distill" / "worker" / "prompt.md"
+        operational.parent.mkdir(parents=True)
+        operational.write_text("private worker prompt sentinel", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight(str(operational.relative_to(mock_config.library_dir))))
+
+        assert result["status"] == "error"
+        assert "private worker prompt sentinel" not in json.dumps(result)
+
+    def test_rejects_oversized_artifact_without_returning_content(self, mock_config):
+        artifact = mock_config.topic_dir("ai") / "large.md"
+        artifact.write_text("private sentinel\n" + "x" * (1024 * 1024), encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight(str(artifact.relative_to(mock_config.library_dir))))
+
+        assert result["status"] == "error"
+        assert "read limit" in result["error"]
+        assert "private sentinel" not in json.dumps(result)
+
+    def test_caps_large_but_accepted_artifact_response(self, mock_config):
+        artifact = mock_config.topic_dir("ai") / "bounded.md"
+        artifact.write_text("z" * 250_000, encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.find import read_insight
+
+            result = json.loads(read_insight(str(artifact.relative_to(mock_config.library_dir))))
+
+        assert result["truncated"] is True
+        assert len(result["content"]) == 200_000

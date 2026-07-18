@@ -113,7 +113,10 @@ def worker_claim_cmd(
     console.print(f"Claimed task [bold]{result['task_id']}[/bold] ({result['workload']}).")
     console.print(f"Read: {result['prompt_path']}")
     console.print(f"Write only: {result['result_path']}")
-    console.print("Submit with the returned claim token after the result is complete.")
+    console.print(
+        "Set DISTILL_WORKER_CLAIM_TOKEN to the returned token, then submit "
+        "without placing the token in process arguments."
+    )
     console.print(
         "[yellow]Billing is host-managed. Distill has not proved this session "
         "is no-metered.[/yellow]"
@@ -127,7 +130,11 @@ def worker_submit_cmd(
     claim_token: str = typer.Option(
         ...,
         "--claim-token",
-        help="Opaque ownership token returned by worker claim.",
+        envvar="DISTILL_WORKER_CLAIM_TOKEN",
+        help=(
+            "Opaque ownership token returned by worker claim. Prefer the "
+            "DISTILL_WORKER_CLAIM_TOKEN environment variable."
+        ),
     ),
     model: str = typer.Option(
         "",
@@ -172,7 +179,11 @@ def worker_abandon_cmd(
     claim_token: str = typer.Option(
         ...,
         "--claim-token",
-        help="Opaque ownership token returned by worker claim.",
+        envvar="DISTILL_WORKER_CLAIM_TOKEN",
+        help=(
+            "Opaque ownership token returned by worker claim. Prefer the "
+            "DISTILL_WORKER_CLAIM_TOKEN environment variable."
+        ),
     ),
     reason: str = typer.Option(
         ...,

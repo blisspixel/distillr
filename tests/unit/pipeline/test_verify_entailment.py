@@ -8,6 +8,8 @@ Design: docs/design/entailment-tier.md.
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -33,6 +35,48 @@ class FakeChecker:
     def score(self, evidence: str, claim: str) -> float:
         self.calls.append((evidence, claim))
         return 0.9 if any(m in claim and m in evidence for m in self.markers) else 0.1
+
+
+def test_entailment_checker_initializes_once_across_threads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import distill.pipeline.verify as verify_mod
+
+    checker = FakeChecker()
+    start = threading.Barrier(4)
+    release_loader = threading.Event()
+    loader_entered = threading.Event()
+    second_loader = threading.Event()
+    count_lock = threading.Lock()
+    load_count = 0
+
+    def load_checker() -> FakeChecker:
+        nonlocal load_count
+        with count_lock:
+            load_count += 1
+            if load_count > 1:
+                second_loader.set()
+        loader_entered.set()
+        assert release_loader.wait(timeout=5)
+        return checker
+
+    def get_checker() -> object:
+        start.wait(timeout=5)
+        return verify_mod._entailment_checker()
+
+    monkeypatch.setattr(verify_mod, "_checker", None)
+    monkeypatch.setattr(verify_mod, "_checker_loaded", False)
+    monkeypatch.setattr(verify_mod, "load_default_checker", load_checker)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(get_checker) for _ in range(4)]
+        assert loader_entered.wait(timeout=5)
+        try:
+            assert not second_loader.wait(timeout=0.2)
+        finally:
+            release_loader.set()
+        assert [future.result(timeout=5) for future in futures] == [checker] * 4
+
+    assert load_count == 1
 
 
 _INSIGHT = """---

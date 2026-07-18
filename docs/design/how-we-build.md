@@ -158,10 +158,14 @@ and are now **named invariants, each backed by a regression/property test; a
 bypass is a blocking review failure:**
 
 - **SSRF boundary** - every attacker-influenced fetch goes through
-  `distill/ingestors/net.py` (`is_public_web_url` + connect-time IP pinning that
-  closes the DNS-rebind window). A new `urllib`/`requests`/`httpx` call to a
-  caller-supplied URL that bypasses it fails review.
-- **MCP path confinement** - `_resolve_within_library` on every path arg.
+  `distill/ingestors/net.py` with canonical IDNA identity, public-address
+  validation, connect-time IP pinning, redirect revalidation, and one
+  monotonic deadline through response reads. A new
+  `urllib`/`requests`/`httpx` call to a caller-supplied URL that bypasses it
+  fails review.
+- **MCP capability confinement** - every path argument is authorized against
+  the tool's declared namespace or artifact class, then read with no-follow
+  confinement and an explicit byte or work ceiling.
 - **Output sanitization** - `nh3` allowlist on rendered corpus HTML.
 - **Untrusted-content prompt rules** - `UNTRUSTED_CONTENT_RULES` threaded into
   every per-source prompt.

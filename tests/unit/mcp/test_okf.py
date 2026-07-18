@@ -73,6 +73,37 @@ def test_okf_validate_rejects_escape_paths(tmp_path: Path) -> None:
     assert result["status"] == "error"
 
 
+def test_okf_validate_rejects_broad_workspace_directory(tmp_path: Path) -> None:
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    config.library_dir.mkdir(parents=True)
+    with patch("distill.mcp.server._config", return_value=config):
+        from distill.mcp.tools.okf import okf_validate
+
+        result = json.loads(okf_validate("library"))
+
+    assert result["status"] == "error"
+    assert "output/okf-*" in result["error"]
+
+
+def test_okf_validate_rejects_oversized_markdown_before_read(tmp_path: Path) -> None:
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    bundle = tmp_path / "output" / "okf-large"
+    _write(bundle / "index.md", "# Index\n")
+    _write(bundle / "log.md", "# Log\n")
+    (bundle / "large.md").write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+
+    with patch("distill.mcp.server._config", return_value=config):
+        from distill.mcp.tools.okf import okf_validate
+
+        result = json.loads(okf_validate("output/okf-large"))
+
+    assert result["status"] == "invalid"
+    assert result["validation"]["files_checked"] == 0
+    assert any(
+        "per-file byte limit" in issue["message"] for issue in result["validation"]["errors"]
+    )
+
+
 def test_okf_export_refused_in_read_only_mode(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("DISTILL_MCP_READ_ONLY", "1")
     config = DistillConfig(distill_output_dir=tmp_path / "library")

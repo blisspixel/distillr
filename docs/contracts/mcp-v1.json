@@ -104,9 +104,13 @@
       "inputSchema": {
         "properties": {
           "question": {
+            "maxLength": 4096,
+            "minLength": 1,
             "type": "string"
           },
           "topic": {
+            "maxLength": 128,
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -720,11 +724,15 @@
       "inputSchema": {
         "properties": {
           "path": {
+            "maxLength": 4096,
+            "minLength": 1,
             "type": "string"
           },
           "section": {
             "anyOf": [
               {
+                "maxLength": 256,
+                "minLength": 1,
                 "type": "string"
               },
               {
