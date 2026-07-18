@@ -14,7 +14,9 @@ from distill.commands import root as _root
 from distill.commands import topic_watch as _topic_watch_cmd
 from distill.commands import view as _view
 from distill.config import DistillConfig
+from distill.jsonl import append_jsonl_line
 from distill.library import Library, TopicWatchEntry
+from distill.library.locking import exclusive_path_lock
 from distill.library.paths import artifact_path
 
 runner = CliRunner()
@@ -129,7 +131,7 @@ def test_topic_watch_library_rejects_invalid_budgets_without_mutation(config, ba
     assert not lib.library_file.exists()
 
 
-def test_topic_watch_load_normalizes_nonfinite_legacy_budget(config):
+def test_topic_watch_load_quarantines_nonstandard_nonfinite_budget(config):
     config.library_dir.mkdir(parents=True, exist_ok=True)
     (config.library_dir / "library.json").write_text(
         '{"topics":{},"watchlist":[],"topic_watchlist":['
@@ -140,9 +142,8 @@ def test_topic_watch_load_normalizes_nonfinite_legacy_budget(config):
 
     entry = Library(config).get_topic_watch_entry("legacy")
 
-    assert entry is not None
-    assert entry.max_run_cost == 0.0
-    assert entry.monthly_budget == 0.0
+    assert entry is None
+    assert (config.library_dir / "library.json.bak").is_file()
 
 
 @pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-1"])
@@ -581,6 +582,118 @@ def test_topic_watch_run_skips_when_budget_exceeded(tmp_path, monkeypatch):
         _cli_impl.get_config = original
         _topic_watch_cmd.get_config = original
         _dashboard.get_config = original
+
+
+def test_topic_watch_run_fails_closed_on_incomplete_cost_history(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    lib = Library(config)
+    lib.add_to_topic_watchlist("ai-daily", "AI daily", topic="ai")
+    cost_log = config.library_dir / "cost_log.jsonl"
+    cost_log.write_text('{"actual_cost":0.1}\nnot-json\n', encoding="utf-8")
+    _patch_topic_watch_config(monkeypatch, config)
+    _patch_topic_watch_run_dependencies(monkeypatch)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "_run_learning_command",
+        lambda query, **_kwargs: calls.append(query),
+    )
+
+    blocked = runner.invoke(cli.app, ["topic-watch", "run", "ai-daily"])
+    overridden = runner.invoke(
+        cli.app,
+        ["topic-watch", "run", "ai-daily", "--ignore-budget"],
+    )
+
+    assert blocked.exit_code == 0, blocked.output
+    assert "Budget guardrail" in blocked.output
+    assert str(cost_log) in _plain_cli_output(blocked.output).replace("\n", "")
+    assert "1 malformed row" in blocked.output
+    assert calls == ["AI daily"]
+    assert overridden.exit_code == 0, overridden.output
+
+
+def test_topic_watch_batch_rescans_spend_before_each_entry(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    lib = Library(config)
+    for name in ("first", "second"):
+        lib.add_to_topic_watchlist(
+            name,
+            f"{name} query",
+            topic="ai",
+            limit=1,
+            monthly_budget=0.5,
+        )
+    _patch_topic_watch_config(monkeypatch, config)
+    _patch_topic_watch_run_dependencies(monkeypatch)
+    calls: list[str] = []
+
+    def fake_run(query, **_kwargs):
+        calls.append(query)
+        append_jsonl_line(
+            config.library_dir / ".distill" / "cost_log.jsonl",
+            '{"timestamp":"'
+            + datetime.now().isoformat()
+            + '","actual_cost":0.98,"metadata":{"topic":"ai"}}',
+        )
+
+    monkeypatch.setattr(_topic_watch_cmd, "_run_learning_command", fake_run)
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "collect_topic_change_details",
+        lambda *_args, **_kwargs: {"summary": "no change"},
+    )
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "write_topic_change_briefing",
+        lambda *_args, **_kwargs: config.library_dir / "briefing.md",
+    )
+    monkeypatch.setattr(_topic_watch_cmd, "topic_watch_alert_lines", lambda **_kwargs: [])
+    monkeypatch.setattr(_topic_watch_cmd, "topic_trend_label", lambda *_args: None)
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "write_watch_alert_digest",
+        lambda *_args, **_kwargs: config.library_dir / "alerts.md",
+    )
+
+    result = runner.invoke(cli.app, ["topic-watch", "run"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["first query"], result.output
+    assert "second projected monthly spend" in result.output
+
+
+def test_topic_watch_batch_lock_refuses_concurrent_cost_execution(tmp_path, monkeypatch):
+    config = DistillConfig(
+        xai_api_key="test-key",
+        gemini_api_key="test-gemini",
+        distill_output_dir=tmp_path / "library",
+    )
+    Library(config).add_to_topic_watchlist("ai-daily", "AI daily", topic="ai")
+    _patch_topic_watch_config(monkeypatch, config)
+    _patch_topic_watch_run_dependencies(monkeypatch)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        _topic_watch_cmd,
+        "_run_learning_command",
+        lambda query, **_kwargs: calls.append(query),
+    )
+    lock_path = config.library_dir / ".distill" / "topic-watch-budget.lock"
+
+    with exclusive_path_lock(lock_path, timeout_seconds=1.0, timeout_message="test timeout"):
+        result = runner.invoke(cli.app, ["topic-watch", "run", "ai-daily"])
+
+    assert result.exit_code == 1
+    assert "Another topic-watch batch is active" in result.output
+    assert calls == []
 
 
 def test_dashboard_shows_topic_watch_recent_runs_and_attention(tmp_path, monkeypatch):

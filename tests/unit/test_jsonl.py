@@ -6,11 +6,29 @@ import json
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 
 from distill import jsonl
+
+
+def test_bounded_jsonl_lines_preserves_crlf_and_recovers_after_oversized_row() -> None:
+    stream = BytesIO(b'{"first":1}\r\n' + b"x" * 12 + b'\n{"last":2}')
+
+    assert list(jsonl.bounded_jsonl_lines(stream, max_row_bytes=11)) == [
+        b'{"first":1}',
+        None,
+        b'{"last":2}',
+    ]
+
+
+def test_bounded_jsonl_lines_accepts_exact_limit_and_rejects_invalid_limit() -> None:
+    assert list(jsonl.bounded_jsonl_lines(BytesIO(b"1234\n"), max_row_bytes=4)) == [b"1234"]
+
+    with pytest.raises(ValueError, match="must be positive"):
+        list(jsonl.bounded_jsonl_lines(BytesIO(), max_row_bytes=0))
 
 
 @pytest.mark.parametrize(

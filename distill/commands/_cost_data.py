@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from distill.config import DistillConfig
+from distill.pipeline.costs import CostWarning, cost_anomaly_warnings
 from distill.pipeline.performance_history import PerformanceEvidence, load_performance_evidence
 
 
@@ -33,6 +34,32 @@ def safe_int(value: object, default: int = 0) -> int:
         return int(value)
     except (OverflowError, TypeError, ValueError):
         return default
+
+
+def cost_warnings_for_config(
+    config: DistillConfig,
+    entries: list[dict[str, Any]],
+) -> list[CostWarning]:
+    """Evaluate configured warning policy against complete cost rows."""
+
+    return cost_anomaly_warnings(
+        entries,
+        daily_threshold_usd=config.distill_cost_warning_daily_usd,
+        spike_multiplier=config.distill_cost_warning_spike_multiplier,
+        run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
+        workflow_budgets_usd=config.cost_workflow_budgets_usd,
+    )
+
+
+def provider_telemetry_json(stats: dict[str, float | int]) -> dict[str, int | bool]:
+    """Project provider telemetry coverage onto the CLI JSON contract."""
+
+    return {
+        "local_calls": safe_int(stats.get("local_records_count", 0)),
+        "cloud_calls": safe_int(stats.get("cloud_records_count", 0)),
+        "malformed_rows": safe_int(stats.get("malformed_records_count", 0)),
+        "read_error": bool(stats.get("telemetry_read_error", 0)),
+    }
 
 
 def biggest_prompt_rows(config: DistillConfig, limit: int = 10) -> list[dict[str, object]]:

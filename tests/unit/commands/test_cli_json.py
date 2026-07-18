@@ -84,6 +84,7 @@ class TestJsonCosts:
         assert "message" in parsed["data"]
         assert "projected_next_run_cost" in parsed["data"]
         assert parsed["data"]["projected_next_run_cost"] == 0.0
+        assert parsed["data"]["cost_history"]["complete"] is True
 
     def test_costs_json_with_history(self, mock_config):
         """costs --json with cost entries returns valid JSON with runs."""

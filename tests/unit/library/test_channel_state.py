@@ -1,6 +1,10 @@
 """Tests for distill.state."""
 
 import json
+import subprocess
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from distill.library.state import ChannelState
 
@@ -105,6 +109,79 @@ class TestMarkProcessed:
         assert state2.is_processed("vid1")
         assert state2.get_processed_count() == 1
 
+    def test_stale_instances_merge_distinct_video_receipts(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        first = ChannelState(state_file)
+        second = ChannelState(state_file)
+
+        first.mark_processed("vid1", "Title 1", "20250101")
+        second.mark_processed("vid2", "Title 2", "20250102")
+
+        persisted = ChannelState(state_file)
+        assert persisted.processed_video_ids() == ["vid1", "vid2"]
+        assert second.processed_video_ids() == ["vid1", "vid2"]
+
+    def test_concurrent_instances_preserve_every_video_receipt(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        writers = 12
+        barrier = threading.Barrier(writers)
+        states = [ChannelState(state_file) for _ in range(writers)]
+
+        def mark(index: int) -> None:
+            barrier.wait(timeout=10)
+            states[index].mark_processed(f"vid{index}", f"Title {index}", "20250101")
+
+        with ThreadPoolExecutor(max_workers=writers) as executor:
+            list(executor.map(mark, range(writers)))
+
+        assert set(ChannelState(state_file).processed_video_ids()) == {
+            f"vid{index}" for index in range(writers)
+        }
+
+    def test_cross_process_instances_preserve_every_video_receipt(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        start_file = tmp_path / "start"
+        script = "\n".join(
+            [
+                "import sys, time",
+                "from pathlib import Path",
+                "from distill.library.state import ChannelState",
+                "state_file = Path(sys.argv[1])",
+                "start_file = Path(sys.argv[2])",
+                "index = int(sys.argv[3])",
+                "deadline = time.monotonic() + 10",
+                "while not start_file.exists():",
+                "    if time.monotonic() >= deadline:",
+                "        raise TimeoutError('start barrier timed out')",
+                "    time.sleep(0.01)",
+                "ChannelState(state_file).mark_processed(",
+                "    f'vid{index}', f'Title {index}', '20250101'",
+                ")",
+            ]
+        )
+        writers = 8
+        processes = [
+            subprocess.Popen(
+                [sys.executable, "-c", script, str(state_file), str(start_file), str(index)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for index in range(writers)
+        ]
+        start_file.touch()
+
+        failures: list[str] = []
+        for process in processes:
+            stdout, stderr = process.communicate(timeout=20)
+            if process.returncode:
+                failures.append(f"exit={process.returncode} stdout={stdout!r} stderr={stderr!r}")
+
+        assert failures == []
+        assert set(ChannelState(state_file).processed_video_ids()) == {
+            f"vid{index}" for index in range(writers)
+        }
+
     def test_creates_parent_dirs(self, tmp_path):
         """Saving creates parent directories if needed."""
         deep_path = tmp_path / "a" / "b" / "c" / "state.json"
@@ -196,3 +273,23 @@ class TestCorruptedStateRecovery:
         state.mark_processed("vid1", "Title", "20250101")
         state2 = ChannelState(state_file)
         assert state2.is_processed("vid1")
+
+    def test_invalid_utf8_recovers(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        state_file.write_bytes(b"\xff")
+
+        state = ChannelState(state_file)
+
+        assert state.get_processed_count() == 0
+        assert state_file.with_suffix(".json.bak").read_bytes() == b"\xff"
+
+    def test_mutation_recovers_corruption_created_after_load(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        state = ChannelState(state_file)
+        state.mark_processed("first", "First", "20260718")
+        state_file.write_text("not-json", encoding="utf-8")
+
+        state.mark_processed("second", "Second", "20260718")
+
+        assert state.processed_video_ids() == ["second"]
+        assert state_file.with_name("state.json.bak").read_text(encoding="utf-8") == "not-json"

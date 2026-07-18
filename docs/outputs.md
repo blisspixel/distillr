@@ -26,6 +26,7 @@ library/
     ├── <topic>_Topic_Trends.md    # Momentum summary
     ├── change_history.jsonl       # Timestamped change counts
     ├── channels/<channel>/        # Per-channel artifacts
+    │   └── state.json             # Processed-video and refresh state
     ├── sites/<hostname>/          # Per-site artifacts
     ├── papers/<paper-slug>/       # Per-paper artifacts
     ├── x/<handle>/posts/<post>/   # Per-X-post artifacts
@@ -34,6 +35,13 @@ library/
     ├── newsletters/<publication>/ # Feed-post artifacts
     └── local/<document>/          # Local document and media artifacts
 ```
+
+`library.json` contains topics, channels, and recurring watch state. Distill
+updates it and each channel `state.json` through a bounded strict-JSON,
+cross-process read-modify-write transaction. Hidden sibling lock files
+coordinate writers. If existing state is corrupt, Distill preserves it as
+`.bak`, `.bak.1`, and so on before rebuilding; it refuses the rebuild when the
+backup cannot be created.
 
 ## Per video (full-length, >3 min) - 2-pass analysis
 

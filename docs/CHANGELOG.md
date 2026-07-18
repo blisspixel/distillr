@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.38 - 2026-07-18
+
 ### Security
 
 - Moved the local dashboard tab controller to a same-origin static asset,
@@ -27,9 +29,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `library/site-seeds/` and validates public HTTPS entries;
   `read_insight` reads bounded topic Markdown only; MCP OKF validation accepts
   regular generated bundle directories and enforces aggregate tree limits.
+- Confined cost-ledger reads without following links or creating lock files at
+  untrusted targets. Strict row, byte, monetary, timestamp, and retention
+  limits now apply across CLI, dashboard, calibration, recurring watches, and
+  MCP. MCP cost lookups also reject booleans and out-of-range day and limit
+  values before reading local state.
 
 ### Fixed
 
+- Fixed a Windows first-use lock race exposed by concurrent channel-state
+  writers. Empty lock files now acquire the operating-system byte lock before
+  initializing that byte, so another handle cannot turn lock setup into a
+  `PermissionError`.
+- Added a bounded Windows retry for atomic replacement when a brief
+  side-effect-free reader still owns a sharing handle. Persistent permission
+  failures remain visible, the prior state remains intact, and the temporary
+  file is removed.
+- Prevented lost library, channel, and watch updates between cooperating
+  processes. Mutable indexes now reload current bounded strict-JSON state
+  inside one locked read-modify-write transaction. Corruption recovery
+  rechecks under lock, keeps non-colliding backups, and refuses to overwrite
+  state when quarantine or persistence fails.
+- Added explicit cost-history coverage to CLI, dashboard, calibration,
+  recurring-watch, and MCP reads. Malformed, oversized, invalid UTF-8,
+  non-finite, negative, and invalid-time rows remain visible as integrity
+  counts, while completeness-sensitive totals, projections, calibration,
+  budgets, and surprise-cost warnings fail closed.
+- Serialized topic-watch budget evaluation across a batch and rescanned the
+  cost ledger before every entry. Spend from an earlier entry now affects the
+  next decision, concurrent batches refuse visibly, and incomplete evidence
+  requires the explicit `--ignore-budget` override.
+- Made MCP cost history honor a zero-row limit, compare timezone-aware
+  timestamps safely, cap returned history, state the total scope, and expose
+  the same ledger coverage used by local operator surfaces.
+- Reused one bounded JSONL line reader for cost and provider telemetry so row
+  ceilings, invalid UTF-8 handling, tail semantics, and read failures do not
+  diverge across history surfaces.
 - Serialized phase, provider, and cost history appends across cooperating
   processes. Interrupted tails are separated before the next row, short writes
   must complete, first-write cost migration shares the ledger lock, and cost

@@ -487,6 +487,17 @@ CLI or web cost surface. JSON cost output includes provider call, malformed
 row, and read-error status. Structured-history deletion and compaction remain
 deferred until a lossless archive and receipt-continuity contract exists.
 
+Cost-ledger readers enforce the same evidence boundary across the CLI,
+dashboard, recurring watches, calibration, and MCP. Each JSONL row is limited
+to 1 MiB, confined reads are limited to 16 MiB, and at most 10,000 valid rows
+are retained. Monetary fields must be finite and nonnegative, and timestamps
+must be valid ISO values. Coverage reports malformed, omitted, invalid-time,
+and read-error counts. When coverage is incomplete, Distill keeps valid rows
+visible but withholds totals, projections, calibration, budget claims, and
+surprise-cost warnings that the retained evidence cannot support. Topic-watch
+batches serialize their budget decision and rescan the ledger before each
+entry; `--ignore-budget` is the explicit override for incomplete evidence.
+
 **Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local zero-dollar runs and host-managed runs whose external cost is unavailable.
 
 **Workflow caps.** `DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"` caps direct CLI workflow spend. Estimate-bearing paths such as `distill ask`, `distill eval`, `distill paper`, `distill papers`, `distill site`, `distill site-batch`, `distill video`, `distill channel`, `distill catch-up`, `distill reanalyze`, `distill resynthesize`, `distill corpus`, `distill synthesize`, `distill topic brief`, `distill synthesis`, `distill report`, `distill research-brief`, and saved or freshly ranked `distill discover` ingest plans refuse before the estimated work starts when the projection exceeds the cap. `distill ask` estimates from the retrieved corpus excerpt size after no-coverage checks, so empty coverage stays free. `distill paper` estimates one full-PDF analysis plus the known paper and corpus synthesis tail before model preflight. `distill papers` estimates the requested limit as a preflight upper bound for non-preview runs, then re-checks the selected paper count plus known synthesis tail after search, dedup, rerank, and preview selection but before full-PDF analysis. `distill site` and `distill site-batch` estimate from resolved maximum pages plus the known synthesis and optional report tail before model preflight, while preview and scrape-only stay free. `distill corpus` checks one synthesis-call estimate before model preflight only when the topic has corpus source sections; empty topics and paper-only topics keep their existing no-synthesis path. Other tracked workflows stop when recorded spend crosses the cap; the crossing model call is recorded, then the installed CLI exits with budget code `6`. Global `--json` returns a `budget_exceeded` envelope. These caps complement `no-metered` mode and MCP per-call caps; they do not prove a route is free.
@@ -497,7 +508,14 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 ## Reliability and trust boundaries
 
-**What's enforced** (every release clears the same CI gate): more than 5,100 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): more than 5,600 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+
+Mutable library and channel indexes use bounded strict-JSON reads and one
+locked read-modify-write transaction. A writer reloads current disk state
+before mutation, so cooperating processes cannot silently replace one
+another's updates. Suspected corruption is rechecked under the writer lock,
+preserved in a non-colliding backup, and surfaced through an actionable log;
+failed quarantine or persistence never advances the in-memory state.
 
 **Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file reads are confined to explicit namespaces, artifact classes, and byte limits (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 

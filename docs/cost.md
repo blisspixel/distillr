@@ -292,6 +292,16 @@ skipped and named in the human cost view instead of crashing the command.
 Structured cost and telemetry histories are not rotated or compacted until a
 lossless archive and receipt-continuity design is approved.
 
+Every cost-ledger consumer uses one strict coverage contract. Reads are
+no-follow and side-effect-free, cap each encoded row at 1 MiB, cap confined
+input at 16 MiB, and retain at most 10,000 valid rows. A valid cost row has a
+finite nonnegative actual cost, an optional finite nonnegative estimate, and a
+valid ISO timestamp. Coverage reports malformed rows, valid rows omitted by
+the retention ceiling, invalid timestamps, and read errors. Valid retained
+rows remain available for diagnosis, but incomplete coverage suppresses
+totals, rolling spend, projections, estimator calibration, budget claims, and
+surprise-cost warnings that require complete history.
+
 ## Topic-watch guardrails
 
 ```bash
@@ -302,6 +312,13 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 
 - `--max-run-cost` skips a topic-watch when the projected next run exceeds the cap
 - `--monthly-budget` skips a topic-watch when projected rolling 30-day spend would exceed budget
+- One batch lock serializes budget evaluation with topic execution. A second
+  concurrent batch refuses before provider work instead of racing the same
+  budget evidence.
+- The ledger is rescanned before every non-paused topic, so spend recorded by
+  an earlier entry affects the next entry's decision.
+- Incomplete cost coverage blocks a budgeted watch before provider work.
+  `--ignore-budget` is the explicit operator override for that uncertainty.
 
 ## Model pricing (source of truth)
 

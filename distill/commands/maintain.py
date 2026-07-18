@@ -14,7 +14,6 @@ import os
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import typer
 from rich import box
@@ -32,10 +31,16 @@ from distill.commands._cost_data import (
     compute_local_cloud_stats as _compute_local_cloud_stats,
 )
 from distill.commands._cost_data import (
+    cost_warnings_for_config as _cost_warnings_for_config,
+)
+from distill.commands._cost_data import (
     dict_or_empty as _dict_or_empty,
 )
 from distill.commands._cost_data import (
     performance_evidence as _performance_evidence,
+)
+from distill.commands._cost_data import (
+    provider_telemetry_json as _provider_telemetry_json,
 )
 from distill.commands._cost_data import (
     safe_float as _safe_float,
@@ -51,6 +56,9 @@ from distill.commands._helpers import (
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
 from distill.commands._json import ExitCode
+from distill.commands._performance_view import (
+    render_cost_history_integrity as _render_cost_history_integrity,
+)
 from distill.commands._performance_view import (
     render_performance_evidence as _render_performance_evidence,
 )
@@ -71,13 +79,12 @@ from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
 from distill.llm.cost_policy import require_route_allowed
 from distill.llm.router import RouterConfig
-from distill.pipeline.cost_history import read_cost_log_rows
-from distill.pipeline.costs import (
-    CostWarning,
-    cost_anomaly_warnings,
-    estimate_synthesis_workflow_cost,
-    projected_next_run_cost,
+from distill.pipeline.cost_history import (
+    CostLogScan,
+    scan_confined_cost_log,
+    select_cost_log_path,
 )
+from distill.pipeline.costs import estimate_synthesis_workflow_cost, projected_next_run_cost
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
 
@@ -95,28 +102,6 @@ __all__ = [
 ]
 
 
-def _cost_warnings_for_config(
-    config: DistillConfig,
-    entries: list[dict[str, Any]],
-) -> list[CostWarning]:
-    return cost_anomaly_warnings(
-        entries,
-        daily_threshold_usd=config.distill_cost_warning_daily_usd,
-        spike_multiplier=config.distill_cost_warning_spike_multiplier,
-        run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
-        workflow_budgets_usd=config.cost_workflow_budgets_usd,
-    )
-
-
-def _provider_telemetry_json(stats: dict[str, float | int]) -> dict[str, int | bool]:
-    return {
-        "local_calls": _safe_int(stats.get("local_records_count", 0)),
-        "cloud_calls": _safe_int(stats.get("cloud_records_count", 0)),
-        "malformed_rows": _safe_int(stats.get("malformed_records_count", 0)),
-        "read_error": bool(stats.get("telemetry_read_error", 0)),
-    }
-
-
 def costs(  # noqa: C901 -- legacy, will refactor
     ctx: typer.Context,
     last: int = typer.Option(10, "--last", "-n", help="Number of recent runs to show"),
@@ -130,8 +115,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
     config = get_config()
     # Check new location first, fall back to old
     ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
-    legacy_log = config.library_dir / "cost_log.jsonl"
-    log_file = ops_log if ops_log.exists() else legacy_log
+    log_file = select_cost_log_path(config.library_dir) or ops_log
     json_mode = ctx.obj.get("json", False) if ctx.obj else False
     biggest_prompts = _biggest_prompt_rows(config)
     performance = _performance_evidence(
@@ -156,6 +140,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
                     "cost_warnings": [],
+                    "cost_history": CostLogScan().coverage(),
                     "performance": performance,
                 }
             )
@@ -177,7 +162,8 @@ def costs(  # noqa: C901 -- legacy, will refactor
             _costs_biggest_prompts_section(config, biggest_prompts)
         return
 
-    entries = read_cost_log_rows(log_file)
+    cost_scan = scan_confined_cost_log(log_file, config.library_dir)
+    entries = list(cost_scan.rows)
 
     if not entries:
         if json_mode:
@@ -186,15 +172,20 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 {
                     "runs": [],
                     "total_cost": 0,
-                    "message": "No cost entries found.",
+                    "message": (
+                        "Cost history is incomplete; no valid retained entries were found."
+                        if not cost_scan.complete
+                        else "No cost entries found."
+                    ),
                     "cloud_spend_usd": 0,
                     "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                     "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
                     "provider_telemetry": _provider_telemetry_json(local_cloud),
                     "biggest_prompts": biggest_prompts,
-                    "projected_next_run_cost": 0.0,
+                    "projected_next_run_cost": None if not cost_scan.complete else 0.0,
                     "cost_warnings": [],
+                    "cost_history": cost_scan.coverage(),
                     "performance": performance,
                 }
             )
@@ -202,10 +193,12 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
             sys.stdout.write(envelope.to_json() + "\n")
         else:
-            console.print(
-                "[dim]No cost entries found in the library cost ledger "
-                "(library/.distill/cost_log.jsonl).[/dim]"
-            )
+            _render_cost_history_integrity(log_file, cost_scan, console)
+            if cost_scan.complete:
+                console.print(
+                    "[dim]No cost entries found in the library cost ledger "
+                    "(library/.distill/cost_log.jsonl).[/dim]"
+                )
             console.print(
                 "[dim]Inspect: distill --json costs · distill --cost-mode no-metered doctor[/dim]"
             )
@@ -221,9 +214,9 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     from distill.pipeline.costs import estimator_accuracy
 
-    accuracy = estimator_accuracy(entries)
-    projected = projected_next_run_cost(entries)
-    cost_warnings = _cost_warnings_for_config(config, entries)
+    accuracy = estimator_accuracy(entries) if cost_scan.complete else None
+    projected = projected_next_run_cost(entries) if cost_scan.complete else None
+    cost_warnings = _cost_warnings_for_config(config, entries) if cost_scan.complete else []
 
     if json_mode:
         # Compute local/cloud split from telemetry
@@ -232,7 +225,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
             {
                 "runs": recent,
                 "total_cost": round(total_cost, 4),
-                "projected_next_run_cost": round(projected, 4),
+                "projected_next_run_cost": round(projected, 4) if projected is not None else None,
                 "runs_shown": len(recent),
                 "cloud_spend_usd": round(total_cost, 4),
                 "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
@@ -242,6 +235,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 "estimator_accuracy": accuracy,
                 "biggest_prompts": biggest_prompts,
                 "cost_warnings": cost_warnings,
+                "cost_history": cost_scan.coverage(),
                 "performance": performance,
             }
         )
@@ -295,6 +289,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
 
     console.print(table)
     console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")
+    _render_cost_history_integrity(log_file, cost_scan, console)
 
     # Estimator accountability: the estimator promises accuracy, not padding --
     # this line is what makes that promise checkable run over run.
@@ -307,7 +302,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
             f"by {abs(bias):.0f}% (last 10 runs: {accuracy['recent10_median_abs_pct_error']:.0f}%)"
         )
 
-    if projected > 0:
+    if projected is not None and projected > 0:
         console.print(
             f"[bold]Projected for next similar run[/bold] (avg last up to 5): ${projected:.4f}"
         )

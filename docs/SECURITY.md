@@ -69,6 +69,15 @@ malicious input cannot turn a narrow operation into broad host authority:
   non-finite JSON on write. Provider-history reads stream strict JSON with a
   1 MiB row ceiling and continue past malformed or invalid UTF-8 rows. Cost
   rows are `fsync`-flushed before profile receipt state advances.
+- Cost-ledger readers are no-follow and side-effect-free. Confined input is
+  capped at 16 MiB, encoded rows at 1 MiB, and retained valid history at 10,000
+  rows. Invalid monetary or timestamp evidence makes completeness-sensitive
+  totals, calibration, warnings, and budget decisions unavailable instead of
+  silently understating spend.
+- Mutable library, watch, and per-channel state uses bounded strict-JSON reads
+  and locked read-modify-write transactions. Corruption is rechecked under the
+  writer lock and preserved in a non-colliding backup. Backup or persistence
+  failure is explicit and cannot advance the in-memory state.
 - MCP file tools use workflow-specific namespaces and artifact classes rather
   than broad library-root readability. Reads are no-follow and bounded. OKF
   validation has aggregate tree-work ceilings.

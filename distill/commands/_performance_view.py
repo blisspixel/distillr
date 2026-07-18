@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from distill.pipeline.cost_history import CostLogScan, cost_history_integrity_message
 from distill.pipeline.performance_history import (
     PerformanceCoverage,
     PerformanceEvidence,
@@ -212,4 +215,23 @@ def render_performance_evidence(evidence: PerformanceEvidence, console: Console)
         _latest_phases(evidence, console)
 
 
-__all__ = ["render_performance_evidence"]
+def render_cost_history_integrity(
+    log_file: Path,
+    scan: CostLogScan,
+    console: Console,
+) -> None:
+    """Render one exact warning for incomplete cost evidence."""
+
+    if scan.complete:
+        return
+    console.print("\n[bold yellow]Cost history integrity warning[/bold yellow]")
+    console.print(
+        "[yellow]"
+        + cost_history_integrity_message(log_file, scan)
+        + " Historical projections, estimator accuracy, and cost warnings are unavailable."
+        + " Retained valid rows are still listed when present.[/yellow]",
+        soft_wrap=True,
+    )
+
+
+__all__ = ["render_cost_history_integrity", "render_performance_evidence"]

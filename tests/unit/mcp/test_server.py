@@ -582,6 +582,7 @@ class TestGetCosts:
             result = json.loads(get_costs())
         assert result["costs"] == []
         assert "No cost history" in result["message"]
+        assert result["cost_history"]["complete"] is True
 
     def test_with_entries(self, mock_config):
         mock_config.library_dir.mkdir(parents=True, exist_ok=True)
@@ -611,6 +612,7 @@ class TestGetCosts:
             result = json.loads(get_costs())
         # Malformed line is skipped
         assert result["runs_shown"] == 2
+        assert result["cost_history"]["malformed_rows"] == 1
 
     def test_projects_known_fields_without_arbitrary_payloads(self, mock_config):
         mock_config.library_dir.mkdir(parents=True, exist_ok=True)
@@ -704,6 +706,7 @@ def test_cost_resource_does_not_follow_library_symlink(mock_config):
         result = get_costs()
 
     assert "MCP-COST-SECRET" not in result
+    assert not outside.with_name(f".{outside.name}.lock").exists()
 
 
 # ── Tool tests ───────────────────────────────────────────────────────

@@ -144,8 +144,12 @@ def test_costs_json_malformed_log_returns_empty_entries(tmp_path, monkeypatch):
     parsed = json.loads(result.output)
     assert parsed["status"] == "ok"
     assert parsed["data"]["runs"] == []
-    assert parsed["data"]["message"] == "No cost entries found."
+    assert parsed["data"]["message"] == (
+        "Cost history is incomplete; no valid retained entries were found."
+    )
     assert parsed["data"]["cost_warnings"] == []
+    assert parsed["data"]["cost_history"]["malformed_rows"] == 2
+    assert parsed["data"]["projected_next_run_cost"] is None
 
 
 def test_costs_json_skips_unsafe_numeric_rows_and_remains_strict(tmp_path, monkeypatch):
@@ -177,6 +181,9 @@ def test_costs_json_skips_unsafe_numeric_rows_and_remains_strict(tmp_path, monke
     parsed = json.loads(result.output, parse_constant=reject_constant)
     assert parsed["data"]["runs"] == [{"actual_cost": 1.25, "command": "papers"}]
     assert parsed["data"]["total_cost"] == 1.25
+    assert parsed["data"]["cost_history"]["complete"] is False
+    assert parsed["data"]["projected_next_run_cost"] is None
+    assert parsed["data"]["estimator_accuracy"] is None
 
 
 def test_costs_json_unreadable_cost_log_is_reported_not_fatal(tmp_path, monkeypatch):
@@ -190,8 +197,30 @@ def test_costs_json_unreadable_cost_log_is_reported_not_fatal(tmp_path, monkeypa
     assert result.exit_code == 0, result.output
     parsed = json.loads(result.output)
     assert parsed["data"]["runs"] == []
-    assert parsed["data"]["message"] == "No cost entries found."
+    assert parsed["data"]["message"] == (
+        "Cost history is incomplete; no valid retained entries were found."
+    )
+    assert parsed["data"]["cost_history"]["read_error"] is True
     assert parsed["data"]["performance"]["coverage"]["unreadable_logs"] == ["cost_log.jsonl"]
+
+
+def test_costs_human_names_incomplete_ledger_and_suppresses_aggregate_claims(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    log_file = config.library_dir / "cost_log.jsonl"
+    log_file.write_text(
+        '{"actual_cost":1.25,"estimated_cost":1.0,"command":"papers"}\nnot-json\n',
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["costs"])
+
+    assert result.exit_code == 0, result.output
+    assert "Cost history integrity warning" in result.output
+    assert str(log_file) in result.output
+    assert "1 malformed row" in result.output
+    assert "Estimator accuracy" not in result.output
+    assert "Projected for next similar run" not in result.output
 
 
 def test_costs_json_includes_phase_only_performance_evidence(tmp_path, monkeypatch):

@@ -119,6 +119,7 @@ def dashboard_json_data(version: str, snapshot: DashboardSnapshot) -> dict[str, 
             "recent_usd": round(_finite_float(snapshot["recent_spend"]), 6),
             "next_sweep_usd": round(_finite_float(snapshot["next_sweep_cost"]), 6),
         },
+        "cost_history": snapshot["cost_history_coverage"],
         "topics": [_bounded_text(topic) for topic in topics[:_MAX_TOPICS]],
         "truncated": {
             "topics": max(0, len(topics) - _MAX_TOPICS),

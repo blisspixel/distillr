@@ -31,6 +31,7 @@ from distill.library.paths import (
     split_frontmatter,
     strip_frontmatter,
     tags_for,
+    text_write_lock,
     write_markdown_artifact,
     write_text_artifact,
 )
@@ -75,6 +76,7 @@ __all__: list[str] = [
     "split_frontmatter",
     "strip_frontmatter",
     "tags_for",
+    "text_write_lock",
     "write_markdown_artifact",
     "write_text_artifact",
 ]

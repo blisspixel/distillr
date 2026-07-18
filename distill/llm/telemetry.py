@@ -11,13 +11,12 @@ from __future__ import annotations
 import json
 import logging
 import math
-from collections.abc import Generator
 from dataclasses import asdict, dataclass, fields
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO, cast
+from typing import cast
 
-from distill.jsonl import append_jsonl_line
+from distill.jsonl import append_jsonl_line, bounded_jsonl_lines
 from distill.parsing import strict_json_loads
 
 logger = logging.getLogger(__name__)
@@ -130,26 +129,6 @@ def write_record(ops_dir: str, record: Telemetry_Record) -> None:
         logger.debug("Failed to write telemetry to %s: %s", path, exc, exc_info=True)
 
 
-def _bounded_lines(stream: BinaryIO) -> Generator[bytes | None]:
-    """Yield bounded row payloads, using ``None`` for one oversized row."""
-
-    limit = MAX_TELEMETRY_ROW_BYTES + 2
-    while True:
-        raw = stream.readline(limit)
-        if not raw:
-            return
-        terminated = raw.endswith(b"\n")
-        payload = raw[:-1] if terminated else raw
-        if payload.endswith(b"\r"):
-            payload = payload[:-1]
-        if len(payload) > MAX_TELEMETRY_ROW_BYTES:
-            while raw and not raw.endswith(b"\n"):
-                raw = stream.readline(limit)
-            yield None
-            continue
-        yield payload
-
-
 def _parse_record(raw: bytes) -> Telemetry_Record:
     loaded = strict_json_loads(raw)
     if not isinstance(loaded, dict):
@@ -186,7 +165,7 @@ def scan_telemetry(ops_dir: str | Path, n: int = 10) -> TelemetryScan:
     retained_limit = max(0, n)
     try:
         with path.open("rb") as stream:
-            for raw in _bounded_lines(stream):
+            for raw in bounded_jsonl_lines(stream, max_row_bytes=MAX_TELEMETRY_ROW_BYTES):
                 if raw is None:
                     malformed_rows += 1
                     continue

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from distill.llm.cost import DEFAULT_MODEL, compute_cost, deep_research_query_cost
 from distill.llm.cost_policy import classify_provider, evaluate_route_cost_policy
-from distill.pipeline.cost_history import read_cost_log_rows
+from distill.pipeline.cost_history import scan_confined_cost_log, select_cost_log_path
 
 if TYPE_CHECKING:
     from distill.llm.router import RouterConfig
@@ -340,11 +340,6 @@ class CostEstimate:
         return f"~${self.expected:.2f} (est; ${self.low:.2f}-${self.high:.2f})"
 
 
-def _cost_log_path(log_dir: Path) -> Path:
-    new_log = log_dir / ".distill" / "cost_log.jsonl"
-    return new_log if new_log.exists() else log_dir / "cost_log.jsonl"
-
-
 def _classify_clean_run(row: dict[str, Any]) -> tuple[str, float, int] | None:
     """Classify a usable clean single-source calibration row."""
 
@@ -426,12 +421,15 @@ def load_cost_calibration(
 ) -> CostCalibration:
     """Derive per-source rates from clean single-source run logs."""
 
-    log_file = _cost_log_path(log_dir)
-    if not log_file.exists():
+    log_file = select_cost_log_path(log_dir)
+    if log_file is None:
+        return CostCalibration()
+    scan = scan_confined_cost_log(log_file, log_dir)
+    if not scan.complete:
         return CostCalibration()
     cost = {"paper": 0.0, "video": 0.0, "site": 0.0}
     count = {"paper": 0, "video": 0, "site": 0}
-    for row in read_cost_log_rows(log_file):
+    for row in scan.rows:
         try:
             classified = _classify_clean_run(row)
         except (AttributeError, TypeError, ValueError):

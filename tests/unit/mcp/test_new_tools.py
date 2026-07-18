@@ -106,6 +106,7 @@ class TestCostsTool:
         assert result["status"] == "ok"
         assert result["runs"] == []
         assert "No cost history" in result.get("message", "")
+        assert result["cost_history"]["complete"] is True
 
     def test_with_cost_entries(self, mock_config):
         log_file = mock_config.library_dir / "cost_log.jsonl"
@@ -127,8 +128,8 @@ class TestCostsTool:
         entries = [
             "not-json",
             '["not", "an", "object"]',
-            '{"command": "learn", "actual_cost": 0.25}',
-            '{"command": "bad", "actual_cost": "not-a-number"}',
+            '{"command":"learn","actual_cost":0.25,"timestamp":"2026-07-18T10:00:00"}',
+            '{"command":"bad","actual_cost":"not-a-number","timestamp":"2026-07-18T10:00:00"}',
         ]
         log_file.write_text("\n".join(entries), encoding="utf-8")
 
@@ -137,8 +138,10 @@ class TestCostsTool:
 
             result = json.loads(costs())
 
-        assert result["runs_shown"] == 2
+        assert result["runs_shown"] == 1
         assert result["total_cost"] == 0.25
+        assert result["status"] == "warning"
+        assert result["cost_history"]["malformed_rows"] == 3
 
     def test_ops_cost_log_takes_precedence_over_legacy_log(self, mock_config):
         legacy_log = mock_config.library_dir / "cost_log.jsonl"
@@ -207,9 +210,50 @@ class TestCostsTool:
             result = json.loads(costs(days=30, limit=10))
 
         commands = [run["command"] for run in result["runs"]]
-        assert commands == ["invalid-timestamp", "boolean-cost", "recent"]
-        assert result["runs_shown"] == 3
+        assert commands == ["invalid-timestamp", "recent"]
+        assert result["runs_shown"] == 2
         assert result["total_cost"] == 0.3533
+        assert result["status"] == "warning"
+        assert result["cost_history"]["malformed_rows"] == 1
+
+    def test_cost_history_validates_bounds_and_honors_zero_limit(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text('{"command":"learn","actual_cost":1}\n', encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            zero = json.loads(costs(limit=0))
+            invalid_days = json.loads(costs(days=0))
+            invalid_limit = json.loads(costs(limit=101))
+            boolean_limit = json.loads(costs(limit=True))
+
+        assert zero["runs"] == []
+        assert zero["runs_shown"] == 0
+        assert zero["total_cost"] == 0
+        assert invalid_days["status"] == "error"
+        assert invalid_limit["status"] == "error"
+        assert boolean_limit["status"] == "error"
+
+    def test_cost_history_accepts_offset_aware_timestamps(self, mock_config):
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text(
+            json.dumps(
+                {
+                    "command": "aware",
+                    "timestamp": datetime.now().astimezone().isoformat(),
+                    "actual_cost": 0.5,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            result = json.loads(costs())
+
+        assert result["runs"][0]["command"] == "aware"
 
 
 class TestDoctorTool:

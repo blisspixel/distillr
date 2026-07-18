@@ -5,9 +5,19 @@
 
 {% block content %}
 <h1>Costs</h1>
+{% if cost_history.complete %}
 <p class="subtitle">Total spend: ${{ "%.2f"|format(total_spend) }}</p>
+{% else %}
+<p class="subtitle">Totals and rollups are unavailable. Retained valid runs are shown below.</p>
+<section class="card" role="status" aria-labelledby="cost-integrity-title">
+  <p class="eyebrow">Evidence warning</p>
+  <h2 id="cost-integrity-title">Cost history is incomplete</h2>
+  <p>{{ cost_history_message }}</p>
+  <p>Repair the ledger before relying on historical totals, topic rollups, or source rollups.</p>
+</section>
+{% endif %}
 
-{% if not entries and not topic_rollups and not source_rollups and not biggest_prompts %}
+{% if cost_history.complete and not entries and not topic_rollups and not source_rollups and not biggest_prompts %}
 <section class="card empty-state" aria-labelledby="empty-costs-title">
   <p class="eyebrow">Operator view</p>
   <h2 id="empty-costs-title">No spend recorded yet</h2>

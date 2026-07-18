@@ -16,7 +16,13 @@ from distill.library.paths import artifact_exists, find_artifact
 from distill.llm.router import RouterConfig
 from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
-from distill.pipeline.cost_history import read_cost_log_rows
+from distill.pipeline.cost_history import (
+    CostLogScan,
+    cost_history_integrity_message,
+    scan_confined_cost_log,
+    scan_cost_log,
+    select_cost_log_path,
+)
 from distill.pipeline.costs import (
     cost_anomaly_warnings,
     estimate_routed_video_workflow_cost,
@@ -91,6 +97,7 @@ __all__ = [
     "estimated_topic_watch_sweep",
     "format_run_timestamp",
     "load_all_cost_runs",
+    "load_cost_run_scan",
     "load_latest_run_payload",
     "load_recent_cost_runs",
     "load_site_manifest",
@@ -110,11 +117,19 @@ __all__ = [
 
 
 def load_recent_cost_runs(log_file: Path, limit: int = 5) -> list[CostRun]:
-    return [json_object(entry) for entry in read_cost_log_rows(log_file, limit=limit)]
+    if limit <= 0:
+        return []
+    return [json_object(entry) for entry in load_cost_run_scan(log_file).rows[-limit:]]
 
 
 def load_all_cost_runs(log_file: Path) -> list[CostRun]:
-    return load_recent_cost_runs(log_file, limit=10000)
+    return [json_object(entry) for entry in load_cost_run_scan(log_file).rows]
+
+
+def load_cost_run_scan(log_file: Path, *, root: Path | None = None) -> CostLogScan:
+    """Load strict ledger rows with explicit scan coverage."""
+
+    return scan_confined_cost_log(log_file, root) if root is not None else scan_cost_log(log_file)
 
 
 def load_latest_run_payload(log_dir: Path) -> JsonObject:
@@ -878,8 +893,9 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     # Check new location first, fall back to old
     _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
     _legacy_log = config.library_dir / "cost_log.jsonl"
-    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
-    all_cost_entries = load_all_cost_runs(_cost_log)
+    _cost_log = select_cost_log_path(config.library_dir) or _ops_log
+    cost_scan = load_cost_run_scan(_cost_log, root=config.library_dir)
+    all_cost_entries = [json_object(entry) for entry in cost_scan.rows]
     recent_runs = all_cost_entries[-6:]
     recent_spend = sum_recent_cost(recent_runs)
     latest_run = load_latest_run_payload(config.library_dir)
@@ -896,18 +912,30 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
         + collect_corpus_health_warnings(config, lib, topics, limit=8)
     )[:8]
     next_sweep_cost = estimated_topic_watch_sweep(topic_watchlist)
-    topic_spend = topic_cost_rollups(all_cost_entries, days=30, limit=4)
-    source_spend = source_cost_rollups(all_cost_entries, days=30)
-    cost_warnings = cost_anomaly_warnings(
-        all_cost_entries,
-        daily_threshold_usd=config.distill_cost_warning_daily_usd,
-        spike_multiplier=config.distill_cost_warning_spike_multiplier,
-        run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
-        workflow_budgets_usd=config.cost_workflow_budgets_usd,
+    topic_spend = (
+        topic_cost_rollups(all_cost_entries, days=30, limit=4) if cost_scan.complete else []
+    )
+    source_spend = source_cost_rollups(all_cost_entries, days=30) if cost_scan.complete else []
+    cost_warnings = (
+        cost_anomaly_warnings(
+            all_cost_entries,
+            daily_threshold_usd=config.distill_cost_warning_daily_usd,
+            spike_multiplier=config.distill_cost_warning_spike_multiplier,
+            run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
+            workflow_budgets_usd=config.cost_workflow_budgets_usd,
+        )
+        if cost_scan.complete
+        else []
     )
     budget_msgs: list[str] = []
-    for entry in topic_watchlist:
-        budget_msgs.extend(topic_watch_budget_messages(entry, all_cost_entries))
+    if cost_scan.complete:
+        for entry in topic_watchlist:
+            budget_msgs.extend(topic_watch_budget_messages(entry, all_cost_entries))
+    else:
+        budget_msgs.append(
+            cost_history_integrity_message(_cost_log, cost_scan)
+            + " Spending rollups and budget checks are unavailable until the ledger is repaired."
+        )
 
     return {
         "lib": lib,
@@ -925,6 +953,7 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
         "brief_count": brief_count,
         "synthesis_count": synthesis_count,
         "all_cost_entries": all_cost_entries,
+        "cost_history_coverage": cost_scan.coverage(),
         "recent_runs": recent_runs,
         "recent_spend": recent_spend,
         "latest_results": latest_results,

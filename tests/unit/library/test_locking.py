@@ -155,10 +155,14 @@ def test_windows_lock_initializes_byte_and_unlocks(tmp_path, monkeypatch):
     lock_path = tmp_path / "windows.lock"
     lock_file = lock_path.open("w+b")
     calls = []
+
+    def record_lock(descriptor, mode, count):
+        calls.append((descriptor, mode, count, os.fstat(descriptor).st_size))
+
     fake_msvcrt = SimpleNamespace(
         LK_NBLCK=1,
         LK_UNLCK=2,
-        locking=lambda descriptor, mode, count: calls.append((descriptor, mode, count)),
+        locking=record_lock,
     )
     monkeypatch.setattr(locking.os, "name", "nt")
     monkeypatch.setitem(sys.modules, "msvcrt", fake_msvcrt)
@@ -172,7 +176,7 @@ def test_windows_lock_initializes_byte_and_unlocks(tmp_path, monkeypatch):
     finally:
         lock_file.close()
 
-    assert [mode for _, mode, _ in calls] == [1, 2]
+    assert [(mode, size) for _, mode, _, size in calls] == [(1, 0), (2, 1)]
     assert lock_path.read_bytes() == b"\0"
 
 

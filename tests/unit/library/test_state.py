@@ -1,6 +1,12 @@
 """Tests for distill.library."""
 
 import json
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
 
 from distill.library import ChannelInfo, Library
 
@@ -36,6 +42,79 @@ class TestLibraryInit:
         assert lib.get_topics() == []
         # Backup should exist
         assert (lib_file.with_suffix(".json.bak")).exists()
+
+    def test_handles_invalid_utf8_and_reports_backup(self, config, caplog):
+        lib_file = config.library_dir / "library.json"
+        lib_file.parent.mkdir(parents=True, exist_ok=True)
+        lib_file.write_bytes(b"\xff")
+
+        with caplog.at_level(logging.WARNING, logger="distill.library.state"):
+            lib = Library(config)
+
+        backup = lib_file.with_suffix(".json.bak")
+        assert lib.get_topics() == []
+        assert backup.read_bytes() == b"\xff"
+        assert str(backup) in caplog.text
+
+    def test_repeated_corruption_preserves_each_backup(self, config):
+        lib_file = config.library_dir / "library.json"
+        lib_file.parent.mkdir(parents=True, exist_ok=True)
+        lib_file.write_text("first broken", encoding="utf-8")
+        Library(config)
+        lib_file.write_text("second broken", encoding="utf-8")
+        Library(config)
+
+        assert lib_file.with_suffix(".json.bak").read_text(encoding="utf-8") == "first broken"
+        assert lib_file.with_name("library.json.bak.1").read_text(encoding="utf-8") == (
+            "second broken"
+        )
+
+    def test_oversized_state_is_quarantined_without_full_read(self, config, monkeypatch):
+        from distill.library import state as state_module
+
+        lib_file = config.library_dir / "library.json"
+        lib_file.parent.mkdir(parents=True, exist_ok=True)
+        lib_file.write_bytes(b"{}x")
+        monkeypatch.setattr(state_module, "_MAX_STATE_BYTES", 2)
+
+        lib = Library(config)
+
+        assert lib.get_topics() == []
+        assert lib_file.with_suffix(".json.bak").read_bytes() == b"{}x"
+
+    def test_mutation_quarantines_corruption_created_after_initial_load(self, config, caplog):
+        lib = Library(config)
+        assert lib.add_channel("first", "https://example.com/first", "First") is True
+        lib.library_file.write_bytes(b"\xff")
+
+        with caplog.at_level(logging.WARNING, logger="distill.library.state"):
+            added = lib.add_channel("second", "https://example.com/second", "Second")
+
+        assert added is True
+        assert lib.get_topics() == ["second"]
+        assert lib.library_file.with_name("library.json.bak").read_bytes() == b"\xff"
+        assert str(lib.library_file) in caplog.text
+
+    def test_state_load_raises_when_corruption_cannot_be_quarantined(
+        self, config, monkeypatch, caplog
+    ):
+        config.library_dir.mkdir(parents=True, exist_ok=True)
+        lib_file = config.library_dir / "library.json"
+        lib_file.write_text("not-json", encoding="utf-8")
+
+        def fail_rename(_self, _target):
+            raise OSError("backup unavailable")
+
+        monkeypatch.setattr(Path, "rename", fail_rename)
+
+        with (
+            caplog.at_level(logging.ERROR, logger="distill.library.state"),
+            pytest.raises(ValueError, match="Expecting value"),
+        ):
+            Library(config)
+
+        assert "Cannot quarantine corrupt state" in caplog.text
+        assert "backup unavailable" in caplog.text
 
     def test_handles_missing_topics_key(self, config):
         """Library handles JSON with missing 'topics' key."""
@@ -127,6 +206,52 @@ class TestAddChannel:
         # Load fresh from disk
         lib2 = Library(config)
         assert len(lib2.get_channels("ai")) == 1
+
+    def test_stale_instances_merge_distinct_channel_updates(self, config):
+        first = Library(config)
+        second = Library(config)
+
+        assert first.add_channel("ai", "https://youtube.com/@A", "A") is True
+        assert second.add_channel("ai", "https://youtube.com/@B", "B") is True
+
+        assert [channel.name for channel in Library(config).get_channels("ai")] == ["A", "B"]
+        assert [channel.name for channel in second.get_channels("ai")] == ["A", "B"]
+
+    def test_concurrent_instances_preserve_every_channel(self, config):
+        writers = 12
+        barrier = threading.Barrier(writers)
+
+        def add(index: int) -> None:
+            library = Library(config)
+            barrier.wait(timeout=10)
+            assert library.add_channel(
+                "ai",
+                f"https://youtube.com/@channel-{index}",
+                f"Channel {index}",
+            )
+
+        with ThreadPoolExecutor(max_workers=writers) as executor:
+            list(executor.map(add, range(writers)))
+
+        channels = Library(config).get_channels("ai")
+        assert {channel.name for channel in channels} == {
+            f"Channel {index}" for index in range(writers)
+        }
+
+    def test_failed_atomic_update_does_not_publish_in_memory(self, config, monkeypatch):
+        from distill.library import paths
+
+        library = Library(config)
+
+        def fail_write(_path, _content):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(paths, "_atomic_write_text_unlocked", fail_write)
+
+        with pytest.raises(OSError, match="disk full"):
+            library.add_channel("ai", "https://youtube.com/@A", "A")
+
+        assert library.get_channels("ai") == []
 
     def test_add_channel_empty_name(self, config):
         """Adding a channel with empty name still works (edge case)."""

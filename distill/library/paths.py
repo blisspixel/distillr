@@ -15,7 +15,8 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+import time
+from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -54,11 +55,14 @@ __all__ = [
     "split_frontmatter",
     "strip_frontmatter",
     "tags_for",
+    "text_write_lock",
     "write_markdown_artifact",
     "write_text_artifact",
 ]
 
 _TEXT_WRITE_LOCK_TIMEOUT_SECONDS = 30.0
+_ATOMIC_REPLACE_TIMEOUT_SECONDS = 2.0
+_ATOMIC_REPLACE_RETRY_SECONDS = 0.05
 
 
 def _text_write_lock_path(path: Path) -> Path:
@@ -75,11 +79,41 @@ def _atomic_write_text_unlocked(path: Path, content: str) -> None:
             fh.write(content)
             fh.flush()
             os.fsync(fh.fileno())
-        Path(tmp).replace(path)
+        _replace_with_retry(Path(tmp), path)
     except BaseException:
         with contextlib.suppress(OSError):
             Path(tmp).unlink()
         raise
+
+
+def _replace_with_retry(source: Path, target: Path) -> None:
+    """Replace a file, tolerating brief Windows reader sharing conflicts."""
+
+    deadline = time.monotonic() + _ATOMIC_REPLACE_TIMEOUT_SECONDS
+    while True:
+        try:
+            source.replace(target)
+            return
+        except PermissionError as exc:
+            if not _is_retryable_replace_error(exc) or time.monotonic() >= deadline:
+                raise
+            time.sleep(_ATOMIC_REPLACE_RETRY_SECONDS)
+
+
+def _is_retryable_replace_error(_error: PermissionError) -> bool:
+    return os.name == "nt"
+
+
+@contextlib.contextmanager
+def text_write_lock(path: Path) -> Generator[None]:
+    """Hold the lock shared by atomic writes and read-modify-write transactions."""
+
+    with exclusive_path_lock(
+        _text_write_lock_path(path),
+        timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
+        timeout_message=f"Timed out writing {path}",
+    ):
+        yield
 
 
 def atomic_write_text(path: Path, content: str) -> None:
@@ -93,11 +127,7 @@ def atomic_write_text(path: Path, content: str) -> None:
     cooperating writers and read-modify-write transactions. The temp file is
     removed if anything fails before the rename.
     """
-    with exclusive_path_lock(
-        _text_write_lock_path(path),
-        timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
-        timeout_message=f"Timed out writing {path}",
-    ):
+    with text_write_lock(path):
         _atomic_write_text_unlocked(path, content)
 
 
@@ -106,6 +136,8 @@ def atomic_update_text[UpdateResult](
     update: Callable[[str], tuple[str, UpdateResult]],
     *,
     missing: str | None = None,
+    max_bytes: int | None = None,
+    recover_invalid: Callable[[BaseException], str] | None = None,
 ) -> UpdateResult:
     """Read, derive, and conditionally replace text under its write lock.
 
@@ -114,19 +146,28 @@ def atomic_update_text[UpdateResult](
     behavior of raising ``FileNotFoundError`` for a missing path.
     """
 
-    with exclusive_path_lock(
-        _text_write_lock_path(path),
-        timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
-        timeout_message=f"Timed out updating {path}",
-    ):
+    if max_bytes is not None and max_bytes < 0:
+        raise ValueError("max_bytes must be non-negative")
+    with text_write_lock(path):
         path_was_missing = False
         try:
-            current = path.read_text(encoding="utf-8")
+            if max_bytes is None:
+                current = path.read_text(encoding="utf-8")
+            else:
+                with path.open("rb") as stream:
+                    raw = stream.read(max_bytes + 1)
+                if len(raw) > max_bytes:
+                    raise ValueError(f"State file exceeds the {max_bytes:,}-byte limit: {path}")
+                current = raw.decode("utf-8")
         except FileNotFoundError:
             if missing is None:
                 raise
             current = missing
             path_was_missing = True
+        except (UnicodeDecodeError, ValueError) as exc:
+            if recover_invalid is None:
+                raise
+            current = recover_invalid(exc)
         replacement, result = update(current)
         if path_was_missing or replacement != current:
             _atomic_write_text_unlocked(path, replacement)

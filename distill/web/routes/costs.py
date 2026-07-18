@@ -3,8 +3,12 @@
 from fastapi import APIRouter, Request
 
 from distill.llm.telemetry import top_n_by_tokens
+from distill.pipeline.cost_history import (
+    cost_history_integrity_message,
+    scan_confined_cost_log,
+    select_cost_log_path,
+)
 from distill.pipeline.dashboard_data import (
-    load_all_cost_runs,
     source_cost_rollups,
     sum_recent_cost,
     topic_cost_rollups,
@@ -21,12 +25,13 @@ async def costs_page(request: Request):
     # Check new location first, fall back to old
     ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
     legacy_log = config.library_dir / "cost_log.jsonl"
-    cost_log = ops_log if ops_log.exists() else legacy_log
-    all_entries = load_all_cost_runs(cost_log)
-    total_spend = sum_recent_cost(all_entries)
+    cost_log = select_cost_log_path(config.library_dir) or ops_log
+    cost_scan = scan_confined_cost_log(cost_log, config.library_dir)
+    all_entries = list(cost_scan.rows)
+    total_spend = sum_recent_cost(all_entries) if cost_scan.complete else None
     recent_entries = all_entries[-20:]
-    topic_rollups = topic_cost_rollups(all_entries, days=30, limit=10)
-    source_rollups = source_cost_rollups(all_entries, days=30)
+    topic_rollups = topic_cost_rollups(all_entries, days=30, limit=10) if cost_scan.complete else []
+    source_rollups = source_cost_rollups(all_entries, days=30) if cost_scan.complete else []
     biggest_prompts = [
         {
             "timestamp": record.timestamp,
@@ -48,6 +53,12 @@ async def costs_page(request: Request):
             "request": request,
             "entries": list(reversed(recent_entries)),
             "total_spend": total_spend,
+            "cost_history": cost_scan.coverage(),
+            "cost_history_message": (
+                cost_history_integrity_message(cost_log, cost_scan)
+                if not cost_scan.complete
+                else ""
+            ),
             "topic_rollups": topic_rollups,
             "source_rollups": source_rollups,
             "biggest_prompts": biggest_prompts,

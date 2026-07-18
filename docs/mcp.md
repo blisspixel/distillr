@@ -90,7 +90,7 @@ answer size before an oversized prompt or response can cross the MCP boundary.
 | Tool | What it does |
 |---|---|
 | `watch_add` / `watch_remove` | Manage your watch list |
-| `costs` | Cost history |
+| `costs` | Bounded cost history for `days` 1..3650 and `limit` 0..100, with explicit ledger coverage and returned-row total scope |
 | `doctor` | Environment + corpus health diagnostics |
 
 **OKF interop**
@@ -119,7 +119,7 @@ elapsed-time ceilings. Preview responses are independently byte-limited.
 | `distill://topics/{topic}/trends` | Momentum / trend summary |
 | `distill://topics/{topic}/channels/{ch}/synthesis` | Channel synthesis |
 | `distill://topics/{topic}/channels/{ch}/insights/{n}` | Video insights (1 = newest) |
-| `distill://costs` | Cost history |
+| `distill://costs` | Newest 20 valid cost rows plus strict ledger coverage and returned-row total scope |
 
 ## Prompts
 

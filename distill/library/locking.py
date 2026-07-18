@@ -117,17 +117,25 @@ def exclusive_file_lock(
 ) -> Generator[None]:
     """Hold an exclusive OS lock on byte zero of ``lock_file`` until exit."""
 
+    lock_file.seek(0)
+    if os.name == "nt":
+        with _windows_file_lock(lock_file, timeout_seconds, timeout_message):
+            _initialize_lock_byte(lock_file)
+            yield
+    else:
+        with _posix_file_lock(lock_file, timeout_seconds, timeout_message):
+            _initialize_lock_byte(lock_file)
+            yield
+
+
+def _initialize_lock_byte(lock_file: BinaryIO) -> None:
+    """Create the lock byte only after this descriptor owns the lock."""
+
     lock_file.seek(0, os.SEEK_END)
     if lock_file.tell() == 0:
         lock_file.write(b"\0")
         lock_file.flush()
     lock_file.seek(0)
-    if os.name == "nt":
-        with _windows_file_lock(lock_file, timeout_seconds, timeout_message):
-            yield
-    else:
-        with _posix_file_lock(lock_file, timeout_seconds, timeout_message):
-            yield
 
 
 @contextlib.contextmanager

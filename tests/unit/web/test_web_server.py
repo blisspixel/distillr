@@ -207,6 +207,29 @@ def test_costs_page_fails_soft_on_corrupt_provider_telemetry(config, caplog):
     assert "Skipped 2 malformed provider telemetry rows" in caplog.text
 
 
+def test_costs_page_exposes_incomplete_ledger_without_partial_rollups(config):
+    log = config.library_dir / "cost_log.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        '{"timestamp":"2026-07-18T10:00:00","actual_cost":7,'
+        '"metadata":{"topic":"ai","source_type":"youtube"}}\nnot-json\n',
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/costs")
+
+    assert response.status_code == 200
+    assert "Cost history is incomplete" in response.text
+    assert str(log) in response.text
+    assert "1 malformed row" in response.text
+    assert "Total spend" not in response.text
+    assert "By Topic (30d)" not in response.text
+    assert "By Source (30d)" not in response.text
+    assert "Recent Runs" in response.text
+    assert 'role="status"' in response.text
+
+
 def test_empty_watchlist_page_offers_recurring_setup_path(config):
     client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 

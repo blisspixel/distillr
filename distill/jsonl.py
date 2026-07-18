@@ -7,7 +7,7 @@ import contextlib
 import os
 from collections.abc import Generator
 from pathlib import Path
-from typing import Protocol
+from typing import BinaryIO, Protocol
 
 from distill.library.locking import exclusive_path_lock
 
@@ -16,6 +16,32 @@ JSONL_LOCK_TIMEOUT_SECONDS = 30.0
 
 class _BinaryWriter(Protocol):
     def write(self, data: bytes | memoryview, /) -> int | None: ...
+
+
+def bounded_jsonl_lines(
+    stream: BinaryIO,
+    *,
+    max_row_bytes: int,
+) -> Generator[bytes | None]:
+    """Yield bounded row payloads, using ``None`` for one oversized row."""
+
+    if max_row_bytes < 1:
+        raise ValueError("max_row_bytes must be positive")
+    limit = max_row_bytes + 2
+    while True:
+        raw = stream.readline(limit)
+        if not raw:
+            return
+        terminated = raw.endswith(b"\n")
+        payload = raw[:-1] if terminated else raw
+        if payload.endswith(b"\r"):
+            payload = payload[:-1]
+        if len(payload) > max_row_bytes:
+            while raw and not raw.endswith(b"\n"):
+                raw = stream.readline(limit)
+            yield None
+            continue
+        yield payload
 
 
 def _lock_path(path: Path) -> Path:

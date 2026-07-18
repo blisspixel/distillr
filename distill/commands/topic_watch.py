@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from pathlib import Path
 
 import typer
 
@@ -24,6 +25,7 @@ from distill.commands._helpers import (
     get_config,
     run_preflight,
 )
+from distill.commands._json import ExitCode
 from distill.commands._learning import (
     preview_learning_selection,
     run_learning_command,
@@ -40,9 +42,14 @@ from distill.commands._topic_watch import (
     topic_watch_name,
     topic_watch_ranking_strategy,
 )
-from distill.library import Library
-from distill.pipeline.dashboard_data import (
-    load_all_cost_runs as _load_all_cost_runs,
+from distill.config import DistillConfig
+from distill.library import Library, TopicWatchEntry
+from distill.library.locking import exclusive_path_lock
+from distill.pipeline.cost_history import (
+    CostLogScan,
+    cost_history_integrity_message,
+    scan_confined_cost_log,
+    select_cost_log_path,
 )
 from distill.pipeline.dashboard_data import (
     parse_run_datetime as _parse_run_datetime,
@@ -68,6 +75,165 @@ topic_watch_app = typer.Typer(
 def _validate_budget_option(value: float | None, option_name: str) -> None:
     if value is not None and (not math.isfinite(value) or value < 0):
         raise typer.BadParameter(f"{option_name} must be a finite non-negative number")
+
+
+def _topic_watch_cost_scan(config: DistillConfig) -> tuple[Path, CostLogScan]:
+    ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
+    log_file = select_cost_log_path(config.library_dir) or ops_log
+    return log_file, scan_confined_cost_log(log_file, config.library_dir)
+
+
+def _topic_watch_budget_allows(
+    config: DistillConfig,
+    entry: TopicWatchEntry,
+    *,
+    ignore_budget: bool,
+) -> bool:
+    if ignore_budget:
+        return True
+    cost_log, cost_scan = _topic_watch_cost_scan(config)
+    if not cost_scan.complete:
+        console.print(
+            "  [yellow]Budget guardrail[/yellow] "
+            + cost_history_integrity_message(cost_log, cost_scan)
+        )
+        console.print(
+            f"  [dim]Repair the ledger or run distill topic-watch run {entry.name} "
+            "--ignore-budget[/dim]"
+        )
+        return False
+    budget_messages = _topic_watch_budget_messages(entry, list(cost_scan.rows))
+    if not budget_messages:
+        return True
+    console.print(f"  [yellow]Budget guardrail[/yellow] {budget_messages[0]}")
+    console.print(f"  [dim]distill topic-watch run {entry.name} --ignore-budget[/dim]")
+    return False
+
+
+def _render_topic_watch_alert_digest(
+    config: DistillConfig,
+    *,
+    generated_at: datetime,
+    alert_lines: list[str],
+) -> None:
+    alerts_path = write_watch_alert_digest(
+        config,
+        generated_at=generated_at,
+        alert_lines=alert_lines,
+    )
+    if alert_lines:
+        console.print()
+        console.print("[bold yellow]Watch Alerts[/bold yellow]")
+        for line in alert_lines[:8]:
+            console.print(f"  {line}")
+        if len(alert_lines) > 8:
+            console.print(f"  [dim]...and {len(alert_lines) - 8} more[/dim]")
+    else:
+        console.print()
+        console.print("[dim]No notable watch alerts in this run.[/dim]")
+    console.print(f"  [dim]{alerts_path}[/dim]")
+
+
+def _run_topic_watch_entries(
+    config: DistillConfig,
+    lib: Library,
+    watchlist: list[TopicWatchEntry],
+    *,
+    preview: bool,
+    ignore_budget: bool,
+) -> None:
+    generated_alerts: list[str] = []
+    alert_generated_at = datetime.now()
+
+    for entry in watchlist:
+        ranking = topic_watch_ranking_strategy(entry.ranking_mode)
+        console.print()
+        console.print(
+            f"[bold]Topic Watch: {entry.name}[/bold] [dim]({entry.topic} / {entry.cadence} / {entry.days}d / {entry.limit} picks / {ranking['label']})[/dim]"
+        )
+        if entry.paused:
+            console.print(
+                "  [yellow]Paused[/yellow] [dim]resume with: distill topic-watch resume "
+                f"{entry.name}[/dim]"
+            )
+            continue
+        if not _topic_watch_budget_allows(config, entry, ignore_budget=ignore_budget):
+            continue
+        if preview:
+            preview_config, preview_tracker, _ = _preview_learning_selection(
+                entry.query,
+                days=entry.days,
+                limit=entry.limit,
+                sort=str(ranking["sort"]),
+                per_channel_cap=entry.channel_cap,
+                shorts=False,
+                rerank=bool(ranking["rerank"]),
+                header=f"Topic Watch Preview: {entry.name}",
+                table_title=f"Selected Learning Set: {entry.name}",
+            )
+            log_preview_cost(
+                preview_tracker,
+                preview_config.library_dir,
+                "topic-watch",
+                metadata={"watch": entry.name, "topic": entry.topic or ""},
+            )
+            continue
+
+        previous_run_at = _parse_run_datetime(entry.last_run_at)
+        _run_learning_command(
+            entry.query,
+            topic=entry.topic,
+            days=entry.days,
+            limit=entry.limit,
+            sort=str(ranking["sort"]),
+            per_channel_cap=entry.channel_cap,
+            shorts=False,
+            rerank=bool(ranking["rerank"]),
+            save=True,
+            report=entry.report,
+            test=False,
+            generate_brief=False,
+            header=f"Topic Watch: {entry.name}",
+        )
+        change_details = collect_topic_change_details(
+            config,
+            Library(config),
+            entry.topic,
+            previous_run_at,
+        )
+        change_summary = str(change_details.get("summary", "no recent change detected"))
+        briefing_path = write_topic_change_briefing(
+            config,
+            watch_name=entry.name,
+            topic=entry.topic,
+            query=entry.query,
+            cadence=entry.cadence,
+            baseline=previous_run_at,
+            summary=change_summary,
+            change_details=change_details,
+        )
+        trend_label = topic_trend_label(config, entry.topic)
+        alert_lines = topic_watch_alert_lines(
+            watch_name=entry.name,
+            topic=entry.topic,
+            ranking_label=str(ranking["label"]),
+            summary=change_summary,
+            change_details=change_details,
+            trend_label=trend_label,
+        )
+        if alert_lines:
+            generated_alerts.extend(alert_lines)
+        console.print(f"  [cyan]Update[/cyan] {change_summary}")
+        if trend_label:
+            console.print(f"  [dim]{trend_label}[/dim]")
+        console.print(f"  [dim]{briefing_path}[/dim]")
+        lib.mark_topic_watch_run(entry.name, datetime.now().isoformat())
+
+    _render_topic_watch_alert_digest(
+        config,
+        generated_at=alert_generated_at,
+        alert_lines=generated_alerts,
+    )
 
 
 def register(app: typer.Typer) -> None:
@@ -298,7 +464,7 @@ def topic_watch_resume(
 
 
 @topic_watch_app.command("run")
-def topic_watch_run(  # noqa: C901 - legacy, will refactor
+def topic_watch_run(
     name: str | None = typer.Argument(
         None, help="Topic-watch name to run", autocompletion=_complete_topic_watch_names
     ),
@@ -343,113 +509,20 @@ def topic_watch_run(  # noqa: C901 - legacy, will refactor
             console.print(f"  [red]No watched topics in topic '{topic}'[/red]")
             return
 
-    _ops_log = config.library_dir / ".distill" / "cost_log.jsonl"
-    _legacy_log = config.library_dir / "cost_log.jsonl"
-    _cost_log = _ops_log if _ops_log.exists() else _legacy_log
-    all_cost_entries = _load_all_cost_runs(_cost_log)
-    generated_alerts: list[str] = []
-    alert_generated_at = datetime.now()
-
-    for entry in watchlist:
-        ranking = topic_watch_ranking_strategy(entry.ranking_mode)
-        console.print()
-        console.print(
-            f"[bold]Topic Watch: {entry.name}[/bold] [dim]({entry.topic} / {entry.cadence} / {entry.days}d / {entry.limit} picks / {ranking['label']})[/dim]"
-        )
-        if entry.paused:
-            console.print(
-                "  [yellow]Paused[/yellow] [dim]resume with: distill topic-watch resume "
-                f"{entry.name}[/dim]"
+    lock_path = config.library_dir / ".distill" / "topic-watch-budget.lock"
+    try:
+        with exclusive_path_lock(
+            lock_path,
+            timeout_seconds=0.0,
+            timeout_message="Another topic-watch batch is active; retry after it finishes.",
+        ):
+            _run_topic_watch_entries(
+                config,
+                lib,
+                watchlist,
+                preview=preview,
+                ignore_budget=ignore_budget,
             )
-            continue
-        budget_messages = _topic_watch_budget_messages(entry, all_cost_entries)
-        if budget_messages and not ignore_budget:
-            console.print(f"  [yellow]Budget guardrail[/yellow] {budget_messages[0]}")
-            console.print(f"  [dim]distill topic-watch run {entry.name} --ignore-budget[/dim]")
-            continue
-        if preview:
-            preview_config, preview_tracker, _ = _preview_learning_selection(
-                entry.query,
-                days=entry.days,
-                limit=entry.limit,
-                sort=str(ranking["sort"]),
-                per_channel_cap=entry.channel_cap,
-                shorts=False,
-                rerank=bool(ranking["rerank"]),
-                header=f"Topic Watch Preview: {entry.name}",
-                table_title=f"Selected Learning Set: {entry.name}",
-            )
-            log_preview_cost(
-                preview_tracker,
-                preview_config.library_dir,
-                "topic-watch",
-                metadata={"watch": entry.name, "topic": entry.topic or ""},
-            )
-            continue
-
-        previous_run_at = _parse_run_datetime(entry.last_run_at)
-        _run_learning_command(
-            entry.query,
-            topic=entry.topic,
-            days=entry.days,
-            limit=entry.limit,
-            sort=str(ranking["sort"]),
-            per_channel_cap=entry.channel_cap,
-            shorts=False,
-            rerank=bool(ranking["rerank"]),
-            save=True,
-            report=entry.report,
-            test=False,
-            generate_brief=False,
-            header=f"Topic Watch: {entry.name}",
-        )
-        change_details = collect_topic_change_details(
-            config,
-            Library(config),
-            entry.topic,
-            previous_run_at,
-        )
-        change_summary = str(change_details.get("summary", "no recent change detected"))
-        briefing_path = write_topic_change_briefing(
-            config,
-            watch_name=entry.name,
-            topic=entry.topic,
-            query=entry.query,
-            cadence=entry.cadence,
-            baseline=previous_run_at,
-            summary=change_summary,
-            change_details=change_details,
-        )
-        trend_label = topic_trend_label(config, entry.topic)
-        alert_lines = topic_watch_alert_lines(
-            watch_name=entry.name,
-            topic=entry.topic,
-            ranking_label=str(ranking["label"]),
-            summary=change_summary,
-            change_details=change_details,
-            trend_label=trend_label,
-        )
-        if alert_lines:
-            generated_alerts.extend(alert_lines)
-        console.print(f"  [cyan]Update[/cyan] {change_summary}")
-        if trend_label:
-            console.print(f"  [dim]{trend_label}[/dim]")
-        console.print(f"  [dim]{briefing_path}[/dim]")
-        lib.mark_topic_watch_run(entry.name, datetime.now().isoformat())
-
-    alerts_path = write_watch_alert_digest(
-        config,
-        generated_at=alert_generated_at,
-        alert_lines=generated_alerts,
-    )
-    if generated_alerts:
-        console.print()
-        console.print("[bold yellow]Watch Alerts[/bold yellow]")
-        for line in generated_alerts[:8]:
-            console.print(f"  {line}")
-        if len(generated_alerts) > 8:
-            console.print(f"  [dim]...and {len(generated_alerts) - 8} more[/dim]")
-    else:
-        console.print()
-        console.print("[dim]No notable watch alerts in this run.[/dim]")
-    console.print(f"  [dim]{alerts_path}[/dim]")
+    except TimeoutError:
+        console.print("  [red]Another topic-watch batch is active; retry after it finishes.[/red]")
+        raise typer.Exit(code=ExitCode.RUNTIME_ERROR) from None

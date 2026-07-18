@@ -264,6 +264,13 @@ The DOCX export renders these as color-coded badges for quick scanning.
 
 State tracking is built in. `--refresh` is the expected workflow - run on a cadence, process only what's new, let per-channel/topic synthesis update from the delta. Avoids re-processing items that haven't changed.
 
+Mutable library, channel, and watch indexes use bounded strict-JSON reads and a
+per-file writer lock. Every mutation reloads current disk state inside the
+lock, applies the smallest change, and atomically replaces the file. Suspected
+corruption is rechecked under that same lock before a non-colliding backup is
+created. A failed backup or write is visible and does not advance in-memory
+state. Clean reads remain side-effect-free.
+
 ### Claim-based synthesis is a compiled view, not a hand-edited document
 
 `distill resynthesize --two-pass` (and the MCP `synthesize` `two_pass` arg) splits corpus synthesis into two stages: a claim-extraction pass writes atomic claims from each per-source `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl`, then a synthesis pass clusters those claims, names contradictions, and writes `_Synthesis.md` with per-claim citations (`[C7]`).
@@ -422,6 +429,15 @@ statistics use a streaming strict parser with a 1 MiB row ceiling and retain
 only running totals plus the requested top-N rows. No structured history is
 rotated or compacted yet because cost-receipt continuity, archive
 completeness, concurrent writers, and rollback need one lossless contract.
+
+Cost history has a stricter completeness contract because it gates billing
+claims. No-follow, side-effect-free readers cap a row at 1 MiB, a confined log
+at 16 MiB, and retained valid history at 10,000 rows. They require finite
+nonnegative monetary values and valid ISO timestamps, then report malformed,
+omitted-valid, invalid-time, and read-error counts. CLI, dashboard,
+calibration, topic-watch, and MCP preserve valid retained rows for diagnosis
+but suppress any aggregate, projection, calibration, warning, or budget claim
+that incomplete evidence cannot support.
 
 ### Dependency direction
 

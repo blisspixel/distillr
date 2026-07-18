@@ -1638,6 +1638,7 @@ def _write_cost_rows(tmp_path, rows: list[dict]) -> None:
 
 def _paper_row(cost: float, papers: int) -> dict:
     return {
+        "timestamp": "2026-07-18T10:00:00",
         "command": "papers",
         "actual_cost": cost,
         "full_videos": 0,
@@ -1647,6 +1648,7 @@ def _paper_row(cost: float, papers: int) -> dict:
 
 def _video_row(cost: float, videos: int) -> dict:
     return {
+        "timestamp": "2026-07-18T10:00:00",
         "command": "latest",
         "actual_cost": cost,
         "full_videos": videos,
@@ -1686,10 +1688,10 @@ def test_load_cost_calibration_derives_per_paper_rate(tmp_path):
     assert cal.samples["video"] == 0
 
 
-def test_load_cost_calibration_skips_malformed_rows(tmp_path):
+def test_load_cost_calibration_falls_back_when_ledger_has_malformed_rows(tmp_path):
     # A JSON-valid but schema-invalid row (string actual_cost, non-dict
     # by_call_type, list/scalar line) or a syntactically-invalid line must not
-    # crash calibration: the bad rows are skipped and the clean rows still price.
+    # crash calibration or silently calibrate from incomplete evidence.
     from distill.pipeline.costs import load_cost_calibration
 
     ops = tmp_path / ".distill"
@@ -1706,12 +1708,11 @@ def test_load_cost_calibration_skips_malformed_rows(tmp_path):
     (ops / "cost_log.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     cal = load_cost_calibration(tmp_path)
-    assert round(cal.per_paper, 4) == 0.02  # $0.20 over 10 clean papers
-    assert cal.samples["paper"] == 10
-    assert cal.any_calibrated is True
+    assert cal.samples["paper"] == 0
+    assert cal.any_calibrated is False
 
 
-def test_load_cost_calibration_skips_overlong_integer_and_nonfinite_rows(tmp_path):
+def test_load_cost_calibration_falls_back_on_nonstandard_numeric_rows(tmp_path):
     from distill.pipeline.costs import load_cost_calibration
 
     log = tmp_path / ".distill" / "cost_log.jsonl"
@@ -1725,8 +1726,8 @@ def test_load_cost_calibration_skips_overlong_integer_and_nonfinite_rows(tmp_pat
 
     calibration = load_cost_calibration(tmp_path)
 
-    assert calibration.per_paper == pytest.approx(0.02)
-    assert calibration.samples["paper"] == 3
+    assert calibration.samples["paper"] == 0
+    assert calibration.any_calibrated is False
 
 
 def test_classify_clean_run_rejects_nonfinite_cost_and_unbounded_counts():

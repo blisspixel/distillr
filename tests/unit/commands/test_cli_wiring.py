@@ -1690,7 +1690,7 @@ class TestExportOpenCostsAndStatus:
         assert "Breakdown: ask" in result.output
         assert "old_pass" not in result.output
 
-    def test_costs_tolerates_malformed_numeric_fields(self, mock_config):
+    def test_costs_reports_malformed_monetary_fields_without_partial_claims(self, mock_config):
         log_file = mock_config.library_dir / "cost_log.jsonl"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         log_file.write_text(
@@ -1719,8 +1719,10 @@ class TestExportOpenCostsAndStatus:
         result = runner.invoke(cli.app, ["costs"])
 
         assert result.exit_code == 0, result.output
-        assert "Cost History" in result.output
-        assert "Latest run breakdown" in result.output
+        assert "Cost history integrity warning" in result.output
+        assert "1 malformed row" in result.output
+        assert "Cost History" not in result.output
+        assert "Latest run breakdown" not in result.output
         assert "not-a-number" not in result.output
 
     def test_costs_tolerates_malformed_biggest_prompt_fields(self, mock_config, monkeypatch):

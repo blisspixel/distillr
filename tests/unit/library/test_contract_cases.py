@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import deal
+import pytest
 from hypothesis import strategies as st
 
+from distill.library import paths
 from distill.library.paths import (
     _is_single_path_component,
     apply_frontmatter,
@@ -162,6 +164,52 @@ def test_atomic_write_text_creates_parent_and_replaces_atomically(tmp_path: Path
 
     assert target.read_text(encoding="utf-8") == "second"
     assert list(target.parent.glob(f".{target.name}.*.tmp")) == []
+
+
+def test_atomic_write_text_retries_transient_replace_sharing_conflict(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("old", encoding="utf-8")
+    original_replace = Path.replace
+    attempts = 0
+
+    def transient_replace(source: Path, destination: Path) -> Path:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError("reader still owns a sharing handle")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(Path, "replace", transient_replace)
+    monkeypatch.setattr(paths, "_is_retryable_replace_error", lambda _error: True)
+    monkeypatch.setattr(paths.time, "sleep", lambda _seconds: None)
+
+    atomic_write_text(target, "new")
+
+    assert attempts == 3
+    assert target.read_text(encoding="utf-8") == "new"
+    assert list(tmp_path.glob(".note.md.*.tmp")) == []
+
+
+def test_atomic_write_text_bounds_replace_retry_and_cleans_temp(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("old", encoding="utf-8")
+
+    def blocked_replace(_source: Path, _destination: Path) -> Path:
+        raise PermissionError("reader never released its sharing handle")
+
+    monkeypatch.setattr(Path, "replace", blocked_replace)
+    monkeypatch.setattr(paths, "_is_retryable_replace_error", lambda _error: True)
+    monkeypatch.setattr(paths, "_ATOMIC_REPLACE_TIMEOUT_SECONDS", 0.0)
+
+    with pytest.raises(PermissionError, match="reader never released"):
+        atomic_write_text(target, "new")
+
+    assert target.read_text(encoding="utf-8") == "old"
+    assert list(tmp_path.glob(".note.md.*.tmp")) == []
 
 
 def test_parse_wiki_links_generated_contract_cases() -> None:

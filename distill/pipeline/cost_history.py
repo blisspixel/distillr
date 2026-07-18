@@ -5,24 +5,36 @@
 from __future__ import annotations
 
 import math
+from collections import deque
 from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, BinaryIO, TypedDict, cast
 
-from distill.library.confined import read_confined_text, validate_confined_path
-from distill.parsing import read_bounded_jsonl_objects, strict_json_loads
+from distill.jsonl import bounded_jsonl_lines
+from distill.library.confined import read_confined_bytes, validate_confined_path
+from distill.parsing import strict_json_loads
 
 __all__ = [
+    "CostHistoryCoverage",
+    "CostLogScan",
+    "cost_history_integrity_message",
     "estimator_accuracy",
     "find_confined_cost_log",
     "project_cost_log_row",
     "projected_next_run_cost",
     "read_confined_cost_log_rows",
     "read_cost_log_rows",
+    "scan_confined_cost_log",
+    "scan_cost_log",
+    "select_cost_log_path",
 ]
 
 _MAX_COST_LOG_BYTES = 16 * 1024 * 1024
 _MAX_COST_LOG_ROWS = 10_000
+_MAX_COST_LOG_ROW_BYTES = 1024 * 1024
 _PUBLIC_COST_FIELDS = (
     "timestamp",
     "run_id",
@@ -49,8 +61,163 @@ _PUBLIC_COST_FIELDS = (
 )
 
 
-def _has_boolean_monetary_value(row: dict[str, Any]) -> bool:
-    return any(isinstance(row.get(field), bool) for field in ("actual_cost", "estimated_cost"))
+class CostHistoryCoverage(TypedDict):
+    """Machine-readable completeness evidence for one ledger scan."""
+
+    complete: bool
+    valid_rows: int
+    retained_rows: int
+    malformed_rows: int
+    omitted_valid_rows: int
+    invalid_timestamp_rows: int
+    read_error: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CostLogScan:
+    """Strict cost-ledger rows plus explicit evidence coverage."""
+
+    rows: tuple[dict[str, Any], ...] = ()
+    valid_rows: int = 0
+    malformed_rows: int = 0
+    omitted_valid_rows: int = 0
+    invalid_timestamp_rows: int = 0
+    unreadable: bool = False
+
+    @property
+    def complete(self) -> bool:
+        return not (
+            self.malformed_rows
+            or self.omitted_valid_rows
+            or self.invalid_timestamp_rows
+            or self.unreadable
+        )
+
+    def coverage(self) -> CostHistoryCoverage:
+        return {
+            "complete": self.complete,
+            "valid_rows": self.valid_rows,
+            "retained_rows": len(self.rows),
+            "malformed_rows": self.malformed_rows,
+            "omitted_valid_rows": self.omitted_valid_rows,
+            "invalid_timestamp_rows": self.invalid_timestamp_rows,
+            "read_error": self.unreadable,
+        }
+
+
+def cost_history_integrity_message(path: Path, scan: CostLogScan) -> str:
+    """Describe incomplete ledger evidence without claiming partial totals."""
+
+    reasons: list[str] = []
+    if scan.unreadable:
+        reasons.append("the file could not be read safely")
+    if scan.malformed_rows:
+        label = "row" if scan.malformed_rows == 1 else "rows"
+        reasons.append(f"{scan.malformed_rows} malformed {label}")
+    if scan.omitted_valid_rows:
+        label = "row is" if scan.omitted_valid_rows == 1 else "rows are"
+        reasons.append(f"{scan.omitted_valid_rows} valid {label} outside the retained window")
+    if scan.invalid_timestamp_rows:
+        label = "row" if scan.invalid_timestamp_rows == 1 else "rows"
+        reasons.append(f"{scan.invalid_timestamp_rows} {label} without a valid timestamp")
+    detail = "; ".join(reasons) or "coverage could not be proven"
+    return f"Cost history is incomplete at {path}: {detail}."
+
+
+def _valid_nonnegative_cost(value: object, *, allow_none: bool) -> bool:
+    if value is None:
+        return allow_none
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    try:
+        cost = float(value)
+    except OverflowError:
+        return False
+    return math.isfinite(cost) and cost >= 0
+
+
+def _has_valid_monetary_values(row: dict[str, Any]) -> bool:
+    return _valid_nonnegative_cost(row.get("actual_cost"), allow_none=False) and (
+        "estimated_cost" not in row
+        or _valid_nonnegative_cost(row.get("estimated_cost"), allow_none=True)
+    )
+
+
+def _has_valid_timestamp(row: dict[str, Any]) -> bool:
+    value = row.get("timestamp")
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (OverflowError, ValueError):
+        return False
+    return True
+
+
+def _scan_cost_stream(stream: BinaryIO, *, limit: int) -> CostLogScan:
+    rows: deque[dict[str, Any]] = deque(maxlen=limit)
+    valid_rows = 0
+    malformed_rows = 0
+    omitted_valid_rows = 0
+    invalid_timestamp_rows = 0
+    for raw in bounded_jsonl_lines(stream, max_row_bytes=_MAX_COST_LOG_ROW_BYTES):
+        if raw is None:
+            malformed_rows += 1
+            continue
+        if not raw.strip():
+            continue
+        try:
+            loaded = strict_json_loads(raw)
+        except (RecursionError, ValueError):
+            malformed_rows += 1
+            continue
+        if not isinstance(loaded, dict):
+            malformed_rows += 1
+            continue
+        row = cast(dict[str, Any], loaded)
+        if not _has_valid_monetary_values(row):
+            malformed_rows += 1
+            continue
+        valid_rows += 1
+        if not _has_valid_timestamp(row):
+            invalid_timestamp_rows += 1
+        if len(rows) == limit:
+            omitted_valid_rows += 1
+        rows.append(row)
+    return CostLogScan(
+        rows=tuple(rows),
+        valid_rows=valid_rows,
+        malformed_rows=malformed_rows,
+        omitted_valid_rows=omitted_valid_rows,
+        invalid_timestamp_rows=invalid_timestamp_rows,
+    )
+
+
+def _unreadable_scan() -> CostLogScan:
+    return CostLogScan(unreadable=True)
+
+
+def scan_confined_cost_log(
+    path: Path,
+    root: Path,
+    *,
+    limit: int = _MAX_COST_LOG_ROWS,
+) -> CostLogScan:
+    """Read one bounded no-follow cost ledger with explicit coverage."""
+
+    if limit < 1:
+        raise ValueError("cost ledger row limit must be positive")
+    try:
+        content = read_confined_bytes(path, root, max_bytes=_MAX_COST_LOG_BYTES)
+        if content is None:
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                return CostLogScan()
+            return _unreadable_scan()
+    except OSError:
+        return _unreadable_scan()
+    return _scan_cost_stream(BytesIO(content), limit=min(limit, _MAX_COST_LOG_ROWS))
 
 
 def read_confined_cost_log_rows(
@@ -63,18 +230,8 @@ def read_confined_cost_log_rows(
 
     if limit <= 0:
         return []
-    content = read_confined_text(path, root, max_bytes=_MAX_COST_LOG_BYTES)
-    if content is None:
-        return []
-    rows: list[dict[str, object]] = []
-    for line in content.splitlines()[-_MAX_COST_LOG_ROWS:]:
-        try:
-            loaded = strict_json_loads(line)
-        except (RecursionError, ValueError):
-            continue
-        if isinstance(loaded, dict):
-            rows.append(cast("dict[str, object]", loaded))
-    return rows[-min(limit, _MAX_COST_LOG_ROWS) :]
+    scan = scan_confined_cost_log(path, root)
+    return [cast("dict[str, object]", row) for row in scan.rows[-min(limit, _MAX_COST_LOG_ROWS) :]]
 
 
 def find_confined_cost_log(library_dir: Path) -> Path | None:
@@ -89,10 +246,41 @@ def find_confined_cost_log(library_dir: Path) -> Path | None:
     return None
 
 
+def select_cost_log_path(library_dir: Path) -> Path | None:
+    """Select the newest ledger candidate without hiding an unsafe path."""
+
+    for path in (
+        library_dir / ".distill" / "cost_log.jsonl",
+        library_dir / "cost_log.jsonl",
+    ):
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return path
+        return path
+    return None
+
+
 def project_cost_log_row(row: Mapping[str, object]) -> dict[str, object]:
     """Project one ledger row onto the stable public cost-resource surface."""
 
     return {field: row[field] for field in _PUBLIC_COST_FIELDS if field in row}
+
+
+def scan_cost_log(path: Path, *, limit: int = _MAX_COST_LOG_ROWS) -> CostLogScan:
+    """Stream one local cost ledger with bounded retained rows and no writes."""
+
+    if limit < 1:
+        raise ValueError("cost ledger row limit must be positive")
+    try:
+        with path.open("rb") as stream:
+            return _scan_cost_stream(stream, limit=min(limit, _MAX_COST_LOG_ROWS))
+    except FileNotFoundError:
+        return CostLogScan()
+    except OSError:
+        return _unreadable_scan()
 
 
 def read_cost_log_rows(
@@ -105,22 +293,8 @@ def read_cost_log_rows(
 
     if limit <= 0:
         return []
-    entries: list[dict[str, Any]] = []
-    rows = (
-        read_confined_cost_log_rows(path, root)
-        if root is not None
-        else read_bounded_jsonl_objects(
-            path,
-            max_bytes=_MAX_COST_LOG_BYTES,
-            max_rows=_MAX_COST_LOG_ROWS,
-        )
-    )
-    for loaded in rows:
-        row = cast(dict[str, Any], loaded)
-        if _has_boolean_monetary_value(row):
-            continue
-        entries.append(row)
-    return entries[-min(limit, _MAX_COST_LOG_ROWS) :]
+    scan = scan_confined_cost_log(path, root) if root is not None else scan_cost_log(path)
+    return list(scan.rows[-min(limit, _MAX_COST_LOG_ROWS) :])
 
 
 def _positive_finite_cost(value: object) -> float | None:

@@ -115,6 +115,7 @@ def test_dashboard_snapshot_uses_shared_rollups_and_health(config):
     assert snapshot["topic_spend_rollups"][0][0] == "ai"
     assert snapshot["source_spend_rollups"][0][0] in {"report", "youtube"}
     assert snapshot["budget_messages"]
+    assert snapshot["cost_history_coverage"]["complete"] is True
     assert snapshot["corpus_health_warnings"]
     assert snapshot["latest_results"]["failed"] == 1
     assert snapshot["topic_trends"]["ai"] == "trend: rising"
@@ -180,6 +181,32 @@ def test_dashboard_snapshot_uses_configured_cost_warning_policy(tmp_path):
 
     assert {"daily-threshold", "workflow-budget"} <= kinds
     assert any("above workflow budget $1.50" in message for message in messages)
+
+
+def test_dashboard_snapshot_suppresses_cost_claims_when_ledger_is_incomplete(config):
+    lib = Library(config)
+    lib.add_to_topic_watchlist(
+        "ai-daily",
+        "AI daily",
+        topic="ai",
+        monthly_budget=1.0,
+    )
+    log = config.library_dir / "cost_log.jsonl"
+    log.write_text(
+        '{"timestamp":"2026-07-18T10:00:00","actual_cost":100,'
+        '"metadata":{"topic":"ai"}}\nnot-json\n',
+        encoding="utf-8",
+    )
+
+    snapshot = dashboard_snapshot(config)
+
+    assert snapshot["cost_history_coverage"]["malformed_rows"] == 1
+    assert snapshot["topic_spend_rollups"] == []
+    assert snapshot["source_spend_rollups"] == []
+    assert snapshot["cost_warnings"] == []
+    assert len(snapshot["budget_messages"]) == 1
+    assert str(log) in snapshot["budget_messages"][0]
+    assert "unavailable" in snapshot["budget_messages"][0]
 
 
 def test_dashboard_helper_rollups_and_parsing():
@@ -464,7 +491,7 @@ def test_cost_helpers_handle_missing_and_invalid_data(tmp_path):
     )
 
     recent = load_recent_cost_runs(log_file, limit=5)
-    assert len(recent) == 2
+    assert len(recent) == 1
     assert all(isinstance(r, dict) for r in recent)
     assert load_all_cost_runs(tmp_path / "missing.jsonl") == []
     assert sum_recent_cost(recent) == 1.25

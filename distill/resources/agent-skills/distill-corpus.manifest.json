@@ -1,7 +1,7 @@
 {
   "schema_version": "distill-agent-skill-bundle.v1",
   "name": "distill-corpus",
-  "version": "0.19.37",
+  "version": "0.19.38",
   "bundle_sha256": "c2b756cdc4fd28e8840bc29176d1cf4ffcb79e695b5740e63812cda3392e9674",
   "files": {
     "SKILL.md": {

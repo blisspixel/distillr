@@ -223,6 +223,13 @@ distill topic-watch run
 distill topic-watch run azure-ai --ignore-budget   # explicit override
 ```
 
+Budget evaluation is serialized for the whole batch and the current cost
+ledger is rescanned before each non-paused entry. This makes spend recorded by
+an earlier watch visible to the next decision and prevents concurrent batches
+from racing the same budget. If cost history is incomplete, a budgeted watch
+stops before provider work unless the operator explicitly supplies
+`--ignore-budget`.
+
 Each topic-watch run leaves:
 
 - `library/topics/<topic>/<topic>_Watch_Update.md` - per-watch delta summary
@@ -919,6 +926,16 @@ sibling row may belong to a retained command anchor, the affected phase,
 provider, or cost completeness flag is false and its aggregate stays `null`.
 The retained command envelope and valid rows remain visible as an explicitly
 incomplete subset.
+
+Cost history applies a matching strict evidence boundary across `distill
+costs`, dashboards, calibration, recurring watches, and MCP. Rows are limited
+to 1 MiB, confined input to 16 MiB, and retained valid history to 10,000 rows.
+Monetary fields must be finite and nonnegative, and timestamps must be valid
+ISO values. The JSON `cost_history` coverage object reports malformed,
+omitted-valid, invalid-time, and read-error counts. Human output names the same
+integrity problem. Valid retained runs stay visible, but totals, projections,
+calibration, budget claims, and surprise-cost warnings remain unknown when the
+evidence is incomplete.
 
 Phase, provider, and cost writers serialize cooperating processes through
 hidden sibling lock files under `.distill/`. If an interrupted write leaves a

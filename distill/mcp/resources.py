@@ -20,9 +20,11 @@ from distill.mcp.server import (
     video_list,
 )
 from distill.pipeline.cost_history import (
-    find_confined_cost_log,
+    CostLogScan,
+    cost_history_integrity_message,
     project_cost_log_row,
-    read_confined_cost_log_rows,
+    scan_confined_cost_log,
+    select_cost_log_path,
 )
 
 __all__: list[str] = []
@@ -285,18 +287,31 @@ def get_video_insights(topic: str, channel: str, index: str) -> str:
 def get_costs() -> str:
     """Show recent cost history from past runs."""
     config = load_config()
-    log_file = find_confined_cost_log(config.library_dir)
+    log_file = select_cost_log_path(config.library_dir)
     if log_file is None:
-        return json.dumps({"costs": [], "message": "No cost history yet."})
+        return json.dumps(
+            {
+                "costs": [],
+                "message": "No cost history yet.",
+                "cost_history": CostLogScan().coverage(),
+            }
+        )
 
-    entries = read_confined_cost_log_rows(log_file, config.library_dir, limit=20)
-    recent = [project_cost_log_row(entry) for entry in entries]
+    cost_scan = scan_confined_cost_log(log_file, config.library_dir)
+    recent = [project_cost_log_row(entry) for entry in cost_scan.rows[-20:]]
     total = sum(_cost_value(e) for e in recent)
     return json.dumps(
         {
             "recent_runs": recent,
             "total_cost": round(total, 4),
             "runs_shown": len(recent),
+            "total_scope": "returned_valid_runs",
+            "cost_history": cost_scan.coverage(),
+            **(
+                {"message": cost_history_integrity_message(log_file, cost_scan)}
+                if not cost_scan.complete
+                else {}
+            ),
         },
         indent=2,
     )

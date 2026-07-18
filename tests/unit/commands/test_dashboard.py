@@ -101,6 +101,15 @@ def _snapshot(**overrides: Any) -> dict[str, Any]:
         "brief_count": 1,
         "synthesis_count": 4,
         "all_cost_entries": [{"actual_cost": 1.0}],
+        "cost_history_coverage": {
+            "complete": True,
+            "valid_rows": 1,
+            "retained_rows": 1,
+            "malformed_rows": 0,
+            "omitted_valid_rows": 0,
+            "invalid_timestamp_rows": 0,
+            "read_error": False,
+        },
         "recent_runs": [
             {
                 "timestamp": "2026-06-01T09:00:00",
@@ -335,6 +344,7 @@ def test_dashboard_json_data_is_primitive_bounded_and_uses_configured_paths() ->
         library_dir / ".distill" / "phase_telemetry.jsonl"
     )
     assert payload["warnings"]["latest_issues"] == 1
+    assert payload["cost_history"]["complete"] is True
     assert payload["topics"] == [f"topic{i}" for i in range(8)]
     assert "lib" not in payload
 

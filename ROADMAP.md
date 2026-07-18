@@ -107,7 +107,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.37, 2026-07-16). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.38, 2026-07-18). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -207,6 +207,21 @@ compaction remain deferred until a lossless archive can preserve completeness,
 stable cost receipts, concurrent writers, and rollback. This is bounded
 reliability and operator hardening, not feature breadth or a freeze signal.
 
+**Cycle 10 refinement evidence (2026-07-18).** Mutable library, channel, and
+watch state now uses bounded strict-JSON reads plus locked read-modify-write
+transactions, so cooperating processes preserve one another's updates.
+Corrupt state is rechecked under lock, preserved in non-colliding backups, and
+never replaced after a failed quarantine. Cost-ledger readers now apply strict
+monetary and timestamp validation, bounded rows and retained history, and one
+coverage contract across CLI, dashboard, calibration, recurring watches, and
+MCP. Completeness-sensitive totals and budget claims fail closed while valid
+retained rows remain diagnostic. Topic-watch budget decisions serialize and
+rescan before each entry, closing same-batch overspend races. Lossless history
+archival, target-link policy, representative assistive-technology validation,
+and a fresh code graph remain deferred quality debt. This is reliability,
+security, accessibility, and operator refinement on the current surface. It
+does not create a freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published
@@ -241,7 +256,7 @@ findings, evidence, fixes, and prioritized product implications are recorded in
 
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.37. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.38. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 The bounded active-session handoff now ships: provider-neutral tasks can be
 atomically claimed through `distill worker`, completed only in an isolated

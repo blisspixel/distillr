@@ -8,9 +8,11 @@ from datetime import datetime
 from typing import NotRequired, TypedDict, cast
 
 from distill.library import Library, TopicWatchEntry, WatchEntry
+from distill.pipeline.cost_history import CostHistoryCoverage
 from distill.pipeline.costs import CostWarning
 
 __all__ = [
+    "CostHistoryCoverage",
     "CostRollup",
     "CostRun",
     "DashboardSnapshot",
@@ -83,6 +85,7 @@ class DashboardSnapshot(TypedDict):
     brief_count: int
     synthesis_count: int
     all_cost_entries: list[CostRun]
+    cost_history_coverage: CostHistoryCoverage
     recent_runs: list[CostRun]
     recent_spend: float
     latest_results: JsonObject
