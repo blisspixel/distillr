@@ -478,12 +478,13 @@ def test_display_summary_failed_result_shows_retry_and_exact_evidence_path(tmp_p
     summary = RunSummary(command="discover")
     summary.add_result(VideoResult("v1", "Failed video", False, error="No transcript"))
 
-    console = Console(record=True, width=120)
+    console = Console(record=True, width=40)
     display_summary(summary, console=console, log_dir=log_dir)
-    rendered = " ".join(console.export_text().split())
+    rendered = console.export_text()
+    normalized = " ".join(rendered.split())
 
-    assert "Re-run the same command" in rendered
-    assert "already-ingested sources are skipped" in rendered
+    assert "Re-run the same command" in normalized
+    assert "already-ingested sources are skipped" in normalized
     assert "Evidence:" in rendered
     assert str(log_dir / "latest_run_errors.md") in rendered
 

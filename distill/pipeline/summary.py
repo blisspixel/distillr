@@ -483,11 +483,17 @@ def display_summary(  # noqa: C901 - legacy, will refactor
 
     if (failed or summary.issues) and evidence_path is not None:
         con.print()
-        con.print(f"  [dim]Evidence: {escape(str(evidence_path))}[/dim]")
+        con.print(
+            f"  [dim]Evidence: {escape(str(evidence_path))}[/dim]",
+            soft_wrap=True,
+        )
 
     if (failed or summary.issues) and evidence_write_failed and log_dir is not None:
         con.print()
-        con.print(f"  [yellow]Run evidence could not be saved: {escape(str(log_dir))}[/yellow]")
+        con.print(
+            f"  [yellow]Run evidence could not be saved: {escape(str(log_dir))}[/yellow]",
+            soft_wrap=True,
+        )
 
     if failed or any(issue.stage in _RETRYABLE_INGEST_STAGES for issue in summary.issues):
         con.print()
