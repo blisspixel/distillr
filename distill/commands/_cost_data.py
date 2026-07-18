@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 from pathlib import Path
 from typing import Any, cast
@@ -82,38 +81,20 @@ def compute_local_cloud_stats(config: DistillConfig) -> dict[str, float | int]:
     if not telemetry_path.exists():
         return {}
 
-    local_total_seconds = 0.0
-    local_total_tokens = 0
-    local_records_count = 0
-    total_tps_sum = 0.0
+    from distill.llm.telemetry import scan_telemetry
 
-    try:
-        lines = telemetry_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return {}
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = dict_or_empty(json.loads(line))
-            if not data or data.get("provider_type") != "local":
-                continue
-            local_records_count += 1
-            local_total_seconds += float(data.get("elapsed_seconds", 0))
-            local_total_tokens += int(data.get("output_tokens", 0)) + int(
-                data.get("input_tokens", 0)
-            )
-            tokens_per_second = float(data.get("tokens_per_second", 0))
-            if tokens_per_second > 0:
-                total_tps_sum += tokens_per_second
-        except (ValueError, TypeError, json.JSONDecodeError):
-            continue
-
-    avg_tps = round(total_tps_sum / local_records_count, 1) if local_records_count else 0
+    scan = scan_telemetry(telemetry_path.parent, n=0)
+    avg_tps = (
+        round(scan.total_tokens_per_second / scan.local_records_count, 1)
+        if scan.local_records_count
+        else 0
+    )
     return {
-        "local_total_seconds": round(local_total_seconds, 1),
-        "local_total_tokens": local_total_tokens,
+        "local_total_seconds": round(scan.local_total_seconds, 1),
+        "local_total_tokens": scan.local_total_tokens,
         "avg_tokens_per_second": avg_tps,
+        "local_records_count": scan.local_records_count,
+        "cloud_records_count": scan.cloud_records_count,
+        "malformed_records_count": scan.malformed_rows,
+        "telemetry_read_error": int(scan.unreadable),
     }

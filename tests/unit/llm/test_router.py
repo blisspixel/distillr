@@ -595,7 +595,7 @@ def test_local_telemetry_records_tokens_per_second() -> None:
         with (
             patch("distill.llm.router._get_provider", return_value=mock_prov),
             patch("distill.llm.call_execution.run_coroutine_sync", return_value=response) as runner,
-            patch("distill.llm.call_execution.time.monotonic", side_effect=[100.0, 102.0]),
+            patch("distill.llm.call_execution._monotonic", side_effect=[100.0, 102.0]),
         ):
             call(config, "analysis", "test prompt")
 

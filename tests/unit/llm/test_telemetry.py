@@ -12,10 +12,17 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from distill.llm.telemetry import Telemetry_Record, top_n_by_tokens, write_record
+from distill.llm import telemetry as telemetry_module
+from distill.llm.telemetry import (
+    Telemetry_Record,
+    scan_telemetry,
+    top_n_by_tokens,
+    write_record,
+)
 
 # ---------------------------------------------------------------------------
 # Hypothesis strategies
@@ -130,8 +137,8 @@ def test_top_n_ordering(records: list[Telemetry_Record], n: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_unwritable_path_logs_warning(tmp_path: Path, caplog: Any) -> None:
-    """Unwritable path logs a warning without raising."""
+def test_unwritable_path_logs_diagnostic_without_raising(tmp_path: Path, caplog: Any) -> None:
+    """Unwritable telemetry stays in diagnostics and does not raise."""
     # Use a path that cannot be created (file where dir expected)
     blocker = tmp_path / "blocker"
     blocker.write_text("I am a file", encoding="utf-8")
@@ -146,10 +153,52 @@ def test_unwritable_path_logs_warning(tmp_path: Path, caplog: Any) -> None:
         outcome="success",
     )
 
-    with caplog.at_level(logging.WARNING, logger="distill.llm.telemetry"):
+    with caplog.at_level(logging.DEBUG, logger="distill.llm.telemetry"):
         write_record(bad_ops_dir, record)  # Should not raise
 
     assert "Failed to write telemetry" in caplog.text
+
+
+def test_nonfinite_provider_record_is_not_written(tmp_path: Path, caplog: Any) -> None:
+    ops_dir = tmp_path / "ops"
+    record = Telemetry_Record(
+        model="grok-4.3",
+        workload_tag="analysis",
+        input_tokens=100,
+        output_tokens=50,
+        elapsed_seconds=float("nan"),
+        outcome="success",
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="distill.llm.telemetry"):
+        write_record(str(ops_dir), record)
+
+    assert not (ops_dir / "telemetry.jsonl").exists()
+    assert "Failed to write telemetry" in caplog.text
+
+
+def test_unexpected_provider_telemetry_failure_is_nonfatal(
+    tmp_path: Path,
+    caplog: Any,
+    monkeypatch,
+) -> None:
+    def raise_unexpected(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("simulated failure")
+
+    monkeypatch.setattr(telemetry_module, "append_jsonl_line", raise_unexpected)
+    record = Telemetry_Record(
+        model="grok-4.3",
+        workload_tag="analysis",
+        input_tokens=100,
+        output_tokens=50,
+        elapsed_seconds=1.0,
+        outcome="success",
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="distill.llm.telemetry"):
+        write_record(str(tmp_path / "ops"), record)
+
+    assert "simulated failure" in caplog.text
 
 
 def test_malformed_jsonl_lines_are_skipped(tmp_path: Path) -> None:
@@ -182,6 +231,143 @@ def test_malformed_jsonl_lines_are_skipped(tmp_path: Path) -> None:
     results = top_n_by_tokens(ops_dir, n=10)
     assert len(results) == 1
     assert results[0].model == "grok-4.3"
+
+
+def test_strict_streaming_reader_isolates_corrupt_and_oversized_rows(
+    tmp_path: Path,
+    caplog: Any,
+    monkeypatch,
+) -> None:
+    ops_dir = tmp_path / "ops"
+    ops_dir.mkdir()
+    path = ops_dir / "telemetry.jsonl"
+    valid = {
+        "model": "grok-4.3",
+        "workload_tag": "report",
+        "input_tokens": 200,
+        "output_tokens": 100,
+        "elapsed_seconds": 2.0,
+        "outcome": "success",
+        "provider_type": "local",
+        "tokens_per_second": 50.0,
+    }
+    invalid_rows = [
+        b"[]",
+        b"\xff",
+        b'{"model":"m","workload_tag":"w","input_tokens":-1,"output_tokens":1,'
+        b'"elapsed_seconds":1,"outcome":"success"}',
+        b'{"model":"m","workload_tag":"w","input_tokens":1,"output_tokens":1,'
+        b'"elapsed_seconds":NaN,"outcome":"success"}',
+        b'{"model":"m","workload_tag":"w","input_tokens":true,"output_tokens":1,'
+        b'"elapsed_seconds":1,"outcome":"success"}',
+        b'{"input_tokens":99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}',
+        b"x" * (telemetry_module.MAX_TELEMETRY_ROW_BYTES + 1),
+    ]
+    path.write_bytes(b"\n".join([*invalid_rows, json.dumps(valid).encode("utf-8")]) + b"\n")
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *args, **kwargs: pytest.fail("provider telemetry must stream"),
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="distill.llm.telemetry"):
+        scan = scan_telemetry(str(ops_dir), n=10)
+
+    assert [record.workload_tag for record in scan.top_records] == ["report"]
+    assert scan.local_records_count == 1
+    assert scan.cloud_records_count == 0
+    assert scan.malformed_rows == len(invalid_rows)
+    assert scan.unreadable is False
+    assert "Skipped 7 malformed provider telemetry rows" in caplog.text
+
+
+def test_streaming_top_n_preserves_file_order_for_equal_totals(tmp_path: Path) -> None:
+    ops_dir = str(tmp_path / "ops")
+    records = [
+        Telemetry_Record(
+            model="model",
+            workload_tag=tag,
+            input_tokens=5,
+            output_tokens=5,
+            elapsed_seconds=1.0,
+            outcome="success",
+        )
+        for tag in ("first", "second", "third")
+    ]
+    for record in records:
+        write_record(ops_dir, record)
+
+    assert [row.workload_tag for row in top_n_by_tokens(ops_dir, n=2)] == ["first", "second"]
+    assert top_n_by_tokens(ops_dir, n=0) == []
+    assert top_n_by_tokens(ops_dir, n=-1) == []
+
+
+def test_streaming_scan_retains_only_requested_rows_across_large_history(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    ops_dir.mkdir()
+    path = ops_dir / "telemetry.jsonl"
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        for index in range(5_000):
+            stream.write(
+                json.dumps(
+                    {
+                        "model": "model",
+                        "workload_tag": str(index),
+                        "input_tokens": index,
+                        "output_tokens": 0,
+                        "elapsed_seconds": 1.0,
+                        "outcome": "success",
+                    }
+                )
+                + ("\r\n" if index == 0 else "\n")
+            )
+
+    scan = scan_telemetry(ops_dir, n=10)
+
+    assert len(scan.top_records) == 10
+    assert [row.input_tokens for row in scan.top_records] == list(range(4_999, 4_989, -1))
+    assert scan.cloud_records_count == 5_000
+    assert scan.malformed_rows == 0
+
+
+def test_streaming_scan_rejects_nonfinite_aggregate(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    ops_dir.mkdir()
+    path = ops_dir / "telemetry.jsonl"
+    row = {
+        "model": "local-model",
+        "workload_tag": "analysis",
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "elapsed_seconds": 1e308,
+        "outcome": "success",
+        "provider_type": "local",
+        "tokens_per_second": 1e308,
+    }
+    path.write_text(f"{json.dumps(row)}\n{json.dumps(row)}\n", encoding="utf-8")
+
+    scan = scan_telemetry(ops_dir, n=10)
+
+    assert scan.local_records_count == 1
+    assert scan.local_total_seconds == 1e308
+    assert scan.total_tokens_per_second == 1e308
+    assert scan.malformed_rows == 1
+    assert len(scan.top_records) == 1
+
+
+def test_provider_reader_fails_soft_when_log_cannot_be_opened(
+    tmp_path: Path,
+    caplog: Any,
+) -> None:
+    ops_dir = tmp_path / "ops"
+    (ops_dir / "telemetry.jsonl").mkdir(parents=True)
+
+    with caplog.at_level(logging.DEBUG, logger="distill.llm.telemetry"):
+        scan = scan_telemetry(str(ops_dir), n=10)
+
+    assert scan.top_records == ()
+    assert scan.unreadable is True
+    assert "Failed to read provider telemetry" in caplog.text
 
 
 def test_invalid_token_type_lines_are_skipped(tmp_path: Path) -> None:
@@ -234,6 +420,29 @@ def test_ops_dir_auto_creation(tmp_path: Path) -> None:
 
     assert Path(ops_dir).exists()
     assert (Path(ops_dir) / "telemetry.jsonl").exists()
+
+
+def test_provider_writer_isolates_an_unterminated_tail(tmp_path: Path) -> None:
+    ops_dir = tmp_path / "ops"
+    ops_dir.mkdir()
+    path = ops_dir / "telemetry.jsonl"
+    path.write_bytes(b'{"torn":')
+
+    write_record(
+        str(ops_dir),
+        Telemetry_Record(
+            model="grok-4.3",
+            workload_tag="analysis",
+            input_tokens=100,
+            output_tokens=50,
+            elapsed_seconds=1.0,
+            outcome="success",
+        ),
+    )
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == '{"torn":'
+    assert json.loads(lines[1])["model"] == "grok-4.3"
 
 
 def test_empty_ops_dir_skips_write() -> None:

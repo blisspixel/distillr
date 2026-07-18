@@ -283,6 +283,15 @@ zero remains zero. Model-using runs log estimated vs actual costs to
 `library/.distill/cost_log.jsonl` for calibration; true no-spend no-ops do not
 create empty cost rows.
 
+Cost-ledger appends share a per-file cross-process lock with the one-time
+legacy migration. A partial final row is terminated before the next row, and a
+new cost row is `fsync`-flushed before profile receipt state advances. Provider
+top-N and local/cloud calculations stream `telemetry.jsonl` with a 1 MiB
+per-row ceiling and strict finite nonnegative measurements; malformed rows are
+skipped and named in the human cost view instead of crashing the command.
+Structured cost and telemetry histories are not rotated or compacted until a
+lossless archive and receipt-continuity design is approved.
+
 ## Topic-watch guardrails
 
 ```bash

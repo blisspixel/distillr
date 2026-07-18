@@ -891,9 +891,16 @@ Failed source rows also receive a safe retry hint; already-ingested sources are
 skipped on the next run. If the evidence receipt cannot be written, Distill
 shows and logs that failure instead of advertising a path that does not exist.
 
-`distill costs` reads `.distill/phase_telemetry.jsonl`, `telemetry.jsonl`, and
-`cost_log.jsonl`, bounded to the newest 16 MiB of each file. Like every CLI
-invocation, its own command envelope is
+The recent correlated-performance section of `distill costs` reads
+`.distill/phase_telemetry.jsonl`, `telemetry.jsonl`, and `cost_log.jsonl`,
+bounded to the newest 16 MiB of each file. Biggest-prompt ranking and the
+local/cloud split separately stream the full provider telemetry history. Those
+reads retain only the requested top rows and running counters, cap each encoded
+row at 1 MiB, require strict finite nonnegative measurements, and continue past
+invalid UTF-8 or malformed rows. The human inference split names the skipped
+row count and exact local telemetry path; JSON output exposes the same call
+counts, malformed-row count, and read-error state under `provider_telemetry`.
+Like every CLI invocation, its own command envelope is
 appended after rendering, but observer rows are excluded from the recent
 workflow list and counted explicitly. Only a `phase: command` row establishes a
 run, and provider or cost rows join only through the same non-empty `run_id`.
@@ -912,6 +919,16 @@ sibling row may belong to a retained command anchor, the affected phase,
 provider, or cost completeness flag is false and its aggregate stays `null`.
 The retained command envelope and valid rows remain visible as an explicitly
 incomplete subset.
+
+Phase, provider, and cost writers serialize cooperating processes through
+hidden sibling lock files under `.distill/`. If an interrupted write leaves a
+partial final row, the next writer inserts one record boundary before its own
+row so later evidence is not absorbed by the partial data. Provider and phase
+telemetry stay fail-soft and never replace the underlying workflow result.
+Cost rows fail closed and are `fsync`-flushed before profile receipt state is
+marked written. The logs remain append-only; Distill does not yet rotate,
+delete, or compact them because archive completeness and receipt continuity
+are not defined.
 
 ### Running on a schedule (loop-ready)
 

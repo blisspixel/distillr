@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -152,6 +153,53 @@ def test_telemetry_write_failure_is_nonfatal(tmp_path: Path) -> None:
         wait_class="filesystem",
     )
     write_phase_record(not_a_directory, row)
+
+
+def test_phase_writer_isolates_an_unterminated_tail(tmp_path: Path) -> None:
+    from distill.llm.run_context import PhaseTelemetryRecord
+
+    ops_dir = tmp_path / ".distill"
+    ops_dir.mkdir()
+    path = ops_dir / "phase_telemetry.jsonl"
+    path.write_bytes(b'{"torn":')
+    write_phase_record(
+        ops_dir,
+        PhaseTelemetryRecord(
+            run_id="run",
+            invocation_type="cli",
+            command="audit",
+            phase="scan",
+            elapsed_seconds=0.1,
+            cpu_seconds=0.1,
+            outcome="success",
+            wait_class="filesystem",
+        ),
+    )
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == '{"torn":'
+    assert json.loads(lines[1])["run_id"] == "run"
+
+
+def test_phase_writer_drops_nonfinite_evidence_without_breaking_run(tmp_path: Path) -> None:
+    from distill.llm.run_context import PhaseTelemetryRecord
+
+    ops_dir = tmp_path / ".distill"
+    write_phase_record(
+        ops_dir,
+        PhaseTelemetryRecord(
+            run_id="run",
+            invocation_type="cli",
+            command="audit",
+            phase="scan",
+            elapsed_seconds=math.nan,
+            cpu_seconds=0.1,
+            outcome="success",
+            wait_class="filesystem",
+        ),
+    )
+
+    assert not (ops_dir / "phase_telemetry.jsonl").exists()
 
 
 def test_command_phase_provider_and_cost_rows_share_run_id(tmp_path: Path) -> None:

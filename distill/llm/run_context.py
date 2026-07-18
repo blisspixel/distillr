@@ -21,6 +21,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from distill.jsonl import append_jsonl_line
+
 logger = logging.getLogger(__name__)
 
 WaitClass = Literal[
@@ -246,8 +248,10 @@ def write_phase_record(ops_dir: str | Path, record: PhaseTelemetryRecord) -> Non
         payload = asdict(record)
         if not payload["timestamp"]:
             payload["timestamp"] = datetime.now(UTC).isoformat()
-        with (path / "phase_telemetry.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        append_jsonl_line(
+            path / "phase_telemetry.jsonl",
+            json.dumps(payload, separators=(",", ":"), allow_nan=False),
+        )
     except Exception:
         logger.debug("Failed to write phase telemetry", exc_info=True)
 

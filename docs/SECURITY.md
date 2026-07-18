@@ -64,6 +64,11 @@ malicious input cannot turn a narrow operation into broad host authority:
 - CLI target classification rejects UNC and Windows device paths before any
   filesystem probe. Persistent budget fields reject negative and non-finite
   values before mutation and serialize with strict JSON.
+- Local phase, provider, and cost histories serialize cooperating writers,
+  isolate an interrupted final row before the next append, and reject
+  non-finite JSON on write. Provider-history reads stream strict JSON with a
+  1 MiB row ceiling and continue past malformed or invalid UTF-8 rows. Cost
+  rows are `fsync`-flushed before profile receipt state advances.
 - MCP file tools use workflow-specific namespaces and artifact classes rather
   than broad library-root readability. Reads are no-follow and bounded. OKF
   validation has aggregate tree-work ceilings.

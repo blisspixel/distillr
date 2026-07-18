@@ -195,6 +195,18 @@ Structured telemetry retention and compaction remain reliability and
 observability debt until their audit-history and concurrent-writer guarantees
 are designed. This work adds no product surface and creates no freeze signal.
 
+**Cycle 9 refinement evidence (2026-07-17).** Phase, provider, and cost
+histories now serialize cooperating processes through per-file locks. A torn
+final row is isolated before the next append, cost migration shares the ledger
+critical section, and cost rows are `fsync`-flushed before profile receipt
+state advances. Provider-history reads now use strict finite JSON, a 1 MiB
+per-row ceiling, bounded top-N memory, stable tie ordering, and fail-soft
+corruption handling across CLI and web cost views. The human inference split
+names skipped malformed rows and their exact local path. Retention and
+compaction remain deferred until a lossless archive can preserve completeness,
+stable cost receipts, concurrent writers, and rollback. This is bounded
+reliability and operator hardening, not feature breadth or a freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published

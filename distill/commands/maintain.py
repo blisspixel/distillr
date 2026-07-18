@@ -108,6 +108,15 @@ def _cost_warnings_for_config(
     )
 
 
+def _provider_telemetry_json(stats: dict[str, float | int]) -> dict[str, int | bool]:
+    return {
+        "local_calls": _safe_int(stats.get("local_records_count", 0)),
+        "cloud_calls": _safe_int(stats.get("cloud_records_count", 0)),
+        "malformed_rows": _safe_int(stats.get("malformed_records_count", 0)),
+        "read_error": bool(stats.get("telemetry_read_error", 0)),
+    }
+
+
 def costs(  # noqa: C901 -- legacy, will refactor
     ctx: typer.Context,
     last: int = typer.Option(10, "--last", "-n", help="Number of recent runs to show"),
@@ -143,6 +152,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                     "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                    "provider_telemetry": _provider_telemetry_json(local_cloud),
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
                     "cost_warnings": [],
@@ -181,6 +191,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                     "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                     "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                     "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                    "provider_telemetry": _provider_telemetry_json(local_cloud),
                     "biggest_prompts": biggest_prompts,
                     "projected_next_run_cost": 0.0,
                     "cost_warnings": [],
@@ -227,6 +238,7 @@ def costs(  # noqa: C901 -- legacy, will refactor
                 "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                 "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                 "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
+                "provider_telemetry": _provider_telemetry_json(local_cloud),
                 "estimator_accuracy": accuracy,
                 "biggest_prompts": biggest_prompts,
                 "cost_warnings": cost_warnings,
@@ -388,60 +400,43 @@ def _costs_biggest_prompts_section(
     console.print(table)
 
 
-def _costs_local_cloud_section(config: DistillConfig) -> None:  # noqa: C901
+def _costs_local_cloud_section(config: DistillConfig) -> None:
     """Display local vs cloud inference split from telemetry.jsonl."""
-    ops_dir = str(config.library_dir / ".distill")
-    telemetry_path = Path(ops_dir) / "telemetry.jsonl"
+    telemetry_path = config.library_dir / ".distill" / "telemetry.jsonl"
     if not telemetry_path.exists():
         return
 
-    # Parse all telemetry records
-    local_total_seconds = 0.0
-    local_total_tokens = 0
-    local_records_count = 0
-    cloud_records_count = 0
-    total_tps_sum = 0.0
-
-    try:
-        import json as _json
-
-        for line in telemetry_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                data = _dict_or_empty(_json.loads(line))
-                if not data:
-                    continue
-                provider_type = data.get("provider_type", "cloud")
-                if provider_type == "local":
-                    local_records_count += 1
-                    elapsed = float(data.get("elapsed_seconds", 0))
-                    local_total_seconds += elapsed
-                    out_tokens = int(data.get("output_tokens", 0))
-                    in_tokens = int(data.get("input_tokens", 0))
-                    local_total_tokens += out_tokens + in_tokens
-                    tps = float(data.get("tokens_per_second", 0))
-                    if tps > 0:
-                        total_tps_sum += tps
-                else:
-                    cloud_records_count += 1
-            except (ValueError, TypeError, _json.JSONDecodeError):
-                continue
-    except OSError:
-        return
-
-    if local_records_count == 0 and cloud_records_count == 0:
+    stats = _compute_local_cloud_stats(config)
+    local_records_count = _safe_int(stats.get("local_records_count", 0))
+    cloud_records_count = _safe_int(stats.get("cloud_records_count", 0))
+    malformed_records_count = _safe_int(stats.get("malformed_records_count", 0))
+    read_error = bool(stats.get("telemetry_read_error", 0))
+    if not any((local_records_count, cloud_records_count, malformed_records_count, read_error)):
         return
 
     console.print()
     console.print("[bold]Inference Split[/bold]")
 
+    if read_error:
+        console.print(
+            f"  [yellow]Provider telemetry could not be read: {telemetry_path}[/yellow]",
+            soft_wrap=True,
+        )
+    if malformed_records_count:
+        suffix = "row" if malformed_records_count == 1 else "rows"
+        console.print(
+            f"  [yellow]Skipped {malformed_records_count:,} malformed provider telemetry "
+            f"{suffix}: {telemetry_path}[/yellow]",
+            soft_wrap=True,
+        )
+
     if cloud_records_count > 0:
         console.print(f"  Cloud calls:       {cloud_records_count:,}")
 
     if local_records_count > 0:
-        avg_tps = total_tps_sum / local_records_count if local_records_count > 0 else 0
+        local_total_seconds = _safe_float(stats.get("local_total_seconds", 0))
+        local_total_tokens = _safe_int(stats.get("local_total_tokens", 0))
+        avg_tps = _safe_float(stats.get("avg_tokens_per_second", 0))
         console.print(f"  Local calls:       {local_records_count:,}")
         console.print(f"  Local time:        {local_total_seconds:.1f}s")
         console.print(f"  Local tokens:      {local_total_tokens:,}")

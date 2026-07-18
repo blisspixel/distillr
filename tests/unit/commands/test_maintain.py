@@ -228,6 +228,12 @@ def test_costs_json_includes_phase_only_performance_evidence(tmp_path, monkeypat
     assert result.exit_code == 0, result.output
     parsed = json.loads(result.output)
     performance = parsed["data"]["performance"]
+    assert parsed["data"]["provider_telemetry"] == {
+        "local_calls": 0,
+        "cloud_calls": 0,
+        "malformed_rows": 1,
+        "read_error": False,
+    }
     assert parsed["data"]["runs"] == []
     assert performance["schema_version"] == "performance-evidence.v1"
     assert performance["runs"][0]["run_id"] == run_id
@@ -391,7 +397,9 @@ def test_costs_json_and_human_qualify_invalid_named_sibling_rows(tmp_path, monke
     json_result = runner.invoke(app, ["--json", "costs"])
 
     assert json_result.exit_code == 0, json_result.output
-    performance = json.loads(json_result.output)["data"]["performance"]
+    json_data = json.loads(json_result.output)["data"]
+    performance = json_data["performance"]
+    assert json_data["provider_telemetry"]["malformed_rows"] == 2
     run = performance["runs"][0]
     assert run["workflow"]["artifact_count"] == 1
     assert run["phases_complete"] is False
@@ -634,19 +642,25 @@ def test_local_cloud_telemetry_helpers_parse_valid_and_invalid_rows(tmp_path, mo
                 "{not-json",
                 json.dumps(
                     {
+                        "model": "local-model",
+                        "workload_tag": "analysis",
                         "provider_type": "local",
                         "elapsed_seconds": 2.5,
                         "input_tokens": 100,
                         "output_tokens": 50,
                         "tokens_per_second": 60,
+                        "outcome": "success",
                     }
                 ),
                 json.dumps(
                     {
+                        "model": "grok-4.3",
+                        "workload_tag": "analysis",
                         "provider_type": "cloud",
                         "elapsed_seconds": 1.0,
                         "input_tokens": 10,
                         "output_tokens": 5,
+                        "outcome": "success",
                     }
                 ),
             ]
@@ -667,9 +681,27 @@ def test_local_cloud_telemetry_helpers_parse_valid_and_invalid_rows(tmp_path, mo
     assert stats["local_total_seconds"] == 2.5
     assert stats["local_total_tokens"] == 150
     assert stats["avg_tokens_per_second"] == 60.0
+    assert stats["local_records_count"] == 1
+    assert stats["cloud_records_count"] == 1
+    assert stats["malformed_records_count"] == 2
     assert any("Cloud calls" in line for line in printed)
     assert any("Local calls" in line for line in printed)
     assert any("Avg tokens/sec" in line for line in printed)
+    assert any("Skipped 2 malformed provider telemetry rows" in line for line in printed)
+
+
+def test_costs_keeps_malformed_provider_path_copyable_at_narrow_width(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    telemetry = config.library_dir / ".distill" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_bytes(b"[]\n\xff\n")
+
+    result = runner.invoke(app, ["costs"], terminal_width=40)
+
+    assert result.exit_code == 0, result.output
+    assert "Skipped 2 malformed provider telemetry rows" in result.output
+    assert str(telemetry) in result.output
 
 
 def test_open_non_vault_uses_platform_opener_and_browser_fallback(tmp_path, monkeypatch):

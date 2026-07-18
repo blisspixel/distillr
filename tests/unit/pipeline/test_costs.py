@@ -2,6 +2,8 @@
 
 import json
 import math
+import threading
+from contextlib import contextmanager
 
 import pytest
 
@@ -1217,6 +1219,55 @@ def test_save_run_log_writes_to_ops_dir(tmp_path):
     assert not (tmp_path / "cost_log.jsonl").exists()
 
 
+def test_save_run_log_isolates_an_unterminated_tail(tmp_path):
+    ops_dir = tmp_path / ".distill"
+    ops_dir.mkdir()
+    log = ops_dir / "cost_log.jsonl"
+    log.write_bytes(b'{"torn":')
+
+    save_run_log(tmp_path, "current", CostTracker())
+
+    lines = log.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == '{"torn":'
+    assert json.loads(lines[1])["command"] == "current"
+
+
+def test_save_run_log_rejects_nonfinite_cost_evidence(tmp_path):
+    with pytest.raises(ValueError, match="Out of range float values"):
+        save_run_log(tmp_path, "invalid", CostTracker(), estimated_cost=math.nan)
+
+    assert not (tmp_path / ".distill" / "cost_log.jsonl").exists()
+
+
+def test_save_run_log_durably_appends_before_advancing_profile_receipt(
+    tmp_path,
+    monkeypatch,
+):
+    from distill import _console
+    from distill.pipeline import costs as costs_module
+
+    (tmp_path / "cost_log.jsonl").write_text('{"command":"legacy"}\n', encoding="utf-8")
+    real_append = costs_module.append_jsonl_line_locked
+    events: list[str] = []
+
+    def observed_append(path, line, *, durable):
+        events.append(f"append:{durable}")
+        real_append(path, line, durable=durable)
+
+    monkeypatch.setattr(costs_module, "append_jsonl_line_locked", observed_append)
+    monkeypatch.setattr(
+        costs_module,
+        "mark_profile_receipt_written",
+        lambda: events.append("receipt"),
+    )
+    monkeypatch.setattr(_console.err_console, "print", lambda message: events.append("notice"))
+    monkeypatch.setenv(PROFILE_RECEIPT_ENV, "a" * 64)
+
+    save_run_log(tmp_path, "profile", CostTracker())
+
+    assert events == ["append:True", "receipt", "notice"]
+
+
 def test_save_run_log_migration_helper(tmp_path):
     """Existing root-level cost_log.jsonl is migrated to .distill/ on first run."""
     # Create a legacy cost_log.jsonl at the root
@@ -1240,6 +1291,79 @@ def test_save_run_log_migration_helper(tmp_path):
     assert len(lines) == 2
     assert json.loads(lines[0])["command"] == "old_entry"
     assert json.loads(lines[1])["command"] == "new_entry"
+
+
+def test_save_run_log_serializes_migration_with_concurrent_first_writer(
+    tmp_path,
+    monkeypatch,
+):
+    from distill import _console
+    from distill.pipeline import costs as costs_module
+
+    old_log = tmp_path / "cost_log.jsonl"
+    old_log.write_text('{"command":"legacy"}\n', encoding="utf-8")
+    real_move = costs_module.shutil.move
+    real_append_lock = costs_module.jsonl_append_lock
+    move_entered = threading.Event()
+    second_lock_attempted = threading.Event()
+    release_move = threading.Event()
+    move_calls = 0
+    lock_attempts = 0
+    move_calls_lock = threading.Lock()
+    notices: list[str] = []
+
+    def delayed_move(source, target):
+        nonlocal move_calls
+        with move_calls_lock:
+            move_calls += 1
+        move_entered.set()
+        assert release_move.wait(timeout=5)
+        return real_move(source, target)
+
+    @contextmanager
+    def observed_append_lock(path):
+        nonlocal lock_attempts
+        with move_calls_lock:
+            lock_attempts += 1
+            is_second_attempt = lock_attempts == 2
+        if is_second_attempt:
+            second_lock_attempted.set()
+        with real_append_lock(path):
+            yield
+
+    monkeypatch.setattr(costs_module.shutil, "move", delayed_move)
+    monkeypatch.setattr(costs_module, "jsonl_append_lock", observed_append_lock)
+    monkeypatch.setattr(_console.err_console, "print", lambda message: notices.append(str(message)))
+    errors: list[BaseException] = []
+
+    def save(command: str) -> None:
+        try:
+            save_run_log(tmp_path, command, CostTracker())
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=save, args=("first",))
+    second = threading.Thread(target=save, args=("second",))
+    first.start()
+    assert move_entered.wait(timeout=5)
+    second.start()
+    assert second_lock_attempted.wait(timeout=5)
+    release_move.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert move_calls == 1
+    assert len(notices) == 1
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / ".distill" / "cost_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [row["command"] for row in rows] == ["legacy", "first", "second"]
 
 
 def test_save_run_log_no_migration_when_new_exists(tmp_path):

@@ -37,7 +37,13 @@ from distill.llm.telemetry import top_n_by_tokens
 
 _DISTILL_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "distill"
 _LLM_ROOT = _DISTILL_ROOT / "llm"
-_ALLOWED_LLM_FOUNDATIONAL_IMPORTS = frozenset({"distill.library.locking"})
+_ALLOWED_LLM_FOUNDATIONAL_IMPORTS = frozenset(
+    {
+        "distill.jsonl",
+        "distill.library.locking",
+        "distill.parsing",
+    }
+)
 # The doctor package legitimately constructs provider clients to live-validate
 # keys (key health is its whole job); excluded from the no-OpenAI-outside-llm scan
 # the same way distill/llm/ is. (Previously this lived in _logic and was skipped

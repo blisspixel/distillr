@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Serialized phase, provider, and cost history appends across cooperating
+  processes. Interrupted tails are separated before the next row, short writes
+  must complete, first-write cost migration shares the ledger lock, and cost
+  rows are `fsync`-flushed before profile receipt state advances.
+- Replaced full-memory provider-history parsing with strict streaming reads.
+  Biggest-prompt ranking retains only the requested rows with stable ties,
+  each encoded row is capped at 1 MiB, invalid UTF-8 and malformed or unsafe
+  numeric rows no longer crash CLI or web cost views, and the human inference
+  split names skipped rows and the affected telemetry path. JSON cost output
+  carries the corresponding provider call counts, malformed rows, and read
+  status.
 - Preserved the stable CLI exit taxonomy in content-free command telemetry.
   Usage, configuration, network, not-found, and budget exits now keep distinct
   structured outcomes; cost-policy gates remain `refused`, while runtime and

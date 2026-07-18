@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from distill.jsonl import append_jsonl_line_locked, jsonl_append_lock
 from distill.llm.cost import (
     PRICING as LLM_PRICING,
 )
@@ -389,17 +390,10 @@ def save_run_log(
     ops_dir = log_dir / ".distill"
     ops_dir.mkdir(parents=True, exist_ok=True)
 
-    # Migration helper: move legacy root-level cost_log.jsonl into .distill/
+    # Migration and append share one lock below so concurrent first writers
+    # cannot both enter the migration path.
     old_log = log_dir / "cost_log.jsonl"
     new_log = ops_dir / "cost_log.jsonl"
-    if old_log.exists() and not new_log.exists():
-        shutil.move(str(old_log), str(new_log))
-        # stderr, not stdout: this one-time notice must never land in a
-        # command's --json stdout (it would corrupt the envelope).
-        from distill._console import err_console
-
-        err_console.print("Migrated cost_log.jsonl to .distill/ for cleaner library layout")
-
     log_file = new_log
 
     recorded_command = f"{command}_preview" if preview else command
@@ -506,10 +500,21 @@ def save_run_log(
         "no_metered_transcription_calls": sum(1 for t in tracker.transcriptions if t.cost == 0),
     }
 
-    with log_file.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    serialized = json.dumps(entry, allow_nan=False)
+    migrated = False
+    with jsonl_append_lock(log_file):
+        if old_log.exists() and not new_log.exists():
+            shutil.move(str(old_log), str(new_log))
+            migrated = True
+        append_jsonl_line_locked(log_file, serialized, durable=True)
     if has_profile_receipt:
         mark_profile_receipt_written()
+    if migrated:
+        # stderr, not stdout: this one-time notice must never land in a
+        # command's --json stdout (it would corrupt the envelope).
+        from distill._console import err_console
+
+        err_console.print("Migrated cost_log.jsonl to .distill/ for cleaner library layout")
 
 
 def _stamp_profile_receipt(

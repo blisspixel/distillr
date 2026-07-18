@@ -384,6 +384,7 @@ distill/                           # Python package
 │   ├── profile_run.py             # Approved replay and resume state
 │   └── audit.py, verify.py        # Deterministic trust and grounding layers
 ├── library/                       # Corpus paths, state, profiles, and exports
+├── jsonl.py                       # Locked append and torn-tail isolation
 ├── claims/, concepts/             # Derived knowledge layers
 ├── prompts/                       # Versioned prompt builders and lenses
 ├── llm/                           # Provider router, policy, and telemetry
@@ -405,6 +406,22 @@ library/                           # Per-user data (git-ignored)
 │   └── distill.log                # 8 MiB diagnostic log, three rotating backups
 └── topics/<topic>/…               # Per-topic artifacts
 ```
+
+Each structured history has a hidden sibling lock file named
+`.<history>.lock`. Cooperating writers hold that lock across tail inspection
+and the complete append. A partial final row from an interrupted process is
+kept as evidence but terminated before the next row, so one damaged row cannot
+consume a later valid row. Legacy cost migration and the first new cost row are
+one locked transition. Cost rows are `fsync`-flushed before profile receipt
+state advances; phase and provider rows remain best-effort diagnostics whose
+failure is logged without changing the workflow result.
+
+Recent cross-log performance correlation reads only the newest 16 MiB per
+history and discloses every tail-limited source. Full-history provider
+statistics use a streaming strict parser with a 1 MiB row ceiling and retain
+only running totals plus the requested top-N rows. No structured history is
+rotated or compacted yet because cost-receipt continuity, archive
+completeness, concurrent writers, and rollback need one lossless contract.
 
 ### Dependency direction
 

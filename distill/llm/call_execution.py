@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import logging
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from time import monotonic as _monotonic
 from typing import Any, NoReturn, Protocol
 
 from distill.llm.async_compat import run_coroutine_sync
@@ -69,7 +69,7 @@ class CallOptions:
 def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Response:
     """Run a primary route and its policy-eligible fallback, if required."""
 
-    started = time.monotonic()
+    started = _monotonic()
     try:
         response = _run_provider_call(options, provider_name, model)
     except _PostResponseAccountingError as exc:
@@ -89,7 +89,7 @@ def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Re
             None,
             "error",
             type(exc).__name__,
-            time.monotonic() - started,
+            _monotonic() - started,
             primary_attempts,
         )
         target = fallback_target(options.config, provider_name, exc)
@@ -103,7 +103,7 @@ def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Re
         response,
         "success",
         "",
-        time.monotonic() - started,
+        _monotonic() - started,
         response.usage_attempts,
     )
     return response
@@ -303,7 +303,7 @@ def _call_fallback(
         fallback_provider,
         fallback_model,
     )
-    started = time.monotonic()
+    started = _monotonic()
     try:
         response = _run_provider_call(options, fallback_provider, fallback_model)
     except _PostResponseAccountingError as exc:
@@ -324,7 +324,7 @@ def _call_fallback(
             None,
             "error",
             "FallbackFailed",
-            time.monotonic() - started,
+            _monotonic() - started,
             fallback_attempts,
         )
         surfaced = fallback_failure_to_surface(primary_error, fallback_error)
@@ -338,7 +338,7 @@ def _call_fallback(
         response,
         "success",
         "",
-        time.monotonic() - started,
+        _monotonic() - started,
         fallback_attempts,
     )
     return replace(response, usage_attempts=primary_attempts + fallback_attempts)
@@ -363,7 +363,7 @@ def _raise_post_response_accounting_error(
         error.response,
         "success",
         "",
-        time.monotonic() - started,
+        _monotonic() - started,
         route_attempts,
     )
     if prior_attempts:

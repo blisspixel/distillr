@@ -193,6 +193,20 @@ def test_empty_costs_page_offers_operator_guidance(config):
     assert "By Topic (30d)" not in response.text
 
 
+def test_costs_page_fails_soft_on_corrupt_provider_telemetry(config, caplog):
+    telemetry = config.library_dir / ".distill" / "telemetry.jsonl"
+    telemetry.parent.mkdir(parents=True, exist_ok=True)
+    telemetry.write_bytes(b"[]\n\xff\n")
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    with caplog.at_level("DEBUG", logger="distill.llm.telemetry"):
+        response = client.get("/costs")
+
+    assert response.status_code == 200
+    assert "No spend recorded yet" in response.text
+    assert "Skipped 2 malformed provider telemetry rows" in caplog.text
+
+
 def test_empty_watchlist_page_offers_recurring_setup_path(config):
     client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 

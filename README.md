@@ -476,6 +476,16 @@ On the `grok-4.3` default ($1.25/$2.50 per 1M tokens), bulk video analysis runs 
 Performance history reads are bounded to the newest 16 MiB from each telemetry
 source. Human and JSON coverage name any tail-limited log, and affected
 completeness-sensitive rollups stay unknown rather than understating a run.
+Cooperating phase, provider, and cost writers use one cross-process lock per
+history. If an interrupted write leaves an unterminated tail, the next writer
+starts on a new line so its valid row remains readable. Cost rows are flushed
+with `fsync` before a profile receipt is marked written; phase and provider
+telemetry remain fail-soft diagnostics. Biggest-prompt and local/cloud views
+stream the full provider history with a 1 MiB per-row ceiling, retain only the
+requested top rows in memory, and skip malformed rows without taking down the
+CLI or web cost surface. JSON cost output includes provider call, malformed
+row, and read-error status. Structured-history deletion and compaction remain
+deferred until a lossless archive and receipt-continuity contract exists.
 
 **Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local zero-dollar runs and host-managed runs whose external cost is unavailable.
 
