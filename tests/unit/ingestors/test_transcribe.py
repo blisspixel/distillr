@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import io
+import json
+import os
 import shutil
 import subprocess
 import sys
+import threading
 import types
 from pathlib import Path
 from typing import Any
@@ -12,6 +16,8 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+import distill.ingestors._transcribe_parent as transcribe_parent
+import distill.ingestors.transcribe as transcribe_module
 from distill.config import DistillConfig
 from distill.ingestors.transcribe import (
     TranscriptionError,
@@ -23,7 +29,7 @@ from distill.ingestors.transcribe import (
     _probe_media_duration,
     _run_transcription,
     _transcribe_grok,
-    _transcribe_local,
+    _transcribe_local_core,
     _transcribe_openai,
     transcribe_media,
 )
@@ -153,6 +159,117 @@ def test_transcribe_media_auto_uses_local_when_available(tmp_path: Path) -> None
 
     assert result.provider == "faster-whisper"
     assert result.text == "local OK"
+
+
+def test_transcribe_media_routes_only_a_private_stable_snapshot(tmp_path: Path) -> None:
+    media = tmp_path / "source.MP4"
+    media.write_bytes(b"stable media")
+    observed: dict[str, Path] = {}
+
+    def local(snapshot: Path, **_kwargs: Any) -> TranscriptionResult:
+        observed["path"] = snapshot
+        assert snapshot != media
+        assert snapshot.name == "input.mp4"
+        assert snapshot.read_bytes() == b"stable media"
+        return TranscriptionResult(text="safe", provider="faster-whisper", model="large-v3")
+
+    with patch("distill.ingestors.transcribe._transcribe_local", local):
+        result = transcribe_media(media, _config())
+
+    assert result.text == "safe"
+    assert media.read_bytes() == b"stable media"
+    assert not observed["path"].exists()
+
+
+def test_transcribe_media_accepts_a_direct_regular_relative_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    media = tmp_path / "relative.wav"
+    media.write_bytes(b"regular media")
+    monkeypatch.chdir(tmp_path)
+
+    with patch(
+        "distill.ingestors.transcribe._transcribe_local",
+        _make_local_returns("relative OK"),
+    ):
+        result = transcribe_media(Path("relative.wav"), _config())
+
+    assert result.text == "relative OK"
+
+
+def test_transcribe_media_rejects_symlinked_parent_ancestry(tmp_path: Path) -> None:
+    real_parent = tmp_path / "real-parent"
+    real_parent.mkdir()
+    media = real_parent / "media.wav"
+    media.write_bytes(b"media")
+    alias_parent = tmp_path / "alias-parent"
+    try:
+        alias_parent.symlink_to(real_parent, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    local = MagicMock()
+
+    with (
+        patch("distill.ingestors.transcribe._transcribe_local", local),
+        pytest.raises(TranscriptionError, match="ancestry must be direct"),
+    ):
+        transcribe_media(alias_parent / "media.wav", _config())
+
+    local.assert_not_called()
+
+
+def test_transcribe_media_rejects_source_path_swap_during_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from distill.library import confined
+
+    media = tmp_path / "media.wav"
+    media.write_bytes(b"original media")
+    moved = tmp_path / "moved.wav"
+    real_stream_snapshot = confined._stream_snapshot
+
+    def swap_after_stream(source_descriptor, destination_descriptor, *, max_bytes):
+        result = real_stream_snapshot(
+            source_descriptor,
+            destination_descriptor,
+            max_bytes=max_bytes,
+        )
+        media.rename(moved)
+        media.write_bytes(b"replacement media")
+        return result
+
+    monkeypatch.setattr(confined, "_stream_snapshot", swap_after_stream)
+    local = MagicMock()
+
+    with (
+        patch("distill.ingestors.transcribe._transcribe_local", local),
+        pytest.raises(TranscriptionError, match="stable"),
+    ):
+        transcribe_media(media, _config())
+
+    local.assert_not_called()
+    assert moved.read_bytes() == b"original media"
+    assert media.read_bytes() == b"replacement media"
+
+
+def test_transcribe_media_rejects_hardlinked_and_oversized_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    media = tmp_path / "source.mp4"
+    media.write_bytes(b"media")
+    hardlink = tmp_path / "alias.mp4"
+    os.link(media, hardlink)
+
+    with pytest.raises(TranscriptionError, match="single-link"):
+        transcribe_media(media, _config())
+
+    hardlink.unlink()
+    monkeypatch.setattr(transcribe_module, "_MAX_MEDIA_INPUT_BYTES", 3)
+    with pytest.raises(TranscriptionError, match="no larger"):
+        transcribe_media(media, _config())
 
 
 def test_transcribe_media_no_metered_preserves_local_route(tmp_path: Path) -> None:
@@ -1075,7 +1192,451 @@ def test_transcribe_openai_refuses_no_metered_route(monkeypatch: pytest.MonkeyPa
 
 
 # ---------------------------------------------------------------------------
-# _transcribe_local — faster-whisper path (fake module injected)
+# _transcribe_local process boundary
+# ---------------------------------------------------------------------------
+
+
+def test_transcribe_local_preflights_and_parses_bounded_worker_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    media = tmp_path / "audio.wav"
+    media.write_bytes(b"media")
+    observed: dict[str, Any] = {}
+    progress_events: list[tuple[float, float, int]] = []
+    monkeypatch.setattr(transcribe_module, "_probe_media_duration", lambda _path: 60.0)
+
+    def run_worker(
+        request_path,
+        result_path,
+        progress_path,
+        root,
+        *,
+        timeout_seconds,
+        progress,
+    ):
+        observed.update(
+            request=json.loads(request_path.read_text(encoding="utf-8")),
+            progress_path=progress_path,
+            root=root,
+            timeout=timeout_seconds,
+        )
+        if progress is not None:
+            progress(30.0, 60.0, 12)
+        result_path.write_text(
+            json.dumps(
+                {
+                    "text": "worker transcript",
+                    "provider": "faster-whisper",
+                    "model": "large-v3",
+                    "language": "en",
+                    "duration_s": 60.0,
+                    "notes": ["isolated"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(transcribe_module, "_run_local_worker_process", run_worker)
+
+    result = transcribe_module._transcribe_local(
+        media,
+        model_name="large-v3",
+        vocabulary_hint="  Anthropic   Claude  ",
+        progress=lambda audio, total, words: progress_events.append((audio, total, words)),
+    )
+
+    assert result.text == "worker transcript"
+    assert observed["request"]["media_path"] == str(media.resolve())
+    assert observed["request"]["vocabulary_hint"] == "Anthropic Claude"
+    assert observed["timeout"] == 600.0
+    assert progress_events == [(30.0, 60.0, 12)]
+
+
+@pytest.mark.parametrize("duration", [0.0, 10_801.0])
+def test_transcribe_local_refuses_unbounded_media_before_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    duration: float,
+) -> None:
+    media = tmp_path / "audio.wav"
+    media.write_bytes(b"media")
+    worker = MagicMock()
+    monkeypatch.setattr(transcribe_module, "_probe_media_duration", lambda _path: duration)
+    monkeypatch.setattr(transcribe_module, "_run_local_worker_process", worker)
+
+    with pytest.raises(transcribe_module._LocalUnavailable):
+        transcribe_module._transcribe_local(media, model_name="large-v3")
+
+    worker.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("model_name", "interval"),
+    [("", 30.0), ("large-v3", 0.0), ("large-v3", float("nan"))],
+)
+def test_transcribe_local_rejects_invalid_control_fields_before_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    model_name: str,
+    interval: float,
+) -> None:
+    probe = MagicMock(return_value=60.0)
+    monkeypatch.setattr(transcribe_module, "_probe_media_duration", probe)
+
+    with pytest.raises(transcribe_module._LocalUnavailable):
+        transcribe_module._transcribe_local(
+            Path("audio.wav"),
+            model_name=model_name,
+            progress_interval_s=interval,
+        )
+
+    probe.assert_not_called()
+
+
+def test_forward_local_progress_accepts_only_finite_nonnegative_counters(
+    tmp_path: Path,
+) -> None:
+    progress_path = tmp_path / "progress.json"
+    events: list[tuple[float, float, int]] = []
+    valid = json.dumps({"audio_seconds": 1.5, "total_audio_s": 3, "words": 2})
+    progress_path.write_text(valid, encoding="utf-8")
+
+    returned = transcribe_module._forward_local_progress(
+        progress_path,
+        tmp_path,
+        lambda audio, total, words: events.append((audio, total, words)),
+        "",
+    )
+
+    assert returned == valid
+    assert events == [(1.5, 3.0, 2)]
+    progress_path.write_text(
+        json.dumps({"audio_seconds": -1, "total_audio_s": 3, "words": 2}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="invalid counters"):
+        transcribe_module._forward_local_progress(
+            progress_path,
+            tmp_path,
+            lambda *_args: None,
+            valid,
+        )
+
+
+def test_forward_local_progress_handles_missing_unchanged_and_non_object(
+    tmp_path: Path,
+) -> None:
+    progress_path = tmp_path / "progress.json"
+
+    assert (
+        transcribe_parent._forward_local_progress(
+            progress_path,
+            tmp_path,
+            lambda *_args: None,
+            "previous",
+        )
+        == "previous"
+    )
+    progress_path.write_text("[]", encoding="utf-8")
+    assert (
+        transcribe_parent._forward_local_progress(
+            progress_path,
+            tmp_path,
+            lambda *_args: None,
+            "[]",
+        )
+        == "[]"
+    )
+    with pytest.raises(ValueError, match="not an object"):
+        transcribe_parent._forward_local_progress(
+            progress_path,
+            tmp_path,
+            lambda *_args: None,
+            "",
+        )
+
+
+def test_local_progress_watcher_forwards_updates_and_joins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forwarded = threading.Event()
+    calls = 0
+
+    def forward(*_args: object) -> str:
+        nonlocal calls
+        calls += 1
+        forwarded.set()
+        return "current"
+
+    monkeypatch.setattr(transcribe_parent, "_forward_local_progress", forward)
+    monkeypatch.setattr(transcribe_parent, "_LOCAL_WORKER_POLL_SECONDS", 0.001)
+    watcher = transcribe_parent._start_local_progress_watcher(
+        tmp_path / "progress.json",
+        tmp_path,
+        lambda *_args: None,
+    )
+
+    assert forwarded.wait(timeout=2)
+    watcher.close()
+
+    assert calls >= 2
+    assert watcher.thread is not None
+    assert not watcher.thread.is_alive()
+
+
+def test_local_progress_watcher_surfaces_reader_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = threading.Event()
+
+    def fail(*_args: object) -> str:
+        failed.set()
+        raise RuntimeError("progress changed unsafely")
+
+    monkeypatch.setattr(transcribe_parent, "_forward_local_progress", fail)
+    monkeypatch.setattr(transcribe_parent, "_LOCAL_WORKER_POLL_SECONDS", 0.001)
+    watcher = transcribe_parent._start_local_progress_watcher(
+        tmp_path / "progress.json",
+        tmp_path,
+        lambda *_args: None,
+    )
+
+    assert failed.wait(timeout=2)
+    watcher.close()
+
+    assert len(watcher.errors) == 1
+    assert "changed unsafely" in str(watcher.errors[0])
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (None, "no safe result"),
+        ("{", "invalid JSON"),
+        ("[]", "invalid result"),
+        ('{"text": 3}', "invalid fields"),
+    ],
+)
+def test_local_worker_result_rejects_missing_or_invalid_payloads(
+    tmp_path: Path,
+    content: str | None,
+    message: str,
+) -> None:
+    result_path = tmp_path / "result.json"
+    if content is not None:
+        result_path.write_text(content, encoding="utf-8")
+
+    with pytest.raises(transcribe_module._LocalUnavailable, match=message):
+        transcribe_parent._read_local_worker_result(
+            result_path,
+            tmp_path,
+            expected_model="large-v3",
+        )
+
+
+def test_local_worker_process_uses_fixed_argv_sanitized_env_and_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = tmp_path / "request.json"
+    result_path = tmp_path / "result.json"
+    progress_path = tmp_path / "progress.json"
+    process = types.SimpleNamespace(
+        pid=321,
+        returncode=0,
+        stdin=io.BytesIO(),
+        stderr=io.BytesIO(b"diagnostic"),
+    )
+    popen = MagicMock(return_value=process)
+    cleaned: list[Any] = []
+    jobs: list[int | None] = []
+    monkeypatch.setenv("XAI_API_KEY", "must-not-reach-worker")
+    monkeypatch.setattr(transcribe_parent.subprocess, "Popen", popen)
+    monkeypatch.setattr(
+        transcribe_parent,
+        "assign_windows_memory_job",
+        lambda *args, **kwargs: 91,
+    )
+    monkeypatch.setattr(transcribe_parent, "wait_for_process_budget", lambda *a, **k: 0)
+    monkeypatch.setattr(
+        transcribe_parent,
+        "terminate_isolated_process_tree",
+        lambda child: cleaned.append(child),
+    )
+    monkeypatch.setattr(transcribe_parent, "close_windows_job", jobs.append)
+
+    transcribe_module._run_local_worker_process(
+        request_path,
+        result_path,
+        progress_path,
+        tmp_path,
+        timeout_seconds=600.0,
+        progress=None,
+    )
+
+    command = popen.call_args.args[0]
+    kwargs = popen.call_args.kwargs
+    assert command[:4] == [
+        str(Path(sys.executable).resolve()),
+        "-P",
+        "-m",
+        "distill.ingestors._transcribe_worker",
+    ]
+    assert "XAI_API_KEY" not in kwargs["env"]
+    assert kwargs["stdin"] is subprocess.PIPE
+    assert cleaned == [process]
+    assert jobs == [91]
+
+
+def test_local_worker_process_reports_bounded_failure_and_still_cleans(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    process = types.SimpleNamespace(
+        pid=321,
+        returncode=7,
+        stdin=io.BytesIO(),
+        stderr=io.BytesIO(b"x" * 40_000),
+    )
+    monkeypatch.setattr(transcribe_parent.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(transcribe_parent, "assign_windows_memory_job", lambda *a, **k: None)
+    monkeypatch.setattr(transcribe_parent, "wait_for_process_budget", lambda *a, **k: 0)
+    cleaned: list[Any] = []
+    monkeypatch.setattr(
+        transcribe_parent,
+        "terminate_isolated_process_tree",
+        lambda child: cleaned.append(child),
+    )
+    monkeypatch.setattr(transcribe_parent, "close_windows_job", lambda _handle: None)
+
+    with pytest.raises(transcribe_module._LocalUnavailable, match="status 7"):
+        transcribe_module._run_local_worker_process(
+            tmp_path / "request.json",
+            tmp_path / "result.json",
+            tmp_path / "progress.json",
+            tmp_path,
+            timeout_seconds=600.0,
+            progress=None,
+        )
+
+    assert cleaned == [process]
+    assert len(caplog.text) < 2_000
+
+
+def test_local_worker_process_rejects_missing_diagnostic_pipe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = types.SimpleNamespace(pid=321, returncode=1, stdin=io.BytesIO(), stderr=None)
+    cleaned: list[object] = []
+    monkeypatch.setattr(transcribe_parent.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(
+        transcribe_parent,
+        "terminate_isolated_process_tree",
+        cleaned.append,
+    )
+
+    with pytest.raises(transcribe_module._LocalUnavailable, match="diagnostic pipe"):
+        transcribe_parent._run_local_worker_process(
+            tmp_path / "request.json",
+            tmp_path / "result.json",
+            tmp_path / "progress.json",
+            tmp_path,
+            timeout_seconds=600.0,
+            progress=None,
+        )
+
+    assert cleaned == [process]
+
+
+@pytest.mark.parametrize("failure", ["stdin", "budget", "watcher"])
+def test_local_worker_process_surfaces_control_budget_and_watcher_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    process = types.SimpleNamespace(
+        pid=321,
+        returncode=0,
+        stdin=None if failure == "stdin" else io.BytesIO(),
+        stderr=io.BytesIO(),
+    )
+    monkeypatch.setattr(transcribe_parent.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(transcribe_parent, "assign_windows_memory_job", lambda *a, **k: None)
+    monkeypatch.setattr(transcribe_parent, "terminate_isolated_process_tree", lambda _p: None)
+    monkeypatch.setattr(transcribe_parent, "close_windows_job", lambda _handle: None)
+    if failure == "budget":
+        monkeypatch.setattr(
+            transcribe_parent,
+            "wait_for_process_budget",
+            lambda *a, **k: (_ for _ in ()).throw(
+                transcribe_parent.ProcessBudgetExceeded("memory", 1, 2)
+            ),
+        )
+    else:
+        monkeypatch.setattr(transcribe_parent, "wait_for_process_budget", lambda *a, **k: 0)
+    if failure == "watcher":
+        watcher = types.SimpleNamespace(
+            errors=[RuntimeError("progress reader failed")],
+            close=lambda: None,
+        )
+        monkeypatch.setattr(
+            transcribe_parent,
+            "_start_local_progress_watcher",
+            lambda *a, **k: watcher,
+        )
+
+    expected = {
+        "stdin": "control pipe",
+        "budget": "memory budget",
+        "watcher": "progress reader failed",
+    }[failure]
+    with pytest.raises(RuntimeError, match=expected):
+        transcribe_parent._run_local_worker_process(
+            tmp_path / "request.json",
+            tmp_path / "result.json",
+            tmp_path / "progress.json",
+            tmp_path,
+            timeout_seconds=600.0,
+            progress=None,
+        )
+
+
+def test_local_worker_process_omits_empty_child_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    process = types.SimpleNamespace(
+        pid=321,
+        returncode=9,
+        stdin=io.BytesIO(),
+        stderr=io.BytesIO(),
+    )
+    monkeypatch.setattr(transcribe_parent.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(transcribe_parent, "assign_windows_memory_job", lambda *a, **k: None)
+    monkeypatch.setattr(transcribe_parent, "wait_for_process_budget", lambda *a, **k: 0)
+    monkeypatch.setattr(transcribe_parent, "terminate_isolated_process_tree", lambda _p: None)
+    monkeypatch.setattr(transcribe_parent, "close_windows_job", lambda _handle: None)
+
+    with pytest.raises(transcribe_module._LocalUnavailable, match="status 9"):
+        transcribe_parent._run_local_worker_process(
+            tmp_path / "request.json",
+            tmp_path / "result.json",
+            tmp_path / "progress.json",
+            tmp_path,
+            timeout_seconds=600.0,
+            progress=None,
+        )
+
+    assert "local transcription worker failed" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# _transcribe_local_core faster-whisper path (fake module injected)
 # ---------------------------------------------------------------------------
 
 
@@ -1123,7 +1684,7 @@ def test_transcribe_local_missing_dependency_raises_local_unavailable(
 
     monkeypatch.setitem(sys.modules, "faster_whisper", None)
     with pytest.raises(_LocalUnavailable, match="faster-whisper not installed"):
-        _transcribe_local(Path("a.mp4"), model_name="large-v3")
+        _transcribe_local_core(Path("a.mp4"), model_name="large-v3")
 
 
 def test_transcribe_local_batched_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1132,7 +1693,7 @@ def test_transcribe_local_batched_success(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper())
 
     final_progress: list[tuple[float, float, int]] = []
-    result = _transcribe_local(
+    result = _transcribe_local_core(
         Path("a.mp4"),
         model_name="large-v3",
         vocabulary_hint="Anthropic",
@@ -1156,7 +1717,7 @@ def test_transcribe_local_serial_when_batched_unavailable(
     monkeypatch.setattr("distill.ingestors.transcribe._pick_batch_size", lambda device: 4)
     monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper(with_batched=False))
 
-    result = _transcribe_local(Path("a.mp4"), model_name="large-v3", progress=None)
+    result = _transcribe_local_core(Path("a.mp4"), model_name="large-v3", progress=None)
 
     assert "serial" in result.notes
     assert result.text == "hello"
@@ -1169,7 +1730,7 @@ def test_transcribe_local_degrades_to_serial_when_batched_raises(
     monkeypatch.setattr("distill.ingestors.transcribe._pick_batch_size", lambda device: 8)
     monkeypatch.setitem(sys.modules, "faster_whisper", _fake_faster_whisper(batched_raises=True))
 
-    result = _transcribe_local(Path("a.mp4"), model_name="large-v3", progress=None)
+    result = _transcribe_local_core(Path("a.mp4"), model_name="large-v3", progress=None)
 
     assert any("batched_failed:RuntimeError" in note for note in result.notes)
     assert "serial" in result.notes

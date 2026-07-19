@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from distill.jsonl import JsonlIntegrityError
 from distill.pipeline.audit import write_audit_artifact
 from distill.pipeline.audit_records import AuditReport, VerifyRollup
 from distill.pipeline.quality_history import (
@@ -67,7 +68,7 @@ def test_load_missing_history_returns_none(tmp_path: Path):
     assert load_last_quality_snapshot(tmp_path) is None
 
 
-def test_load_degrades_over_malformed_lines(tmp_path: Path):
+def test_load_rejects_malformed_tail_instead_of_hiding_damage(tmp_path: Path):
     valid = QualitySnapshot("2026-07-01T00:00:00", 5, 2, 3, 1, 0, 2, 10)
     append_quality_snapshot(tmp_path, valid)
     history = tmp_path / ".distill" / "quality-history.jsonl"
@@ -75,8 +76,43 @@ def test_load_degrades_over_malformed_lines(tmp_path: Path):
         history.read_text(encoding="utf-8") + "{not json\n" + '{"no":"timestamp"}\n',
         encoding="utf-8",
     )
-    # The trailing malformed lines are skipped; the last usable snapshot wins.
-    assert load_last_quality_snapshot(tmp_path) == valid
+    with pytest.raises(JsonlIntegrityError) as caught:
+        load_last_quality_snapshot(tmp_path)
+
+    assert str(history) in str(caught.value)
+
+
+def test_load_rejects_schema_invalid_row(tmp_path: Path):
+    history = tmp_path / ".distill" / "quality-history.jsonl"
+    history.parent.mkdir(parents=True)
+    history.write_text('{"version":"quality-snapshot.v1","generated_at":"bad"}\n', encoding="utf-8")
+
+    with pytest.raises(JsonlIntegrityError, match="QualitySnapshot schema"):
+        load_last_quality_snapshot(tmp_path)
+
+
+def test_append_rejects_invalid_snapshot_before_touching_history(tmp_path: Path):
+    invalid = QualitySnapshot("not-a-time", 1, 0, 0, 0, 0, 0, 1)
+
+    with pytest.raises(ValueError, match="valid ISO timestamp"):
+        append_quality_snapshot(tmp_path, invalid)
+
+    assert not (tmp_path / ".distill" / "quality-history.jsonl").exists()
+
+
+def test_append_rejects_existing_corruption_without_mutating_history(tmp_path: Path):
+    history = tmp_path / ".distill" / "quality-history.jsonl"
+    history.parent.mkdir(parents=True)
+    history.write_text("not-json\n", encoding="utf-8")
+    before = history.read_bytes()
+
+    with pytest.raises(JsonlIntegrityError):
+        append_quality_snapshot(
+            tmp_path,
+            QualitySnapshot("2026-07-03T00:00:00", 1, 0, 0, 0, 0, 0, 1),
+        )
+
+    assert history.read_bytes() == before
 
 
 def test_write_audit_artifact_records_baseline_then_trend(tmp_path: Path):
@@ -108,3 +144,30 @@ def test_write_audit_artifact_survives_history_write_failure(
 
     assert path.exists()  # the report is still written despite the history-write failure
     assert "## Corpus Quality Trend" in path.read_text(encoding="utf-8")
+
+
+def test_write_audit_artifact_reports_corrupt_history_without_inventing_baseline(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    append_quality_snapshot(
+        tmp_path,
+        QualitySnapshot("2026-07-01T00:00:00", 5, 2, 3, 1, 0, 2, 10),
+    )
+    history = tmp_path / ".distill" / "quality-history.jsonl"
+    history.write_text(
+        history.read_text(encoding="utf-8") + "{malformed newest row\n",
+        encoding="utf-8",
+    )
+    before = history.read_bytes()
+
+    with caplog.at_level("WARNING", logger="distill.pipeline.audit"):
+        path = write_audit_artifact(tmp_path, _report(), now_iso="2026-07-03T00:00:00")
+
+    text = path.read_text(encoding="utf-8")
+    assert path.exists()
+    assert "Trend unavailable" in text
+    assert str(history) in text
+    assert "No baseline or delta was inferred" in text
+    assert "Baseline recorded" not in text
+    assert history.read_bytes() == before
+    assert str(history) in caplog.text

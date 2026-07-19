@@ -258,7 +258,7 @@ class TestTopLevelExperience:
         assert result.exit_code == 0, result.output
         payload = json.loads(result.stdout)
         assert payload["status"] == "ok"
-        assert payload["data"]["schema_version"] == "dashboard.v1"
+        assert payload["data"]["schema_version"] == "dashboard.v2"
         assert payload["data"]["first_run"] is True
         assert payload["data"]["paths"]["library"] == str(mock_config.library_dir)
         assert payload["data"]["next_commands"][:2] == [

@@ -26,6 +26,7 @@ one global granularity is the documented failure mode in reference systems.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -53,6 +54,30 @@ class ClaimRole(StrEnum):
     RESULT = "result"
     LIMITATION = "limitation"
     CONCLUSION = "conclusion"
+
+
+def _required_string(row: dict[str, Any], field: str) -> str:
+    value = row.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field} must be a nonempty string")
+    return value
+
+
+def _optional_string(row: dict[str, Any], field: str) -> str:
+    value = row.get(field, "")
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
+def _role_confidence(row: dict[str, Any]) -> float:
+    value = row.get("role_confidence", 0.0)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError("role_confidence must be a finite number from 0 to 1")
+    confidence = float(value)
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise ValueError("role_confidence must be a finite number from 0 to 1")
+    return confidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,21 +148,23 @@ class Claim:
 
     @classmethod
     def from_jsonl_row(cls, row: dict[str, Any]) -> Claim:
-        """Round-trip from a row written by ``to_jsonl_row``."""
+        """Strictly hydrate one persisted claim with legacy optional defaults."""
+
+        role = _required_string(row, "rhetorical_role")
         return cls(
-            claim_id=row["claim_id"],
-            source_id=row["source_id"],
-            artifact_path=row["artifact_path"],
-            claim_text=row["claim_text"],
-            rhetorical_role=ClaimRole(row["rhetorical_role"]),
-            subject=row.get("subject", ""),
-            predicate=row.get("predicate", ""),
-            object=row.get("object", ""),
-            dataset=row.get("dataset", ""),
-            metric=row.get("metric", ""),
-            evidence_type=row.get("evidence_type", ""),
-            role_confidence=float(row.get("role_confidence", 0.0)),
-            extracted_at=row.get("extracted_at", ""),
+            claim_id=_required_string(row, "claim_id"),
+            source_id=_required_string(row, "source_id"),
+            artifact_path=_required_string(row, "artifact_path"),
+            claim_text=_required_string(row, "claim_text"),
+            rhetorical_role=ClaimRole(role),
+            subject=_optional_string(row, "subject"),
+            predicate=_optional_string(row, "predicate"),
+            object=_optional_string(row, "object"),
+            dataset=_optional_string(row, "dataset"),
+            metric=_optional_string(row, "metric"),
+            evidence_type=_optional_string(row, "evidence_type"),
+            role_confidence=_role_confidence(row),
+            extracted_at=_optional_string(row, "extracted_at"),
         )
 
 

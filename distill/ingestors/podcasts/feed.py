@@ -25,6 +25,7 @@ from pathlib import Path
 from xml.etree.ElementTree import Element
 
 from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.library.source_ledger import validate_source_id
 from distill.parsing import parse_ascii_uint
 from distill.xml_stream import iter_bounded_xml_events
 
@@ -272,11 +273,17 @@ def _episode_from_item(item) -> PodcastEpisode | None:
     )
     duration_element = item.find(f"{_ITUNES_NS}duration")
     duration_text = duration_element.text or "" if duration_element is not None else ""
+    guid = (
+        _text(item, "guid", maximum=_MAX_GUID_CHARS, field_name="episode GUID") or audio_url or link
+    )
+    if guid:
+        try:
+            validate_source_id(guid)
+        except ValueError as exc:
+            raise PodcastFetchError(f"feed episode GUID {exc}") from exc
     return PodcastEpisode(
         title=title or "(untitled episode)",
-        guid=_text(item, "guid", maximum=_MAX_GUID_CHARS, field_name="episode GUID")
-        or audio_url
-        or link,
+        guid=guid,
         published=_text(item, "pubDate", maximum=_MAX_DATE_CHARS, field_name="publish date"),
         audio_url=audio_url,
         audio_type=_bounded_attribute(

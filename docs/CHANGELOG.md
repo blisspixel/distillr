@@ -7,6 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.39 - 2026-07-18
+
+### Security
+
+- Bound persistent source identities at 16 KiB of UTF-8 and preflighted the
+  projected claims and concepts completion ledgers before provider work. Every
+  new claim, mention, parser, and ledger publication now owns the same contract,
+  while bounded 0.19.38 ledger and evidence rows remain readable and preserved.
+- Removed quadratic playbook collision probing. Bulk concept publication builds
+  one ownership and occupancy view, uses bounded deterministic hash fallbacks
+  for lossy slug collisions, and retains a fresh-race check before publication.
+- Hardened confined state mutation against path swaps, hard links, stale
+  revisions, in-place edits, and delete or replace races. Cooperating generic
+  and confined writers share one reentrant path lock; Windows lock identities
+  normalize path case and confined replacement retries only bounded transient
+  sharing violations with full revalidation.
+- Kept one trusted executable identity from adapter preflight through child
+  launch, removed Python and Node injection variables plus provider credentials
+  from child environments, and applied process-tree time, output, and memory
+  ceilings to transcription and browser-backed work.
+- Kept URL secrets out of network diagnostics, bounded website attachment and
+  browser search work, confined local media to one stable private snapshot, and
+  rejected linked or identity-swapped local state at read and mutation borders.
+- Made generated `CLAUDE.md` and `AGENTS.md` orientations lead with a fixed trust
+  boundary, represented stale-source actions as inert argument arrays, and
+  required the literal JSON boolean `force=true` for MCP synthesis regeneration.
+
+### Fixed
+
+- Serialized claim and concept extraction per topic, published validated model
+  evidence before source-completion receipts, retained already-paid checkpoints
+  at budget stops, and repaired interrupted completion or derived-state updates
+  before repeating provider work.
+- Replaced permissive claim, mention, quality, eval, topic-change, run, phase,
+  provider, and cost history handling with bounded strict readers and serialized
+  append boundaries. Canonical evidence enforces row count, row bytes, total
+  bytes, schema, and finite-number contracts before durable publication.
+- Made run evidence one correlated transaction. `run_log.jsonl`,
+  `latest_run.json`, and `latest_run_errors.md` share a run ID; failed projection
+  publication restores the prior pair while retaining the completed diagnostic
+  log row.
+- Made synthesis and saved-answer artifact publication transactional with their
+  verification sidecars. Concurrent writers cannot cross-bind hashes, and an
+  artifact failure restores the prior sidecar exactly or removes only the newly
+  created sidecar. Rollback failures remain visible with the original error.
+- Prevented playbook writers from publishing notes above their own 8 MiB read
+  ceiling. Topic-scoped mutation now coordinates builds, recovery, and link
+  repair; failed note or kind-migration publication removes only snapshots from
+  that attempt; concurrent repair cannot report success for a note migration
+  already in progress.
+- Preserved same-second concept history with collision-safe suffixes, kept
+  cross-kind histories and live notes synchronized, and validated projected
+  recovery rollup row, count, and file limits before changing live notes.
+- Prevented wiki-link repair, confined deletion, and ordinary atomic writers
+  from overwriting or deleting one another at read, replace, or unlink seams.
+- Made incomplete cost evidence explicit across CLI, web, calibration, budget,
+  recurring-watch, and MCP surfaces. Valid retained rows remain diagnostic, but
+  totals, projections, anomaly checks, and budget claims no longer invent zero
+  or infinity when evidence is malformed, unreadable, or omitted.
+- Made quality-history corruption name its exact path while preserving the
+  current point-in-time audit, and kept latest-run, cost, dashboard, and worker
+  failures actionable without silent fallback or false receipt paths.
+
+### Changed
+
+- Advanced dashboard JSON to `dashboard.v2`. `spend.recent_usd` is now null when
+  retained cost evidence cannot support a complete total; consumers should use
+  `cost_history` coverage to explain the unavailable value.
+- Removed worker claim tokens from CLI arguments. `worker submit` and
+  `worker abandon` now read `DISTILL_WORKER_CLAIM_TOKEN` only, so supported
+  workflows do not place bearer tokens in process listings or shell history.
+- Clarified that pre-commit is a fast local subset, not proof of the full CI
+  matrix, and synchronized README, usage, security, architecture, MCP, output,
+  contributor, generated example, public contract, and Agent Skill guidance
+  with the tested runtime behavior.
+
+### Validation
+
+- Passed 6,042 local tests with 4 skipped, 8 deselected, and 95.10 percent
+  branch coverage. Ruff lint and formatting, Pyright, all four import
+  contracts, generated public contracts, and CLI help also passed.
+- Bandit reported no medium or high findings, and pip-audit reported no known
+  dependency vulnerabilities. Exact pre-fix security reproductions no longer
+  reach their vulnerable assertions, and focused failure, race, resource,
+  parser, and rollback controls pass.
+- Built the source distribution, wheel, and four deterministic Agent Skill
+  artifacts. The 0.19.39 wheel contains all five guarded runtime assets and
+  loads the bundled 0.19.39 skill from an isolated Python 3.12 installation.
+
+### Upgrade notes
+
+- Dashboard automation must accept `schema_version: "dashboard.v2"` and a null
+  `spend.recent_usd` when cost coverage is incomplete.
+- Worker hosts must inject `DISTILL_WORKER_CLAIM_TOKEN` into the submit or
+  abandon process environment. The removed `--claim-token` form is rejected.
+- MCP callers that intentionally regenerate synthesis must send literal
+  `force=true`; omitted, numeric, string, and null values do not authorize a
+  write.
+- No completion-ledger migration is required. Existing bounded 0.19.38 source
+  IDs remain readable and survive later merges; new IDs use the 16 KiB contract
+  shared with the podcast parser and durable evidence stores.
+
 ## 0.19.38 - 2026-07-18
 
 ### Security

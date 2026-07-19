@@ -18,17 +18,32 @@ local Whisper as well as a 4090 with no cloud keys.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
 from distill.config import DistillConfig
+from distill.ingestors._transcribe_parent import (
+    _forward_local_progress as _forward_local_progress,
+)
+from distill.ingestors._transcribe_parent import (
+    _local_worker_timeout,
+    _read_local_worker_result,
+    _run_local_worker_process,
+)
+from distill.ingestors._transcribe_types import (
+    LocalTranscriptionUnavailable as _LocalUnavailable,
+)
+from distill.ingestors._transcribe_types import ProgressCallback, TranscriptionResult
+from distill.library.confined import copy_confined_file
+from distill.library.paths import atomic_write_text
 from distill.llm.cost_policy import CostPolicyError, require_route_allowed
 from distill.process_security import resolve_executable
 
@@ -42,20 +57,12 @@ _log = logging.getLogger(__name__)
 
 _STREAM_PROBE_TIMEOUT_SECONDS = 10
 _DECODE_DURATION_TIMEOUT_SECONDS = 30
+_MAX_MEDIA_INPUT_BYTES = 500 * 1024 * 1024
+_MAX_LOCAL_AUDIO_SECONDS = 3 * 60 * 60
 
 
 class TranscriptionError(RuntimeError):
     """Raised when no transcription provider can complete the task."""
-
-
-@dataclass(slots=True)
-class TranscriptionResult:
-    text: str
-    provider: str
-    model: str
-    language: str = ""
-    duration_s: float = 0.0
-    notes: list[str] = field(default_factory=list)
 
 
 def _default_progress(audio_seconds: float, total_audio_s: float, words: int) -> None:
@@ -77,9 +84,6 @@ def _default_progress(audio_seconds: float, total_audio_s: float, words: int) ->
     else:
         sys.stderr.write(f"        [whisper] {audio_seconds:.0f}s, {words} words so far\n")
     sys.stderr.flush()
-
-
-ProgressCallback = Callable[[float, float, int], None]
 
 
 class TranscriptionCostTracker(Protocol):
@@ -422,6 +426,57 @@ def transcribe_media(
     progress: ProgressCallback | None = _default_progress,
     progress_interval_s: float = 30.0,
 ) -> TranscriptionResult:
+    """Transcribe one stable private snapshot of a bounded regular media file."""
+
+    if not media_path.exists():
+        raise TranscriptionError(f"Media file not found: {media_path}")
+    if prefer not in {"auto", "auto-cloud", "local", "grok", "cloud", "openai"}:
+        raise TranscriptionError(f"unknown prefer={prefer!r}")
+    absolute_media_path = media_path.absolute()
+    trusted_root = Path(absolute_media_path.anchor)
+    if not trusted_root.is_absolute():
+        raise TranscriptionError("Media input does not have a trusted filesystem anchor.")
+    suffix = absolute_media_path.suffix
+    if not (2 <= len(suffix) <= 16 and suffix[1:].isalnum()):
+        suffix = ".media"
+    with tempfile.TemporaryDirectory(prefix="distill-media-") as temp_dir:
+        snapshot = Path(temp_dir) / f"input{suffix.lower()}"
+        if not copy_confined_file(
+            absolute_media_path,
+            trusted_root,
+            snapshot,
+            max_bytes=_MAX_MEDIA_INPUT_BYTES,
+        ):
+            raise TranscriptionError(
+                "Media input and its ancestry must be direct, stable, and single-link, "
+                "and the file must be no larger than "
+                f"{_MAX_MEDIA_INPUT_BYTES:,} bytes."
+            )
+        return _transcribe_media_snapshot(
+            snapshot,
+            config,
+            prefer=prefer,
+            local_model=local_model,
+            vocabulary_hint=vocabulary_hint,
+            tracker=tracker,
+            duration_hint_s=duration_hint_s,
+            progress=progress,
+            progress_interval_s=progress_interval_s,
+        )
+
+
+def _transcribe_media_snapshot(
+    media_path: Path,
+    config: DistillConfig,
+    *,
+    prefer: str = "auto",
+    local_model: str = "large-v3",
+    vocabulary_hint: str = "",
+    tracker: TranscriptionCostTracker | None = None,
+    duration_hint_s: float = 0.0,
+    progress: ProgressCallback | None = _default_progress,
+    progress_interval_s: float = 30.0,
+) -> TranscriptionResult:
     """Transcribe *media_path* to text via the local-first provider ladder.
 
     ``prefer`` selects routing:
@@ -441,9 +496,6 @@ def transcribe_media(
     ``keyterm`` form field). Sharply reduces proper-noun
     mistranscription ("Claude Code -> QuadCode" class of errors).
     """
-    if not media_path.exists():
-        raise TranscriptionError(f"Media file not found: {media_path}")
-
     if prefer == "cloud":  # back-compat alias for the old two-provider routing
         prefer = "auto-cloud"
 
@@ -506,15 +558,64 @@ def transcribe_media(
     raise TranscriptionError("; ".join(errors) or f"unknown prefer={prefer!r}")
 
 
-class _LocalUnavailable(RuntimeError):
-    """Raised internally when the local provider isn't usable."""
-
-
 class _ProviderUnavailable(RuntimeError):
     """Raised internally when a cloud provider's key isn't configured."""
 
 
 def _transcribe_local(
+    media_path: Path,
+    *,
+    model_name: str,
+    vocabulary_hint: str = "",
+    progress: ProgressCallback | None = None,
+    progress_interval_s: float = 30.0,
+) -> TranscriptionResult:
+    """Run faster-whisper in a resource-bounded isolated child process."""
+
+    if not model_name or len(model_name) > 128 or any(ord(char) < 32 for char in model_name):
+        raise _LocalUnavailable("local model name is invalid")
+    if not math.isfinite(progress_interval_s) or progress_interval_s <= 0:
+        raise _LocalUnavailable("local progress interval must be positive and finite")
+    duration_s = _probe_media_duration(media_path)
+    if duration_s <= 0:
+        raise _LocalUnavailable(
+            "local transcription requires single-stream decodable media and ffmpeg/ffprobe"
+        )
+    if duration_s > _MAX_LOCAL_AUDIO_SECONDS:
+        raise _LocalUnavailable(
+            f"local transcription refuses media longer than {_MAX_LOCAL_AUDIO_SECONDS:,} seconds"
+        )
+    with tempfile.TemporaryDirectory(prefix="distill-transcribe-") as temp_dir:
+        root = Path(temp_dir)
+        request_path = root / "request.json"
+        result_path = root / "result.json"
+        progress_path = root / "progress.json"
+        request = {
+            "media_path": str(media_path.resolve(strict=True)),
+            "model_name": model_name,
+            "vocabulary_hint": _clip_for_whisper(vocabulary_hint),
+            "progress_interval_s": progress_interval_s,
+        }
+        atomic_write_text(
+            request_path,
+            json.dumps(request, ensure_ascii=False, allow_nan=False),
+        )
+        _run_local_worker_process(
+            request_path,
+            result_path,
+            progress_path,
+            root,
+            timeout_seconds=_local_worker_timeout(duration_s),
+            progress=progress,
+        )
+        return _read_local_worker_result(
+            result_path,
+            root,
+            expected_model=model_name,
+        )
+
+
+def _transcribe_local_core(
     media_path: Path,
     *,
     model_name: str,

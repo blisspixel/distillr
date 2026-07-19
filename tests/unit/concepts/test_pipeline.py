@@ -15,9 +15,14 @@ from unittest.mock import patch
 
 import pytest
 
+import distill.concepts.notes as notes_mod
 import distill.concepts.pipeline as pipeline_mod
+from distill.concepts.extract import ExtractionResult
 from distill.concepts.pipeline import discover_insights, run_concepts
+from distill.concepts.records import ConceptKind, ConceptMention, Polarity
+from distill.jsonl import JsonlIntegrityError
 from distill.library.insights import derive_source_id
+from distill.library.source_ledger import MAX_SOURCE_ID_BYTES, SourceLedgerIntegrityError
 from distill.llm import RouterConfig
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
@@ -86,6 +91,18 @@ def _grounded_row(
         "polarity": polarity,
         "claim_excerpt": claim,
     }
+
+
+def _checkpoint_mention(source_id: str) -> ConceptMention:
+    return ConceptMention(
+        name="Checkpoint concept",
+        normalized_name="checkpoint concept",
+        kind=ConceptKind.TECHNIQUE,
+        polarity=Polarity.HELPFUL,
+        source_id=source_id,
+        artifact_path=f"papers/{source_id}/{source_id}_Insights.md",
+        extracted_at="2026-05-15T10:00:00Z",
+    )
 
 
 @pytest.fixture
@@ -537,3 +554,375 @@ class TestRunConcepts:
         assert mock_llm.call_count == 1
         assert len(tracker.entries) == 1
         assert not (topic_dir / ".concepts" / "extracted_sources.json").exists()
+
+    @pytest.mark.parametrize("concept_count", [20, 80])
+    def test_bulk_publication_builds_one_ownership_index_without_per_note_rescans(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        concept_count: int,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id="A")
+        mentions = [
+            ConceptMention(
+                name=f"Concept {index:03d}",
+                normalized_name=f"concept {index:03d}",
+                kind=ConceptKind.TECHNIQUE,
+                polarity=Polarity.HELPFUL,
+                source_id="A",
+                artifact_path="papers/a/a_Insights.md",
+                extracted_at="2026-05-15T10:00:00Z",
+            )
+            for index in range(concept_count)
+        ]
+        monkeypatch.setattr(
+            pipeline_mod,
+            "extract_from_insight",
+            lambda *_args, **_kwargs: ExtractionResult(
+                mentions,
+                "stub",
+                "concepts.extract.v1",
+                [],
+            ),
+        )
+        real_index = pipeline_mod.build_playbook_ownership_index
+        index_calls = 0
+
+        def count_index(
+            topic: Path,
+            *,
+            occupied_paths: set[Path] | None = None,
+        ) -> dict[str, list[Path]]:
+            nonlocal index_calls
+            index_calls += 1
+            return real_index(topic, occupied_paths=occupied_paths)
+
+        monkeypatch.setattr(pipeline_mod, "build_playbook_ownership_index", count_index)
+        monkeypatch.setattr(
+            "distill.concepts.notes._owned_note_paths",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("bulk publication performed a per-note ownership rescan")
+            ),
+        )
+
+        summary = run_concepts(
+            "tkg",
+            topic_dir,
+            rc=rc,
+            threshold=1,
+            now_iso="2026-05-15T10:00:00Z",
+        )
+
+        assert summary.notes_written == concept_count
+        assert index_calls == 1
+
+    @pytest.mark.parametrize("concept_count", [20, 80])
+    def test_bulk_colliding_slugs_use_bounded_owner_probes(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        concept_count: int,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id="A")
+        mentions = [
+            ConceptMention(
+                name=f"a{chr(0x2200 + index)}b",
+                normalized_name=f"a{chr(0x2200 + index)}b",
+                kind=ConceptKind.TECHNIQUE,
+                polarity=Polarity.HELPFUL,
+                source_id="A",
+                artifact_path="papers/a/a_Insights.md",
+                extracted_at="2026-05-15T10:00:00Z",
+            )
+            for index in range(concept_count)
+        ]
+        monkeypatch.setattr(
+            pipeline_mod,
+            "extract_from_insight",
+            lambda *_args, **_kwargs: ExtractionResult(
+                mentions,
+                "stub",
+                "concepts.extract.v1",
+                [],
+            ),
+        )
+        real_owner = notes_mod._existing_owner
+        owner_probes = 0
+
+        def count_owner(path: Path, root: Path) -> str | None:
+            nonlocal owner_probes
+            owner_probes += 1
+            return real_owner(path, root)
+
+        monkeypatch.setattr(notes_mod, "_existing_owner", count_owner)
+
+        summary = run_concepts(
+            "tkg",
+            topic_dir,
+            rc=rc,
+            threshold=1,
+            now_iso="2026-05-15T10:00:00Z",
+        )
+
+        assert summary.notes_written == concept_count
+        assert owner_probes <= concept_count * 2
+        assert len(list((topic_dir / "concepts").glob("*.md"))) == concept_count
+
+    def test_budget_stop_preserves_prior_mention_and_zero_result_checkpoints(
+        self, tmp_path: Path, rc: RouterConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        for source_id in ("A", "B", "C"):
+            _make_insight(
+                topic_dir,
+                source_type="papers",
+                slug=source_id.lower(),
+                source_id=source_id,
+            )
+        calls: list[str] = []
+
+        def extract(*_args, source_id: str, **_kwargs) -> ExtractionResult:
+            calls.append(source_id)
+            if source_id == "C":
+                raise BudgetExceededError(2.0, 1.0)
+            mentions = [_checkpoint_mention(source_id)] if source_id == "A" else []
+            return ExtractionResult(mentions, "stub", "concepts.extract.v1", [])
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", extract)
+
+        with pytest.raises(BudgetExceededError):
+            run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert calls == ["A", "B", "C"]
+        assert [row["source_id"] for row in pipeline_mod.read_mentions(topic_dir)] == ["A"]
+        assert pipeline_mod.read_extracted_sources(topic_dir) == {"A", "B"}
+        assert (topic_dir / "concepts" / "checkpoint_concept.md").is_file()
+
+        calls.clear()
+        monkeypatch.setattr(
+            pipeline_mod,
+            "extract_from_insight",
+            lambda *_args, source_id, **_kwargs: (
+                calls.append(source_id) or ExtractionResult([], "stub", "concepts.extract.v1", [])
+            ),
+        )
+        summary = run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert calls == ["C"]
+        assert summary.insights_extracted == 1
+        assert pipeline_mod.read_extracted_sources(topic_dir) == {"A", "B", "C"}
+
+    def test_mention_append_failure_never_publishes_completion(
+        self, tmp_path: Path, rc: RouterConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id="A")
+        monkeypatch.setattr(
+            pipeline_mod,
+            "extract_from_insight",
+            lambda *_args, **_kwargs: ExtractionResult(
+                [_checkpoint_mention("A")], "stub", "concepts.extract.v1", []
+            ),
+        )
+        monkeypatch.setattr(
+            pipeline_mod,
+            "append_mentions",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("append failed")),
+        )
+
+        with pytest.raises(OSError, match="append failed"):
+            run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert pipeline_mod.read_extracted_sources(topic_dir) == set()
+
+    def test_full_mention_store_fails_before_provider_work(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import distill.concepts.notes as notes_mod
+
+        topic_dir = tmp_path / "topics" / "tkg"
+        topic_dir.mkdir(parents=True)
+        pipeline_mod.append_mentions(topic_dir, [_checkpoint_mention("A").to_jsonl_row()])
+        _make_insight(topic_dir, source_type="papers", slug="b", source_id="B")
+        monkeypatch.setattr(notes_mod, "_MAX_MENTIONS_HISTORY_ROWS", 1)
+        provider_called = False
+
+        def unexpected_provider(*_args, **_kwargs) -> ExtractionResult:
+            nonlocal provider_called
+            provider_called = True
+            return ExtractionResult([], "stub", "concepts.extract.v1", [])
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", unexpected_provider)
+
+        with pytest.raises(JsonlIntegrityError, match="history reached the 1-row limit"):
+            run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert provider_called is False
+
+    @pytest.mark.parametrize("failed_surface", ["write_playbook", "write_exports"])
+    def test_derived_state_failure_retries_without_provider_and_converges(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        failed_surface: str,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id="A")
+        provider_calls = 0
+
+        def extract(*_args, **_kwargs) -> ExtractionResult:
+            nonlocal provider_calls
+            provider_calls += 1
+            return ExtractionResult(
+                [_checkpoint_mention("A")],
+                "durable-model-version",
+                "concepts.extract.durable",
+                [],
+            )
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", extract)
+        real_writer = getattr(pipeline_mod, failed_surface)
+        failures_remaining = 1
+
+        def fail_once(*args, **kwargs):
+            nonlocal failures_remaining
+            if failures_remaining:
+                failures_remaining -= 1
+                raise OSError(f"simulated {failed_surface} failure")
+            return real_writer(*args, **kwargs)
+
+        monkeypatch.setattr(pipeline_mod, failed_surface, fail_once)
+
+        with pytest.raises(OSError, match=f"simulated {failed_surface} failure"):
+            run_concepts(
+                "tkg",
+                topic_dir,
+                rc=rc,
+                threshold=1,
+                now_iso="2026-05-15T10:00:00Z",
+            )
+
+        assert pipeline_mod.read_extracted_sources(topic_dir) == {"A"}
+        assert (topic_dir / ".distill-concepts-derived-dirty").is_file()
+
+        summary = run_concepts(
+            "tkg",
+            topic_dir,
+            rc=rc,
+            threshold=1,
+            now_iso="2026-05-15T10:00:00Z",
+        )
+
+        assert provider_calls == 1
+        assert summary.insights_extracted == 0
+        note = topic_dir / "concepts" / "checkpoint_concept.md"
+        assert 'model: "durable-model-version"' in note.read_text(encoding="utf-8")
+        assert (topic_dir / "concepts.jsonl").is_file()
+        assert (topic_dir / "entities.jsonl").is_file()
+        assert not (topic_dir / ".distill-concepts-derived-dirty").exists()
+
+    @pytest.mark.parametrize(
+        ("store", "error"),
+        [("mentions", JsonlIntegrityError), ("ledger", SourceLedgerIntegrityError)],
+    )
+    @pytest.mark.parametrize("refresh", [False, True])
+    def test_invalid_checkpoint_store_fails_before_provider_work(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        store: str,
+        error: type[Exception],
+        refresh: bool,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id="A")
+        state_dir = topic_dir / ".concepts"
+        state_dir.mkdir(parents=True)
+        path = state_dir / ("mentions.jsonl" if store == "mentions" else "extracted_sources.json")
+        path.write_text("not-json\n" if store == "mentions" else "not-json", encoding="utf-8")
+        provider_called = False
+
+        def unexpected_provider(*_args, **_kwargs) -> ExtractionResult:
+            nonlocal provider_called
+            provider_called = True
+            return ExtractionResult([], "stub", "concepts.extract.v1", [])
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", unexpected_provider)
+
+        with pytest.raises(error):
+            run_concepts("tkg", topic_dir, rc=rc, refresh=refresh)
+
+        assert provider_called is False
+
+    def test_oversized_source_id_is_refused_before_provider_or_concept_state(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        oversized = "\U0001f600" * (MAX_SOURCE_ID_BYTES // 4 + 1)
+        _make_insight(topic_dir, source_type="papers", slug="a", source_id=oversized)
+        provider_calls = 0
+
+        def unexpected_provider(*_args, **_kwargs) -> ExtractionResult:
+            nonlocal provider_calls
+            provider_calls += 1
+            return ExtractionResult([], "stub", "concepts.extract.v1", [])
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", unexpected_provider)
+
+        for _ in range(2):
+            with pytest.raises(SourceLedgerIntegrityError, match="source-id limit"):
+                run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert provider_calls == 0
+        assert pipeline_mod.read_mentions(topic_dir) == []
+        assert not (topic_dir / ".concepts" / "extracted_sources.json").exists()
+        assert not (topic_dir / ".distill-concepts-derived-dirty").exists()
+
+    def test_projected_concept_ledger_overflow_is_refused_before_provider(
+        self,
+        tmp_path: Path,
+        rc: RouterConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import distill.library.source_ledger as source_ledger_mod
+
+        topic_dir = tmp_path / "topics" / "tkg"
+        topic_dir.mkdir(parents=True)
+        pipeline_mod.record_extracted_sources(topic_dir, ["safe"])
+        ledger = topic_dir / ".concepts" / "extracted_sources.json"
+        before = ledger.read_bytes()
+        monkeypatch.setattr(source_ledger_mod, "MAX_SOURCE_LEDGER_BYTES", len(before) + 8)
+        _make_insight(
+            topic_dir,
+            source_type="papers",
+            slug="a",
+            source_id="a-new-source-id",
+        )
+        provider_called = False
+
+        def unexpected_provider(*_args, **_kwargs) -> ExtractionResult:
+            nonlocal provider_called
+            provider_called = True
+            return ExtractionResult([], "stub", "concepts.extract.v1", [])
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", unexpected_provider)
+
+        with pytest.raises(SourceLedgerIntegrityError, match="serialized ledger"):
+            run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert provider_called is False
+        assert ledger.read_bytes() == before
+        assert pipeline_mod.read_mentions(topic_dir) == []
+        assert not (topic_dir / ".distill-concepts-derived-dirty").exists()

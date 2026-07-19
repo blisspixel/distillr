@@ -235,8 +235,8 @@ external cost.
 YouTube transcription uses a local-first fallback chain:
 
 1. **YouTube captions** (free, instant) - yt-dlp downloads `.vtt` subtitles, cleaned to plain text. Works for most videos.
-2. **Whisper provider ladder** - Captionless videos download bounded best-audio and use faster-whisper locally first, then tracked xAI Grok STT and OpenAI Whisper cloud fallbacks when configured and permitted by cost policy. The video's title and uploader provide a bounded vocabulary hint.
-3. **Legacy Scribe fallback** - Installations with `SCRIBE_PATH` configured retain Scribe as a last-resort external fallback.
+2. **Whisper provider ladder** - Captionless videos download bounded best-audio and copy one stable, single-link regular file into private scratch before any decoder or provider reads it. Local faster-whisper runs in an isolated child with decoded-duration, elapsed-time, memory, result, progress, and diagnostic limits. Tracked xAI Grok STT and OpenAI Whisper cloud fallbacks use the same snapshot when configured and permitted by cost policy. The video's title and uploader provide a bounded vocabulary hint.
+3. **Legacy Scribe fallback** - Installations with `SCRIBE_PATH` configured retain Scribe as a last-resort external fallback. Its Python child uses a sanitized environment, private scratch, bounded output and diagnostics, a memory limit, a deadline, and process-tree cleanup.
 4. **Skip with error** - If every eligible route fails, the video is logged as failed in the post-run summary. The transcript file is not created, so a later refresh can retry.
 
 Skipped videos surface in the "Failed" section of the run summary so they're visible rather than silently dropped.
@@ -277,11 +277,14 @@ state. Clean reads remain side-effect-free.
 
 This keeps the [charter invariant](invariants.md) load-bearing rather than incidental: the per-source `_Insights.md` (and the raw `_Content` / `_Paper` / `_Transcript` beside them) are the source of truth; `claims.jsonl` is a derived, disposable index over them; and each `_Synthesis.md` is a *view compiled from that index*, re-extractable from the Markdown at any time. The consequence is that a synthesis cannot silently drift from its evidence - you never hand-edit `_Synthesis.md`; if it is wrong or stale you fix or re-extract the claims and regenerate, so the prose can't diverge from what the sources say (the "confident misinformation" failure mode a hand-maintained wiki is prone to).
 
-Atomic replacement prevents torn files, but it does not prevent two writers from
-overwriting each other's complete updates. Claim appends and regenerated views
-do not yet carry a per-topic lock or compare-and-swap token. Commands are
-replay-safe, but external runners must serialize overlapping write scopes until
-Distill ships an equivalent guard. Queues, leases, and backpressure remain the
+Claim extraction holds one topic transaction from pending-source discovery
+through durable claim publication and strict source-ledger advancement.
+Concurrent cooperating runs therefore cannot both extract the same pending
+source. A zero-claim result still receives a durable source receipt, an invalid
+ledger stops before model work, and an append failure cannot mark a source
+complete. Claim and mention rows are read through bounded strict JSON with
+typed, finite fields; corrupt canonical evidence fails with its path instead
+of becoming an empty corpus. Queues, leases, and backpressure remain the
 external loop runner's responsibility.
 
 Single-pass synthesis stays the default until the 1.0 golden-eval gate validates two-pass quality. See [`../ROADMAP.md`](../ROADMAP.md) for the surrounding milestones (0.9.0 two-pass, the 0.9.2 audit contradictions map, 0.10 stale-detection).
@@ -294,8 +297,10 @@ Single-pass synthesis stays the default until the 1.0 golden-eval gate validates
 - Subprocess calls use argument lists and resolve bare executable names to an
   absolute file from an absolute PATH entry. The current directory and
   relative PATH entries cannot supply package-manager or media-tool images.
-- Package installation children run beside the active interpreter with Python
-  path injection and provider credentials removed from their environment.
+- Package and transcription children run beside the active interpreter with
+  Python and Node loader overrides plus credentials removed from their
+  environment. Adapter probes reuse the exact executable identity discovered
+  during preflight instead of performing a second PATH lookup.
 - Corpus reads exposed through MCP, local ingestion, cost history, and File
   Search use bounded no-follow regular-file validation. Linked, multiply
   linked, special, oversized, or identity-swapped files fail closed.
@@ -414,14 +419,42 @@ library/                           # Per-user data (git-ignored)
 └── topics/<topic>/…               # Per-topic artifacts
 ```
 
-Each structured history has a hidden sibling lock file named
-`.<history>.lock`. Cooperating writers hold that lock across tail inspection
-and the complete append. A partial final row from an interrupted process is
-kept as evidence but terminated before the next row, so one damaged row cannot
-consume a later valid row. Legacy cost migration and the first new cost row are
-one locked transition. Cost rows are `fsync`-flushed before profile receipt
-state advances; phase and provider rows remain best-effort diagnostics whose
+Each structured history has one stable hidden lock identity. Histories in a
+trusted flat operator directory use a hidden sibling lock; state confined below
+a topic root uses a root-level hashed lock so a linked child directory cannot
+redirect either data or lock acquisition. Cooperating writers hold that lock
+across tail inspection and the complete append. A partial final row from an
+interrupted process is kept as evidence but terminated before the next row, so
+one damaged row cannot consume a later valid row. Legacy cost migration and the
+first new cost row are one locked transition. Cost, claim, mention, quality,
+eval, topic-change, and run rows are `fsync`-flushed where they establish
+durable evidence; phase and provider rows remain best-effort diagnostics whose
 failure is logged without changing the workflow result.
+
+Claims and mentions validate every existing row against their typed schema and
+enforce row-count, encoded-row, and total-file ceilings under the same append
+lock before writing. Their source-completion ledgers use strict bounded JSON,
+merge under a separate stable-root lock, and refuse a projected serialized
+ledger that its own reader could not reopen. Topic transactions publish model
+evidence before completion state. Already-durable evidence repairs an
+interrupted completion update before any provider work can repeat.
+New source IDs are limited to 16 KiB of UTF-8 at parsers, evidence append
+boundaries, preflight, and ledger merge. Existing bounded 0.19.38 rows above
+that per-ID limit remain readable and are preserved during later merges, so an
+upgrade does not strand a previously completed topic.
+
+Quality history also validates the complete retained file before append. An
+invalid quality history is never converted into a zero baseline: the current
+audit remains available, names the exact damaged path, and renders its trend as
+unavailable without mutating the history. Topic-change and eval batches use the
+shared complete-batch append boundary.
+
+Run evidence uses one group lock for `run_log.jsonl`, `latest_run.json`, and
+`latest_run_errors.md`. The append-only row and both latest projections carry
+the same run ID. Projection updates are atomic and a failed projection restores
+the prior correlated pair, while the completed log row remains available for
+diagnosis. Projection content is preflighted against the dashboard reader's
+byte ceiling before any artifact is touched.
 
 Recent cross-log performance correlation reads only the newest 16 MiB per
 history and discloses every tail-limited source. Full-history provider

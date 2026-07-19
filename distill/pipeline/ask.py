@@ -18,11 +18,9 @@ from pathlib import Path
 
 from distill._console import console
 from distill.config import DistillConfig
-from distill.library.insights import insight_content_sha256
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
-    atomic_write_text,
     base_frontmatter,
     render_markdown_artifact,
     slugify_title,
@@ -42,7 +40,7 @@ from distill.pipeline.verify import (
     VerifyOutcome,
     entailment_checker_available,
     run_verify_hook,
-    write_verify_sidecar,
+    write_verified_artifact,
 )
 from distill.prompts.ask import ask_prompt
 from distill.prompts.registry import PROMPT_IDS
@@ -182,18 +180,14 @@ def _promote_verified_answer(
         answer_md,
         frontmatter=frontmatter,
     )
-    write_verify_sidecar(
+    write_verified_artifact(
         insight_dir,
-        outcome.report,
-        identity=slug,
-        insight_name=insight_path.name,
-        insight_sha256=insight_content_sha256(promoted_content),
+        insight_path,
+        promoted_content,
+        outcome=outcome,
+        verify_identity=slug,
         source_name="(retrieved corpus excerpts)",
-        entailment=outcome.entailment,
-        entailment_status=outcome.entailment_status,
-        entailment_reason=outcome.entailment_reason,
     )
-    atomic_write_text(insight_path, promoted_content)
     result.saved_insight_path = insight_path
 
 

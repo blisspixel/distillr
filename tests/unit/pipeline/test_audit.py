@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from distill.library.insights import insight_content_sha256
 from distill.library.links import BrokenLink
 from distill.pipeline.audit import (
     AuditReport,
@@ -55,6 +56,18 @@ def _verify_sidecar(
     return payload
 
 
+def _bound_verify_sidecar(
+    artifact: Path,
+    checked: int,
+    *,
+    unsupported: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    payload = _verify_sidecar(checked, unsupported=unsupported)
+    payload["insight"] = artifact.name
+    payload["insight_sha256"] = insight_content_sha256(artifact.read_text(encoding="utf-8"))
+    return payload
+
+
 def _seed_insight(topic_dir: Path, rel: str, *, sidecar: dict | None = None) -> None:
     d = topic_dir / rel
     d.mkdir(parents=True, exist_ok=True)
@@ -80,6 +93,13 @@ def _seed_video_transcript(
     _seed_video_metadata(topic_dir, channel, slug, metadata)
     d = topic_dir / "channels" / channel / "videos" / slug
     (d / "transcript.txt").write_text(transcript, encoding="utf-8")
+
+
+def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
 
 
 class TestVerifyRollup:
@@ -293,29 +313,34 @@ class TestVerifyRollup:
         # A clean paper synthesis (sidecar identity t-paper-synthesis -> file stem
         # t_paper_synthesis) and a flagged corpus synthesis.
         topic.mkdir(parents=True, exist_ok=True)
-        (topic / "t_Paper_Synthesis.md").write_text("syn", encoding="utf-8")
+        paper = topic / "t_Paper_Synthesis.md"
+        paper.write_text("syn", encoding="utf-8")
         (topic / "t_paper_synthesis_Verify.json").write_text(
-            json.dumps(_verify_sidecar(2)), encoding="utf-8"
+            json.dumps(_bound_verify_sidecar(paper, 2)), encoding="utf-8"
         )
-        (topic / "t_Corpus_Synthesis.md").write_text("syn", encoding="utf-8")
+        corpus = topic / "t_Corpus_Synthesis.md"
+        corpus.write_text("syn", encoding="utf-8")
         (topic / "t_corpus_synthesis_Verify.json").write_text(
             json.dumps(
-                _verify_sidecar(
+                _bound_verify_sidecar(
+                    corpus,
                     1,
                     unsupported=[{"token": "9.9", "kind": "decimal", "context": "l"}],
                 )
             ),
             encoding="utf-8",
         )
-        (topic / "t_Site_Synthesis.md").write_text("syn", encoding="utf-8")
+        site = topic / "t_Site_Synthesis.md"
+        site.write_text("syn", encoding="utf-8")
         (topic / "t_site_topic_synthesis_Verify.json").write_text(
-            json.dumps(_verify_sidecar(1)),
+            json.dumps(_bound_verify_sidecar(site, 1)),
             encoding="utf-8",
         )
         # A topic synthesis with a zero-check sidecar (unverified, not clean).
-        (topic / "t_Topic_Synthesis.md").write_text("syn", encoding="utf-8")
+        topic_synthesis = topic / "t_Topic_Synthesis.md"
+        topic_synthesis.write_text("syn", encoding="utf-8")
         (topic / "t_topic_synthesis_Verify.json").write_text(
-            json.dumps(_verify_sidecar(0)),
+            json.dumps(_bound_verify_sidecar(topic_synthesis, 0)),
             encoding="utf-8",
         )
 
@@ -329,6 +354,110 @@ class TestVerifyRollup:
         assert rollup.synthesis_unverified == 1
         # The corpus-synthesis flag is in the shared list, labelled by artifact.
         assert any(f["token"] == "9.9" for f in rollup.flagged)
+
+    @pytest.mark.parametrize(
+        ("binding", "expected_checked"),
+        [("missing", 0), ("wrong_digest", 0), ("wrong_name", 0), ("valid", 1)],
+    )
+    def test_synthesis_sidecar_requires_exact_artifact_binding(
+        self, tmp_path: Path, binding: str, expected_checked: int
+    ):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        artifact = topic / "t_Paper_Synthesis.md"
+        artifact.write_text("exact rendered synthesis", encoding="utf-8")
+        payload = _verify_sidecar(1)
+        if binding != "missing":
+            payload["insight"] = artifact.name
+            payload["insight_sha256"] = insight_content_sha256(artifact.read_text(encoding="utf-8"))
+        if binding == "wrong_digest":
+            payload["insight_sha256"] = "0" * 64
+        if binding == "wrong_name":
+            payload["insight"] = "other_Paper_Synthesis.md"
+        (topic / "t_paper_synthesis_Verify.json").write_text(json.dumps(payload), encoding="utf-8")
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.synthesis_total == 1
+        assert rollup.synthesis_checked == expected_checked
+        assert rollup.synthesis_unverified == 1 - expected_checked
+
+    @pytest.mark.parametrize("invalid", ["oversized", "invalid_utf8"])
+    def test_synthesis_sidecar_rejects_unbounded_or_non_utf8_content(
+        self, tmp_path: Path, invalid: str
+    ):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        artifact = topic / "t_Paper_Synthesis.md"
+        artifact.write_text("synthesis", encoding="utf-8")
+        sidecar = topic / "t_paper_synthesis_Verify.json"
+        if invalid == "oversized":
+            sidecar.write_bytes(b" " * (2 * 1024 * 1024 + 1))
+        else:
+            sidecar.write_bytes(b"\xff\xfe")
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.synthesis_total == 1
+        assert rollup.synthesis_checked == 0
+        assert rollup.synthesis_unverified == 1
+
+    def test_synthesis_sidecar_rejects_hardlink(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        artifact = topic / "t_Paper_Synthesis.md"
+        artifact.write_text("synthesis", encoding="utf-8")
+        outside = tmp_path / "outside-sidecar.json"
+        outside.write_text(json.dumps(_bound_verify_sidecar(artifact, 1)), encoding="utf-8")
+        os.link(outside, topic / "t_paper_synthesis_Verify.json")
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.synthesis_total == 1
+        assert rollup.synthesis_checked == 0
+
+    def test_synthesis_sidecar_rejects_symlink(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        artifact = topic / "t_Paper_Synthesis.md"
+        artifact.write_text("synthesis", encoding="utf-8")
+        outside = tmp_path / "outside-sidecar.json"
+        outside.write_text(json.dumps(_bound_verify_sidecar(artifact, 1)), encoding="utf-8")
+        _symlink_or_skip(topic / "t_paper_synthesis_Verify.json", outside)
+
+        rollup = collect_verify_rollup(topic)
+
+        assert rollup.synthesis_total == 1
+        assert rollup.synthesis_checked == 0
+
+    def test_synthesis_inventory_rejects_hardlinked_artifact(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        outside_artifact = tmp_path / "outside-synthesis.md"
+        outside_artifact.write_text("synthesis", encoding="utf-8")
+        os.link(outside_artifact, topic / "t_Paper_Synthesis.md")
+
+        assert collect_verify_rollup(topic).synthesis_total == 0
+
+    def test_synthesis_inventory_rejects_symlinked_artifact(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        topic.mkdir()
+        outside_artifact = tmp_path / "outside-synthesis.md"
+        outside_artifact.write_text("synthesis", encoding="utf-8")
+        _symlink_or_skip(topic / "t_Paper_Synthesis.md", outside_artifact)
+
+        assert collect_verify_rollup(topic).synthesis_total == 0
+
+    def test_synthesis_inventory_rejects_linked_directory(self, tmp_path: Path):
+        topic = tmp_path / "t"
+        channels = topic / "channels"
+        channels.mkdir(parents=True)
+        outside_channel = tmp_path / "outside-channel"
+        outside_channel.mkdir()
+        (outside_channel / "t_linked_Synthesis.md").write_text("linked", encoding="utf-8")
+        _symlink_or_skip(channels / "linked", outside_channel, target_is_directory=True)
+
+        assert collect_verify_rollup(topic).synthesis_total == 0
 
 
 class TestExactVideoDuplicates:

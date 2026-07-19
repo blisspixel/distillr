@@ -211,7 +211,7 @@ class TestMissingConfigErrors:
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
         assert result["status"] == "error"
         assert "model" in result["error"].lower()
 

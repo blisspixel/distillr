@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from typing import Any, NoReturn, cast
 
@@ -127,15 +128,6 @@ def worker_claim_cmd(
 @worker_app.command(name="submit")
 def worker_submit_cmd(
     task_id: str = typer.Argument(help="Twelve-character task id returned by worker claim."),
-    claim_token: str = typer.Option(
-        ...,
-        "--claim-token",
-        envvar="DISTILL_WORKER_CLAIM_TOKEN",
-        help=(
-            "Opaque ownership token returned by worker claim. Prefer the "
-            "DISTILL_WORKER_CLAIM_TOKEN environment variable."
-        ),
-    ),
     model: str = typer.Option(
         "",
         "--model",
@@ -156,6 +148,7 @@ def worker_submit_cmd(
 ) -> None:
     """Validate and publish the result.md from a claimed workspace."""
 
+    claim_token = _worker_claim_token()
     result = _worker_call(
         lambda queue: queue.submit(
             task_id,
@@ -176,15 +169,6 @@ def worker_submit_cmd(
 @worker_app.command(name="abandon")
 def worker_abandon_cmd(
     task_id: str = typer.Argument(help="Twelve-character task id returned by worker claim."),
-    claim_token: str = typer.Option(
-        ...,
-        "--claim-token",
-        envvar="DISTILL_WORKER_CLAIM_TOKEN",
-        help=(
-            "Opaque ownership token returned by worker claim. Prefer the "
-            "DISTILL_WORKER_CLAIM_TOKEN environment variable."
-        ),
-    ),
     reason: str = typer.Option(
         ...,
         "--reason",
@@ -193,6 +177,7 @@ def worker_abandon_cmd(
 ) -> None:
     """Release a claim without publishing its scratch result."""
 
+    claim_token = _worker_claim_token()
     result = _worker_call(
         lambda queue: queue.abandon(
             task_id,
@@ -243,6 +228,17 @@ def _worker_call(action: Callable[[AgentTaskQueue], Any]) -> Any:
         return action(_queue())
     except WorkerTaskError as exc:
         _exit_worker_error(exc)
+
+
+def _worker_claim_token() -> str:
+    """Read the worker bearer token without accepting it in process arguments."""
+
+    token = os.environ.get("DISTILL_WORKER_CLAIM_TOKEN", "")
+    if not token:
+        _exit_worker_error(
+            WorkerTaskInvalid("Set DISTILL_WORKER_CLAIM_TOKEN before submit or abandon.")
+        )
+    return token
 
 
 def _exit_worker_error(exc: WorkerTaskError) -> NoReturn:

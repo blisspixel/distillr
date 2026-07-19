@@ -956,6 +956,8 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
     )
     process = _FakeBrowserProcess()
     observed = {}
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", "untrusted-browser-path")
+    monkeypatch.setenv("PYTHONWARNINGS", "ignore::untrusted.Warning")
 
     def popen(argv, **kwargs):
         observed["argv"] = argv
@@ -967,7 +969,6 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
         return process
 
     monkeypatch.setattr(scraper_module.subprocess, "Popen", popen)
-    monkeypatch.setattr(scraper_module, "package_install_context", lambda: (str(tmp_path), {}))
     monkeypatch.setattr(scraper_module, "assign_windows_memory_job", lambda *a, **k: None)
     monkeypatch.setattr(scraper_module, "close_windows_job", lambda _handle: None)
     monkeypatch.setattr(scraper_module, "wait_for_process_budget", lambda *a, **k: 100)
@@ -980,7 +981,10 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
         "-m",
         "distill.ingestors.sites._browser_worker",
     ]
-    assert observed["kwargs"]["cwd"] == str(tmp_path)
+    assert observed["kwargs"]["cwd"] == str(Path(sys.executable).resolve().parent)
+    assert "PLAYWRIGHT_BROWSERS_PATH" not in observed["kwargs"]["env"]
+    assert "PYTHONWARNINGS" not in observed["kwargs"]["env"]
+    assert observed["kwargs"]["env"]["PYTHONNOUSERSITE"] == "1"
 
 
 def test_browser_worker_parent_terminates_on_memory_budget(monkeypatch, tmp_path: Path) -> None:

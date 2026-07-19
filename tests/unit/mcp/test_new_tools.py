@@ -6,11 +6,14 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import TextContent
 
 from distill.config import DistillConfig
 from distill.library import Library
@@ -98,6 +101,11 @@ def test_progress_events_valid_structure(progress, total):
 
 
 class TestCostsTool:
+    def test_aggregate_rejects_integer_too_large_for_float(self):
+        from distill.mcp.tools.costs import _finite_total
+
+        assert _finite_total([{"actual_cost": 10**10_000}]) is None
+
     def test_no_cost_history(self, mock_config):
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.costs import costs
@@ -254,6 +262,34 @@ class TestCostsTool:
             result = json.loads(costs())
 
         assert result["runs"][0]["command"] == "aware"
+
+    def test_cost_history_fails_closed_when_total_is_unrepresentable(self, mock_config):
+        timestamp = datetime.now().isoformat()
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text(
+            "\n".join(
+                json.dumps(
+                    {
+                        "command": "report",
+                        "timestamp": timestamp,
+                        "actual_cost": 1e308,
+                    }
+                )
+                for _ in range(2)
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            raw = costs()
+            result = json.loads(raw)
+
+        assert result["status"] == "warning"
+        assert result["total_cost"] is None
+        assert "supported aggregate range" in result["message"]
+        assert "Infinity" not in raw
 
 
 class TestDoctorTool:
@@ -1085,6 +1121,98 @@ class TestSiteBatchTool:
 
 
 class TestSynthesizeTool:
+    def test_transport_schema_exposes_force_as_boolean(self):
+        from distill.mcp.server import mcp
+
+        tool = next(tool for tool in asyncio.run(mcp.list_tools()) if tool.name == "synthesize")
+
+        assert tool.inputSchema["properties"]["force"] == {
+            "default": False,
+            "title": "Force",
+            "type": "boolean",
+        }
+
+    @pytest.mark.parametrize("force", [1, 0, "true", "false", None])
+    def test_transport_rejects_non_boolean_force_before_tool_setup(self, force, mock_config):
+        from distill.mcp.server import mcp
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.synthesis.load_config") as mock_load,
+            patch("distill.mcp.tools.synthesis.model_available") as mock_model,
+            patch("distill.mcp.tools.synthesis.capped_tracker") as mock_tracker,
+            pytest.raises(ToolError, match="Input should be a valid boolean"),
+        ):
+            asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": force}))
+
+        mock_load.assert_not_called()
+        mock_model.assert_not_called()
+        mock_tracker.assert_not_called()
+
+    def test_transport_false_requires_authorization_before_tool_setup(self, mock_config):
+        from distill.mcp.server import mcp
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.synthesis.load_config") as mock_load,
+            patch("distill.mcp.tools.synthesis.model_available") as mock_model,
+            patch("distill.mcp.tools.synthesis.capped_tracker") as mock_tracker,
+        ):
+            content, _ = cast(
+                tuple[list[TextContent], dict[str, object]],
+                asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": False})),
+            )
+
+        assert json.loads(content[0].text)["status"] == "authorization_required"
+        mock_load.assert_not_called()
+        mock_model.assert_not_called()
+        mock_tracker.assert_not_called()
+
+    def test_transport_true_reaches_tool_setup(self, mock_config):
+        from distill.mcp.server import mcp
+
+        lib = MagicMock()
+        lib.get_channels.side_effect = RuntimeError("stop after guarded setup")
+        tracker = CostTracker()
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.mcp.tools.synthesis.load_config", return_value=mock_config) as mock_load,
+            patch("distill.mcp.tools.synthesis.model_available", return_value=True) as mock_model,
+            patch("distill.mcp.tools.synthesis.library", return_value=lib),
+            patch(
+                "distill.mcp.tools.synthesis.capped_tracker", return_value=tracker
+            ) as mock_tracker,
+            pytest.raises(ToolError, match="stop after guarded setup"),
+        ):
+            asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": True}))
+
+        mock_load.assert_called_once_with()
+        mock_model.assert_called_once_with()
+        mock_tracker.assert_called_once_with()
+
+    @pytest.mark.parametrize("force", [False, 0, 1, None])
+    def test_requires_literal_force_before_model_or_tracker(self, force):
+        from distill.mcp.tools.synthesis import synthesize
+
+        with (
+            patch("distill.mcp.tools.synthesis.load_config") as mock_load,
+            patch("distill.mcp.tools.synthesis.model_available") as mock_model,
+            patch("distill.mcp.tools.synthesis.capped_tracker") as mock_tracker,
+        ):
+            result = json.loads(asyncio.run(synthesize("ai", force=force)))
+
+        assert result == {
+            "status": "authorization_required",
+            "action": "regenerate_synthesis",
+            "message": (
+                "Synthesis regeneration requires explicit authorization. Retry with force=true."
+            ),
+            "required": {"force": True},
+        }
+        mock_load.assert_not_called()
+        mock_model.assert_not_called()
+        mock_tracker.assert_not_called()
+
     def test_no_model(self, tmp_path, monkeypatch):
         monkeypatch.setenv("DISTILL_PROVIDER", "openai")  # not implemented -> no model
         config = DistillConfig(
@@ -1094,7 +1222,7 @@ class TestSynthesizeTool:
         with patch("distill.mcp.server._config", return_value=config):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
         assert result["status"] == "error"
         assert "model" in result["error"].lower()
 
@@ -1102,7 +1230,7 @@ class TestSynthesizeTool:
         with patch("distill.mcp.server._config", return_value=mock_config):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai", style="bogus")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True, style="bogus")))
 
         assert result["status"] == "error"
         assert "Unknown style" in result["error"]
@@ -1124,7 +1252,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai", style="exec")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True, style="exec")))
 
         mock_ch.assert_called_once_with(
             "ai", "TestChannel", mock_config, tracker=mock_ch.call_args.kwargs["tracker"]
@@ -1167,7 +1295,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai", two_pass=True)))
+            result = json.loads(asyncio.run(synthesize("ai", force=True, two_pass=True)))
 
         assert mock_corpus.call_args.kwargs["two_pass"] is True
         corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
@@ -1190,7 +1318,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         channel_row = next(r for r in result["results"] if r.get("channel") == "TestChannel")
         assert channel_row["status"] == "error"
@@ -1213,7 +1341,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         topic_row = next(r for r in result["results"] if r.get("scope") == "topic")
         assert topic_row["status"] == "error"
@@ -1232,7 +1360,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
         assert corpus_row["status"] == "skipped"
@@ -1254,7 +1382,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         corpus_row = next(r for r in result["results"] if r.get("scope") == "corpus")
         assert corpus_row["status"] == "error"
@@ -1275,7 +1403,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         mock_tp.assert_not_called()
         assert result["status"] == "budget_exceeded"
@@ -1297,7 +1425,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         mock_corpus.assert_not_called()
         assert result["status"] == "budget_exceeded"
@@ -1318,7 +1446,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            result = json.loads(asyncio.run(synthesize("ai")))
+            result = json.loads(asyncio.run(synthesize("ai", force=True)))
 
         assert result["status"] == "budget_exceeded"
 
@@ -1337,7 +1465,7 @@ class TestSynthesizeTool:
         ):
             from distill.mcp.tools.synthesis import synthesize
 
-            asyncio.run(synthesize("ai", ctx=ctx))
+            asyncio.run(synthesize("ai", force=True, ctx=ctx))
 
         assert ctx.report_progress.await_count == 4  # 1 channel + topic + corpus + final
 

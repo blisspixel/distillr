@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from distill.mcp.server import load_config, mcp
 from distill.pipeline.cost_history import (
@@ -18,12 +20,27 @@ from distill.pipeline.cost_history import (
 __all__: list[str] = []
 
 
-def _actual_cost(value: object) -> float:
+def _actual_cost(value: object) -> float | None:
     if isinstance(value, bool):
-        return 0.0
+        return None
     if isinstance(value, int | float):
-        return float(value)
-    return 0.0
+        try:
+            cost = float(value)
+        except OverflowError:
+            return None
+        return cost if math.isfinite(cost) and cost >= 0 else None
+    return None
+
+
+def _finite_total(entries: list[dict[str, object]]) -> float | None:
+    costs = [_actual_cost(entry.get("actual_cost")) for entry in entries]
+    if any(cost is None for cost in costs):
+        return None
+    try:
+        total = math.fsum(cost for cost in costs if cost is not None)
+    except OverflowError:
+        return None
+    return total if math.isfinite(total) else None
 
 
 def _invalid_range(name: str, minimum: int, maximum: int) -> str:
@@ -33,6 +50,31 @@ def _invalid_range(name: str, minimum: int, maximum: int) -> str:
             "error": f"{name} must be an integer from {minimum} to {maximum}.",
         },
         indent=2,
+    )
+
+
+def _cost_result(recent: list[dict[str, object]], cost_scan: CostLogScan, log_file: Path) -> str:
+    total = _finite_total(recent)
+    messages: list[str] = []
+    if not cost_scan.complete:
+        messages.append(cost_history_integrity_message(log_file, cost_scan))
+    if total is None:
+        messages.append(
+            "The returned cost total is unavailable because valid cost values exceed "
+            "the supported aggregate range."
+        )
+    return json.dumps(
+        {
+            "status": "ok" if cost_scan.complete and total is not None else "warning",
+            "runs": recent,
+            "total_cost": round(total, 4) if total is not None else None,
+            "runs_shown": len(recent),
+            "total_scope": "returned_valid_runs",
+            "cost_history": cost_scan.coverage(),
+            **({"message": " ".join(messages)} if messages else {}),
+        },
+        indent=2,
+        allow_nan=False,
     )
 
 
@@ -85,21 +127,4 @@ def costs(days: int = 30, limit: int = 20) -> str:
         entries.append(entry)
 
     recent = entries[-limit:] if limit else []
-    total = sum(_actual_cost(entry.get("actual_cost")) for entry in recent)
-
-    return json.dumps(
-        {
-            "status": "ok" if cost_scan.complete else "warning",
-            "runs": recent,
-            "total_cost": round(total, 4),
-            "runs_shown": len(recent),
-            "total_scope": "returned_valid_runs",
-            "cost_history": cost_scan.coverage(),
-            **(
-                {"message": cost_history_integrity_message(log_file, cost_scan)}
-                if not cost_scan.complete
-                else {}
-            ),
-        },
-        indent=2,
-    )
+    return _cost_result(recent, cost_scan, log_file)

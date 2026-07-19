@@ -340,13 +340,12 @@ def test_adapter_doctor_blocks_unknown_auth_for_installed_candidate(monkeypatch,
     assert "auth mode is unknown" in codex.blocked_reasons
 
 
-def test_adapter_doctor_windows_probes_use_exact_discovered_executables(monkeypatch):
+def test_adapter_doctor_probes_use_exact_discovered_executables(monkeypatch):
     resolved = {
         binary: rf"C:\Program Files\adapter shims\{binary}.cmd"
         for binary in ("agy", "claude", "codex", "gemini", "gh", "grok")
     }
     monkeypatch.setattr(adapters, "resolve_executable", resolved.get)
-    monkeypatch.setattr(adapters, "_is_windows", lambda: True)
     commands: list[tuple[str, ...]] = []
 
     def runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
@@ -387,9 +386,8 @@ def test_adapter_doctor_gives_slow_startup_probes_bounded_headroom(monkeypatch):
     assert override_timeouts and set(override_timeouts) == {2}
 
 
-def test_adapter_doctor_posix_probes_keep_planned_argv(monkeypatch):
+def test_adapter_doctor_posix_probes_keep_resolved_executable_identity(monkeypatch):
     monkeypatch.setattr(adapters, "resolve_executable", lambda binary: f"/opt/adapters/{binary}")
-    monkeypatch.setattr(adapters, "_is_windows", lambda: False)
     commands: list[tuple[str, ...]] = []
 
     def runner(command: Sequence[str], timeout: int) -> tuple[int, str, str]:
@@ -398,9 +396,9 @@ def test_adapter_doctor_posix_probes_keep_planned_argv(monkeypatch):
 
     adapters.adapter_doctor_report(environ={}, runner=runner)
 
-    assert ("codex", "--version") in commands
-    assert ("claude", "auth", "status", "--json") in commands
-    assert all(not command[0].startswith("/opt/adapters/") for command in commands)
+    assert ("/opt/adapters/codex", "--version") in commands
+    assert ("/opt/adapters/claude", "auth", "status", "--json") in commands
+    assert all(command[0].startswith("/opt/adapters/") for command in commands)
 
 
 def test_adapter_command_runner_keeps_shell_disabled(monkeypatch):

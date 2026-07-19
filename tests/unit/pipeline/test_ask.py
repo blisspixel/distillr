@@ -202,7 +202,9 @@ class TestAsk:
         def fail_sidecar_write(*args, **kwargs):
             raise OSError("simulated sidecar write failure")
 
-        monkeypatch.setattr(ask_mod, "write_verify_sidecar", fail_sidecar_write)
+        from distill.pipeline import verify as verify_module
+
+        monkeypatch.setattr(verify_module, "write_verify_sidecar", fail_sidecar_write)
 
         with pytest.raises(OSError, match="sidecar write failure"):
             ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
@@ -223,31 +225,36 @@ class TestAsk:
         first = ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
         assert first.saved_insight_path is not None
         old_content = first.saved_insight_path.read_text(encoding="utf-8")
+        old_sidecar = next(first.saved_insight_path.parent.glob("*_Verify.json"))
+        old_sidecar_content = old_sidecar.read_bytes()
 
         _llm(
             monkeypatch,
             "The checker runs on CPU with 110 million parameters [checker_paper_Insights].",
         )
-        real_write = ask_mod.atomic_write_text
+        from distill.pipeline import verify as verify_module
+
+        real_write = verify_module.atomic_write_text
 
         def fail_promoted_insight(path, content):
             if path.name.endswith("_Insights.md"):
                 raise OSError("simulated insight replacement failure")
             return real_write(path, content)
 
-        monkeypatch.setattr(ask_mod, "atomic_write_text", fail_promoted_insight)
+        monkeypatch.setattr(verify_module, "atomic_write_text", fail_promoted_insight)
 
         with pytest.raises(OSError, match="insight replacement failure"):
             ask_mod.ask_corpus("which checker?", topic="t", config=config, save=True)
 
         assert first.saved_insight_path.read_text(encoding="utf-8") == old_content
-        assert first.saved_insight_path not in {
+        assert old_sidecar.read_bytes() == old_sidecar_content
+        assert first.saved_insight_path in {
             ref.path for ref in discover_insights(config.topic_dir("t"))
         }
         rollup = collect_verify_rollup(config.topic_dir("t"))
         assert rollup.insights_total == 2
-        assert rollup.checked == 0
-        assert rollup.never_checked == 2
+        assert rollup.checked == 1
+        assert rollup.never_checked == 1
 
     def test_save_refused_on_unsupported_claim(self, config, monkeypatch):
         _seed_corpus(config)

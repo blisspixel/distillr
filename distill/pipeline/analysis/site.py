@@ -14,7 +14,6 @@ from distill.library.paths import (
     base_frontmatter,
     find_artifact,
     tags_for,
-    write_markdown_artifact,
 )
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -127,28 +126,18 @@ def synthesize_site(
 
     # Verify against the per-page insights the prompt was built from; strict
     # mode refuses the write and keeps any previous site synthesis in place.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        site_dir,
-        synthesis,
-        "".join(parts),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}_{site_dir.name}",
-        insight_name=f"{site_name} site synthesis",
-        source_name="per-page insights",
-        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
-    ):
-        console.print(
-            f"  [yellow]Site synthesis for {site_name} not written (verify strict)[/yellow]"
-        )
-        return ""
-
-    write_markdown_artifact(
+    output = write_verified_synthesis(
         site_dir,
         "site_synthesis",
         synthesis,
-        identity=f"{topic}_{site_dir.name}",
+        "".join(parts),
+        verify_mode=config.distill_verify,
+        artifact_identity=f"{topic}_{site_dir.name}",
+        verify_identity=f"{topic}_{site_dir.name}",
+        source_name="per-page insights",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
         frontmatter=base_frontmatter(
             artifact_type="site-synthesis",
             title=f"Site synthesis: {site_name}",
@@ -165,6 +154,11 @@ def synthesize_site(
             ),
         ),
     )
+    if output is None:
+        console.print(
+            f"  [yellow]Site synthesis for {site_name} not written (verification gate)[/yellow]"
+        )
+        return ""
     return synthesis
 
 
@@ -207,26 +201,18 @@ def synthesize_site_topic(
     # Site and video topic rollups summarize different receipt sets. Keep both
     # the verification identity and artifact identity modality-specific so a
     # later producer cannot replace valid evidence from the other modality.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        config.topic_dir(topic),
-        synthesis,
-        "\n\n".join(site_summaries.values()),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}-site-topic-synthesis",
-        insight_name=f"{topic} site topic synthesis",
-        source_name="site syntheses",
-        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
-    ):
-        console.print(f"  [yellow]Topic synthesis for {topic} not written (verify strict)[/yellow]")
-        return ""
-
-    write_markdown_artifact(
+    output = write_verified_synthesis(
         config.topic_dir(topic),
         "site_synthesis",
         synthesis,
-        identity=topic,
+        "\n\n".join(site_summaries.values()),
+        verify_mode=config.distill_verify,
+        artifact_identity=topic,
+        verify_identity=f"{topic}-site-topic-synthesis",
+        source_name="site syntheses",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
         frontmatter=base_frontmatter(
             artifact_type="site-topic-synthesis",
             title=f"Site synthesis: {topic}",
@@ -242,4 +228,9 @@ def synthesize_site_topic(
             ),
         ),
     )
+    if output is None:
+        console.print(
+            f"  [yellow]Topic synthesis for {topic} not written (verification gate)[/yellow]"
+        )
+        return ""
     return synthesis

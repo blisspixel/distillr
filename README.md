@@ -365,13 +365,13 @@ For **multi-topic** literature reviews, stakeholder briefings, or agent groundin
 
 ```bash
 distill                         # terminal home screen
-distill --json                  # bounded dashboard.v1 operator snapshot
+distill --json                  # bounded dashboard.v2 operator snapshot
 distill --json dashboard        # the same explicit dashboard contract
 distill dashboard --web         # write a standalone local HTML dashboard
 distill serve                   # local web dashboard at http://127.0.0.1:8899
 ```
 
-The terminal home screen shows tracked topics, channel and topic watches, recent runs, failures, rolling spend, and the exact configured paths to local run evidence. Bare and explicit dashboard JSON return the same bounded `dashboard.v1` envelope with metrics, warnings, recent runs, and evidence paths. The web dashboard adds keyboard-accessible drill-downs to per-topic, per-channel, and per-video views with rendered markdown, plus cost history and watchlist status. Its scripts are same-origin static assets under a restrictive CSP. Every dashboard reads directly from library files - no database.
+The terminal home screen shows tracked topics, channel and topic watches, recent runs, failures, rolling spend, and the exact configured paths to local run evidence. Bare and explicit dashboard JSON return the same bounded `dashboard.v2` envelope with metrics, warnings, recent runs, and evidence paths. Its `spend.recent_usd` field is null when retained cost evidence cannot support a complete total. The web dashboard adds keyboard-accessible drill-downs to per-topic, per-channel, and per-video views with rendered markdown, plus cost history and watchlist status. Its scripts are same-origin static assets under a restrictive CSP. Every dashboard reads directly from library files - no database.
 
 ## MCP server, and agent-discoverable directories
 
@@ -516,6 +516,13 @@ before mutation, so cooperating processes cannot silently replace one
 another's updates. Suspected corruption is rechecked under the writer lock,
 preserved in a non-colliding backup, and surfaced through an actionable log;
 failed quarantine or persistence never advances the in-memory state.
+
+Append-only knowledge and operator receipts use serialized, no-follow batch
+writes that isolate an interrupted tail before the next complete row. Claims
+and mentions use strict typed, bounded reads; per-source completion advances
+only after durable evidence publication. Incomplete cost evidence is shown as
+Unavailable rather than zero or a misleading aggregate, and derived cost math
+must remain finite before it reaches CLI, JSON, MCP, or web output.
 
 **Trust boundaries, stated plainly:** everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is treated as **untrusted input** - injection-resistance rules are threaded through first- and second-hop prompts, the dashboard sanitizes rendered HTML, and MCP file reads are confined to explicit namespaces, artifact classes, and byte limits (read-only mode available, above). Distill never bypasses login walls, captchas, or anti-bot defenses. Known-fragile edge: YouTube extraction depends on yt-dlp, which churns with YouTube's countermeasures - transient caption failures retry with backoff, captionless videos fall back to the local-first Whisper ladder, and remaining failures degrade with messages, not corrupted corpora.
 

@@ -19,7 +19,7 @@ from distill.ingestors.net import (
     NetworkDeadline,
     NetworkError,
     _PublicWebRedirectHandler,
-    _truncate_url,
+    _url_for_log,
     is_public_web_url,
     pin_host_to_ip,
     resolve_public_ip,
@@ -487,16 +487,47 @@ def test_safe_urlopen_timeout_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 # ---------------------------------------------------------------------------
-# _truncate_url
+# _url_for_log
 # ---------------------------------------------------------------------------
 
 
-def test_truncate_url_clips_long_and_keeps_short() -> None:
-    long_url = "https://example.com/" + "a" * 200
-    clipped = _truncate_url(long_url, max_len=20)
+def test_url_for_log_clips_long_origin_and_removes_sensitive_components() -> None:
+    long_url = "https://user:password@very-long-example.test:8443/private/token?key=secret#x"
+    clipped = _url_for_log(long_url, max_len=20)
     assert clipped.endswith("...")
     assert len(clipped) == 23  # 20 + "..."
-    assert _truncate_url("https://x/", max_len=80) == "https://x/"
+    assert "user" not in clipped
+    assert "password" not in clipped
+    assert "private" not in clipped
+    assert "secret" not in clipped
+    assert _url_for_log("https://x/path?q=secret", max_len=80) == "https://x"
+
+
+def test_url_for_log_preserves_normalized_ipv6_origin_and_rejects_malformed() -> None:
+    assert _url_for_log("HTTPS://[2001:4860:4860::8888]:443/a?b=c") == (
+        "https://[2001:4860:4860::8888]:443"
+    )
+    assert _url_for_log("https://example.com:invalid/secret") == "<invalid-url>"
+
+
+def test_retry_log_never_contains_url_credentials_or_query_secrets(caplog) -> None:
+    caplog.set_level("WARNING", logger="distill.ingestors.net")
+    deadline = SimpleNamespace(sleep=lambda _wait: None)
+
+    net._retry_delay(
+        target_url=(
+            "https://user:SENTINEL-USERINFO@example.test/private/SENTINEL-PATH?token=SENTINEL-QUERY"
+        ),
+        attempt=0,
+        retries=1,
+        wait=0,
+        reason="HTTP 503",
+        deadline=deadline,
+    )
+
+    rendered = caplog.text
+    assert "https://example.test" in rendered
+    assert "SENTINEL" not in rendered
 
 
 @pytest.mark.parametrize("timeout", [True, 0, -1, float("nan"), float("inf"), "1"])

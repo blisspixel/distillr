@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import urllib.parse
 import urllib.request
@@ -38,6 +39,7 @@ _MAX_TEXT_NODES = 10_000
 _MAX_TEXT_CHARS = 4_096
 _MAX_VIDEO_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 _MAX_VIEW_COUNT = 1_000_000_000_000_000
+_log = logging.getLogger(__name__)
 _MAX_FUTURE_CLOCK_SKEW = timedelta(minutes=5)
 _RELATIVE_UNIT_DELTAS = {
     "minute": timedelta(minutes=1),
@@ -176,6 +178,15 @@ def _fetch_search_html(search_url: str) -> str:
 
 
 def _fetch_with_playwright(search_url: str) -> str:
+    from distill.process_security import unsafe_package_overrides
+
+    overrides = unsafe_package_overrides()
+    if overrides:
+        _log.warning(
+            "Playwright YouTube search refused unsafe execution overrides: %s",
+            ", ".join(overrides),
+        )
+        return ""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:

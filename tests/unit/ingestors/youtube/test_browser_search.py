@@ -6,6 +6,8 @@ import sys
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 from distill.ingestors.youtube.browser_search import (
     _build_search_url,
     _duration_to_seconds,
@@ -482,6 +484,31 @@ def test_fetch_with_playwright_returns_empty_when_module_missing(monkeypatch):
     monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
 
     assert _fetch_with_playwright("https://www.youtube.com/results?search_query=fabric") == ""
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("node_options", "--require untrusted.js"),
+        ("PLAYWRIGHT_BROWSERS_PATH", "untrusted-browser-path"),
+    ],
+)
+def test_fetch_with_playwright_refuses_ambient_execution_override(
+    monkeypatch,
+    caplog,
+    variable,
+    value,
+):
+    invoked = []
+    fake_module = SimpleNamespace(sync_playwright=lambda: invoked.append(True))
+    monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=fake_module))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)
+    monkeypatch.setenv(variable, value)
+
+    assert _fetch_with_playwright("https://www.youtube.com/results?search_query=fabric") == ""
+    assert invoked == []
+    assert variable.upper() in caplog.text
+    assert value not in caplog.text
 
 
 def test_fetch_with_playwright_returns_page_content(monkeypatch):

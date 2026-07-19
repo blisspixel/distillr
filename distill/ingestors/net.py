@@ -587,12 +587,14 @@ def _fetch_target(
     try:
         parsed = urllib.parse.urlparse(target_url)
     except ValueError as exc:
-        raise ValueError(f"Refusing malformed URL: {target_url}") from exc
+        raise ValueError(f"Refusing malformed URL: {_url_for_log(target_url)}") from exc
     if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
-        raise ValueError(f"Refusing to open URL with scheme {parsed.scheme!r}: {target_url}")
+        raise ValueError(
+            f"Refusing to open URL with scheme {parsed.scheme!r}: {_url_for_log(target_url)}"
+        )
     host = _normalize_host(parsed.hostname or "")
     if host is None:
-        raise ValueError(f"Refusing to open URL with invalid host: {target_url}")
+        raise ValueError(f"Refusing to open URL with invalid host: {_url_for_log(target_url)}")
     return target_url, host
 
 
@@ -641,7 +643,7 @@ def _retry_delay(
     logger.warning(
         "%s from %s (attempt %d/%d). Retrying in %.0fs...",
         reason,
-        _truncate_url(target_url),
+        _url_for_log(target_url),
         attempt + 1,
         retries + 1,
         wait,
@@ -695,7 +697,7 @@ def _open_with_retries(
             exc.close()
             _cancel_owned_deadline(deadline, owns_deadline)
             raise NetworkError(
-                f"HTTP {exc.code} from {_truncate_url(target_url)}: {exc.reason}",
+                f"HTTP {exc.code} from {_url_for_log(target_url)}: {exc.reason}",
                 url=target_url,
                 status_code=exc.code,
             ) from exc
@@ -750,7 +752,7 @@ def safe_urlopen(
     owns_deadline = deadline is None
     active_deadline = deadline or NetworkDeadline(
         float(timeout),
-        label=f"fetch from {_truncate_url(target_url)}",
+        label=f"fetch from {_url_for_log(target_url)}",
     )
     # SSRF guard: resolve+validate the host to a public IP once and pin the
     # connection to it (closing the DNS-rebind window), and follow redirects
@@ -764,7 +766,7 @@ def safe_urlopen(
         raise
     if pinned_ip is None:
         _cancel_owned_deadline(active_deadline, owns_deadline)
-        raise ValueError(f"Refusing to open non-public URL: {target_url}")
+        raise ValueError(f"Refusing to open non-public URL: {_url_for_log(target_url)}")
     return _open_with_retries(
         url_or_request,
         target_url=target_url,
@@ -797,6 +799,19 @@ def _request_uses_proxy(request: urllib.request.Request, target_url: str) -> boo
     )
 
 
-def _truncate_url(url: str, max_len: int = 80) -> str:
-    """Truncate a URL for log messages."""
-    return url[:max_len] + "..." if len(url) > max_len else url
+def _url_for_log(url: str, max_len: int = 80) -> str:
+    """Render only a URL origin for diagnostics, never secret-bearing components."""
+
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        host = _normalize_host(parsed.hostname or "")
+        port = parsed.port
+    except (ValueError, UnicodeError):
+        return "<invalid-url>"
+    if not parsed.scheme or host is None:
+        return "<invalid-url>"
+    authority = f"[{host}]" if ":" in host else host
+    if port is not None:
+        authority = f"{authority}:{port}"
+    rendered = urllib.parse.urlunsplit((parsed.scheme.lower(), authority, "", "", ""))
+    return rendered[:max_len] + "..." if len(rendered) > max_len else rendered

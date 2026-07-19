@@ -15,6 +15,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from distill.jsonl import (
+    JsonlIntegrityError,
+    append_jsonl_lines_locked,
+    jsonl_append_lock,
+    read_jsonl_objects_strict,
+)
 from distill.pipeline.audit_records import AuditReport
 from distill.pipeline.quality_trend import QualitySnapshot, parse_quality_snapshot
 
@@ -23,6 +29,10 @@ __all__ = [
     "load_last_quality_snapshot",
     "quality_snapshot_from_report",
 ]
+
+_MAX_QUALITY_HISTORY_BYTES = 8 * 1024 * 1024
+_MAX_QUALITY_HISTORY_ROWS = 10_000
+_MAX_QUALITY_ROW_BYTES = 64 * 1024
 
 
 def quality_snapshot_from_report(report: AuditReport, *, generated_at: str) -> QualitySnapshot:
@@ -54,32 +64,51 @@ def _history_path(topic_dir: Path) -> Path:
 
 
 def load_last_quality_snapshot(topic_dir: Path) -> QualitySnapshot | None:
-    """Return the most recent usable persisted snapshot, or None.
+    """Return the most recent fully validated snapshot, or None when missing.
 
-    A missing, unreadable, or malformed history degrades to None (treated as "no
-    prior snapshot") rather than crashing the audit.
+    Corrupt, unsafe, oversized, or schema-invalid history raises an exact-path
+    ``JsonlIntegrityError`` so an operator cannot mistake damaged state for a
+    fresh baseline.
     """
-    try:
-        raw = _history_path(topic_dir).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    for line in reversed(raw.splitlines()):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            data = json.loads(stripped)
-        except json.JSONDecodeError:
-            continue
-        snapshot = parse_quality_snapshot(data)
-        if snapshot is not None:
-            return snapshot
-    return None
+    return _load_last_quality_snapshot_path(_history_path(topic_dir), topic_dir)
+
+
+def _load_last_quality_snapshot_path(path: Path, confinement_root: Path) -> QualitySnapshot | None:
+    """Validate an entire quality history and return its final row."""
+
+    rows = read_jsonl_objects_strict(
+        path,
+        max_file_bytes=_MAX_QUALITY_HISTORY_BYTES,
+        max_row_bytes=_MAX_QUALITY_ROW_BYTES,
+        max_rows=_MAX_QUALITY_HISTORY_ROWS,
+        confinement_root=confinement_root,
+    )
+    snapshots: list[QualitySnapshot] = []
+    for index, row in enumerate(rows, 1):
+        snapshot = parse_quality_snapshot(row)
+        if snapshot is None:
+            raise JsonlIntegrityError(path, f"row {index} violates the QualitySnapshot schema")
+        snapshots.append(snapshot)
+    return snapshots[-1] if snapshots else None
 
 
 def append_quality_snapshot(topic_dir: Path, snapshot: QualitySnapshot) -> None:
-    """Append one snapshot to the topic's append-only quality history."""
+    """Durably append one schema-valid snapshot to the topic history."""
     path = _history_path(topic_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(snapshot.to_dict()) + "\n")
+    row = snapshot.to_dict()
+    if parse_quality_snapshot(row) != snapshot:
+        raise ValueError(
+            "Quality snapshot must contain a valid ISO timestamp and nonnegative counts"
+        )
+    line = json.dumps(row, ensure_ascii=False, allow_nan=False)
+    with jsonl_append_lock(path, confinement_root=topic_dir):
+        # Validate existing history under the same cooperating-writer lock used
+        # for append. A caller cannot extend corrupt state even when it bypasses
+        # the public audit flow's preceding load.
+        _load_last_quality_snapshot_path(path, topic_dir)
+        append_jsonl_lines_locked(
+            path,
+            [line],
+            durable=True,
+            confinement_root=topic_dir,
+        )

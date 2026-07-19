@@ -85,6 +85,7 @@ from distill.pipeline.cost_history import (
     select_cost_log_path,
 )
 from distill.pipeline.costs import estimate_synthesis_workflow_cost, projected_next_run_cost
+from distill.pipeline.dashboard_data import sum_recent_cost
 from distill.pipeline.summary import RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
 
@@ -210,13 +211,17 @@ def costs(  # noqa: C901 -- legacy, will refactor
     # `entries[-0:]` is the whole list, so guard explicitly: --last 0 (or a
     # negative) shows nothing rather than every run.
     recent = entries[-last:] if last > 0 else []
-    total_cost = sum(_safe_float(e.get("actual_cost", 0)) for e in recent)
+    total_cost = sum_recent_cost(recent)
 
     from distill.pipeline.costs import estimator_accuracy
 
     accuracy = estimator_accuracy(entries) if cost_scan.complete else None
     projected = projected_next_run_cost(entries) if cost_scan.complete else None
-    cost_warnings = _cost_warnings_for_config(config, entries) if cost_scan.complete else []
+    cost_warnings = (
+        _cost_warnings_for_config(config, entries)
+        if cost_scan.complete and total_cost is not None
+        else []
+    )
 
     if json_mode:
         # Compute local/cloud split from telemetry
@@ -224,10 +229,10 @@ def costs(  # noqa: C901 -- legacy, will refactor
         envelope = JsonEnvelope.success(
             {
                 "runs": recent,
-                "total_cost": round(total_cost, 4),
+                "total_cost": round(total_cost, 4) if total_cost is not None else None,
                 "projected_next_run_cost": round(projected, 4) if projected is not None else None,
                 "runs_shown": len(recent),
-                "cloud_spend_usd": round(total_cost, 4),
+                "cloud_spend_usd": round(total_cost, 4) if total_cost is not None else None,
                 "local_inference_seconds": local_cloud.get("local_total_seconds", 0),
                 "local_tokens_total": local_cloud.get("local_total_tokens", 0),
                 "local_avg_tokens_per_second": local_cloud.get("avg_tokens_per_second", 0),
@@ -288,7 +293,13 @@ def costs(  # noqa: C901 -- legacy, will refactor
         table.add_row(ts, cmd, topic, sources_str, cost_str, tokens, time_str)
 
     console.print(table)
-    console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")
+    if total_cost is None:
+        console.print(
+            f"\n[yellow]Total across {len(recent)} runs: unavailable because the cost "
+            "values exceed the supported aggregate range.[/yellow]"
+        )
+    else:
+        console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")
     _render_cost_history_integrity(log_file, cost_scan, console)
 
     # Estimator accountability: the estimator promises accuracy, not padding --

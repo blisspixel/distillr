@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from distill.config import DistillConfig
+from distill.library.insights import insight_content_sha256
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.costs import CostTracker
@@ -27,6 +28,24 @@ def test_synthesize_channel_returns_empty_without_videos(tmp_path):
     result = synthesize_channel("ai", "Creator", config)
 
     assert result == ""
+
+
+@pytest.mark.parametrize("entrypoint", ["channel", "topic"])
+def test_synthesis_entrypoints_reject_structural_topic_before_evaluation(tmp_path, entrypoint):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    unsafe_topic = "safe\n```override"
+
+    with (
+        patch("distill.pipeline.synthesis.topic.llm_call") as mock_llm,
+        pytest.raises(ValueError, match="topic identity"),
+    ):
+        if entrypoint == "channel":
+            synthesize_channel(unsafe_topic, "Creator", config)
+        else:
+            synthesize_topic(unsafe_topic, config)
+
+    mock_llm.assert_not_called()
+    assert not config.library_dir.exists()
 
 
 def test_synthesize_channel_returns_empty_without_insights(tmp_path):
@@ -149,7 +168,11 @@ def test_synthesize_channel_records_tracker(tmp_path):
 
 def test_synthesize_channel_writes_verify_sidecar(tmp_path):
     """0.13.1: channel synthesis is verified against its per-video insights."""
-    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    config = DistillConfig(
+        xai_api_key="test-key",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="warn",
+    )
     channel_dir = config.channel_dir("ai", "Creator")
     (channel_dir / "videos" / "v1").mkdir(parents=True, exist_ok=True)
     (channel_dir / "videos" / "v1" / "insights.md").write_text(
@@ -165,6 +188,10 @@ def test_synthesize_channel_writes_verify_sidecar(tmp_path):
     assert result  # warn mode writes anyway
     sidecar = channel_dir / "ai_Creator_Verify.json"
     assert sidecar.exists()
+    output = find_artifact(channel_dir, "synthesis", identity="ai_Creator")
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert payload["insight"] == output.name
+    assert payload["insight_sha256"] == insight_content_sha256(output.read_text(encoding="utf-8"))
 
 
 def test_synthesize_channel_verifies_context_and_insights_as_derived_evidence(tmp_path):
@@ -214,8 +241,7 @@ def test_synthesize_topic_budget_exceeded_re_raises(tmp_path):
         synthesize_topic("ai", config)
 
 
-def test_synthesize_channel_strict_refuses_and_writes_sidecar(tmp_path):
-    """Covers verify strict refuse path in synthesize_channel."""
+def test_synthesize_channel_strict_refuses_without_publishing_candidate_sidecar(tmp_path):
     config = DistillConfig(
         xai_api_key="test-key", distill_output_dir=tmp_path / "lib", distill_verify="strict"
     )
@@ -237,11 +263,8 @@ def test_synthesize_channel_strict_refuses_and_writes_sidecar(tmp_path):
     assert (
         not synth_path.exists() or strip_frontmatter(synth_path.read_text(encoding="utf-8")) == ""
     )
-    # sidecar written
     sidecar = channel_dir / "ai_Creator_Verify.json"
-    assert sidecar.exists()
-    data = json.loads(sidecar.read_text(encoding="utf-8"))
-    assert any(c["token"] == "91.7" for c in data["unsupported"])
+    assert not sidecar.exists()
 
 
 def test_synthesize_channel_video_link_bad_metadata(tmp_path):
@@ -261,7 +284,11 @@ def test_synthesize_channel_video_link_bad_metadata(tmp_path):
 def test_synthesize_topic_writes_verify_sidecar(tmp_path):
     """0.13.1: topic synthesis is verified against its channel syntheses, under a
     distinct sidecar identity so the three topic-level syntheses can't collide."""
-    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    config = DistillConfig(
+        xai_api_key="test-key",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="warn",
+    )
     for name in ["CreatorOne", "CreatorTwo"]:
         channel_dir = config.channel_dir("ai", name)
         channel_dir.mkdir(parents=True, exist_ok=True)
@@ -278,6 +305,9 @@ def test_synthesize_topic_writes_verify_sidecar(tmp_path):
     assert sidecar.exists()
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "88.8" for c in data["unsupported"])
+    output = find_artifact(config.topic_dir("ai"), "topic_synthesis", identity="ai")
+    assert data["insight"] == output.name
+    assert data["insight_sha256"] == insight_content_sha256(output.read_text(encoding="utf-8"))
 
 
 def test_synthesize_topic_claude_refresh_raises_swallowed(tmp_path):

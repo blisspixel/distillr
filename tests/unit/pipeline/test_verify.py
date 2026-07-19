@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -367,12 +371,18 @@ def test_run_synthesis_verify_hits_notify_on_mismatch(tmp_path):
         identity="i",
         insight_name="i.md",
         source_name="r.md",
+        insight_sha256="0" * 64,
         notify=n,
     )
     assert len(notified) > 0
     assert res is False  # for warn mode
 
-    # off -> None -> False (covers if outcome is None)
+    from distill.library.paths import artifact_path
+
+    stale = artifact_path(tmp_path, "verify", identity="i3", extension="json")
+    stale.write_text('{"stale": true}', encoding="utf-8")
+
+    # Off mode clears any prior verification claim before allowing the write.
     res_none = run_synthesis_verify(
         tmp_path,
         "synth",
@@ -381,9 +391,11 @@ def test_run_synthesis_verify_hits_notify_on_mismatch(tmp_path):
         identity="i3",
         insight_name="i3.md",
         source_name="r3.md",
+        insight_sha256="1" * 64,
         notify=n,
     )
     assert res_none is False
+    assert not stale.exists()
 
 
 def test_run_synthesis_verify_strict_mismatch_refuses(tmp_path):
@@ -395,6 +407,12 @@ def test_run_synthesis_verify_strict_mismatch_refuses(tmp_path):
     def n(s):
         notified.append(s)
 
+    from distill.library.paths import artifact_path
+
+    prior_sidecar = artifact_path(tmp_path, "verify", identity="i", extension="json")
+    prior_content = '{"prior": "binding"}'
+    prior_sidecar.write_text(prior_content, encoding="utf-8")
+
     res = run_synthesis_verify(
         tmp_path,
         "The score is 99.9.",
@@ -403,7 +421,187 @@ def test_run_synthesis_verify_strict_mismatch_refuses(tmp_path):
         identity="i",
         insight_name="i.md",
         source_name="r.md",
+        insight_sha256="0" * 64,
         notify=n,
     )
     assert res is True
     assert len(notified) > 0
+    assert prior_sidecar.read_text(encoding="utf-8") == prior_content
+    assert "previous artifact and verification sidecar retained" in notified[0]
+
+
+def test_run_synthesis_verify_refuses_when_sidecar_cannot_be_published(tmp_path, monkeypatch):
+    from distill.pipeline import verify as verify_module
+
+    notified: list[str] = []
+    monkeypatch.setattr(
+        verify_module,
+        "write_verify_sidecar",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk unavailable")),
+    )
+
+    refused = verify_module.run_synthesis_verify(
+        tmp_path,
+        "The score is 72.6.",
+        "The score is 72.6.",
+        verify_mode="warn",
+        identity="i",
+        insight_name="i.md",
+        source_name="r.md",
+        insight_sha256="0" * 64,
+        notify=notified.append,
+    )
+
+    assert refused is True
+    assert "could not be published" in notified[0]
+
+
+@pytest.mark.parametrize("verify_mode", ["warn", "off"])
+def test_verified_synthesis_restores_prior_sidecar_when_artifact_write_fails(
+    tmp_path,
+    monkeypatch,
+    verify_mode: str,
+) -> None:
+    from distill.library.paths import artifact_path
+    from distill.pipeline import verify as verify_module
+
+    sidecar = artifact_path(tmp_path, "verify", identity="binding", extension="json")
+    prior = b'{"prior": "binding"}\n'
+    sidecar.write_bytes(prior)
+
+    def fail_artifact(*_args, **_kwargs):
+        raise OSError("artifact disk unavailable")
+
+    monkeypatch.setattr(verify_module, "write_text_artifact", fail_artifact)
+
+    with pytest.raises(OSError, match="artifact disk unavailable"):
+        verify_module.write_verified_synthesis(
+            tmp_path,
+            "synthesis",
+            "The score is 72.6.",
+            "The score is 72.6.",
+            verify_mode=verify_mode,
+            artifact_identity="artifact",
+            verify_identity="binding",
+            source_name="receipt",
+            notify=lambda _message: None,
+        )
+
+    assert sidecar.read_bytes() == prior
+
+
+def test_verified_synthesis_removes_new_sidecar_when_artifact_write_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from distill.library.paths import artifact_path
+    from distill.pipeline import verify as verify_module
+
+    sidecar = artifact_path(tmp_path, "verify", identity="binding", extension="json")
+
+    def fail_artifact(*_args, **_kwargs):
+        raise OSError("artifact disk unavailable")
+
+    monkeypatch.setattr(verify_module, "write_text_artifact", fail_artifact)
+
+    with pytest.raises(OSError, match="artifact disk unavailable"):
+        verify_module.write_verified_synthesis(
+            tmp_path,
+            "synthesis",
+            "The score is 72.6.",
+            "The score is 72.6.",
+            verify_mode="warn",
+            artifact_identity="artifact",
+            verify_identity="binding",
+            source_name="receipt",
+            notify=lambda _message: None,
+        )
+
+    assert not sidecar.exists()
+
+
+def test_verified_synthesis_surfaces_artifact_and_sidecar_rollback_failures(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from distill.library.paths import artifact_path
+    from distill.pipeline import verify as verify_module
+
+    sidecar = artifact_path(tmp_path, "verify", identity="binding", extension="json")
+    sidecar.write_text('{"prior": "binding"}\n', encoding="utf-8")
+
+    def fail_artifact(*_args, **_kwargs):
+        raise OSError("artifact disk unavailable")
+
+    def fail_rollback(*_args, **_kwargs):
+        raise OSError("sidecar disk unavailable")
+
+    monkeypatch.setattr(verify_module, "write_text_artifact", fail_artifact)
+    monkeypatch.setattr(verify_module, "atomic_write_confined_bytes", fail_rollback)
+
+    with pytest.raises(ExceptionGroup, match="sidecar rollback failed") as caught:
+        verify_module.write_verified_synthesis(
+            tmp_path,
+            "synthesis",
+            "The score is 72.6.",
+            "The score is 72.6.",
+            verify_mode="warn",
+            artifact_identity="artifact",
+            verify_identity="binding",
+            source_name="receipt",
+            notify=lambda _message: None,
+        )
+
+    assert [str(error) for error in caught.value.exceptions] == [
+        "artifact disk unavailable",
+        "sidecar disk unavailable",
+    ]
+
+
+def test_concurrent_verified_synthesis_keeps_artifact_and_sidecar_bound(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from distill.library.insights import insight_content_sha256
+    from distill.library.paths import artifact_path
+    from distill.pipeline import verify as verify_module
+
+    first_waiting = threading.Event()
+    release_first = threading.Event()
+    real_write = verify_module.write_text_artifact
+
+    def blocking_write(directory, artifact_type, content, *, identity):
+        if "111.1" in content:
+            first_waiting.set()
+            assert release_first.wait(timeout=5)
+        return real_write(directory, artifact_type, content, identity=identity)
+
+    def publish(score: str):
+        return verify_module.write_verified_synthesis(
+            tmp_path,
+            "synthesis",
+            f"The score is {score}.",
+            f"The score is {score}.",
+            verify_mode="warn",
+            artifact_identity="same",
+            verify_identity="same",
+            source_name="receipt",
+            notify=lambda _message: None,
+        )
+
+    monkeypatch.setattr(verify_module, "write_text_artifact", blocking_write)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(publish, "111.1")
+        assert first_waiting.wait(timeout=5)
+        second = executor.submit(publish, "222.2")
+        with pytest.raises(FutureTimeoutError):
+            second.result(timeout=0.25)
+        release_first.set()
+        first.result(timeout=5)
+        second.result(timeout=5)
+
+    artifact = artifact_path(tmp_path, "synthesis", identity="same")
+    sidecar = artifact_path(tmp_path, "verify", identity="same", extension="json")
+    artifact_text = artifact.read_text(encoding="utf-8")
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert payload["insight_sha256"] == insight_content_sha256(artifact_text)

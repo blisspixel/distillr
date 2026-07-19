@@ -80,9 +80,10 @@ Submit the completed result:
 distill --json worker submit <task-id> --model <model-label>
 ```
 
-The submit process reads `DISTILL_WORKER_CLAIM_TOKEN` when `--claim-token` is
-omitted. In an interactive shell, read the token without echo rather than
-typing it into a recorded command:
+Submit and abandon read the bearer token only from
+`DISTILL_WORKER_CLAIM_TOKEN`; there is no process-argument form. In an
+interactive shell, read the token without echo rather than typing it into a
+recorded command:
 
 ```bash
 read -rsp "Claim token: " DISTILL_WORKER_CLAIM_TOKEN

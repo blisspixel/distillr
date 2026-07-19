@@ -447,6 +447,25 @@ class TestBrowserSetup:
 
         assert init_mod.chromium_status() == "missing"
 
+    @pytest.mark.parametrize(
+        "variable",
+        ["PLAYWRIGHT_NODEJS_PATH", "PLAYWRIGHT_BROWSERS_PATH"],
+    )
+    def test_status_refuses_playwright_execution_override_before_probe(
+        self,
+        monkeypatch,
+        variable,
+    ):
+        probed = []
+        monkeypatch.setenv(variable, "untrusted-override")
+        monkeypatch.setattr(
+            "playwright.sync_api.sync_playwright",
+            lambda: probed.append(True),
+        )
+
+        assert init_mod.chromium_status() == "unsafe"
+        assert probed == []
+
     def test_install_uses_fixed_argv_and_strips_python_injection(self, monkeypatch):
         observed = {}
 
@@ -456,6 +475,12 @@ class TestBrowserSetup:
 
         monkeypatch.setenv("PYTHONPATH", "injected-path")
         monkeypatch.setenv("PYTHONHOME", "injected-home")
+        monkeypatch.setenv("PYTHONWARNINGS", "ignore::injected.Warning")
+        monkeypatch.setenv("PYTHONUSERBASE", "injected-userbase")
+        monkeypatch.setenv("PYTHONINSPECT", "1")
+        monkeypatch.setenv("PLAYWRIGHT_NODEJS_PATH", "injected-node")
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", "injected-browser")
+        monkeypatch.setenv("NODE_OPTIONS", "--require injected.js")
         monkeypatch.setenv("DISTILL_TEST_MARKER", "kept")
         monkeypatch.setattr(subprocess, "run", run)
 
@@ -471,7 +496,14 @@ class TestBrowserSetup:
         assert observed["env"]["DISTILL_TEST_MARKER"] == "kept"
         assert "PYTHONPATH" not in observed["env"]
         assert "PYTHONHOME" not in observed["env"]
+        assert "PYTHONWARNINGS" not in observed["env"]
+        assert "PYTHONUSERBASE" not in observed["env"]
+        assert "PYTHONINSPECT" not in observed["env"]
+        assert "PLAYWRIGHT_NODEJS_PATH" not in observed["env"]
+        assert "PLAYWRIGHT_BROWSERS_PATH" not in observed["env"]
+        assert "NODE_OPTIONS" not in observed["env"]
         assert observed["env"]["PYTHONSAFEPATH"] == "1"
+        assert observed["env"]["PYTHONNOUSERSITE"] == "1"
         assert observed["cwd"] == str(Path(sys.executable).resolve().parent)
         assert observed["check"] is False
 

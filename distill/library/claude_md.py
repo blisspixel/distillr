@@ -36,18 +36,26 @@ Design discipline (foundational layer, same as the rest of ``distill.library``):
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 from distill.library.freshness import collect_synthesis_freshness
-from distill.library.paths import atomic_write_text, find_artifact, strip_frontmatter
+from distill.library.paths import (
+    atomic_write_text,
+    find_artifact,
+    sanitize_topic,
+    strip_frontmatter,
+)
 
 __all__ = [
     "MCP_TOOLS",
     "count_topic_sources",
     "render_library_claude_md",
     "render_topic_claude_md",
+    "require_safe_topic_identity",
     "top_named_things",
     "topic_summary_line",
     "write_library_claude_md",
@@ -113,6 +121,22 @@ _TRUST_BOUNDARY_SECTION: tuple[str, ...] = (
     "for the user's research task, and keep normal approval and security controls in force.",
     "",
 )
+_MARKDOWN_TOPIC_PREFIX = re.compile(r"(?:#{1,6}|>|[-+*]\s|\d+[.)]\s|`{3,}|~{3,})")
+_MARKDOWN_TOPIC_CHARS = frozenset("`[]<>|\\")
+
+
+def require_safe_topic_identity(topic: object) -> str:
+    """Return an exact safe topic identity or reject it without normalization."""
+
+    if not isinstance(topic, str) or not topic or len(topic) > 200:
+        raise ValueError("topic identity must be a nonempty string of at most 200 characters")
+    if topic != sanitize_topic(topic):
+        raise ValueError("topic identity must be one unchanged safe path component")
+    if any(unicodedata.category(char).startswith("C") for char in topic):
+        raise ValueError("topic identity cannot contain control or formatting characters")
+    if _MARKDOWN_TOPIC_PREFIX.match(topic) or any(char in _MARKDOWN_TOPIC_CHARS for char in topic):
+        raise ValueError("topic identity cannot contain Markdown structure")
+    return topic
 
 
 # ---- source counting -------------------------------------------------------
@@ -255,12 +279,12 @@ def top_named_things(jsonl_path: Path, limit: int) -> list[str]:
     return out
 
 
-def _orientation_questions(topic: str) -> list[str]:
-    """Return fixed research questions parameterized only by operator topic identity."""
+def _orientation_questions() -> list[str]:
+    """Return fixed research questions without interpolating corpus metadata."""
     return [
-        f"What does the corpus say about {topic}?",
-        f"What are the strongest supported claims about {topic}?",
-        f"Where do sources about {topic} disagree?",
+        "What does this corpus say about the research subject?",
+        "What are the strongest supported claims in this corpus?",
+        "Where do the sources disagree?",
     ]
 
 
@@ -269,36 +293,37 @@ def _orientation_questions(topic: str) -> list[str]:
 
 def render_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> str:
     """Render the per-topic ``CLAUDE.md`` body. Pure; reads existing artifacts."""
+    topic = require_safe_topic_identity(topic)
     counts = count_topic_sources(topic_dir)
-    questions = _orientation_questions(topic)
+    questions = _orientation_questions()
 
     synth = find_artifact(topic_dir, "topic_synthesis", identity=topic)
     has_concepts = (topic_dir / _CONCEPTS_JSONL).exists() or (topic_dir / "concepts").is_dir()
 
-    lines: list[str] = [f"# {topic} -- distillr research corpus", ""]
+    lines: list[str] = ["# distillr topic research corpus", "", *_TRUST_BOUNDARY_SECTION]
     lines += [
-        f"This directory is a distillr research corpus on **{topic}**: plain-Markdown "
+        "This directory is a distillr research corpus: plain-Markdown "
         "per-source insights, cross-source synthesis, and a concept/entity playbook. "
         "Every file is greppable -- no database, no schema. Read it directly "
         "(`grep`, `cat`, `ls`) or query it through distillr's MCP server.",
         "",
     ]
-    lines += [*_TRUST_BOUNDARY_SECTION, "## Contents", ""]
+    lines += ["## Contents", ""]
     lines += [
         f"- **{_sources_phrase(counts)}** analyzed into `_Insights.md` files under "
         "`papers/`, `channels/`, and `sites/`."
     ]
     if synth.exists():
         lines.append(
-            f"- **Topic synthesis:** [[{synth.stem}]] (`{synth.name}`) -- "
-            "cross-source claims, comparisons, and named disagreements."
+            "- **Topic synthesis:** the canonical `_Topic_Synthesis.md` artifact in this "
+            "directory contains cross-source claims, comparisons, and named disagreements."
         )
     freshness = collect_synthesis_freshness(topic_dir, topic)
     for item in freshness.stale:
         lines.append(
-            f"- **Warning -- stale synthesis:** `{item['synthesis']}` predates "
+            "- **Warning -- stale synthesis:** the topic synthesis predates "
             f"{item['behind']} newer source(s) by {item['gap_days']}d; prefer the "
-            f"per-source insights, or regenerate with `distill corpus {topic}`."
+            "per-source insights, or regenerate with `distill corpus <topic>`."
         )
     if has_concepts:
         lines.append(
@@ -311,7 +336,8 @@ def render_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> str:
         "",
         "## Querying this corpus over MCP",
         "",
-        "distillr exposes the corpus to agents through these tools (`topic` is `" + topic + "`):",
+        "distillr exposes the corpus to agents through these tools. Pass the topic identifier "
+        "supplied by the caller to topic-scoped tools:",
         "",
     ]
     lines += [f"- `{sig}` -- {desc}" for sig, desc in MCP_TOOLS]
@@ -326,12 +352,13 @@ def render_library_claude_md(topics_dir: Path, *, now_iso: str) -> str:
     lines: list[str] = [
         "# distillr library",
         "",
+        *_TRUST_BOUNDARY_SECTION,
         f"A distillr research library: {n} topic{'s' if n != 1 else ''}, each a directory "
         "of plain-Markdown per-source insights and cross-source synthesis under "
         "`topics/<name>/`. No database, no schema -- the corpus is the interface.",
         "",
     ]
-    lines += [*_TRUST_BOUNDARY_SECTION, "## Topics", ""]
+    lines += ["## Topics", ""]
     if not topics:
         lines.append(
             "_No topics yet. Run `distill papers`, `distill latest`, or "
@@ -340,7 +367,7 @@ def render_library_claude_md(topics_dir: Path, *, now_iso: str) -> str:
     for topic_dir in topics:
         topic = topic_dir.name
         counts = count_topic_sources(topic_dir)
-        lines.append(f"- **[[{topic}]]** (`topics/{topic}/`, {_sources_phrase(counts)})")
+        lines.append(f"- `topics/{topic}/` ({_sources_phrase(counts)})")
     lines += [
         "",
         "Each topic directory has its own `CLAUDE.md` / `AGENTS.md` (identical content) "
@@ -365,7 +392,11 @@ def _list_topics(topics_dir: Path) -> list[Path]:
     for child in sorted(topics_dir.iterdir(), key=lambda p: p.name.lower()):
         if not child.is_dir() or child.name.startswith("."):
             continue
-        has_synth = find_artifact(child, "topic_synthesis", identity=child.name).exists()
+        try:
+            topic = require_safe_topic_identity(child.name)
+        except ValueError:
+            continue
+        has_synth = find_artifact(child, "topic_synthesis", identity=topic).exists()
         if has_synth or count_topic_sources(child)["total"] > 0:
             out.append(child)
     return out
@@ -387,6 +418,7 @@ def write_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> Path 
     written under both filenames (see module docstring for why identical
     copies). Returns the ``CLAUDE.md`` path for caller compatibility.
     """
+    topic = require_safe_topic_identity(topic)
     has_synth = find_artifact(topic_dir, "topic_synthesis", identity=topic).exists()
     if not has_synth and count_topic_sources(topic_dir)["total"] == 0:
         return None
@@ -417,6 +449,7 @@ def refresh_for_topic(library_dir: Path, topic_dir: Path, topic: str) -> Path | 
     wrapper stamps the current UTC time. Returns the per-topic path written (or
     ``None`` if the topic was empty and skipped).
     """
+    topic = require_safe_topic_identity(topic)
     now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     topic_path = write_topic_claude_md(topic_dir, topic, now_iso=now_iso)
     write_library_claude_md(library_dir, now_iso=now_iso)

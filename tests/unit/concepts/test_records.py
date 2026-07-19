@@ -114,6 +114,28 @@ class TestConceptMentionRoundTrip:
         assert m.claim_excerpt == ""
         assert m.evidence_type == ""
 
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("name", ""),
+            ("name", 4),
+            ("normalized_name", None),
+            ("kind", True),
+            ("polarity", []),
+            ("source_id", ""),
+            ("artifact_path", 3),
+            ("claim_excerpt", 1),
+            ("evidence_type", False),
+            ("extracted_at", {}),
+        ],
+    )
+    def test_from_jsonl_rejects_wrong_field_types(self, field: str, value: object) -> None:
+        row = _make_mention().to_jsonl_row()
+        row[field] = value
+
+        with pytest.raises(ValueError):
+            ConceptMention.from_jsonl_row(row)
+
     def test_mention_is_hashable(self) -> None:
         s = {_make_mention(), _make_mention()}
         assert len(s) == 1

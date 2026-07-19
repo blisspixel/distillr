@@ -207,6 +207,50 @@ def test_terminate_process_tree_handles_an_already_missing_root(monkeypatch) -> 
     resources.terminate_process_tree(CompleteProcess())  # type: ignore[arg-type]
 
 
+def test_terminate_isolated_process_tree_kills_posix_group_before_tree(monkeypatch) -> None:
+    process = SimpleNamespace(pid=321)
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setattr(resources.os, "name", "posix")
+    monkeypatch.setattr(
+        resources.os,
+        "killpg",
+        lambda pid, sig: calls.append(("group", (pid, sig))),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        resources,
+        "terminate_process_tree",
+        lambda child: calls.append(("tree", child)),
+    )
+
+    resources.terminate_isolated_process_tree(process)  # type: ignore[arg-type]
+
+    assert calls == [
+        (
+            "group",
+            (321, getattr(resources.signal, "SIGKILL", resources.signal.SIGTERM)),
+        ),
+        ("tree", process),
+    ]
+
+
+def test_terminate_isolated_process_tree_ignores_missing_posix_group(monkeypatch) -> None:
+    process = SimpleNamespace(pid=654)
+    terminated = []
+    monkeypatch.setattr(resources.os, "name", "posix")
+    monkeypatch.setattr(
+        resources.os,
+        "killpg",
+        lambda _pid, _sig: (_ for _ in ()).throw(ProcessLookupError()),
+        raising=False,
+    )
+    monkeypatch.setattr(resources, "terminate_process_tree", terminated.append)
+
+    resources.terminate_isolated_process_tree(process)  # type: ignore[arg-type]
+
+    assert terminated == [process]
+
+
 def test_non_windows_memory_job_is_a_noop(monkeypatch) -> None:
     monkeypatch.setattr(resources.os, "name", "posix")
 

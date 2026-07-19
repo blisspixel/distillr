@@ -50,6 +50,20 @@ _WINDOWS_RESERVED_COMPONENTS = {
 }
 
 
+def _required_string(row: dict[str, Any], field: str) -> str:
+    value = row.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field} must be a nonempty string")
+    return value
+
+
+def _optional_string(row: dict[str, Any], field: str) -> str:
+    value = row.get(field, "")
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
 def _bounded_slug(slug: str, *, identity: str) -> str:
     """Bound a filesystem component while preserving stable identity.
 
@@ -182,17 +196,20 @@ class ConceptMention:
 
     @classmethod
     def from_jsonl_row(cls, row: dict[str, Any]) -> ConceptMention:
-        """Round-trip from a row written by ``to_jsonl_row``."""
+        """Strictly hydrate one persisted mention with legacy optional defaults."""
+
+        kind = _required_string(row, "kind")
+        polarity = _required_string(row, "polarity")
         return cls(
-            name=row["name"],
-            normalized_name=row["normalized_name"],
-            kind=ConceptKind(row["kind"]),
-            polarity=Polarity(row["polarity"]),
-            source_id=row["source_id"],
-            artifact_path=row["artifact_path"],
-            claim_excerpt=row.get("claim_excerpt", ""),
-            evidence_type=row.get("evidence_type", ""),
-            extracted_at=row.get("extracted_at", ""),
+            name=_required_string(row, "name"),
+            normalized_name=_required_string(row, "normalized_name"),
+            kind=ConceptKind(kind),
+            polarity=Polarity(polarity),
+            source_id=_required_string(row, "source_id"),
+            artifact_path=_required_string(row, "artifact_path"),
+            claim_excerpt=_optional_string(row, "claim_excerpt"),
+            evidence_type=_optional_string(row, "evidence_type"),
+            extracted_at=_optional_string(row, "extracted_at"),
         )
 
 

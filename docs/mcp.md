@@ -59,7 +59,7 @@ crawling, writes, or spend, and that preview is allowed even when
 
 | Tool | What it does |
 |---|---|
-| `synthesize` | Corpus synthesis over a topic (`style=...`; `two_pass=true` runs over `claims.jsonl`) |
+| `synthesize` | Regenerate synthesis over a topic only with explicit literal JSON boolean `force=true` authorization; numeric, string, and null coercions are rejected (`style=...`; `two_pass=true` runs over `claims.jsonl`) |
 | `resynthesize_topic` | Regenerate channel, topic, and mixed-source corpus synthesis from existing insights |
 | `generate_report` | Deep research report (Gemini + Grok 4-phase pipeline) |
 

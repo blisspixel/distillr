@@ -7217,22 +7217,6 @@
           "is_flag": false,
           "kind": "option",
           "multiple": false,
-          "name": "claim_token",
-          "names": [
-            "--claim-token"
-          ],
-          "nargs": 1,
-          "required": true,
-          "type": {
-            "name": "text"
-          }
-        },
-        {
-          "count": false,
-          "default": null,
-          "is_flag": false,
-          "kind": "option",
-          "multiple": false,
           "name": "reason",
           "names": [
             "--reason"
@@ -7365,22 +7349,6 @@
           "name": "task_id",
           "nargs": 1,
           "position": 0,
-          "required": true,
-          "type": {
-            "name": "text"
-          }
-        },
-        {
-          "count": false,
-          "default": null,
-          "is_flag": false,
-          "kind": "option",
-          "multiple": false,
-          "name": "claim_token",
-          "names": [
-            "--claim-token"
-          ],
-          "nargs": 1,
           "required": true,
           "type": {
             "name": "text"

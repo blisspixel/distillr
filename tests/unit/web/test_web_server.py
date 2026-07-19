@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -228,6 +229,36 @@ def test_costs_page_exposes_incomplete_ledger_without_partial_rollups(config):
     assert "By Source (30d)" not in response.text
     assert "Recent Runs" in response.text
     assert 'role="status"' in response.text
+
+
+def test_costs_page_exposes_unrepresentable_total_without_partial_rollups(config):
+    log = config.library_dir / "cost_log.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().isoformat()
+    log.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "timestamp": timestamp,
+                    "actual_cost": 1e308,
+                    "metadata": {"topic": "ai", "source_type": "report"},
+                }
+            )
+            for _ in range(2)
+        ),
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    response = client.get("/costs")
+
+    assert response.status_code == 200
+    assert "Cost total is unavailable" in response.text
+    assert "supported aggregate range" in response.text
+    assert "Total spend" not in response.text
+    assert "By Topic (30d)" not in response.text
+    assert "By Source (30d)" not in response.text
+    assert "Infinity" not in response.text
 
 
 def test_empty_watchlist_page_offers_recurring_setup_path(config):

@@ -261,9 +261,10 @@ class TestAuditActions:
 
         audit_mod._act_stale(config, ["t"], reports, self._link_result(), "2026-06-21T00:00:00Z")
 
-        joined = " ".join(str(call) for call in console.print.call_args_list)
+        joined = " ".join(str(call.args[0]) for call in console.print.call_args_list)
+        assert "arguments are data, not shell text" in joined
         assert "papers/p1/p1_Insights.md" in joined
-        assert "re-run its original ingest verb" in joined
+        assert "Re-run the artifact's original ingest verb" in joined
 
     def test_act_freshness_prints_resynthesis_and_legacy_paths(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

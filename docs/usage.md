@@ -645,7 +645,7 @@ producing dangling keys.
 
 ### Two-pass synthesis (`--two-pass`)
 
-`distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source - re-runs skip sources already in the store). Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.
+`distill resynthesize <topic> --two-pass` runs a claim-based corpus synthesis instead of summarizing the per-source insights directly. Pass 1 extracts atomic claims from every `_Insights.md` into an append-only `library/topics/<topic>/.claims/claims.jsonl` (one cheap LLM call per not-yet-extracted source - re-runs skip sources already recorded in the strict source ledger). Claim publication and ledger advancement share one topic transaction, including durable zero-claim receipts, so concurrent cooperating runs do not repeat the same model work and interrupted appends do not mark a source complete. Pass 2 synthesizes over the claim set: it clusters claims by what they assert, names contradictions between sources explicitly, and cites each statement back to specific claim handles (`[C7]`), surfacing low-confidence and single-source claims as the corpus's soft spots rather than dropping them.
 
 Single-pass synthesis remains the default; `--two-pass` is opt-in and falls back to single-pass if a topic has no extractable claims. The same path is available to agents through the MCP `synthesize` tool's `two_pass` argument.
 
@@ -780,7 +780,7 @@ distill run ai --dry-run                            # preview what would run
 
 ## Concept playbook and recovery
 
-The concept playbook accumulates evidence about named techniques, architectures, datasets, people, and vendors across a topic's `_Insights.md` files. Every refresh that changes a note snapshots the prior version under `.history/`, so the playbook is recoverable.
+The concept playbook accumulates evidence about named techniques, architectures, datasets, people, and vendors across a topic's `_Insights.md` files. Every refresh that changes a note snapshots the prior version under `.history/`, so the playbook is recoverable. Multiple changes in the same second receive stable `__2`, `__3`, and later suffixes instead of overwriting one another. If an interrupted build updates mentions or notes but not every derived playbook export, the next build detects its durable repair marker and rebuilds the derived state before returning an idle result.
 
 ```bash
 # Build / refresh the playbook for a topic (extraction + deterministic merge)
@@ -803,16 +803,16 @@ distill concepts rollback tkg rotational_embedding 2026-05-29T08:10:31Z --yes   
 
 The `<slug>` is the note's filename stem (e.g. `concepts/rotational_embedding.md` -> `rotational_embedding`). Timestamps are accepted in either ISO (`2026-05-29T08:10:31Z`) or filesystem-stem (`2026-05-29T08-10-31Z`) form; `distill concepts log` prints the exact values to copy. Agents can reach the same read surface over MCP via `concept_history` and `concept_diff`.
 
-## Agent orientation (CLAUDE.md)
+## Agent orientation (CLAUDE.md and AGENTS.md)
 
-Every topic directory and the library root carry an auto-generated `CLAUDE.md` orientation file, so a coding agent that auto-loads `CLAUDE.md` (Claude Code, Cursor, Codex CLI, and others) gets immediate context the moment it `cd`s in: a one-line summary, source counts, a link to the topic synthesis, "ask me about" example queries from the corpus's named entities and concepts, and the MCP read-surface tools. These regenerate automatically on every topic refresh; the command below is for backfilling existing topics or regenerating on demand.
+Every topic directory and the library root carry auto-generated `CLAUDE.md` and `AGENTS.md` orientation files with identical content. Their fixed trust boundary appears before navigation or workflow guidance, and topic files use static research questions without interpolating topic names, synthesis filenames, or corpus-derived prose into privileged instructions. They still report structural source counts, synthesis availability and staleness, playbook availability, and the MCP read surface. These files regenerate automatically on every topic refresh; the command below is for backfilling existing topics or regenerating on demand.
 
 ```bash
 distill claude-md tkg          # regenerate one topic's CLAUDE.md + the library index
 distill claude-md --all        # regenerate every topic + the library index
 ```
 
-`CLAUDE.md` is plain Markdown with no frontmatter and is generated from existing artifacts (no LLM calls). It is meant to be regenerated, not hand-edited.
+Both files are plain Markdown with no frontmatter and are generated from existing artifacts without model calls. They are meant to be regenerated, not hand-edited.
 
 ## Viewing and exporting
 
@@ -877,9 +877,8 @@ distill audit ai                                    # full trust report -> ai_Au
                                                     #   (verify coverage, prompt staleness, synthesis freshness,
                                                     #    exact video duplicates, thin long-video transcripts,
                                                     #    near-duplicate insights,
-                                                    #    contested concepts, links, gaps; stale
-                                                    #    artifacts/syntheses get re-analysis commands -- printed,
-                                                    #    never run)
+                                                    #    contested concepts, links, gaps; stale artifacts get
+                                                    #    inert JSON argv or manual-review guidance, never shell text)
 distill audit ai --next-actions --json             # machine-readable actions with commands,
                                                     #   approval class, write scope, loop state,
                                                     #   and verifier stop conditions
@@ -894,6 +893,10 @@ distill cleanup                                     # delete orphaned Gemini Fil
 
 When a run has failed results or recorded issues, its terminal summary prints
 the exact local `latest_run_errors.md` receipt after that file is written.
+`run_log.jsonl`, `latest_run.json`, and `latest_run_errors.md` share one run ID
+and one serialized update boundary. Concurrent runs cannot leave the two latest
+projections pointing at different runs; a projection failure restores the prior
+pair and remains visible while the complete run-log row stays diagnostic.
 Failed source rows also receive a safe retry hint; already-ingested sources are
 skipped on the next run. If the evidence receipt cannot be written, Distill
 shows and logs that failure instead of advertising a path that does not exist.
@@ -1156,7 +1159,7 @@ contract. Stable read envelopes include `library`, `videos`, `show`,
 view, and `concepts` export:
 
 ```bash
-distill --json                       # bounded dashboard.v1 operator snapshot
+distill --json                       # bounded dashboard.v2 operator snapshot
 distill --json dashboard             # identical explicit dashboard snapshot
 distill --json library               # topic + channel inventory
 distill --json synthesis <topic>     # the synthesis document + provenance
@@ -1167,7 +1170,7 @@ distill --cost-mode no-metered --json doctor  # readiness without API-billed pro
 `distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires an available local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
 
 Bare `distill --json` and `distill --json dashboard` return the same
-`dashboard.v1` data object. It includes a `first_run` verdict, primitive count
+`dashboard.v2` data object. It includes a `first_run` verdict, primitive count
 and spend metrics, at most 100 topic names and 10 recent run summaries, bounded
 warning lists, next commands, and exact configured paths for the latest run,
 run errors, debug log, phase telemetry, provider telemetry, and cost ledger.
@@ -1233,6 +1236,19 @@ distill --json update --check   # same, machine-readable
 `distill update` detects the install method - **uv tool**, **pipx**, or **pip** - and runs the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). On a **source/editable checkout** it won't touch your working tree; it tells you to `git pull` + `uv sync` instead.
 
 distill also surfaces a one-line "update available" nudge on startup when a newer release is published - checked against PyPI at most once per day (cached), non-blocking, and silenced with `DISTILL_NO_UPDATE_CHECK=1`.
+
+### 0.19.39 compatibility notes
+
+- Dashboard JSON is `dashboard.v2`. `spend.recent_usd` is null when the
+  `cost_history` coverage record says retained evidence cannot support a
+  complete total.
+- `worker submit` and `worker abandon` accept the claim token only through
+  `DISTILL_WORKER_CLAIM_TOKEN`; the former `--claim-token` option is removed.
+- MCP synthesis regeneration requires literal `force=true`. Values that merely
+  coerce to true do not authorize a write.
+- Existing bounded completion ledgers and claim or mention histories remain
+  readable. New source IDs use a shared 16 KiB UTF-8 ceiling, including podcast
+  GUIDs, so there is no required migration for valid 0.19.38 topics.
 
 ## Shell completions
 

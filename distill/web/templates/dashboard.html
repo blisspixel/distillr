@@ -29,7 +29,7 @@
     ("Videos", total_videos|string),
     ("Sites", site_count|string),
     ("Papers", paper_count|string),
-    ("Recent Spend", "$%.2f"|format(recent_spend)),
+    ("Recent Spend", "$%.2f"|format(recent_spend) if recent_spend is not none else "Unavailable"),
     ("Next Sweep", "$%.2f"|format(next_sweep_cost))
   ] %}
   <div class="card metric">

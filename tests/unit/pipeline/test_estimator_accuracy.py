@@ -91,6 +91,19 @@ class TestEstimatorAccuracy:
     def test_integer_too_large_for_float_is_not_a_metric(self):
         assert estimator_accuracy([_row(10**400, 1.0)]) is None
 
+    def test_unrepresentable_percentage_is_unavailable(self):
+        assert estimator_accuracy([_row(1e308, 1e-308)]) is None
+
+    def test_projection_scales_before_summing_extreme_finite_rows(self):
+        projected = projected_next_run_cost(
+            [
+                {"command": "papers", "actual_cost": 1e308},
+                {"command": "report", "actual_cost": 1e308},
+            ]
+        )
+
+        assert projected == 1e308
+
 
 def test_cost_log_reader_skips_oversized_nonfinite_and_boolean_rows(tmp_path):
     log = tmp_path / "cost_log.jsonl"

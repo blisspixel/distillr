@@ -15,6 +15,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass
@@ -65,10 +66,28 @@ _ATOMIC_REPLACE_TIMEOUT_SECONDS = 2.0
 _ATOMIC_REPLACE_RETRY_SECONDS = 0.05
 
 
+class _WriteLockState(threading.local):
+    """Track path locks already held by the current thread."""
+
+    held: set[str]
+
+    def __init__(self) -> None:
+        self.held = set()
+
+
+_TEXT_WRITE_LOCKS = _WriteLockState()
+
+
 def _text_write_lock_path(path: Path) -> Path:
     normalized_name = os.path.normcase(path.name)
     digest = hashlib.sha256(normalized_name.encode("utf-8")).hexdigest()
     return path.parent / f".distill-write-{digest}.lock"
+
+
+def _text_write_lock_key(path: Path) -> str:
+    """Return a thread-local identity for one advisory write lock."""
+
+    return os.path.normcase(str(_text_write_lock_path(path).absolute()))
 
 
 def _atomic_write_text_unlocked(path: Path, content: str) -> None:
@@ -108,12 +127,21 @@ def _is_retryable_replace_error(_error: PermissionError) -> bool:
 def text_write_lock(path: Path) -> Generator[None]:
     """Hold the lock shared by atomic writes and read-modify-write transactions."""
 
+    key = _text_write_lock_key(path)
+    held = _TEXT_WRITE_LOCKS.held
+    if key in held:
+        yield
+        return
     with exclusive_path_lock(
         _text_write_lock_path(path),
         timeout_seconds=_TEXT_WRITE_LOCK_TIMEOUT_SECONDS,
         timeout_message=f"Timed out writing {path}",
     ):
-        yield
+        held.add(key)
+        try:
+            yield
+        finally:
+            held.remove(key)
 
 
 def atomic_write_text(path: Path, content: str) -> None:

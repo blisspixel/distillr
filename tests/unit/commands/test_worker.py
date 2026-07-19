@@ -183,11 +183,10 @@ def test_worker_cli_abandon_and_error_envelopes(worker_config: DistillConfig) ->
             "worker",
             "abandon",
             task_id,
-            "--claim-token",
-            "wrong-token-value-123456789",
             "--reason",
             "test",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": "wrong-token-value-123456789"},
     )
     assert wrong.exit_code == 1
     wrong_envelope = json.loads(wrong.output)
@@ -201,11 +200,10 @@ def test_worker_cli_abandon_and_error_envelopes(worker_config: DistillConfig) ->
             "worker",
             "abandon",
             task_id,
-            "--claim-token",
-            str(claim["claim_token"]),
             "--reason",
             "quota exhausted",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": str(claim["claim_token"])},
     )
     assert abandoned.exit_code == 0
     assert _data(abandoned.output)["abandoned"] is True
@@ -217,12 +215,56 @@ def test_worker_cli_abandon_and_error_envelopes(worker_config: DistillConfig) ->
             "worker",
             "submit",
             "000000000000",
-            "--claim-token",
-            "valid-token-value-1234567890",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": "valid-token-value-1234567890"},
     )
     assert missing.exit_code == 5
     assert json.loads(missing.output)["data"]["reason"] == "worker_task_not_found"
+
+
+def test_worker_submit_requires_environment_token_before_opening_queue(
+    worker_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened = []
+    monkeypatch.setattr(worker_commands, "_queue", lambda: opened.append(True))
+
+    result = runner.invoke(
+        cli.app,
+        ["--json", "worker", "submit", "000000000000"],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": ""},
+    )
+
+    assert result.exit_code == 3
+    envelope = json.loads(result.output)
+    assert envelope["data"]["reason"] == "worker_task_invalid"
+    assert "DISTILL_WORKER_CLAIM_TOKEN" in envelope["error"]
+    assert opened == []
+
+
+def test_worker_rejects_literal_claim_token_option_without_echoing_value(
+    worker_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = "SENTINEL-WORKER-BEARER-123456789"
+    opened = []
+    monkeypatch.setattr(worker_commands, "_queue", lambda: opened.append(True))
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "worker",
+            "submit",
+            "000000000000",
+            "--claim-token",
+            sentinel,
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--claim-token" in result.output
+    assert sentinel not in result.output
+    assert opened == []
 
 
 def test_worker_release_expired_requires_explicit_yes(worker_config: DistillConfig) -> None:
@@ -295,9 +337,8 @@ def test_worker_invalid_and_base_errors_have_stable_exit_codes(
             "worker",
             "submit",
             "bad",
-            "--claim-token",
-            "valid-token-value-1234567890",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": "valid-token-value-1234567890"},
     )
     assert invalid.exit_code == 3
     assert json.loads(invalid.output)["data"]["reason"] == "worker_task_invalid"
@@ -308,9 +349,8 @@ def test_worker_invalid_and_base_errors_have_stable_exit_codes(
             "worker",
             "submit",
             "000000000000",
-            "--claim-token",
-            "valid-token-value-1234567890",
         ],
+        env={"DISTILL_WORKER_CLAIM_TOKEN": "valid-token-value-1234567890"},
     )
     assert human_missing.exit_code == 5
     assert "no pending task directory exists" in human_missing.output

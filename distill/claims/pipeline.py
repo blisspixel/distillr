@@ -30,11 +30,14 @@ from typing import Any
 from distill.claims.exports import (
     already_extracted_source_ids,
     append_claims,
+    ensure_claim_store_append_capacity,
+    ensure_extracted_sources_capacity,
     read_claims,
     read_extracted_sources,
     record_extracted_sources,
 )
 from distill.claims.extract import extract_claims_from_insight
+from distill.claims.locking import claims_transaction
 from distill.claims.records import Claim, utcnow_iso
 from distill.library.insights import InsightRef, discover_insights, read_discovered_insight
 from distill.llm import RouterConfig
@@ -61,30 +64,63 @@ def _max_insights_per_run() -> int:
     return parsed if parsed is not None else _DEFAULT_MAX_INSIGHTS_PER_RUN
 
 
+def _validated_source_claims(ref: InsightRef, claims: list[Claim]) -> list[Claim]:
+    """Reject a provider batch that crosses source boundaries or duplicates IDs."""
+
+    claim_ids: set[str] = set()
+    for claim in claims:
+        if claim.source_id != ref.source_id:
+            raise ValueError(
+                f"Claim {claim.claim_id!r} belongs to source {claim.source_id!r}, "
+                f"not the active source {ref.source_id!r}"
+            )
+        if claim.artifact_path != ref.artifact_path:
+            raise ValueError(
+                f"Claim {claim.claim_id!r} has artifact path {claim.artifact_path!r}, "
+                f"not {ref.artifact_path!r}"
+            )
+        if claim.claim_id in claim_ids:
+            raise ValueError(f"Claim batch repeats claim_id {claim.claim_id!r}")
+        claim_ids.add(claim.claim_id)
+    return claims
+
+
 def _pending_claim_refs(
     topic_dir: Path,
     *,
     refresh: bool = False,
+    repair_completion_ledger: bool = False,
 ) -> tuple[list[InsightRef], list[InsightRef], int]:
     """Return all refs, this run's bounded pending refs, and the uncapped count."""
     refs = discover_insights(topic_dir)
-    seen = (
-        set[str]()
-        if refresh
-        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
-    )
+    claim_sources = already_extracted_source_ids(topic_dir)
+    completed_sources = read_extracted_sources(topic_dir)
+    # A durable claim batch is canonical evidence that extraction completed.
+    # If publishing the redundant completion ledger failed after that append,
+    # repair it before any new provider work so the source does not remain in
+    # a permanently split checkpoint state.
+    missing_completion = claim_sources - completed_sources
+    if repair_completion_ledger and missing_completion:
+        record_extracted_sources(topic_dir, missing_completion)
+        completed_sources.update(missing_completion)
+    seen = set[str]() if refresh else claim_sources | completed_sources
     pending = [ref for ref in refs if ref.source_id not in seen]
     uncapped_count = len(pending)
     cap = _max_insights_per_run()
     if cap:
         pending = pending[: min(cap, uncapped_count)]
+    if pending:
+        ensure_extracted_sources_capacity(topic_dir, (ref.source_id for ref in pending))
+        ensure_claim_store_append_capacity(topic_dir)
     return refs, pending, uncapped_count
 
 
 def pending_claim_extraction_count(topic_dir: Path) -> int:
     """Return the claim extraction calls the next two-pass run will make."""
-    _, pending, _ = _pending_claim_refs(topic_dir)
-    return len(pending)
+
+    with claims_transaction(topic_dir):
+        _, pending, _ = _pending_claim_refs(topic_dir)
+        return len(pending)
 
 
 @dataclass
@@ -137,8 +173,34 @@ def run_claims(
 
     Returns a ``ClaimsSummary`` of what was scanned, extracted, and added.
     """
+    with claims_transaction(topic_dir):
+        return _run_claims_transaction(
+            topic,
+            topic_dir,
+            rc=rc,
+            refresh=refresh,
+            tracker=tracker,
+            now_iso=now_iso,
+        )
+
+
+def _run_claims_transaction(
+    topic: str,
+    topic_dir: Path,
+    *,
+    rc: RouterConfig,
+    refresh: bool,
+    tracker: CostTracker | None,
+    now_iso: str | None,
+) -> ClaimsSummary:
+    """Run claims extraction while the caller owns the topic transaction."""
+
     summary = ClaimsSummary(topic=topic)
-    refs, pending, uncapped_count = _pending_claim_refs(topic_dir, refresh=refresh)
+    refs, pending, uncapped_count = _pending_claim_refs(
+        topic_dir,
+        refresh=refresh,
+        repair_completion_ledger=True,
+    )
     summary.insights_scanned = len(refs)
     if not refs:
         logger.info("No _Insights.md found under %s", topic_dir)
@@ -158,8 +220,6 @@ def run_claims(
         )
     summary.insights_extracted = len(pending)
 
-    new_claims: list[Claim] = []
-    processed: list[str] = []
     for ref in pending:
         try:
             content = read_discovered_insight(ref, topic_dir.parent.parent)
@@ -181,16 +241,16 @@ def run_claims(
         except Exception as exc:
             logger.warning("Claim extraction failed for %s: %s", ref.path, exc)
             continue
-        new_claims.extend(result.claims)
-        # Record every successfully-processed source -- even a zero-claim one --
-        # so it is not re-extracted on the next run.
-        processed.append(ref.source_id)
-
-    if new_claims:
-        append_claims(topic_dir, new_claims)
-        summary.claims_added = len(new_claims)
-
-    record_extracted_sources(topic_dir, processed)
+        claims = _validated_source_claims(ref, result.claims)
+        # Evidence is durable before completion. If the ledger update fails,
+        # claim-producing sources are repaired from claims.jsonl on the next
+        # run. A zero-claim source has no independent evidence receipt, so a
+        # failed ledger write aborts immediately and leaves that source pending;
+        # replay is safer than publishing unproven completion.
+        if claims:
+            append_claims(topic_dir, claims)
+            summary.claims_added += len(claims)
+        record_extracted_sources(topic_dir, [ref.source_id])
 
     # Count distinct claims, not raw rows: claims.jsonl is append-only, so a
     # --refresh re-appends a source's claims and len(read_claims) would double-

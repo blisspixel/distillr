@@ -19,6 +19,53 @@ def _stat_with_inode(file_stat: os.stat_result, inode: int) -> os.stat_result:
     return os.stat_result(values)
 
 
+def test_stability_compares_ctime_only_between_path_stats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source.txt"
+    source.write_text("stable", encoding="utf-8")
+    initial = source.lstat()
+    descriptor = cast(
+        os.stat_result,
+        SimpleNamespace(
+            st_dev=initial.st_dev,
+            st_ino=initial.st_ino,
+            st_nlink=initial.st_nlink,
+            st_size=initial.st_size,
+            st_mtime_ns=initial.st_mtime_ns,
+            st_ctime_ns=initial.st_ctime_ns + 1,
+        ),
+    )
+    monkeypatch.setattr(
+        confined,
+        "validate_confined_path",
+        lambda *_args, **_kwargs: (source, initial),
+    )
+
+    assert confined._descriptor_read_stayed_stable(source, root, initial, descriptor)
+
+    changed_path = cast(
+        os.stat_result,
+        SimpleNamespace(
+            st_dev=initial.st_dev,
+            st_ino=initial.st_ino,
+            st_nlink=initial.st_nlink,
+            st_size=initial.st_size,
+            st_mtime_ns=initial.st_mtime_ns,
+            st_ctime_ns=initial.st_ctime_ns + 1,
+        ),
+    )
+    monkeypatch.setattr(
+        confined,
+        "validate_confined_path",
+        lambda *_args, **_kwargs: (source, changed_path),
+    )
+    assert not confined._descriptor_read_stayed_stable(source, root, initial, descriptor)
+
+
 def test_candidate_rejects_missing_root_outside_path_and_root_itself(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
     assert confined._candidate_under_root(missing / "note.md", missing) is None
@@ -133,6 +180,143 @@ def test_read_bytes_rejects_negative_limit(tmp_path: Path) -> None:
     note.write_text("safe", encoding="utf-8")
 
     assert confined.read_confined_bytes(note, root, max_bytes=-1) is None
+
+
+def test_copy_confined_file_streams_a_stable_owner_only_snapshot(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source.bin"
+    source.write_bytes(b"stable input")
+    destination = tmp_path / "snapshot.bin"
+
+    assert confined.copy_confined_file(source, root, destination, max_bytes=64)
+    assert destination.read_bytes() == b"stable input"
+    if os.name != "nt":
+        assert stat.S_IMODE(destination.stat().st_mode) == 0o600
+
+
+def test_copy_confined_file_rejects_oversize_hardlink_and_existing_destination(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source.bin"
+    source.write_bytes(b"too large")
+    destination = tmp_path / "snapshot.bin"
+
+    assert not confined.copy_confined_file(source, root, destination, max_bytes=3)
+    assert not destination.exists()
+
+    hardlink = root / "hardlink.bin"
+    os.link(source, hardlink)
+    assert not confined.copy_confined_file(source, root, destination, max_bytes=64)
+    assert not destination.exists()
+
+    source.unlink()
+    hardlink.unlink()
+    source.write_bytes(b"normal")
+    destination.write_bytes(b"preserve")
+    assert not confined.copy_confined_file(source, root, destination, max_bytes=64)
+    assert destination.read_bytes() == b"preserve"
+
+
+def test_read_confined_text_prefix_limits_characters_and_rejects_unsafe_files(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "transcript.txt"
+    source.write_text("alpha βeta gamma", encoding="utf-8")
+
+    assert (
+        confined.read_confined_text_prefix(
+            source,
+            root,
+            max_file_bytes=128,
+            max_chars=10,
+        )
+        == "alpha βeta"
+    )
+    assert (
+        confined.read_confined_text_prefix(
+            source,
+            root,
+            max_file_bytes=3,
+            max_chars=10,
+        )
+        is None
+    )
+
+    invalid_tail = root / "invalid-tail.txt"
+    invalid_tail.write_bytes(b"valid prefix\xff")
+    assert (
+        confined.read_confined_text_prefix(
+            invalid_tail,
+            root,
+            max_file_bytes=128,
+            max_chars=5,
+        )
+        is None
+    )
+
+    hardlink = root / "transcript-hardlink.txt"
+    os.link(source, hardlink)
+    assert (
+        confined.read_confined_text_prefix(
+            source,
+            root,
+            max_file_bytes=128,
+            max_chars=10,
+        )
+        is None
+    )
+
+
+def test_read_confined_text_prefix_stops_when_open_file_grows_past_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "growing.txt"
+    source.write_text("a", encoding="utf-8")
+    requested: list[int] = []
+
+    class GrowingStream:
+        closed = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            self.closed = True
+
+        def read(self, size: int) -> bytes:
+            requested.append(size)
+            return b"x" * size
+
+        def fileno(self) -> int:
+            return 10
+
+    stream = GrowingStream()
+    monkeypatch.setattr(
+        confined,
+        "_open_confined_descriptor",
+        lambda *_args, **_kwargs: (10, source, source.stat()),
+    )
+    monkeypatch.setattr(confined.os, "fdopen", lambda *_args, **_kwargs: stream)
+
+    assert (
+        confined.read_confined_text_prefix(
+            source,
+            root,
+            max_file_bytes=5,
+            max_chars=2,
+        )
+        is None
+    )
+    assert requested == [6]
+    assert stream.closed
 
 
 def test_read_closes_descriptor_when_descriptor_setup_fails(

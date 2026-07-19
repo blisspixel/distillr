@@ -16,6 +16,7 @@ signals the audit already produced; no model judgment enters here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import cast
 
 __all__ = [
@@ -66,37 +67,60 @@ class QualitySnapshot:
         }
 
 
-def _int(value: object) -> int:
-    """Coerce a persisted field to a non-negative int, else 0 (parse-don't-crash)."""
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return max(value, 0)
-    return 0
+_COUNT_FIELDS = (
+    "verified_clean",
+    "flagged",
+    "unchecked",
+    "stale",
+    "contested",
+    "gaps",
+    "total_artifacts",
+)
+
+
+def _is_iso_timestamp(value: object) -> bool:
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        return False
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        datetime.fromisoformat(candidate)
+    except ValueError:
+        return False
+    return True
 
 
 def parse_quality_snapshot(data: object) -> QualitySnapshot | None:
-    """Parse one persisted snapshot record into a QualitySnapshot, or None.
+    """Strictly parse one versioned persisted snapshot, or return None.
 
-    Returns None for anything that is not a mapping with a usable timestamp, so a
-    malformed or truncated history line degrades to "no prior snapshot" rather
-    than crashing the audit.
+    Every count must be an actual non-negative integer, not a bool or coercible
+    string. This keeps corrupted trend state from being silently rendered as a
+    clean zero baseline.
     """
     if not isinstance(data, dict):
         return None
     record = cast("dict[str, object]", data)
+    if record.get("version") != QUALITY_SNAPSHOT_VERSION:
+        return None
     generated_at = record.get("generated_at")
-    if not isinstance(generated_at, str) or not generated_at.strip():
+    if not _is_iso_timestamp(generated_at):
+        return None
+    counts: dict[str, int] = {}
+    for field in _COUNT_FIELDS:
+        value = record.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        counts[field] = value
+    if not isinstance(generated_at, str):
         return None
     return QualitySnapshot(
         generated_at=generated_at,
-        verified_clean=_int(record.get("verified_clean")),
-        flagged=_int(record.get("flagged")),
-        unchecked=_int(record.get("unchecked")),
-        stale=_int(record.get("stale")),
-        contested=_int(record.get("contested")),
-        gaps=_int(record.get("gaps")),
-        total_artifacts=_int(record.get("total_artifacts")),
+        verified_clean=counts["verified_clean"],
+        flagged=counts["flagged"],
+        unchecked=counts["unchecked"],
+        stale=counts["stale"],
+        contested=counts["contested"],
+        gaps=counts["gaps"],
+        total_artifacts=counts["total_artifacts"],
     )
 
 

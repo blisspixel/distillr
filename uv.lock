@@ -540,7 +540,7 @@ wheels = [
 
 [[package]]
 name = "distillr"
-version = "0.19.38"
+version = "0.19.39"
 source = { editable = "." }
 dependencies = [
     { name = "deal" },

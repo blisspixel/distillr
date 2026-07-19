@@ -9,12 +9,12 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from distill.config import DistillConfig
+from distill.library.claude_md import require_safe_topic_identity
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
     find_artifact,
     tags_for,
-    write_markdown_artifact,
 )
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
@@ -71,6 +71,7 @@ def synthesize_corpus_from_claims(
     artifact as the single-pass path, tagged with the claim-synthesis prompt id
     and ``two_pass: true`` provenance.
     """
+    topic = require_safe_topic_identity(topic)
     from distill.claims.exports import read_claims
     from distill.claims.pipeline import run_claims
     from distill.prompts.claims import (
@@ -112,26 +113,18 @@ def synthesize_corpus_from_claims(
     # synthesis prompt embedded, so a number or assertion the model introduced
     # beyond the claims is flagged. Strict refuses the write and keeps any
     # previous corpus synthesis in place.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        topic_dir,
-        synthesis,
-        claims_receipt(claims),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}-corpus-synthesis",
-        insight_name=f"{topic} corpus synthesis (two-pass)",
-        source_name="extracted claim set",
-        notify=logger.warning,
-    ):
-        logger.warning("corpus synthesis for %s not written (verify strict)", topic)
-        return None
-
-    write_markdown_artifact(
+    output = write_verified_synthesis(
         topic_dir,
         "corpus_synthesis",
         synthesis,
-        identity=topic,
+        claims_receipt(claims),
+        verify_mode=config.distill_verify,
+        artifact_identity=topic,
+        verify_identity=f"{topic}-corpus-synthesis",
+        source_name="extracted claim set",
+        notify=logger.warning,
         frontmatter=base_frontmatter(
             artifact_type="corpus-synthesis",
             title=f"Corpus synthesis: {topic}",
@@ -152,6 +145,9 @@ def synthesize_corpus_from_claims(
             ),
         ),
     )
+    if output is None:
+        logger.warning("corpus synthesis for %s not written (verification gate)", topic)
+        return None
 
     try:
         from distill.library import claude_md
@@ -203,6 +199,7 @@ def _collect_subdir_sections(
 
 def has_corpus_synthesis_inputs(topic: str, config: DistillConfig) -> bool:
     """Return true when single-pass corpus synthesis would make an LLM call."""
+    topic = require_safe_topic_identity(topic)
     topic_dir = config.topic_dir(topic)
     channel_count = sum(
         1 for _ in _iter_subdir_artifacts(topic_dir / "channels", topic, "synthesis")
@@ -223,10 +220,13 @@ def has_two_pass_synthesis_inputs(topic: str, config: DistillConfig) -> bool:
     Existing claims also count: they remain valid synthesis inputs when the
     extraction pass has already completed.
     """
+    topic = require_safe_topic_identity(topic)
     from distill.claims.exports import read_claims
     from distill.library.insights import discover_insights
 
     topic_dir = config.topic_dir(topic)
+    if not topic_dir.exists():
+        return False
     return bool(discover_insights(topic_dir) or read_claims(topic_dir))
 
 
@@ -239,6 +239,7 @@ def synthesize_corpus(
     two_pass: bool = False,
     now_iso: str | None = None,
 ) -> str:
+    topic = require_safe_topic_identity(topic)
     # Opt-in two-pass: synthesize over an extracted claim set instead of the
     # per-source summaries. Falls back to single-pass when no claims could be
     # extracted (e.g. a topic with no insights yet), so the flag never silently
@@ -310,26 +311,18 @@ def synthesize_corpus(
     # Verify against the per-source sections the prompt was built from; the
     # corpus synthesis bridges source types, so an attribution swap here is
     # exactly the class the hook exists to catch.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        topic_dir,
-        synthesis,
-        "\n\n".join(source_sections.values()),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}-corpus-synthesis",
-        insight_name=f"{topic} corpus synthesis",
-        source_name="per-source syntheses",
-        notify=logger.warning,
-    ):
-        logger.warning("corpus synthesis for %s not written (verify strict)", topic)
-        return ""
-
-    write_markdown_artifact(
+    output = write_verified_synthesis(
         topic_dir,
         "corpus_synthesis",
         synthesis,
-        identity=topic,
+        "\n\n".join(source_sections.values()),
+        verify_mode=config.distill_verify,
+        artifact_identity=topic,
+        verify_identity=f"{topic}-corpus-synthesis",
+        source_name="per-source syntheses",
+        notify=logger.warning,
         frontmatter=base_frontmatter(
             artifact_type="corpus-synthesis",
             title=f"Corpus synthesis: {topic}",
@@ -346,6 +339,9 @@ def synthesize_corpus(
             ),
         ),
     )
+    if output is None:
+        logger.warning("corpus synthesis for %s not written (verification gate)", topic)
+        return ""
 
     # Refresh the agent-orientation CLAUDE.md for this topic + the library index.
     # Best-effort: a failure here must never fail an otherwise-successful run.

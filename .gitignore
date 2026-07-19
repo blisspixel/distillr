@@ -65,6 +65,11 @@ Desktop.ini
 output/
 tmp/
 
+# Runtime receipts created while regenerating the tracked example corpus
+/examples/library/.distill/
+/examples/library/.distill-write-*.lock
+/examples/library/**/.distill-write-*.lock
+
 # User-local files that should never ship (briefing contexts, custom seed files,
 # client-specific configs, scratch notes, whatever). Put anything personal here
 # and it stays out of git. Only private/README.md ships to explain the convention.

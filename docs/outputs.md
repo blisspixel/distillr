@@ -173,10 +173,28 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 - **`library/library_Latest_Changes.md`** - Library-level rollup
 - **`library/library_Watch_Alerts.md`** - Digest of notable changes
 
+## Operator and derived-state receipts
+
+- **`library/run_log.jsonl`** - Append-only run summaries with a stable `run_id`, command, results, issues, outputs, timing, and metadata.
+- **`library/latest_run.json`** and **`library/latest_run_errors.md`** - Correlated projections of the same latest run. One serialized update writes both projections; on projection failure Distill restores the prior pair and keeps the completed run-log row as diagnostic evidence.
+- **`library/.distill/eval/results.jsonl`** - Durable batches of model-evaluation results used for drift review.
+- **`library/topics/<topic>/change_history.jsonl`** - Durable topic-change observations used by diff and trend views.
+- **`library/topics/<topic>/.distill/quality-history.jsonl`** - Strict bounded audit snapshots. Invalid history remains untouched and makes trend comparison unavailable; the current point-in-time audit still renders without inventing a baseline or delta.
+- **`library/topics/<topic>/.claims/claims.jsonl`** and **`.claims/extracted_sources.json`** - Strict bounded claim evidence plus the durable source-completion ledger. Claim rows are durable before completion advances.
+- **`library/topics/<topic>/.concepts/mentions.jsonl`** and **`.concepts/extracted_sources.json`** - Strict bounded grounded mentions plus the durable source-completion ledger. A repair marker rebuilds derived playbook notes and exports after an interrupted partial update.
+
+Claims, mentions, quality snapshots, eval results, topic changes, and run rows
+serialize cooperating writers. Canonical knowledge histories validate the
+complete file and enforce row, row-size, and file-size ceilings before append,
+so a successful write cannot make its own reader reject the history.
+New claim and mention source IDs share a 16 KiB UTF-8 ceiling with completion
+ledgers and podcast GUID parsing. Bounded legacy rows from 0.19.38 remain
+readable and are preserved when a completion ledger later merges current IDs.
+
 ## Verification sidecars and audit reports (0.10)
 
-- **`<stem>_Verify.json`** - written beside every checked `_Insights.md`: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from unverified. A readable sidecar with zero numeric and entailment claims checked records no coverage and is not a passing result.
-- **`library/topics/<topic>/<topic>_Audit.md`** - written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis commands in the action menu), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements - the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
+- **`<stem>_Verify.json`** - written beside every checked `_Insights.md` or synthesis: schema version, mode, checked/supported counts, and any unsupported numeric claims with token, kind, and context line. Positive evidence is recorded too, so "verified clean" is distinguishable from unverified. Synthesis and promoted-answer sidecars bind the exact current artifact filename and complete rendered-content digest. Artifact and sidecar publication share one transaction lock; an artifact failure restores the prior binding. Missing, legacy-unbound, malformed, or mismatched bindings count as unverified. A readable sidecar with zero numeric and entailment claims checked records no coverage and is not a passing result.
+- **`library/topics/<topic>/<topic>_Audit.md`** - written by `distill audit`: verification-coverage rollup, prompt-staleness rollup (recorded `prompt_id` vs the central registry, with per-artifact re-analysis guidance represented as inert JSON argv records rather than shell text), synthesis-freshness rollup (a synthesis older than the sources it synthesizes, and shadowed legacy syntheses lingering beside their modern replacements - the same warning also rides the dashboard health list and the topic's generated CLAUDE.md/AGENTS.md), near-duplicate insight groups (shingle overlap, artifact-preserving), stale/thin warnings, contested concepts, broken wiki-links, and coverage gaps with suggested next actions. Standard frontmatter (`type: "audit"`, `findings: N`); deterministic, no model calls.
 
 ## Answers (`distill ask`, 0.12)
 

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import math
+
+import pytest
+
 from distill.claims.records import Claim, ClaimRole, utcnow_iso
 
 
@@ -81,3 +85,37 @@ def test_utcnow_iso_format():
     assert stamp.endswith("Z")
     # No microseconds in the centralized helper.
     assert "." not in stamp
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["claim_id", "source_id", "artifact_path", "claim_text", "rhetorical_role"],
+)
+@pytest.mark.parametrize("invalid", [None, 3, True, [], ""])
+def test_claim_from_jsonl_rejects_invalid_required_fields(field: str, invalid: object) -> None:
+    row = _sample_claim().to_jsonl_row()
+    row[field] = invalid
+
+    with pytest.raises(ValueError, match=field):
+        Claim.from_jsonl_row(row)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["subject", "predicate", "object", "dataset", "metric", "evidence_type", "extracted_at"],
+)
+def test_claim_from_jsonl_rejects_wrong_optional_field_type(field: str) -> None:
+    row = _sample_claim().to_jsonl_row()
+    row[field] = 3
+
+    with pytest.raises(ValueError, match=field):
+        Claim.from_jsonl_row(row)
+
+
+@pytest.mark.parametrize("invalid", [True, "0.5", -0.1, 1.1, math.nan, math.inf, -math.inf])
+def test_claim_from_jsonl_rejects_invalid_role_confidence(invalid: object) -> None:
+    row = _sample_claim().to_jsonl_row()
+    row["role_confidence"] = invalid
+
+    with pytest.raises(ValueError, match="finite number from 0 to 1"):
+        Claim.from_jsonl_row(row)

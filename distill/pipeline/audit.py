@@ -25,6 +25,8 @@ from collections import Counter
 from pathlib import Path
 from typing import cast
 
+from distill.jsonl import JsonlIntegrityError
+from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.freshness import SynthesisFreshness, collect_synthesis_freshness
 from distill.library.insights import (
     discover_insights,
@@ -39,6 +41,11 @@ from distill.library.paths import (
     find_artifact,
     tags_for,
     write_markdown_artifact,
+)
+from distill.pipeline.audit_reanalysis import (
+    frontmatter_field,
+    reanalysis_argvs,
+    reanalysis_commands,
 )
 from distill.pipeline.audit_records import (
     AuditReport,
@@ -86,6 +93,7 @@ _action_id = action_id
 
 logger = logging.getLogger(__name__)
 _loop = loop_metadata
+_MAX_VERIFY_SIDECAR_BYTES = 2 * 1024 * 1024
 
 
 __all__ = [
@@ -114,6 +122,7 @@ __all__ = [
     "collect_thin_video_transcripts",
     "collect_verify_rollup",
     "frontmatter_field",
+    "reanalysis_argvs",
     "reanalysis_commands",
     "render_audit_md",
     "render_library_audit_md",
@@ -136,29 +145,6 @@ def _topic_orientation_missing(topic_dir: Path) -> bool:
 def _append_action(actions: list[NextAction], action: NextAction) -> None:
     if not any(existing.id == action.id for existing in actions):
         actions.append(action)
-
-
-def _reanalysis_argvs(
-    library_dir: Path, topic: str, stale: list[StalePromptRecord]
-) -> list[list[str]]:
-    """Concrete re-analysis argv arrays for stale artifacts."""
-    commands: list[list[str]] = []
-    for item in stale:
-        rel = str(item.get("insight", ""))
-        try:
-            text = (library_dir / rel).read_text(encoding="utf-8")
-        except OSError:
-            text = ""
-        url = frontmatter_field(text, "url")
-        source = frontmatter_field(text, "source")
-        if source == "arxiv" and url:
-            arxiv_id = url.rstrip("/").rsplit("/", 1)[-1]
-            commands.append(["distill", "papers", arxiv_id, "--topic", topic, "--limit", "1"])
-        elif url and (
-            any(h in url for h in _INGESTABLE_HOSTS) or url.lower().endswith((".rss", ".xml"))
-        ):
-            commands.append(["distill", "ingest", url, "--topic", topic])
-    return commands
 
 
 def _actions_for_report(library_dir: Path, report: AuditReport) -> list[NextAction]:
@@ -209,7 +195,7 @@ def _actions_for_report(library_dir: Path, report: AuditReport) -> list[NextActi
             ),
         )
 
-    stale_commands = _reanalysis_argvs(library_dir, topic, report.staleness.stale)
+    stale_commands = reanalysis_argvs(library_dir, topic, report.staleness.stale)
     if stale_commands:
         action_id = _action_id(topic, "reanalyze-stale")
         _append_action(
@@ -385,7 +371,7 @@ def build_next_action_plan(
 
 def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     """Every synthesis artifact a topic can carry, with its verify-sidecar
-    identity: ``(artifact_path, sidecar_dir-relative artifact label, identity)``.
+    identity: ``(artifact_path, topic-relative artifact label, identity)``.
 
     Identities mirror exactly what the synthesis writers stamp. Topic-level
     paper, corpus, site, and video rollups have modality-specific identities;
@@ -402,20 +388,25 @@ def _synthesis_artifacts(topic_dir: Path) -> list[tuple[Path, str, str]]:
     ]
     for artifact_type, sidecar_identity in topic_level:
         path = find_artifact(topic_dir, artifact_type, identity=topic)
-        if path.exists():
-            found.append((topic_dir, path.name, sidecar_identity))
+        if _confined_regular_file(path, topic_dir):
+            found.append((path, path.name, sidecar_identity))
     for parent, artifact_type in (("channels", "synthesis"), ("sites", "site_synthesis")):
         parent_dir = topic_dir / parent
-        if not parent_dir.exists():
+        if validate_confined_path(parent_dir, topic_dir, expect_directory=True) is None:
             continue
         for sub_dir in sorted(parent_dir.iterdir()):
-            if not sub_dir.is_dir():
+            if validate_confined_path(sub_dir, topic_dir, expect_directory=True) is None:
                 continue
             identity = f"{topic}_{sub_dir.name}"
             path = find_artifact(sub_dir, artifact_type, identity=identity)
-            if path.exists():
-                found.append((sub_dir, f"{parent}/{sub_dir.name}/{path.name}", identity))
+            if _confined_regular_file(path, topic_dir):
+                found.append((path, f"{parent}/{sub_dir.name}/{path.name}", identity))
     return found
+
+
+def _confined_regular_file(path: Path, root: Path) -> bool:
+    validated = validate_confined_path(path, root, expect_directory=False)
+    return validated is not None and validated[1].st_nlink == 1
 
 
 def _read_sidecar(
@@ -424,6 +415,8 @@ def _read_sidecar(
     *,
     insight_path: Path | None = None,
     allow_nameless_legacy: bool = False,
+    require_content_binding: bool = False,
+    confinement_root: Path,
 ) -> tuple[bool, list[VerifyFlag]] | None:
     """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
     ``None`` when the file is absent, unreadable, or violates its versioned
@@ -433,11 +426,18 @@ def _read_sidecar(
     claim was checked. Zero-check and failed required-semantic records provide
     no verification coverage and cannot become false clean results.
     """
-    if not sidecar.exists():
+    if not _confined_regular_file(sidecar, confinement_root):
+        return None
+    content = read_confined_text(
+        sidecar,
+        confinement_root,
+        max_bytes=_MAX_VERIFY_SIDECAR_BYTES,
+    )
+    if content is None or not _confined_regular_file(sidecar, confinement_root):
         return None
     try:
-        data = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, RecursionError):
+        data = json.loads(content)
+    except (json.JSONDecodeError, RecursionError):
         return None
     if not _legacy_sidecar_matches(
         sidecar,
@@ -448,6 +448,8 @@ def _read_sidecar(
         return None
     parsed = parse_verify_sidecar(data)
     if parsed is None or not parsed.has_usable_coverage:
+        return None
+    if require_content_binding and parsed.insight_sha256 is None:
         return None
     if insight_path is not None and not insight_verification_payload_is_valid(insight_path, data):
         return None
@@ -507,6 +509,7 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
             ref.artifact_path,
             insight_path=ref.path,
             allow_nameless_legacy=insight_counts_by_directory[ref.path.parent] == 1,
+            confinement_root=topic_dir,
         )
         if result is None:
             continue
@@ -519,10 +522,21 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     synthesis_total = 0
     synthesis_checked = 0
     synthesis_clean = 0
-    for sidecar_dir, label, identity in _synthesis_artifacts(topic_dir):
+    for synthesis_path, label, identity in _synthesis_artifacts(topic_dir):
         synthesis_total += 1
-        sidecar = artifact_path(sidecar_dir, "verify", identity=identity, extension="json")
-        result = _read_sidecar(sidecar, label)
+        sidecar = artifact_path(
+            synthesis_path.parent,
+            "verify",
+            identity=identity,
+            extension="json",
+        )
+        result = _read_sidecar(
+            sidecar,
+            label,
+            insight_path=synthesis_path,
+            require_content_binding=True,
+            confinement_root=topic_dir,
+        )
         if result is None:
             continue
         synthesis_checked += 1
@@ -539,17 +553,6 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
         synthesis_checked=synthesis_checked,
         synthesis_clean=synthesis_clean,
     )
-
-
-def frontmatter_field(text: str, name: str) -> str:
-    """Pull one scalar field out of an artifact's frontmatter block, or ''."""
-    if not text.startswith("---"):
-        return ""
-    end = text.find("---", 3)
-    if end == -1:
-        return ""
-    match = re.search(rf'^{re.escape(name)}:\s*"?([^"\r\n]+?)"?\s*$', text[:end], re.MULTILINE)
-    return match.group(1).strip() if match else ""
 
 
 def _frontmatter_prompt_id(text: str) -> str:
@@ -594,41 +597,6 @@ def collect_staleness(topic_dir: Path) -> StalenessRollup:
         unknown_family=unknown_family,
         no_provenance=no_provenance,
     )
-
-
-_INGESTABLE_HOSTS = ("x.com", "twitter.com", "github.com")
-
-
-def reanalysis_commands(library_dir: Path, topic: str, stale: list[StalePromptRecord]) -> list[str]:
-    """Concrete re-analysis lines for stale artifacts (printed, never run).
-
-    Re-ingesting a source re-runs analysis on the *current* prompt -- that is
-    the artifact-level trigger the 0.12 spec asks for (no blanket re-runs).
-    Where the recorded ``url`` routes through ``distill ingest`` (X, GitHub,
-    feeds), the exact command is printed; arXiv papers re-ingest via
-    ``distill papers``; anything else gets the artifact named so the operator
-    re-runs its original verb.
-    """
-    lines: list[str] = []
-    for item in stale:
-        rel = str(item.get("insight", ""))
-        try:
-            text = (library_dir / rel).read_text(encoding="utf-8")
-        except OSError:
-            text = ""
-        url = frontmatter_field(text, "url")
-        source = frontmatter_field(text, "source")
-        recorded = item.get("recorded", "?")
-        if source == "arxiv" and url:
-            arxiv_id = url.rstrip("/").rsplit("/", 1)[-1]
-            lines.append(f'distill papers "{arxiv_id}" --topic {topic} --limit 1  # was {recorded}')
-        elif url and (
-            any(h in url for h in _INGESTABLE_HOSTS) or url.lower().endswith((".rss", ".xml"))
-        ):
-            lines.append(f"distill ingest {url} --topic {topic}  # was {recorded}")
-        else:
-            lines.append(f"# {rel} (was {recorded}) -- re-run its original ingest verb")
-    return lines
 
 
 def _staleness_section(report: AuditReport) -> list[str]:
@@ -941,8 +909,20 @@ def write_audit_artifact(topic_dir: Path, report: AuditReport, *, now_iso: str) 
     history-write failure is logged and never blocks the report.
     """
     snapshot = quality_snapshot_from_report(report, generated_at=now_iso)
-    previous = load_last_quality_snapshot(topic_dir)
-    trend = render_quality_trend(snapshot, previous)
+    history_error: JsonlIntegrityError | None = None
+    try:
+        previous = load_last_quality_snapshot(topic_dir)
+    except JsonlIntegrityError as exc:
+        history_error = exc
+        trend = [
+            "## Corpus Quality Trend",
+            "",
+            f"- Trend unavailable: quality history is invalid at `{exc.path}`. "
+            "No baseline or delta was inferred; this point-in-time audit remains valid.",
+            "",
+        ]
+    else:
+        trend = render_quality_trend(snapshot, previous)
     path = write_markdown_artifact(
         topic_dir,
         "audit",
@@ -957,8 +937,19 @@ def write_audit_artifact(topic_dir: Path, report: AuditReport, *, now_iso: str) 
             extra={"findings": report.issue_count, "generated_at": now_iso},
         ),
     )
-    try:
-        append_quality_snapshot(topic_dir, snapshot)
-    except OSError:
-        logger.warning("Could not record quality snapshot for topic %s", report.topic)
+    if history_error is not None:
+        logger.warning(
+            "Could not record quality snapshot for topic %s: %s",
+            report.topic,
+            history_error,
+        )
+    else:
+        try:
+            append_quality_snapshot(topic_dir, snapshot)
+        except (JsonlIntegrityError, OSError) as exc:
+            logger.warning(
+                "Could not record quality snapshot for topic %s: %s",
+                report.topic,
+                exc,
+            )
     return path

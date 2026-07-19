@@ -6,9 +6,10 @@
 # To skip hooks for a single commit: `git commit --no-verify`
 #
 # Design: the lint/type/security/test hooks run through `uv run --frozen`, so
-# they use the exact tool versions pinned in uv.lock -- i.e. the same versions
-# CI runs. A clean `pre-commit run --all-files` therefore means a clean CI run,
-# with no version drift between local and remote. uv must be installed.
+# the covered gates use the exact tool versions pinned in uv.lock. CI also runs
+# dependency, generated-contract, build, Python-matrix, and OS-matrix checks;
+# pre-commit is a fast local subset, not proof of a clean CI run. uv must be
+# installed.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

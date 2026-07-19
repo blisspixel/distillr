@@ -301,10 +301,14 @@ def set_env_var(path: Path, key: str, value: str) -> None:
 def chromium_status() -> str:
     """Whether the Playwright Chromium build is installed.
 
-    Returns ``"installed"``, ``"missing"``, or ``"unknown"`` (Playwright itself
-    not importable). Checks the expected executable path rather than launching a
-    browser, so it is cheap and side-effect-free.
+    Returns ``"installed"``, ``"missing"``, ``"unsafe"``, or ``"unknown"``.
+    Checks the expected executable path rather than launching a browser, so it
+    is cheap and side-effect-free.
     """
+    from distill.process_security import unsafe_package_overrides
+
+    if unsafe_package_overrides():
+        return "unsafe"
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -537,7 +541,12 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                 console.print("  Installing Chromium ...")
             browser = "installed" if _install_chromium() else "missing"
     state["browser"] = browser
-    if browser != "installed":
+    if browser == "unsafe":
+        from distill.process_security import unsafe_package_overrides
+
+        names = ", ".join(unsafe_package_overrides())
+        state["blocking"].append(f"Remove unsafe browser execution environment variables: {names}.")
+    elif browser != "installed":
         state["blocking"].append("Run `playwright install chromium` for YouTube + web capture.")
 
     # 5. Readiness verdict + first command.

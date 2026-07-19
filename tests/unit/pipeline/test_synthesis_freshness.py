@@ -176,7 +176,8 @@ class TestSurfacing:
         md = render_topic_claude_md(tmp_path, "t", now_iso="2026-06-12T00:00:00Z")
         assert "Warning -- stale synthesis" in md
         assert "predates 1 newer source(s) by 52d" in md
-        assert "distill corpus t" in md
+        assert "distill corpus <topic>" in md
+        assert "distill corpus t" not in md
 
     def test_topic_claude_md_clean_when_fresh(self, tmp_path):
         from distill.library.claude_md import render_topic_claude_md

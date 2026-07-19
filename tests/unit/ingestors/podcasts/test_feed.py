@@ -270,6 +270,21 @@ class TestParseFeed:
         with pytest.raises(feed_mod.PodcastFetchError, match=message):
             parse_feed(f"<rss><channel><item>{item_content}</item></channel></rss>")
 
+    def test_episode_guid_uses_shared_utf8_source_id_limit(self, monkeypatch):
+        exact = "\U0001f600" * 4_096
+        accepted = parse_feed(
+            f"<rss><channel><item><title>Exact</title><guid>{exact}</guid></item></channel></rss>"
+        )
+        assert accepted.episodes[0].guid == exact
+
+        monkeypatch.setattr(feed_mod, "_MAX_GUID_CHARS", 4_097)
+        oversized = exact + "\U0001f600"
+        with pytest.raises(feed_mod.PodcastFetchError, match="16,384-byte source-id limit"):
+            parse_feed(
+                "<rss><channel><item><title>Over</title>"
+                f"<guid>{oversized}</guid></item></channel></rss>"
+            )
+
     @pytest.mark.parametrize(
         "raw_duration",
         ["\u00b2", "1:\u00b2:03", "\u0661\u0662", "1:\u0661\u0662:03"],

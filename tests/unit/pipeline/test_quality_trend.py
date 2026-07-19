@@ -59,18 +59,25 @@ def test_parse_rejects_non_mapping_and_blank_timestamp():
     assert parse_quality_snapshot({"verified_clean": 3}) is None  # no timestamp
 
 
-def test_parse_coerces_malformed_counts_to_non_negative_int():
-    snap = parse_quality_snapshot(
-        {
-            "generated_at": "2026-07-03T00:00:00",
-            "verified_clean": True,  # bool -> 0
-            "flagged": "3",  # str -> 0
-            "unchecked": -5,  # negative -> 0
-            "stale": 2,
-        }
-    )
-    assert snap is not None
-    assert (snap.verified_clean, snap.flagged, snap.unchecked, snap.stale) == (0, 0, 0, 2)
+def test_parse_rejects_missing_wrong_version_and_invalid_timestamp():
+    row = _snapshot().to_dict()
+    for version in (None, "quality-snapshot.v0", 1):
+        candidate = dict(row)
+        candidate["version"] = version
+        assert parse_quality_snapshot(candidate) is None
+
+    for timestamp in ("", " 2026-07-03T00:00:00", "not-a-time"):
+        candidate = dict(row)
+        candidate["generated_at"] = timestamp
+        assert parse_quality_snapshot(candidate) is None
+
+
+def test_parse_rejects_missing_or_non_exact_nonnegative_counts():
+    row = _snapshot().to_dict()
+    for value in (None, True, "3", -1, 1.0):
+        candidate = dict(row)
+        candidate["flagged"] = value
+        assert parse_quality_snapshot(candidate) is None
 
 
 def test_render_baseline_when_no_previous():

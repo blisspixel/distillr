@@ -101,8 +101,11 @@ The warnings are based only on recorded facts:
 - any recorded xAI media-generation model id, such as `grok-imagine-image`
 
 These warnings do not decide whether a run was useful. They point to spend that
-deserves operator review. Preview rows are excluded from spike comparisons, and
-malformed or non-finite cost values are ignored.
+deserves operator review. Preview rows are excluded from spike comparisons.
+Malformed, negative, non-finite, unreadable, or omitted valid evidence makes
+completeness-sensitive totals, anomaly checks, projections, calibration, and
+budget rollups unavailable instead of being ignored or treated as zero. Valid
+retained rows remain visible for diagnosis.
 
 The default warning policy is:
 

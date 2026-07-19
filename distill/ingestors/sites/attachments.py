@@ -17,7 +17,8 @@ from distill.config import DistillConfig
 from distill.ingestors.local.extract import extract_pdf_text_bounded
 from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
 from distill.ingestors.sites.scraper import SitePage
-from distill.ingestors.youtube.transcripts import get_transcript
+from distill.ingestors.youtube.transcripts import MAX_TRANSCRIPT_BYTES, get_transcript
+from distill.library.confined import read_confined_text_prefix
 from distill.library.paths import slugify_title
 from distill.parsing import parse_ascii_uint
 
@@ -349,7 +350,17 @@ def _ingest_youtube_attachment(
         attachment.note = "Transcript extraction failed"
         return attachment, ""
 
-    transcript = transcript_path.read_text(encoding="utf-8").strip()[:_ATTACHMENT_TEXT_LIMIT]
+    transcript = read_confined_text_prefix(
+        transcript_path,
+        attachments_dir,
+        max_file_bytes=MAX_TRANSCRIPT_BYTES,
+        max_chars=_ATTACHMENT_TEXT_LIMIT,
+    )
+    if transcript is None or not transcript.strip():
+        attachment.status = "failed"
+        attachment.note = "Transcript output was unsafe, oversized, empty, or invalid UTF-8"
+        return attachment, ""
+    transcript = transcript.strip()
     attachment.status = "ingested"
     attachment.text_path = str(transcript_path.name)
     attachment.content_chars = len(transcript)

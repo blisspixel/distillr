@@ -48,17 +48,24 @@ uv run ruff check .                                           # lint clean
 uv run ruff format --check .                                  # formatting clean
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
 uv run lint-imports                                           # dependency-direction contracts hold
+uv run pyright --warnings distill/                            # package type gate
+uv run pip-audit --skip-editable                              # locked dependency CVE audit
+uv run python scripts/public_contracts.py --check             # generated CLI/MCP contracts are current
 uv run python scripts/agent_skill_distributions.py --check    # generated agent packages match the canonical skill
+uv build                                                      # source and wheel archives build
 ```
 
 Coverage is **branch** coverage (every conditional must exercise both arms). The 1.0 target of 95% is now the blocking floor and only rises. `pip-audit --skip-editable` runs in CI against the locked dependency tree and catches known CVEs (it skips the editable distillr install itself).
 
 ### Pre-commit hooks
 
-The fastest way to stay green: install the hooks once. The lint, type, security,
-and import-contract hooks run through `uv run --frozen`, so they use the exact
-locked tool versions CI runs. `pre-commit run --all-files` checks those
-commit-stage gates; the coverage suite remains a separate pre-push hook.
+The fastest way to catch the commit-stage gates is to install the hooks once.
+The lint, type, security, import-contract, and generated-skill hooks run through
+`uv run --frozen`, so they use the exact locked tool versions CI runs for those
+checks. `pre-commit run --all-files` does not cover the dependency audit,
+generated public contracts, archive build, installed-wheel smoke, Python
+matrix, or operating-system matrix. The coverage suite remains a separate
+pre-push hook.
 
 ```bash
 uv run pre-commit install --install-hooks       # ruff / bandit / import-linter / pyright on every commit
@@ -79,7 +86,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |
 | **pyright** | Static type checker | Full `distill/` package is blocking; strict mode is ratcheted per module toward 1.0 |
-| **pre-commit** | Local enforcement wrapper; hooks call `uv run --frozen` so local == CI | Runs locally; CI re-validates |
+| **pre-commit** | Local wrapper for a documented subset of gates, using the same locked tool versions | Runs locally; CI re-validates and adds dependency, build, Python-matrix, and OS-matrix checks |
 
 uv config, ruff config, bandit config, pyright config, and the import-linter contracts all live in `pyproject.toml`; dependencies are pinned in `uv.lock`. Ruff's rule set is opinionated but not onerous; fix what it flags or, for a genuine exception, add a narrow `# noqa: <code>` with a comment explaining why.
 
@@ -223,36 +230,50 @@ Use this checklist for those changes:
 Before pushing to main or tagging a release, run the full gate locally. CI catches these, but catching them locally avoids embarrassing red badges on the repo.
 
 ```bash
-# 1. Tests - including property-based tests (hypothesis)
-uv run pytest -q --cov=distill --cov-fail-under=95
+# 1. Reproducible environment and generated contracts
+uv sync --frozen
+uv run --frozen python scripts/public_contracts.py --check
+uv run --frozen python scripts/agent_skill_distributions.py --check
 
-# 2. Lint - both check and format
-uv run ruff check .
-uv run ruff format --check .
+# 2. Tests, including property-based tests (Hypothesis)
+uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=95
 
-# 3. Security
-uv run bandit -r distill/ -c pyproject.toml --severity-level medium
+# 3. Lint and format
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
 
-# 4. Type check - full package, blocking
-uv run pyright --warnings distill/
+# 4. Security and dependency audit
+uv run --frozen bandit -r distill/ -c pyproject.toml --severity-level medium
+uv run --frozen pip-audit --skip-editable
 
-# 5. Dependency direction enforcement
-uv run lint-imports
+# 5. Type check, full package and blocking
+uv run --frozen pyright --warnings distill/
 
-# 6. Agent Skill distribution drift
-uv run python scripts/agent_skill_distributions.py --check
+# 6. Dependency direction enforcement
+uv run --frozen lint-imports
 
-# 7. Build sanity - sdist + wheel build, web assets bundled
+# 7. Installed CLI smoke
+uv run --frozen distill --help
+
+# 8. Build source and wheel archives
 uv build
 
-# 8. Verify nothing unwanted is staged
+# 9. Build deterministic Agent Skill release archives
+uv run --frozen python scripts/agent_skill_distributions.py --build --output agent-dist
+
+# 10. Inspect the wheel assets and smoke an isolated Python 3.12 install
+# Follow the exact five-asset and bundled-skill checks in .github/workflows/ci.yml.
+
+# 11. Verify nothing unwanted is staged
 git diff --cached --stat
 git status
 ```
 
-`uv run pre-commit run --all-files` covers items 2-6. Run item 1 separately, or
-invoke the installed test hook explicitly with
-`uv run pre-commit run --hook-stage pre-push --all-files`.
+`uv run pre-commit run --all-files` covers only its configured commit-stage
+subset. Invoke the installed test hook with
+`uv run pre-commit run --hook-stage pre-push --all-files`, then run the
+remaining dependency, contract, build, archive, and installed-wheel checks
+listed above.
 
 The offline gate validates eval schema and generated copies, not semantic
 quality. Before publishing the plugin, use a budget-capped native behavior run

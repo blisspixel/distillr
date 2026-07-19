@@ -87,7 +87,7 @@ class DashboardSnapshot(TypedDict):
     all_cost_entries: list[CostRun]
     cost_history_coverage: CostHistoryCoverage
     recent_runs: list[CostRun]
-    recent_spend: float
+    recent_spend: float | None
     latest_results: JsonObject
     latest_issues: list[object]
     recent_artifacts: list[RecentArtifact]

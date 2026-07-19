@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from distill.pipeline.audit import StalenessRollup, collect_staleness
@@ -77,7 +78,7 @@ class TestCollectStaleness:
         assert rollup.unknown_family == 1
 
     def test_reanalysis_commands_route_by_source(self, tmp_path):
-        from distill.pipeline.audit import reanalysis_commands
+        from distill.pipeline.audit import reanalysis_argvs, reanalysis_commands
 
         lib = tmp_path
         # GitHub-sourced insight: exact ingest command.
@@ -99,19 +100,90 @@ class TestCollectStaleness:
         d3 = lib / "topics" / "t" / "media" / "m"
         d3.mkdir(parents=True)
         (d3 / "m_Insights.md").write_text('---\nsource: "media"\n---\n\nbody', encoding="utf-8")
+        # A trusted-host substring in an attacker-controlled hostname or path
+        # must never route to an ingest argv.
+        d4 = lib / "topics" / "t" / "repos" / "deceptive"
+        d4.mkdir(parents=True)
+        (d4 / "deceptive_Insights.md").write_text(
+            '---\nsource: "github"\nurl: "https://evil.test/github.com/o/r"\n---\n\nbody',
+            encoding="utf-8",
+        )
+        # Shell metacharacters remain exact data inside an argv JSON record.
+        d5 = lib / "topics" / "t" / "repos" / "metacharacters"
+        d5.mkdir(parents=True)
+        dangerous_url = "https://github.com/o/r?q=$(calc)&next=one;two"
+        (d5 / "metacharacters_Insights.md").write_text(
+            f'---\nsource: "github"\nurl: "{dangerous_url}"\n---\n\nbody',
+            encoding="utf-8",
+        )
 
         stale = [
             {"insight": "topics/t/repos/r/r_Insights.md", "recorded": "analysis.github_repo.v1"},
             {"insight": "topics/t/papers/p/p_Insights.md", "recorded": "synthesis.paper.v2"},
             {"insight": "topics/t/media/m/m_Insights.md", "recorded": "analysis.media.v1"},
+            {
+                "insight": "topics/t/repos/deceptive/deceptive_Insights.md",
+                "recorded": "analysis.github_repo.v1",
+            },
+            {
+                "insight": "topics/t/repos/metacharacters/metacharacters_Insights.md",
+                "recorded": "analysis.github_repo.v1; echo unsafe",
+            },
         ]
-        lines = reanalysis_commands(lib, "t", stale)
+        topic = "t;$(calc)&next"
+        lines = reanalysis_commands(lib, topic, stale)
+        records = [json.loads(line) for line in lines]
 
-        assert lines[0] == (
-            "distill ingest https://github.com/o/r --topic t  # was analysis.github_repo.v1"
+        assert records[0]["argv"] == [
+            "distill",
+            "ingest",
+            "https://github.com/o/r",
+            "--topic",
+            topic,
+        ]
+        assert records[1]["argv"] == [
+            "distill",
+            "papers",
+            "2604.11544v1",
+            "--topic",
+            topic,
+            "--limit",
+            "1",
+        ]
+        assert records[2]["kind"] == "manual_review"
+        assert records[2]["artifact"] == "topics/t/media/m/m_Insights.md"
+        assert records[3]["kind"] == "manual_review"
+        assert "argv" not in records[3]
+        assert records[4]["argv"] == ["distill", "ingest", dangerous_url, "--topic", topic]
+        assert records[4]["recorded_prompt"] == "analysis.github_repo.v1; echo unsafe"
+        assert all(not line.lstrip().startswith("distill ") for line in lines)
+        assert reanalysis_argvs(lib, topic, stale) == [
+            records[0]["argv"],
+            records[1]["argv"],
+            records[4]["argv"],
+        ]
+
+    def test_reanalysis_parser_rejects_malformed_and_non_ingestable_urls(self):
+        from distill.pipeline import audit_reanalysis
+
+        assert audit_reanalysis.frontmatter_field("---\nurl: value", "url") == ""
+        assert audit_reanalysis._parsed_http_url("http://[invalid") is None
+        assert (
+            audit_reanalysis._reanalysis_argv(
+                "topic",
+                "arxiv",
+                "https://arxiv.org/pdf/2604.11544v1",
+            )
+            is None
         )
-        assert lines[1].startswith('distill papers "2604.11544v1" --topic t --limit 1')
-        assert lines[2].startswith("# topics/t/media/m/m_Insights.md")
+        assert (
+            audit_reanalysis._reanalysis_argv(
+                "topic",
+                "arxiv",
+                "https://arxiv.org/abs/bad id",
+            )
+            is None
+        )
 
     def test_stale_counts_in_audit_render(self, tmp_path):
         from distill.pipeline.audit import AuditReport, VerifyRollup, render_audit_md

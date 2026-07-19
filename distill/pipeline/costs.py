@@ -113,6 +113,28 @@ def _empty_attempt_id_set() -> set[str]:
     return set()
 
 
+def _finite_nonnegative(value: object, *, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{label} must be a finite non-negative number")
+    try:
+        normalized = float(value)
+    except (OverflowError, ValueError) as exc:
+        raise ValueError(f"{label} must be a finite non-negative number") from exc
+    if not math.isfinite(normalized) or normalized < 0:
+        raise ValueError(f"{label} must be a finite non-negative number")
+    return normalized
+
+
+def _finite_cost_sum(values: list[float], *, label: str) -> float:
+    try:
+        total = math.fsum(values)
+    except OverflowError as exc:
+        raise ValueError(f"{label} exceeds the supported aggregate range") from exc
+    if not math.isfinite(total) or total < 0:
+        raise ValueError(f"{label} exceeds the supported aggregate range")
+    return total
+
+
 @dataclass
 class CostTracker:
     """Accumulates token usage and cost across a run.
@@ -141,6 +163,10 @@ class CostTracker:
         repr=False,
         compare=False,
     )
+
+    def __post_init__(self) -> None:
+        if self.budget is not None:
+            self.budget = _finite_nonnegative(self.budget, label="cost budget")
 
     @property
     def profile_tracker_id(self) -> str:
@@ -261,7 +287,10 @@ class CostTracker:
     @property
     def total_grok_cost(self) -> float:
         """Estimated xAI cost based on token usage and the actual model used."""
-        return sum(_token_usage_cost(entry) for entry in self.entries)
+        return _finite_cost_sum(
+            [_token_usage_cost(entry) for entry in self.entries],
+            label="token cost",
+        )
 
     @property
     def total_gemini_cost(self) -> float:
@@ -273,17 +302,29 @@ class CostTracker:
         trackers (e.g. sub-range report copies that carry only ``gemini_queries``).
         """
         if self.gemini_query_models:
-            return sum(deep_research_query_cost(m) for m in self.gemini_query_models)
-        return self.gemini_queries * deep_research_query_cost()
+            return _finite_cost_sum(
+                [deep_research_query_cost(m) for m in self.gemini_query_models],
+                label="Gemini query cost",
+            )
+        return _finite_nonnegative(
+            self.gemini_queries * deep_research_query_cost(),
+            label="Gemini query cost",
+        )
 
     @property
     def total_transcription_cost(self) -> float:
         """Estimated cloud speech-to-text cost across the run."""
-        return sum(t.cost for t in self.transcriptions)
+        return _finite_cost_sum(
+            [t.cost for t in self.transcriptions],
+            label="transcription cost",
+        )
 
     @property
     def total_cost(self) -> float:
-        return self.total_grok_cost + self.total_gemini_cost + self.total_transcription_cost
+        return _finite_cost_sum(
+            [self.total_grok_cost, self.total_gemini_cost, self.total_transcription_cost],
+            label="total cost",
+        )
 
     def format_cost(self) -> str:
         """Human-readable cost string."""
@@ -387,6 +428,17 @@ def save_run_log(
     ``_preview`` so iterative preview spend is visible separately from ingest
     spend in ``cost_log.jsonl``.
     """
+    actual_cost = _finite_nonnegative(tracker.total_cost, label="actual cost")
+    normalized_estimate = (
+        _finite_nonnegative(estimated_cost, label="estimated cost")
+        if estimated_cost is not None
+        else None
+    )
+    effective_elapsed = _finite_nonnegative(
+        elapsed_seconds or current_run_elapsed_seconds(),
+        label="elapsed seconds",
+    )
+
     ops_dir = log_dir / ".distill"
     ops_dir.mkdir(parents=True, exist_ok=True)
 
@@ -397,7 +449,6 @@ def save_run_log(
     log_file = new_log
 
     recorded_command = f"{command}_preview" if preview else command
-    effective_elapsed = elapsed_seconds or current_run_elapsed_seconds()
     host_managed_calls = sum(1 for row in tracker.entries if row.provider_type == "host-managed")
     entry = {
         "timestamp": datetime.now().isoformat(),
@@ -416,8 +467,10 @@ def save_run_log(
         "conservative_usage_calls": sum(
             1 for e in tracker.entries if e.usage_source == "conservative"
         ),
-        "actual_cost": round(tracker.total_cost, 6),
-        "estimated_cost": round(estimated_cost, 6) if estimated_cost is not None else None,
+        "actual_cost": round(actual_cost, 6),
+        "estimated_cost": round(normalized_estimate, 6)
+        if normalized_estimate is not None
+        else None,
         "elapsed_seconds": round(effective_elapsed, 1),
         "metadata": metadata or {},
     }

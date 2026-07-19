@@ -29,6 +29,16 @@ def _finite_float(value: object) -> float:
     return result if math.isfinite(result) else 0.0
 
 
+def _optional_finite_float(value: object) -> float | None:
+    if value is None or not isinstance(value, (int, float, str)) or isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return result if math.isfinite(result) and result >= 0 else None
+
+
 def _nonnegative_int(value: object) -> int:
     if not isinstance(value, (int, float, str)) or isinstance(value, bool):
         return 0
@@ -74,7 +84,7 @@ def _warning_texts(values: list[object]) -> list[str]:
 
 
 def dashboard_json_data(version: str, snapshot: DashboardSnapshot) -> dict[str, object]:
-    """Build the bounded primitive-only ``dashboard.v1`` JSON data object."""
+    """Build the bounded primitive-only ``dashboard.v2`` JSON data object."""
 
     topics = snapshot["topics"]
     watchlist = snapshot["watchlist"]
@@ -96,7 +106,7 @@ def dashboard_json_data(version: str, snapshot: DashboardSnapshot) -> dict[str, 
     ]
     latest_failed = _nonnegative_int(snapshot["latest_results"].get("failed"))
     return {
-        "schema_version": "dashboard.v1",
+        "schema_version": "dashboard.v2",
         "version": _bounded_text(version),
         "first_run": first_run,
         "metrics": {
@@ -116,7 +126,11 @@ def dashboard_json_data(version: str, snapshot: DashboardSnapshot) -> dict[str, 
             "due_topic_watches": snapshot["due_topic_watches"],
         },
         "spend": {
-            "recent_usd": round(_finite_float(snapshot["recent_spend"]), 6),
+            "recent_usd": (
+                round(recent_spend, 6)
+                if (recent_spend := _optional_finite_float(snapshot["recent_spend"])) is not None
+                else None
+            ),
             "next_sweep_usd": round(_finite_float(snapshot["next_sweep_cost"]), 6),
         },
         "cost_history": snapshot["cost_history_coverage"],

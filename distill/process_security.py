@@ -14,6 +14,11 @@ _EXACT_SECRET_NAMES = frozenset(
     {
         "ANTHROPIC_API_KEY",
         "AZURE_OPENAI_API_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AZURE_CLIENT_SECRET",
+        "DISTILL_WORKER_CLAIM_TOKEN",
         "GEMINI_API_KEY",
         "GH_TOKEN",
         "GITHUB_TOKEN",
@@ -23,6 +28,14 @@ _EXACT_SECRET_NAMES = frozenset(
         "HUGGING_FACE_HUB_TOKEN",
         "OPENAI_API_KEY",
         "XAI_API_KEY",
+    }
+)
+_UNSAFE_PACKAGE_OVERRIDE_NAMES = frozenset(
+    {
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "PLAYWRIGHT_BROWSERS_PATH",
+        "PLAYWRIGHT_NODEJS_PATH",
     }
 )
 
@@ -117,18 +130,33 @@ def resolve_executable(
 
 
 def sanitized_package_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
-    """Copy an environment without Python injection or provider credentials."""
+    """Copy an environment without package-loader injection or credentials."""
 
     original = os.environ if source is None else source
     sanitized = {
         key: value
         for key, value in original.items()
         if key.upper() not in _EXACT_SECRET_NAMES
-        and not key.upper().endswith("_API_KEY")
-        and key.upper() not in {"PYTHONHOME", "PYTHONPATH"}
+        and not key.upper().endswith(("_API_KEY", "_PASSWORD", "_SECRET", "_TOKEN"))
+        and not key.upper().startswith("PYTHON")
+        and key.upper() not in _UNSAFE_PACKAGE_OVERRIDE_NAMES
     }
     sanitized["PYTHONSAFEPATH"] = "1"
+    sanitized["PYTHONNOUSERSITE"] = "1"
     return sanitized
+
+
+def unsafe_package_overrides(source: Mapping[str, str] | None = None) -> tuple[str, ...]:
+    """Return ambient variables that can replace or inject package child code."""
+
+    original = os.environ if source is None else source
+    return tuple(
+        sorted(
+            key.upper()
+            for key in original
+            if key.upper() in _UNSAFE_PACKAGE_OVERRIDE_NAMES and original[key]
+        )
+    )
 
 
 def package_install_context() -> tuple[str, dict[str, str]]:

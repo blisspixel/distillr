@@ -9,6 +9,9 @@ register() from distill.cli.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from pathlib import Path
+
 import typer
 
 from distill._console import console
@@ -20,8 +23,15 @@ from distill.commands._helpers import (
     run_preflight,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
+from distill.jsonl import append_jsonl_lines
 
 __all__ = ["eval_cmd", "register"]
+
+
+def _append_results_log(path: Path, lines: Iterable[str]) -> None:
+    """Durably append one complete eval result batch under the JSONL lock."""
+
+    append_jsonl_lines(path, lines, durable=True)
 
 
 def _ollama_model_sizes() -> dict[str, float]:
@@ -257,11 +267,10 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     now = datetime.now()
     out_dir = config.library_dir / ".distill" / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)
-    with (out_dir / "results.jsonl").open("a", encoding="utf-8") as f:
-        for line in results_log_lines(
-            rows, now_iso=now.isoformat(), anchor=anchor, judge_model=judge
-        ):
-            f.write(line + "\n")
+    _append_results_log(
+        out_dir / "results.jsonl",
+        results_log_lines(rows, now_iso=now.isoformat(), anchor=anchor, judge_model=judge),
+    )
 
     if report:
         path = out_dir / f"{workload}_{now.strftime('%Y%m%dT%H%M%S')}.md"

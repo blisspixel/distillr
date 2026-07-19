@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,23 +12,30 @@ from distill.ingestors.sites.scraper import SitePage, site_section_key
 from distill.library import Library, TopicWatchEntry
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import artifact_exists, find_artifact
-from distill.llm.router import RouterConfig
 from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 from distill.pipeline.audit_transcripts import collect_thin_video_transcripts
 from distill.pipeline.cost_history import (
     CostLogScan,
-    cost_history_integrity_message,
     scan_confined_cost_log,
     scan_cost_log,
     select_cost_log_path,
 )
-from distill.pipeline.costs import (
-    cost_anomaly_warnings,
-    estimate_routed_video_workflow_cost,
-    report_deep_research_estimate,
+from distill.pipeline.dashboard_costs import (
+    dashboard_cost_surfaces,
+    entry_source_type,
+    estimate_topic_watch_cost,
+    estimated_topic_watch_sweep,
+    format_run_timestamp,
+    parse_run_datetime,
+    source_cost_rollups,
+    sum_recent_cost,
+    topic_cost_rollups,
+    topic_recent_costs,
+    topic_spend_last_days,
+    topic_watch_budget_messages,
 )
+from distill.pipeline.dashboard_costs import int_value as _int_value
 from distill.pipeline.dashboard_records import (
-    CostRollup,
     CostRun,
     DashboardSnapshot,
     JsonObject,
@@ -139,215 +145,13 @@ def load_latest_run_payload(log_dir: Path) -> JsonObject:
     return read_json_dict(latest)
 
 
-def _float_value(value: object, default: float = 0.0) -> float:
-    if not isinstance(value, bool) and isinstance(value, (int, float, str)):
-        try:
-            result = float(value)
-        except (OverflowError, ValueError):
-            return default
-        return result if math.isfinite(result) else default
-    return default
-
-
-def _int_value(value: object, default: int = 0) -> int:
-    if not isinstance(value, bool) and isinstance(value, (int, float, str)):
-        try:
-            return int(value)
-        except (OverflowError, ValueError):
-            return default
-    return default
-
-
-def _invalid_cost_value(value: object) -> bool:
-    if isinstance(value, bool):
-        return True
-    if value is None or value == "":
-        return False
-    if not isinstance(value, int | float | str):
-        return True
-    try:
-        return not math.isfinite(float(value))
-    except (OverflowError, ValueError):
-        return True
-
-
-def sum_recent_cost(entries: Sequence[CostRun]) -> float:
-    total = 0.0
-    for entry in entries:
-        total += _float_value(entry.get("actual_cost"))
-    return total
-
-
 # ── Timestamp helpers ───────────────────────────────────────────────
-
-
-def format_run_timestamp(value: str) -> str:
-    if not value:
-        return "unknown"
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt.strftime("%b %d %I:%M %p")
-    except ValueError:
-        return value
-
-
-def parse_run_datetime(value: str) -> datetime | None:
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if dt.tzinfo is not None:
-            dt = dt.replace(tzinfo=None)
-        return dt
-    except ValueError:
-        return None
 
 
 # ── Topic watch cost helpers ────────────────────────────────────────
 
 
-def estimated_topic_watch_sweep(
-    topic_watchlist: Sequence[TopicWatchEntry],
-    *,
-    router_config: RouterConfig | None = None,
-) -> float:
-    rc = router_config or RouterConfig()
-    total = 0.0
-    for entry in topic_watchlist:
-        total += estimate_routed_video_workflow_cost(
-            full_videos=entry.limit,
-            router_config=rc,
-        )
-        if entry.report:
-            total += report_deep_research_estimate()
-    return total
-
-
-def estimate_topic_watch_cost(
-    entry: TopicWatchEntry,
-    *,
-    router_config: RouterConfig | None = None,
-) -> float:
-    total = estimate_routed_video_workflow_cost(
-        full_videos=entry.limit,
-        router_config=router_config,
-    )
-    if entry.report:
-        total += report_deep_research_estimate()
-    return total
-
-
-def topic_spend_last_days(entries: Sequence[CostRun], topic: str, days: int = 30) -> float:
-    cutoff = datetime.now() - timedelta(days=days)
-    total = 0.0
-    for entry in entries:
-        metadata = json_object(entry.get("metadata"))
-        if metadata.get("topic") != topic:
-            continue
-        ts = parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        total += _float_value(entry.get("actual_cost"))
-    return total
-
-
-def topic_recent_costs(entries: Sequence[CostRun], topic: str, limit: int = 5) -> list[float]:
-    values: list[tuple[datetime, float]] = []
-    for entry in entries:
-        metadata = json_object(entry.get("metadata"))
-        if metadata.get("topic") != topic:
-            continue
-        ts = parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None:
-            continue
-        cost = _float_value(entry.get("actual_cost"))
-        values.append((ts, cost))
-    values.sort(key=lambda item: item[0], reverse=True)
-    return [cost for _, cost in values[:limit]]
-
-
-def topic_watch_budget_messages(
-    entry: TopicWatchEntry, all_cost_entries: Sequence[CostRun]
-) -> list[str]:
-    messages: list[str] = []
-    projected = estimate_topic_watch_cost(entry)
-    if entry.max_run_cost and projected > entry.max_run_cost:
-        messages.append(
-            f"{entry.name} projected ${projected:.2f} exceeds max-run budget ${entry.max_run_cost:.2f}"
-        )
-    if entry.monthly_budget:
-        monthly_spend = topic_spend_last_days(all_cost_entries, entry.topic, days=30)
-        if monthly_spend + projected > entry.monthly_budget:
-            messages.append(
-                f"{entry.name} projected monthly spend ${monthly_spend + projected:.2f} "
-                f"exceeds monthly budget ${entry.monthly_budget:.2f}"
-            )
-    recent_costs = topic_recent_costs(all_cost_entries, entry.topic, limit=4)
-    if len(recent_costs) >= 2:
-        baseline = sum(recent_costs[1:]) / max(len(recent_costs) - 1, 1)
-        latest = recent_costs[0]
-        if baseline > 0 and latest >= baseline * 2.5:
-            messages.append(
-                f"{entry.topic} spend spike: latest ${latest:.2f} vs recent baseline ${baseline:.2f}"
-            )
-    return messages
-
-
 # ── Cost rollup helpers ─────────────────────────────────────────────
-
-
-def entry_source_type(entry: CostRun) -> str:
-    metadata = json_object(entry.get("metadata"))
-    source_type = metadata.get("source_type")
-    if source_type:
-        return str(source_type)
-    command = str(entry.get("command", ""))
-    if command in {"site", "site-batch"}:
-        return "website"
-    if command == "report":
-        return "report"
-    return "youtube"
-
-
-def topic_cost_rollups(
-    entries: Sequence[CostRun], days: int = 30, limit: int = 5
-) -> list[CostRollup]:
-    cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, tuple[float, int]] = {}
-    for entry in entries:
-        ts = parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        metadata = json_object(entry.get("metadata"))
-        topic = str(metadata.get("topic") or "").strip()
-        if not topic:
-            continue
-        cost = _float_value(entry.get("actual_cost"))
-        if _invalid_cost_value(entry.get("actual_cost")):
-            continue
-        current_cost, current_runs = rollups.get(topic, (0.0, 0))
-        rollups[topic] = (current_cost + cost, current_runs + 1)
-    items: list[CostRollup] = [(topic, cost, runs) for topic, (cost, runs) in rollups.items()]
-    items.sort(key=lambda item: item[1], reverse=True)
-    return items[:limit]
-
-
-def source_cost_rollups(entries: Sequence[CostRun], days: int = 30) -> list[CostRollup]:
-    cutoff = datetime.now() - timedelta(days=days)
-    rollups: dict[str, tuple[float, int]] = {}
-    for entry in entries:
-        ts = parse_run_datetime(str(entry.get("timestamp", "")))
-        if ts is None or ts < cutoff:
-            continue
-        source_type = entry_source_type(entry)
-        cost = _float_value(entry.get("actual_cost"))
-        if _invalid_cost_value(entry.get("actual_cost")):
-            continue
-        current_cost, current_runs = rollups.get(source_type, (0.0, 0))
-        rollups[source_type] = (current_cost + cost, current_runs + 1)
-    items: list[CostRollup] = [(source, cost, runs) for source, (cost, runs) in rollups.items()]
-    items.sort(key=lambda item: item[1], reverse=True)
-    return items
 
 
 # ── Corpus counting ─────────────────────────────────────────────────
@@ -897,7 +701,13 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
     cost_scan = load_cost_run_scan(_cost_log, root=config.library_dir)
     all_cost_entries = [json_object(entry) for entry in cost_scan.rows]
     recent_runs = all_cost_entries[-6:]
-    recent_spend = sum_recent_cost(recent_runs)
+    recent_spend, topic_spend, source_spend, cost_warnings, budget_msgs = dashboard_cost_surfaces(
+        config,
+        _cost_log,
+        cost_scan,
+        all_cost_entries,
+        topic_watchlist,
+    )
     latest_run = load_latest_run_payload(config.library_dir)
     latest_results = json_object(latest_run.get("results"))
     latest_issues = object_list(latest_run.get("issues"))
@@ -912,31 +722,6 @@ def dashboard_snapshot(config: DistillConfig) -> DashboardSnapshot:
         + collect_corpus_health_warnings(config, lib, topics, limit=8)
     )[:8]
     next_sweep_cost = estimated_topic_watch_sweep(topic_watchlist)
-    topic_spend = (
-        topic_cost_rollups(all_cost_entries, days=30, limit=4) if cost_scan.complete else []
-    )
-    source_spend = source_cost_rollups(all_cost_entries, days=30) if cost_scan.complete else []
-    cost_warnings = (
-        cost_anomaly_warnings(
-            all_cost_entries,
-            daily_threshold_usd=config.distill_cost_warning_daily_usd,
-            spike_multiplier=config.distill_cost_warning_spike_multiplier,
-            run_spike_min_usd=config.distill_cost_warning_run_spike_min_usd,
-            workflow_budgets_usd=config.cost_workflow_budgets_usd,
-        )
-        if cost_scan.complete
-        else []
-    )
-    budget_msgs: list[str] = []
-    if cost_scan.complete:
-        for entry in topic_watchlist:
-            budget_msgs.extend(topic_watch_budget_messages(entry, all_cost_entries))
-    else:
-        budget_msgs.append(
-            cost_history_integrity_message(_cost_log, cost_scan)
-            + " Spending rollups and budget checks are unavailable until the ledger is repaired."
-        )
-
     return {
         "lib": lib,
         "topics": topics,

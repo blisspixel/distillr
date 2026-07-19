@@ -9,12 +9,12 @@ from typing import cast
 
 from distill._console import console
 from distill.config import DistillConfig
+from distill.library.claude_md import require_safe_topic_identity
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
     find_artifact,
     tags_for,
-    write_markdown_artifact,
 )
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
@@ -77,6 +77,7 @@ def synthesize_channel(
     tracker: CostTracker | None = None,
 ) -> str:
     """Generate channel-level synthesis from all video insights."""
+    topic = require_safe_topic_identity(topic)
     channel_dir = config.channel_dir(topic, channel_name)
     videos_dir = channel_dir / "videos"
 
@@ -118,28 +119,18 @@ def synthesize_channel(
     # Verify the synthesis against its own inputs (the per-video insights are
     # the receipt); strict mode refuses the write and keeps any previous
     # channel synthesis in place.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        channel_dir,
-        synthesis,
-        channel_synthesis_evidence(channel_name, channel_context, all_insights),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}_{channel_dir.name}",
-        insight_name=f"{channel_name} channel synthesis",
-        source_name="channel context and per-video insights",
-        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
-    ):
-        console.print(
-            f"  [yellow]Channel synthesis for {channel_name} not written (verify strict)[/yellow]"
-        )
-        return ""
-
-    output_file = write_markdown_artifact(
+    output_file = write_verified_synthesis(
         channel_dir,
         "synthesis",
         synthesis,
-        identity=f"{topic}_{channel_dir.name}",
+        channel_synthesis_evidence(channel_name, channel_context, all_insights),
+        verify_mode=config.distill_verify,
+        artifact_identity=f"{topic}_{channel_dir.name}",
+        verify_identity=f"{topic}_{channel_dir.name}",
+        source_name="channel context and per-video insights",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
         frontmatter=base_frontmatter(
             artifact_type="channel-synthesis",
             title=f"Channel synthesis: {channel_name}",
@@ -156,6 +147,12 @@ def synthesize_channel(
             ),
         ),
     )
+    if output_file is None:
+        console.print(
+            f"  [yellow]Channel synthesis for {channel_name} not written "
+            "(verification gate)[/yellow]"
+        )
+        return ""
     console.print(f"  [green]Saved {output_file}[/green]")
 
     return synthesis
@@ -187,6 +184,7 @@ def synthesize_topic(
 
     ``style`` selects an optional register (see ``prompts.synthesis.STYLE_GUIDANCE``).
     """
+    topic = require_safe_topic_identity(topic)
     topic_dir = config.topic_dir(topic)
     channels_dir = topic_dir / "channels"
 
@@ -229,26 +227,18 @@ def synthesize_topic(
     # Verify against the channel syntheses used by the prompt. The identity
     # names the video-topic modality explicitly and remains distinct from site,
     # paper, and mixed-corpus receipts.
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        topic_dir,
-        synthesis,
-        "\n\n".join(channel_syntheses.values()),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}-topic-synthesis",
-        insight_name=f"{topic} topic synthesis",
-        source_name="channel syntheses",
-        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
-    ):
-        console.print(f"  [yellow]Topic synthesis for {topic} not written (verify strict)[/yellow]")
-        return ""
-
-    output_file = write_markdown_artifact(
+    output_file = write_verified_synthesis(
         topic_dir,
         "topic_synthesis",
         synthesis,
-        identity=topic,
+        "\n\n".join(channel_syntheses.values()),
+        verify_mode=config.distill_verify,
+        artifact_identity=topic,
+        verify_identity=f"{topic}-topic-synthesis",
+        source_name="channel syntheses",
+        notify=lambda line: console.print(f"  [yellow]{line}[/yellow]"),
         frontmatter=base_frontmatter(
             artifact_type="topic-synthesis",
             title=f"Topic synthesis: {topic}",
@@ -265,6 +255,11 @@ def synthesize_topic(
             ),
         ),
     )
+    if output_file is None:
+        console.print(
+            f"  [yellow]Topic synthesis for {topic} not written (verification gate)[/yellow]"
+        )
+        return ""
     console.print(f"  [green]Saved {output_file}[/green]")
 
     # Refresh the agent-orientation CLAUDE.md for this topic + the library index.

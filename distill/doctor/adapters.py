@@ -706,15 +706,9 @@ def _run_auth_command_probes(
 
 
 def _command_with_executable(command: tuple[str, ...], executable: str) -> tuple[str, ...]:
-    """Use the exact discovered executable for Windows probe processes."""
+    """Use the exact discovered executable for every probe process."""
 
-    if not _is_windows():
-        return command
     return (executable, *command[1:])
-
-
-def _is_windows() -> bool:
-    return os.name == "nt"
 
 
 def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _ConfigScanResult:

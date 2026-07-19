@@ -17,6 +17,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 import typer
+from rich.text import Text
 
 from distill._console import console, set_json_mode
 from distill.commands._helpers import _complete_topics, get_config, tty_prompt
@@ -320,8 +321,9 @@ def _act_stale(
 
     for r in reports:
         if r.staleness.stale:
+            console.print("  Structured re-analysis guidance (arguments are data, not shell text):")
             for line in reanalysis_commands(config.library_dir, r.topic, r.staleness.stale):
-                console.print(f"  [cyan]{line}[/cyan]")
+                console.print(Text(f"  {line}", style="cyan"))
 
 
 def _act_freshness(

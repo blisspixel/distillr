@@ -49,6 +49,10 @@ malicious input cannot turn a narrow operation into broad host authority:
   pins the validated address for the connection, revalidates redirects, and
   carries one monotonic deadline through DNS, lock wait, connect, TLS, response
   headers, retry backoff, and caller body reads.
+- Network diagnostics retain only the safe scheme, canonical host, and explicit
+  port needed to identify a failing origin. User information, passwords, query
+  strings, and fragments are omitted so bearer URLs do not become persistent
+  log secrets.
 - Website discovery caps sitemap attempts and entries. PDF attachment ingest
   caps attachments, aggregate bytes, per-transfer time, and batch time. X
   syndication requests identity encoding and caps raw response bytes before
@@ -58,17 +62,24 @@ malicious input cannot turn a narrow operation into broad host authority:
   limits. Browser requests also use HTTPS, public-address checks, a per-page
   request budget, and a restricted resource-type set.
 - Process launches resolve one absolute executable identity outside the current
-  directory, use a trusted working directory, and remove Python injection
-  variables and provider credentials from child environments. Python module
-  launches use safe-path mode.
+  directory and reuse that identity for execution. Children use a trusted
+  working directory and environments stripped of Python and Node loader
+  overrides, provider credentials, bearer tokens, passwords, and secrets.
+  Python module launches use safe-path mode.
+- Media transcription copies a stable, single-link regular input into private
+  scratch before local or cloud work. Local faster-whisper and configured
+  Scribe execution use isolated process trees with elapsed-time, memory,
+  output, and diagnostic limits; bounded structured results are required
+  before the parent accepts success.
 - CLI target classification rejects UNC and Windows device paths before any
   filesystem probe. Persistent budget fields reject negative and non-finite
   values before mutation and serialize with strict JSON.
-- Local phase, provider, and cost histories serialize cooperating writers,
-  isolate an interrupted final row before the next append, and reject
-  non-finite JSON on write. Provider-history reads stream strict JSON with a
-  1 MiB row ceiling and continue past malformed or invalid UTF-8 rows. Cost
-  rows are `fsync`-flushed before profile receipt state advances.
+- Local structured histories serialize cooperating writers, isolate an
+  interrupted final row before the next append, refuse linked or special
+  targets, and reject non-object or non-finite JSON before touching the file.
+  Provider-history reads stream strict JSON with a 1 MiB row ceiling and
+  continue past malformed or invalid UTF-8 rows. Cost, claim, mention, and
+  completion-receipt rows are `fsync`-flushed before dependent state advances.
 - Cost-ledger readers are no-follow and side-effect-free. Confined input is
   capped at 16 MiB, encoded rows at 1 MiB, and retained valid history at 10,000
   rows. Invalid monetary or timestamp evidence makes completeness-sensitive

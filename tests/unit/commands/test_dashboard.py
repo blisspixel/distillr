@@ -256,6 +256,26 @@ def test_show_dashboard_renders_empty_non_first_run_sections(monkeypatch) -> Non
     assert "distill latest" in output
 
 
+def test_dashboard_surfaces_unavailable_recent_spend(monkeypatch) -> None:
+    stream = _console_buffer(monkeypatch)
+    snapshot = _snapshot(recent_spend=None)
+    monkeypatch.setattr(_dashboard, "get_config", lambda: SimpleNamespace())
+    monkeypatch.setattr(_dashboard, "_dashboard_snapshot", lambda _config: snapshot)
+
+    _dashboard._show_dashboard()
+
+    output = stream.getvalue()
+    assert "Recent Spend" in output
+    assert "Unavailable" in output
+    assert "cost evidence is incomplete or cannot be aggregated" in output
+    assert "Infinity" not in output
+
+    html = _dashboard.render_dashboard_html("dev", snapshot)
+    assert "Recent Spend" in html
+    assert "Unavailable" in html
+    assert "Infinity" not in html
+
+
 def test_render_dashboard_html_renders_budget_trends_changes_and_attention() -> None:
     html = _dashboard.render_dashboard_html("1.2.3", _snapshot())
 
@@ -319,7 +339,7 @@ def test_render_dashboard_html_uses_artifact_and_empty_fallbacks() -> None:
 def test_dashboard_json_data_is_primitive_bounded_and_uses_configured_paths() -> None:
     payload = _dashboard.dashboard_json_data("1.2.3", _snapshot())
 
-    assert payload["schema_version"] == "dashboard.v1"
+    assert payload["schema_version"] == "dashboard.v2"
     assert payload["version"] == "1.2.3"
     assert payload["first_run"] is False
     assert payload["metrics"] == {
@@ -374,7 +394,7 @@ def test_dashboard_json_data_caps_collections_text_and_nonfinite_values() -> Non
     assert len(payload["topics"]) == 100
     assert payload["truncated"] == {"topics": 40, "recent_runs": 5}
     assert len(payload["recent_runs"]) == 10
-    assert payload["spend"] == {"recent_usd": 0.0, "next_sweep_usd": 0.0}
+    assert payload["spend"] == {"recent_usd": None, "next_sweep_usd": 0.0}
     assert payload["warnings"]["latest_failed_items"] == 0
     assert len(payload["warnings"]["stale_topic_watches"]) == 20
     assert len(payload["warnings"]["stale_topic_watches"][0]) == 500

@@ -30,6 +30,7 @@ from __future__ import annotations
 import contextlib
 import difflib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -38,8 +39,18 @@ import deal
 
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.concepts.locking import concept_transaction
+from distill.concepts.notes import write_history_snapshot
 from distill.concepts.records import ConceptKind
-from distill.library.paths import atomic_write_text, extract_frontmatter, strip_frontmatter
+from distill.jsonl import JsonlIntegrityError, read_jsonl_objects_strict
+from distill.library.confined_state import (
+    FileIdentity,
+    atomic_write_confined_text,
+    confined_file_identity,
+    ensure_confined_parent,
+    read_confined_state_text,
+    unlink_confined_file,
+)
+from distill.library.paths import extract_frontmatter, strip_frontmatter
 
 __all__ = [
     "FieldChange",
@@ -57,6 +68,12 @@ __all__ = [
     "safe_ts_to_iso",
     "summarize_transition",
 ]
+
+_MAX_RECOVERY_NOTE_BYTES = 8 * 1024 * 1024
+_MAX_ROLLUP_BYTES = 8 * 1024 * 1024
+_MAX_ROLLUP_ROW_BYTES = 1024 * 1024
+_MAX_ROLLUP_ROWS = 10_000
+RollupUpdate = tuple[Path, dict[Path, str]]
 
 
 # ---- timestamp <-> filename ------------------------------------------------
@@ -84,6 +101,17 @@ def safe_ts_to_iso(safe_ts: str) -> str:
         return safe_ts
     date_part, time_part = safe_ts.split("T", 1)
     return f"{date_part}T{time_part.replace('-', ':')}"
+
+
+_SNAPSHOT_SUFFIX_RE = re.compile(r"^(?P<base>.+?)(?:__(?P<revision>[2-9][0-9]*))?$")
+
+
+def _snapshot_sort_key(safe_ts: str) -> tuple[str, int]:
+    match = _SNAPSHOT_SUFFIX_RE.fullmatch(safe_ts)
+    if match is None:
+        return safe_ts, 1
+    revision = match.group("revision")
+    return match.group("base"), int(revision) if revision is not None else 1
 
 
 # ---- path resolution -------------------------------------------------------
@@ -122,20 +150,39 @@ def note_path_for_slug(topic_dir: Path, slug: str) -> Path | None:
         return None
     for sub in ("concepts", "entities"):
         candidate = topic_dir / sub / f"{slug}.md"
-        if candidate.is_file():
+        if _read_recovery_note(candidate, topic_dir) is not None:
             return candidate
     for sub in ("concepts", "entities"):
         parent = topic_dir / sub
-        if not parent.is_dir():
+        if ensure_confined_parent(parent / ".probe", topic_dir, create=False) is None:
             continue
         for path in sorted(parent.glob("*.md")):
-            try:
-                fm = extract_frontmatter(path.read_text(encoding="utf-8"))
-            except OSError:
+            content = _read_recovery_note(path, topic_dir)
+            if content is None:
                 continue
+            fm = extract_frontmatter(content[0])
             if fm.get("slug") == slug:
                 return path
     return None
+
+
+def _read_recovery_note(path: Path, topic_dir: Path) -> tuple[str, FileIdentity] | None:
+    """Read bounded note content without following links or accepting hardlinks."""
+
+    identity = confined_file_identity(path, topic_dir)
+    if identity is None:
+        return None
+    content = read_confined_state_text(
+        path,
+        topic_dir,
+        max_bytes=_MAX_RECOVERY_NOTE_BYTES,
+    )
+    if content is None:
+        return None
+    if confined_file_identity(path, topic_dir) != identity:
+        raise ValueError(f"Recovery note changed while it was being read: {path}")
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized, identity
 
 
 # ---- snapshot enumeration --------------------------------------------------
@@ -161,13 +208,14 @@ def list_snapshots(topic_dir: Path, slug: str) -> list[Snapshot]:
     if not _is_safe_slug(slug):
         return []
     history = history_dir_for_slug(topic_dir, slug)
-    if not history.is_dir():
+    if ensure_confined_parent(history / ".probe", topic_dir, create=False) is None:
         return []
     snapshots = [
         Snapshot(slug=slug, safe_ts=path.stem, iso=safe_ts_to_iso(path.stem), path=path)
         for path in history.glob("*.md")
+        if _read_recovery_note(path, topic_dir) is not None
     ]
-    snapshots.sort(key=lambda s: s.safe_ts)
+    snapshots.sort(key=lambda snapshot: _snapshot_sort_key(snapshot.safe_ts))
     return snapshots
 
 
@@ -205,6 +253,15 @@ _ROLLUP_KEYS: set[str] = {
     "first_seen",
     "last_seen",
 }
+_ROLLUP_STRING_FIELDS = (
+    "name",
+    "normalized_name",
+    "slug",
+    "kind",
+    "topic",
+    "first_seen",
+    "last_seen",
+)
 
 
 def _is_non_negative_int(value: object) -> bool:
@@ -269,6 +326,11 @@ def _parsed_note_fields_are_typed(fields: dict[str, Any]) -> bool:
 def _rollup_row_is_structural(row: dict[str, Any]) -> bool:
     return (
         set(row) == _ROLLUP_KEYS
+        and all(isinstance(row[field], str) for field in _ROLLUP_STRING_FIELDS)
+        and bool(row["name"])
+        and bool(row["slug"])
+        and bool(row["topic"])
+        and row["kind"] in {kind.value for kind in ConceptKind}
         and _is_non_negative_int(row["source_count"])
         and _is_evidence_interval(row["helpful_evidence"])
         and _is_evidence_interval(row["harmful_evidence"])
@@ -527,23 +589,26 @@ def _rollup_path_for_kind(topic_dir: Path, kind: str) -> Path:
     return entities_jsonl_path(topic_dir) if is_entity else concepts_jsonl_path(topic_dir)
 
 
-def _read_rollup_rows(path: Path) -> list[dict[str, Any]]:
-    """Read structurally valid object rows while tolerating damaged lines."""
-    if not path.exists():
-        return []
+def _read_rollup_rows(path: Path, topic_dir: Path | None = None) -> list[dict[str, Any]]:
+    """Read a complete bounded rollup, returning empty only if missing."""
 
-    rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            rows.append(cast("dict[str, Any]", value))
-    return rows
+    confinement_root = topic_dir if topic_dir is not None else path.parent
+    rows = read_jsonl_objects_strict(
+        path,
+        max_file_bytes=_MAX_ROLLUP_BYTES,
+        max_row_bytes=_MAX_ROLLUP_ROW_BYTES,
+        max_rows=_MAX_ROLLUP_ROWS,
+        confinement_root=confinement_root,
+    )
+    validated: list[dict[str, Any]] = []
+    for index, value in enumerate(rows, 1):
+        row = cast("dict[str, Any]", value)
+        structural = dict(row)
+        structural.setdefault("normalized_name", "")
+        if not _rollup_row_is_structural(structural):
+            raise JsonlIntegrityError(path, f"row {index} violates the concept rollup schema")
+        validated.append(row)
+    return validated
 
 
 def _same_rollup_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -558,14 +623,32 @@ def _same_rollup_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return str(left.get("slug", "")) == str(right.get("slug", ""))
 
 
+def _same_logical_rollup_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """Match a normalized identity across concept/entity kind families."""
+
+    left_name = str(left.get("normalized_name", "")).strip()
+    right_name = str(right.get("normalized_name", "")).strip()
+    if right_name:
+        return left_name == right_name
+    return _same_rollup_identity(left, right)
+
+
 def _assert_rollup_identity_unambiguous(topic_dir: Path, fields: dict[str, Any]) -> None:
     """Reject a legacy rollback when its identity cannot be selected safely."""
 
     expected = _rollup_row_from_fields(fields)
+    rollups = {
+        concepts_jsonl_path(topic_dir): _read_rollup_rows(
+            concepts_jsonl_path(topic_dir), topic_dir
+        ),
+        entities_jsonl_path(topic_dir): _read_rollup_rows(
+            entities_jsonl_path(topic_dir), topic_dir
+        ),
+    }
     if str(expected.get("normalized_name", "")).strip():
         return
     path = _rollup_path_for_kind(topic_dir, expected["kind"])
-    rows = _read_rollup_rows(path)
+    rows = rollups[path]
     matches = [row for row in rows if _same_rollup_identity(row, expected)]
     if len(matches) > 1:
         raise ValueError(
@@ -587,14 +670,69 @@ def _assert_rollup_identity_unambiguous(topic_dir: Path, fields: dict[str, Any])
 
 
 def _rollup_matches_fields(topic_dir: Path, fields: dict[str, Any]) -> bool:
-    """Return whether exactly one target row matches restored frontmatter."""
+    """Return whether exactly one cross-family row matches restored frontmatter."""
     expected = _rollup_row_from_fields(fields)
-    path = _rollup_path_for_kind(topic_dir, expected["kind"])
-    matches = [row for row in _read_rollup_rows(path) if _same_rollup_identity(row, expected)]
-    return matches == [expected]
+    target = _rollup_path_for_kind(topic_dir, expected["kind"])
+    matches: list[tuple[Path, dict[str, Any]]] = []
+    for path in (concepts_jsonl_path(topic_dir), entities_jsonl_path(topic_dir)):
+        matches.extend(
+            (path, row)
+            for row in _read_rollup_rows(path, topic_dir)
+            if _same_logical_rollup_identity(row, expected)
+        )
+    return matches == [(target, expected)]
 
 
-def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
+def _prepare_rollup_update(topic_dir: Path, fields: dict[str, Any]) -> RollupUpdate:
+    """Build and validate every rollup replacement before live-note mutation."""
+
+    row = _rollup_row_from_fields(fields)
+    target = _rollup_path_for_kind(topic_dir, row["kind"])
+    _assert_rollup_identity_unambiguous(topic_dir, fields)
+
+    paths = (concepts_jsonl_path(topic_dir), entities_jsonl_path(topic_dir))
+    original = {path: _read_rollup_rows(path, topic_dir) for path in paths}
+    updated = {
+        path: [existing for existing in rows if not _same_logical_rollup_identity(existing, row)]
+        for path, rows in original.items()
+    }
+    updated[target].append(row)
+    replacements: dict[Path, str] = {}
+    for path in paths:
+        rows = updated[path]
+        rows.sort(key=lambda item: (str(item.get("kind", "")), str(item.get("slug", ""))))
+        if path != target and rows == original[path]:
+            continue
+        if len(rows) > _MAX_ROLLUP_ROWS:
+            raise JsonlIntegrityError(
+                path,
+                f"rollback would exceed the {_MAX_ROLLUP_ROWS:,}-row limit",
+            )
+        encoded_lines = [
+            json.dumps(item, ensure_ascii=False, allow_nan=False) + "\n" for item in rows
+        ]
+        for index, line in enumerate(encoded_lines, 1):
+            if len(line.encode("utf-8")) > _MAX_ROLLUP_ROW_BYTES:
+                raise JsonlIntegrityError(
+                    path,
+                    f"rollback row {index} exceeds the {_MAX_ROLLUP_ROW_BYTES:,}-byte limit",
+                )
+        content = "".join(encoded_lines)
+        if len(content.encode("utf-8")) > _MAX_ROLLUP_BYTES:
+            raise JsonlIntegrityError(
+                path,
+                f"rollback would exceed the {_MAX_ROLLUP_BYTES:,}-byte file limit",
+            )
+        replacements[path] = content
+    return target, replacements
+
+
+def _update_rollup(
+    topic_dir: Path,
+    fields: dict[str, Any],
+    *,
+    prepared: RollupUpdate | None = None,
+) -> Path:
     """Replace (or append) the rollup row for the restored concept identity.
 
     Keeps the file sorted by ``(kind, slug)`` to match ``write_exports``
@@ -603,33 +741,106 @@ def _update_rollup(topic_dir: Path, fields: dict[str, Any]) -> Path:
     concepts whose lossy slugs collide; legacy rows without that field fall
     back to their kind and slug.
     """
-    row = _rollup_row_from_fields(fields)
-    path = _rollup_path_for_kind(topic_dir, row["kind"])
-    _assert_rollup_identity_unambiguous(topic_dir, fields)
-
-    rows: list[dict[str, Any]] = []
-    replaced = False
-    for existing in _read_rollup_rows(path):
-        if not _same_rollup_identity(existing, row):
-            rows.append(existing)
-        elif not replaced:
-            rows.append(row)
-            replaced = True
-    if not replaced:
-        rows.append(row)
-    rows.sort(key=lambda r: (str(r.get("kind", "")), str(r.get("slug", ""))))
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(
-        path,
-        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-    )
-    return path
+    target, replacements = prepared or _prepare_rollup_update(topic_dir, fields)
+    for path, content in replacements.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_confined_text(path, content, topic_dir)
+    return target
 
 
-def _atomic_write(path: Path, content: str) -> None:
+def _atomic_write(topic_dir: Path, path: Path, content: str) -> None:
     """Write ``content`` to ``path`` atomically and durably (see paths helper)."""
-    atomic_write_text(path, content)
+    if (
+        confined_file_identity(path, topic_dir) is not None
+        and _read_recovery_note(path, topic_dir) is None
+    ):
+        raise ValueError(f"Refusing to replace unsafe or oversized playbook note: {path}")
+    atomic_write_confined_text(path, content, topic_dir)
+
+
+def _owned_live_notes(topic_dir: Path, normalized_name: str) -> list[Path]:
+    """Find safe live notes for one normalized identity across both families."""
+
+    owned: list[Path] = []
+    if not normalized_name:
+        return owned
+    for sub in ("concepts", "entities"):
+        parent = topic_dir / sub
+        if ensure_confined_parent(parent / ".probe", topic_dir, create=False) is None:
+            continue
+        for path in sorted(parent.glob("*.md")):
+            record = _read_recovery_note(path, topic_dir)
+            if record is None:
+                continue
+            identity = str(parse_note_fields(record[0]).get("normalized_name", "")).strip()
+            if identity == normalized_name:
+                owned.append(path)
+    return owned
+
+
+def _restore_note_parent(topic_dir: Path, fields: dict[str, Any]) -> Path:
+    kind = str(fields.get("kind", ""))
+    try:
+        is_entity = ConceptKind(kind).is_entity
+    except ValueError:
+        is_entity = False
+    return topic_dir / ("entities" if is_entity else "concepts")
+
+
+def _restore_target_path(
+    topic_dir: Path,
+    storage_slug: str,
+    fields: dict[str, Any],
+    owned_paths: list[Path],
+) -> Path:
+    """Choose a collision-safe path in the snapshot kind's note family."""
+
+    parent = _restore_note_parent(topic_dir, fields)
+    normalized_name = str(fields.get("normalized_name", "")).strip()
+    same_family = [path for path in owned_paths if path.parent == parent]
+    if same_family:
+        return same_family[0]
+    if owned_paths:
+        preserved = parent / owned_paths[0].name
+        content = _read_recovery_note(preserved, topic_dir)
+        if content is None or (
+            str(parse_note_fields(content[0]).get("normalized_name", "")).strip() == normalized_name
+        ):
+            return preserved
+
+    for index in range(1, 1001):
+        candidate = (
+            parent / f"{storage_slug}.md" if index == 1 else parent / f"{storage_slug}__{index}.md"
+        )
+        if confined_file_identity(candidate, topic_dir) is None:
+            return candidate
+        content = _read_recovery_note(candidate, topic_dir)
+        if content is None:
+            continue
+        owner = str(parse_note_fields(content[0]).get("normalized_name", "")).strip()
+        if normalized_name and owner == normalized_name:
+            return candidate
+    raise RuntimeError(f"Could not allocate a collision-safe rollback target for {storage_slug!r}")
+
+
+def _remove_old_live_notes(
+    topic_dir: Path,
+    paths: list[Path],
+    target: Path,
+    normalized_name: str,
+) -> None:
+    """Remove verified old-family notes only after the restored target is durable."""
+
+    for path in paths:
+        if path == target:
+            continue
+        record = _read_recovery_note(path, topic_dir)
+        if record is None:
+            continue
+        owner = str(parse_note_fields(record[0]).get("normalized_name", "")).strip()
+        if normalized_name and owner != normalized_name:
+            continue
+        unlink_confined_file(path, topic_dir, expected=record[1])
 
 
 def rollback(
@@ -669,38 +880,36 @@ def _rollback_transaction(
     if snapshot is None:
         raise FileNotFoundError(f"No snapshot for slug '{slug}' matching timestamp '{timestamp}'.")
 
-    restored_content = snapshot.path.read_text(encoding="utf-8")
+    restored_record = _read_recovery_note(snapshot.path, topic_dir)
+    if restored_record is None:
+        raise ValueError(f"Refusing to restore unsafe or oversized snapshot: {snapshot.path}")
+    restored_content = restored_record[0]
     restored_fields = parse_note_fields(restored_content)
     _assert_rollup_identity_unambiguous(topic_dir, restored_fields)
-
-    live_path = note_path_for_slug(topic_dir, slug)
-    if live_path is None:
-        # Note was deleted; recreate it in the directory its kind implies.
-        kind = str(restored_fields.get("kind", ""))
-        try:
-            sub = "entities" if ConceptKind(kind).is_entity else "concepts"
-        except ValueError:
-            sub = "concepts"
-        live_path = topic_dir / sub / f"{slug}.md"
-
-    current_content = live_path.read_text(encoding="utf-8") if live_path.is_file() else None
+    restored_id = str(restored_fields.get("normalized_name", "")).strip()
+    owned_paths = _owned_live_notes(topic_dir, restored_id)
+    fallback_path = note_path_for_slug(topic_dir, slug) if not owned_paths else None
+    live_paths = owned_paths or ([fallback_path] if fallback_path is not None else [])
+    current_path = live_paths[0] if live_paths else None
+    current_record = (
+        _read_recovery_note(current_path, topic_dir) if current_path is not None else None
+    )
+    current_content = current_record[0] if current_record is not None else None
     if current_content is not None:
-        # Guard against slug collisions. Distinct concepts can share a slug
-        # (e.g. "gpt-4" and "gpt 4" both slugify to "gpt_4"); the base
-        # <slug>.md and a bumped <slug>__2.md both carry slug="gpt_4" and land
-        # in one shared .history/<slug>/ dir. note_path_for_slug always returns
-        # the base note, so a snapshot belonging to the bumped concept would
-        # otherwise silently overwrite the base concept. Refuse on mismatch.
         live_id = str(parse_note_fields(current_content).get("normalized_name", "")).strip()
-        restored_id = str(restored_fields.get("normalized_name", "")).strip()
         if (live_id or restored_id) and live_id != restored_id:
             raise ValueError(
                 f"Slug '{slug}' is shared by multiple concepts "
                 f"({live_id or '<legacy>'!r} vs restored "
                 f"{restored_id or '<legacy>'!r}); cannot safely roll "
-                f"back by slug alone -- resolve the collision manually."
+                "back by slug alone; resolve the collision manually."
             )
-    note_changed = current_content != restored_content
+
+    live_path = _restore_target_path(topic_dir, slug, restored_fields, live_paths)
+    target_record = _read_recovery_note(live_path, topic_dir)
+    target_content = target_record[0] if target_record is not None else None
+    migration_needed = any(path != live_path for path in live_paths)
+    note_changed = target_content != restored_content or migration_needed
     if not note_changed and _rollup_matches_fields(topic_dir, restored_fields):
         return RollbackResult(
             slug=slug,
@@ -710,14 +919,21 @@ def _rollback_transaction(
             rollup_path=None,
         )
 
+    prepared_rollup = _prepare_rollup_update(topic_dir, restored_fields)
+
     backup_path: Path | None = None
     if note_changed and current_content is not None:
-        backup_path = history_dir_for_slug(topic_dir, slug) / f"{iso_to_safe_ts(now_iso)}.md"
-        atomic_write_text(backup_path, current_content)
+        backup_base = history_dir_for_slug(topic_dir, slug) / f"{iso_to_safe_ts(now_iso)}.md"
+        backup_path = write_history_snapshot(backup_base, current_content, root=topic_dir)
 
-    if note_changed:
-        _atomic_write(live_path, restored_content)
-    rollup_path = _update_rollup(topic_dir, restored_fields)
+    if target_content != restored_content:
+        _atomic_write(topic_dir, live_path, restored_content)
+    _remove_old_live_notes(topic_dir, live_paths, live_path, restored_id)
+    rollup_path = _update_rollup(
+        topic_dir,
+        restored_fields,
+        prepared=prepared_rollup,
+    )
 
     return RollbackResult(
         slug=slug,

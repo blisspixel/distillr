@@ -15,6 +15,7 @@ The resilience order (0.12.11, the 0.11 YouTube-resilience margin):
 """
 
 import contextlib
+import os
 import re
 import subprocess
 import sys
@@ -23,6 +24,8 @@ import time
 from collections.abc import Generator
 from pathlib import Path
 from typing import Protocol
+
+from rich.markup import escape
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -36,8 +39,18 @@ from distill.ingestors.youtube.safe_ytdlp import (
     YTDLP_METADATA_TOTAL_BYTES,
     SafeYoutubeDL,
 )
+from distill.library.confined import list_confined_files, read_confined_text
 from distill.library.locking import exclusive_file_lock, open_lock_file
 from distill.library.paths import atomic_write_text
+from distill.process_resources import (
+    ProcessBudgetExceeded,
+    assign_windows_memory_job,
+    close_windows_job,
+    start_bounded_pipe_drain,
+    terminate_isolated_process_tree,
+    wait_for_process_budget,
+)
+from distill.process_security import sanitized_package_env
 from distill.youtube_urls import (
     normalize_video_id,
     normalize_youtube_video_url,
@@ -45,6 +58,7 @@ from distill.youtube_urls import (
 )
 
 __all__ = [
+    "MAX_TRANSCRIPT_BYTES",
     "get_transcript",
 ]
 
@@ -76,7 +90,12 @@ _sleep = time.sleep
 # Audio-download ceiling for the Whisper fallback: ~3h of 128kbps m4a. A
 # longer video almost certainly has captions; this caps disk and ladder time.
 _MAX_AUDIO_BYTES = 200_000_000
-_MAX_CAPTION_BYTES = 20_000_000
+MAX_TRANSCRIPT_BYTES = 20_000_000
+_MAX_CAPTION_BYTES = MAX_TRANSCRIPT_BYTES
+_SCRIBE_DIAGNOSTIC_BYTES = 32 * 1024
+_SCRIBE_MEMORY_BYTES = 8 * 1024 * 1024 * 1024
+_SCRIBE_TIMEOUT_SECONDS = 600.0
+_SCRIBE_MAX_OUTPUT_ENTRIES = 32
 
 
 class _DownloadSizeExceeded(RuntimeError):
@@ -356,34 +375,36 @@ def _try_scribe(video_url: str, output_path: Path, config: DistillConfig) -> boo
         console.print("    [red]No SCRIBE_PATH configured for fallback[/red]")
         return False
 
-    scribe_path = Path(config.scribe_path)
-    if not scribe_path.exists():
-        console.print(f"    [red]Scribe not found at {scribe_path}[/red]")
+    configured_path = Path(config.scribe_path)
+    try:
+        scribe_path = configured_path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        console.print(f"    [red]Scribe not found at {configured_path}[/red]")
+        return False
+    if not scribe_path.is_dir():
+        console.print(f"    [red]Scribe is not a directory: {scribe_path}[/red]")
         return False
 
     try:
         with _scribe_output_lock(scribe_path):
             return _run_scribe(video_url, output_path, scribe_path)
 
-    except subprocess.TimeoutExpired:
-        console.print("    [red]Scribe timed out[/red]")
-        return False
     except Exception as e:
-        console.print(f"    [red]Scribe error: {e}[/red]")
+        console.print(f"    [red]Scribe error: {escape(str(e))}[/red]")
         return False
 
 
 def _run_scribe(video_url: str, output_path: Path, scribe_path: Path) -> bool:
-    """Run Scribe and select its output while the shared lock is held."""
+    """Run Scribe inside a private scratch tree and accept one safe output."""
 
-    output_dir = scribe_path / "output"
-    before = {
-        path.resolve(): (path.stat().st_mtime_ns, path.stat().st_size)
-        for path in output_dir.glob("*.txt")
-    }
-    result = subprocess.run(
-        [
-            sys.executable,
+    with tempfile.TemporaryDirectory(prefix="distill-scribe-") as temp_dir:
+        scratch_root = Path(temp_dir)
+        output_dir = scratch_root / "output"
+        output_dir.mkdir(mode=0o700)
+        executable = str(Path(sys.executable).resolve(strict=True))
+        command = [
+            executable,
+            "-P",
             "-m",
             "scribe",
             "url",
@@ -392,31 +413,85 @@ def _run_scribe(video_url: str, output_path: Path, scribe_path: Path) -> bool:
             "--no-joke",
             "--no-meme",
             "--no-docx",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(scribe_path),
-        timeout=600,
-    )
-
-    if result.returncode != 0:
-        console.print(f"    [red]Scribe failed: {result.stderr[:200]}[/red]")
-        return False
-
-    if output_dir.exists():
-        txt_files = sorted(
-            (
-                path
-                for path in output_dir.glob("*.txt")
-                if before.get(path.resolve()) != (path.stat().st_mtime_ns, path.stat().st_size)
-            ),
-            key=lambda path: path.stat().st_mtime_ns,
-            reverse=True,
+        ]
+        child_env = sanitized_package_env()
+        child_env["PYTHONPATH"] = str(scribe_path)
+        returncode, diagnostic = _run_scribe_process(command, scratch_root, child_env)
+        if returncode != 0:
+            suffix = f": {escape(diagnostic[-200:])}" if diagnostic else ""
+            console.print(f"    [red]Scribe failed{suffix}[/red]")
+            return False
+        txt_files = list_confined_files(
+            output_dir,
+            scratch_root,
+            suffix=".txt",
+            max_entries=_SCRIBE_MAX_OUTPUT_ENTRIES,
+            max_files=1,
+            max_file_bytes=MAX_TRANSCRIPT_BYTES,
         )
-        if txt_files:
-            transcript = txt_files[0].read_text(encoding="utf-8")
-            atomic_write_text(output_path, transcript)
-            return True
+        if not txt_files:
+            console.print("    [red]Scribe ran but transcript not found[/red]")
+            return False
+        transcript = read_confined_text(
+            txt_files[0],
+            scratch_root,
+            max_bytes=MAX_TRANSCRIPT_BYTES,
+        )
+        if transcript is None:
+            console.print("    [red]Scribe returned an unsafe transcript file[/red]")
+            return False
+        atomic_write_text(output_path, transcript)
+        return True
 
-    console.print("    [red]Scribe ran but transcript not found[/red]")
-    return False
+
+def _run_scribe_process(
+    command: list[str],
+    cwd: Path,
+    env: dict[str, str],
+) -> tuple[int, str]:
+    """Execute Scribe with bounded diagnostics, resources, and tree lifetime."""
+
+    creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    process = subprocess.Popen(
+        command,
+        cwd=str(cwd),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        creationflags=creationflags,
+        start_new_session=os.name != "nt",
+    )
+    stderr_stream = process.stderr
+    if stderr_stream is None:
+        terminate_isolated_process_tree(process)
+        raise RuntimeError("Scribe did not expose a diagnostic pipe")
+    diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
+        stderr_stream,
+        limit=_SCRIBE_DIAGNOSTIC_BYTES,
+        thread_name="distill-scribe-diagnostics",
+    )
+    job_handle: int | None = None
+    returncode = -1
+    try:
+        job_handle = assign_windows_memory_job(
+            process,
+            job_memory_bytes=_SCRIBE_MEMORY_BYTES,
+        )
+        wait_for_process_budget(
+            process,
+            timeout_seconds=_SCRIBE_TIMEOUT_SECONDS,
+            memory_limit_bytes=_SCRIBE_MEMORY_BYTES,
+        )
+        returncode = int(process.returncode or 0)
+    except ProcessBudgetExceeded as exc:
+        raise RuntimeError(f"Scribe exceeded its {exc.kind} budget") from exc
+    finally:
+        terminate_isolated_process_tree(process)
+        close_windows_job(job_handle)
+        diagnostic_thread.join(timeout=1)
+        with contextlib.suppress(OSError):
+            stderr_stream.close()
+        diagnostic_thread.join(timeout=1)
+    diagnostic = diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()
+    return returncode, diagnostic

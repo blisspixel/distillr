@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import Context
+from pydantic import StrictBool
 
 from distill.llm.availability import model_available
 from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
@@ -21,7 +22,7 @@ type SynthesisRow = dict[str, str | bool]
 @write_tool("synthesize")
 async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     topic: str,
-    force: bool = False,
+    force: StrictBool = False,
     style: str = "",
     two_pass: bool = False,
     ctx: Context[Any, Any, Any] | None = None,
@@ -37,6 +38,19 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
             per-topic claims.jsonl and synthesizes over the claim set (clusters,
             contradictions, per-claim citations). Opt-in; default single-pass.
     """
+    if force is not True:
+        return json.dumps(
+            {
+                "status": "authorization_required",
+                "action": "regenerate_synthesis",
+                "message": (
+                    "Synthesis regeneration requires explicit authorization. Retry with force=true."
+                ),
+                "required": {"force": True},
+            },
+            indent=2,
+        )
+
     config = load_config()
     if not model_available():
         return json.dumps(

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
+from distill.library.insights import insight_content_sha256
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
@@ -64,7 +65,11 @@ def test_synthesize_papers_writes_verify_sidecar(tmp_path):
     """0.13.0: the synthesis is verified against its own inputs (the per-paper
     insights), with a distinct sidecar identity so the three topic-level
     syntheses can't collide."""
-    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    config = DistillConfig(
+        xai_api_key="test-key",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="warn",
+    )
     paper_dir = config.paper_dir("papers", "Agent Memory Systems", "2602.12670")
     paper_dir.mkdir(parents=True, exist_ok=True)
     (paper_dir / "insights.md").write_text("# Insight\nMRR reached 72.6 here.", encoding="utf-8")
@@ -82,6 +87,9 @@ def test_synthesize_papers_writes_verify_sidecar(tmp_path):
 
     data = _json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "99.9" for c in data["unsupported"])
+    output = find_artifact(config.topic_dir("papers"), "paper_synthesis", identity="papers")
+    assert data["insight"] == output.name
+    assert data["insight_sha256"] == insight_content_sha256(output.read_text(encoding="utf-8"))
 
 
 def test_synthesize_papers_refreshes_orientation(tmp_path):
@@ -104,7 +112,7 @@ def test_synthesize_papers_refreshes_orientation(tmp_path):
     assert (topic_dir / "AGENTS.md").exists()
     library_index = config.library_dir / "CLAUDE.md"
     assert library_index.exists()
-    assert "[[papers]]" in library_index.read_text(encoding="utf-8")
+    assert "`topics/papers/`" in library_index.read_text(encoding="utf-8")
 
 
 def test_analyze_paper_multipass_keeps_full_receipt(monkeypatch, tmp_path):

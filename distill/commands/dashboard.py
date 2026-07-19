@@ -179,6 +179,16 @@ def _show_dashboard() -> None:  # noqa: C901
     all_cost_entries = snapshot["all_cost_entries"]
     recent_runs = snapshot["recent_runs"]
     recent_spend = snapshot["recent_spend"]
+    recent_spend_text = f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable"
+    recent_spend_note = (
+        f"last {len(recent_runs)} run{'s' if len(recent_runs) != 1 else ''}"
+        if recent_spend is not None and recent_runs
+        else (
+            "no cost log yet"
+            if recent_spend is not None
+            else "cost evidence is incomplete or cannot be aggregated"
+        )
+    )
     latest_results = snapshot["latest_results"]
     latest_issues = snapshot["latest_issues"]
     recent_artifacts = snapshot["recent_artifacts"]
@@ -239,10 +249,8 @@ def _show_dashboard() -> None:  # noqa: C901
         _dashboard_metric("Topic Watch", str(len(topic_watchlist)), "recurring topic monitoring"),
         _dashboard_metric(
             "Recent Spend",
-            f"${recent_spend:.2f}",
-            f"last {len(recent_runs)} run{'s' if len(recent_runs) != 1 else ''}"
-            if recent_runs
-            else "no cost log yet",
+            recent_spend_text,
+            recent_spend_note,
         ),
         _dashboard_metric(
             "Next Sweep",
@@ -386,7 +394,11 @@ def _show_dashboard() -> None:  # noqa: C901
     )
     build_corpus.add_row(
         "Spend",
-        f"[bold]${recent_spend:.2f}[/bold] [dim]recent actual[/dim]\n"
+        (
+            f"[bold]${recent_spend:.2f}[/bold] [dim]recent actual[/dim]\n"
+            if recent_spend is not None
+            else "[yellow]Unavailable[/yellow] [dim]recent actual, cost evidence incomplete[/dim]\n"
+        )
         + (
             f"[bold]~${next_sweep_cost:.2f}[/bold] [dim]next topic-watch sweep[/dim]"
             if topic_watchlist
@@ -536,13 +548,14 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
         return "".join(f"<li>{escape(item)}</li>" for item in items)
 
     evidence_paths = dashboard_evidence_paths(snapshot)
+    recent_spend = snapshot["recent_spend"]
     metrics = [
         ("Topics", str(len(snapshot["topics"]))),
         ("Channels", str(snapshot["total_channels"])),
         ("Videos", str(snapshot["total_videos"])),
         ("Sites", str(snapshot["site_count"])),
         ("Papers", str(snapshot["paper_count"])),
-        ("Recent Spend", f"${snapshot['recent_spend']:.2f}"),
+        ("Recent Spend", f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable"),
         ("Next Sweep", f"${snapshot['next_sweep_cost']:.2f}"),
     ]
     metric_cards = "".join(

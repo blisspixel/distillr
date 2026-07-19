@@ -15,6 +15,9 @@ from typing import Any
 from rich.console import Console
 from rich.markup import escape
 
+from distill.jsonl import append_jsonl_line_locked, jsonl_append_lock
+from distill.library.confined import read_confined_text, validate_confined_path
+from distill.library.paths import atomic_write_text
 from distill.llm.router import RouterConfig
 from distill.llm.run_context import current_run_id, record_completed_phase
 from distill.pipeline.costs import (
@@ -24,6 +27,8 @@ from distill.pipeline.costs import (
 )
 
 logger = logging.getLogger(__name__)
+
+_MAX_RUN_PROJECTION_BYTES = 8 * 1024 * 1024
 
 __all__ = [
     "BatchProgress",
@@ -512,11 +517,54 @@ def _normalize_details(details: dict[str, Any] | None) -> tuple[tuple[str, str],
     return tuple(sorted((str(k), str(v)) for k, v in details.items()))
 
 
-def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C901 - legacy, will refactor
-    log_dir.mkdir(parents=True, exist_ok=True)
+@dataclass(frozen=True, slots=True)
+class _ProjectionState:
+    existed: bool
+    content: str = ""
 
-    timestamp = datetime.now(UTC).isoformat()
-    payload = {
+
+def _snapshot_projection(path: Path, root: Path) -> _ProjectionState:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return _ProjectionState(False)
+    except OSError as exc:
+        raise ValueError(f"Unable to inspect run projection: {path}") from exc
+    content = read_confined_text(path, root, max_bytes=_MAX_RUN_PROJECTION_BYTES)
+    if content is None:
+        raise ValueError(f"Refusing an unsafe or oversized run projection: {path}")
+    return _ProjectionState(True, content)
+
+
+def _remove_new_projection(path: Path, root: Path) -> None:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return
+    validated = validate_confined_path(path, root, expect_directory=False)
+    if validated is None or validated[1].st_nlink != 1:
+        raise ValueError(f"Refusing to remove an unsafe run projection: {path}")
+    path.unlink()
+
+
+def _restore_projections(
+    root: Path,
+    states: tuple[tuple[Path, _ProjectionState], ...],
+) -> list[BaseException]:
+    failures: list[BaseException] = []
+    for path, state in states:
+        try:
+            if state.existed:
+                atomic_write_text(path, state.content)
+            else:
+                _remove_new_projection(path, root)
+        except BaseException as exc:
+            failures.append(exc)
+    return failures
+
+
+def _run_payload(summary: RunSummary, timestamp: str) -> dict[str, Any]:
+    return {
         "timestamp": timestamp,
         "run_id": summary.run_id or current_run_id(),
         "command": summary.command,
@@ -533,27 +581,8 @@ def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C9
         "metadata": summary.metadata,
     }
 
-    run_log = log_dir / "run_log.jsonl"
-    with run_log.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload) + "\n")
 
-    latest_json = log_dir / "latest_run.json"
-    latest_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-    latest = log_dir / "latest_run_errors.md"
-    lines: list[str] = [
-        "# Distill Run Log",
-        "",
-        f"- Timestamp: `{timestamp}`",
-        f"- Command: `{summary.command or 'unknown'}`",
-        f"- Elapsed: `{round(summary.elapsed, 1)}s`",
-        f"- Passed videos: `{summary.passed}`",
-        f"- Failed videos: `{summary.failed}`",
-        f"- Run issues: `{summary.issue_count}`",
-        f"- Latest JSON: `{latest_json}`",
-        "",
-    ]
-
+def _append_run_issues(lines: list[str], summary: RunSummary) -> None:
     if summary.issues:
         lines.extend(["## Run Issues", ""])
         for issue in summary.issues:
@@ -569,6 +598,8 @@ def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C9
                 lines.extend(["", "```text", issue.traceback_text, "```"])
         lines.append("")
 
+
+def _append_failed_videos(lines: list[str], summary: RunSummary) -> None:
     if summary.failed:
         lines.extend(["## Failed Videos", ""])
         for result in summary.results:
@@ -576,13 +607,87 @@ def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:  # noqa: C9
                 lines.append(f"- `{result.title}`: {result.error or 'Unknown error'}")
         lines.append("")
 
+
+def _append_run_outputs(lines: list[str], summary: RunSummary) -> None:
     if summary.output_files:
         lines.extend(["## Outputs", ""])
         for path in summary.output_files:
             lines.append(f"- `{path}`")
         lines.append("")
 
-    latest.write_text("\n".join(lines), encoding="utf-8")
+
+def _run_markdown(
+    summary: RunSummary,
+    payload: dict[str, Any],
+    latest_json: Path,
+) -> str:
+    lines: list[str] = [
+        "# Distill Run Log",
+        "",
+        f"- Timestamp: `{payload['timestamp']}`",
+        f"- Run ID: `{payload['run_id']}`",
+        f"- Command: `{payload['command']}`",
+        f"- Elapsed: `{round(summary.elapsed, 1)}s`",
+        f"- Passed videos: `{summary.passed}`",
+        f"- Failed videos: `{summary.failed}`",
+        f"- Run issues: `{summary.issue_count}`",
+        f"- Latest JSON: `{latest_json}`",
+        "",
+    ]
+    _append_run_issues(lines, summary)
+    _append_failed_videos(lines, summary)
+    _append_run_outputs(lines, summary)
+    return "\n".join(lines)
+
+
+def _write_run_artifact_group(
+    run_log: Path,
+    latest_json: Path,
+    latest_markdown: Path,
+    *,
+    payload_line: str,
+    latest_json_text: str,
+    latest_markdown_text: str,
+) -> None:
+    for label, content in (
+        ("run-log row", payload_line),
+        ("latest JSON", latest_json_text),
+        ("latest Markdown", latest_markdown_text),
+    ):
+        if len(content.encode("utf-8")) > _MAX_RUN_PROJECTION_BYTES:
+            raise ValueError(f"Run {label} exceeds the {_MAX_RUN_PROJECTION_BYTES:,}-byte limit")
+    with jsonl_append_lock(run_log):
+        states = (
+            (latest_json, _snapshot_projection(latest_json, run_log.parent)),
+            (latest_markdown, _snapshot_projection(latest_markdown, run_log.parent)),
+        )
+        append_jsonl_line_locked(run_log, payload_line, durable=True)
+        try:
+            atomic_write_text(latest_json, latest_json_text)
+            atomic_write_text(latest_markdown, latest_markdown_text)
+        except BaseException as exc:
+            rollback_failures = _restore_projections(run_log.parent, states)
+            if rollback_failures:
+                raise OSError(
+                    "Run projection update failed and its prior state could not be restored"
+                ) from exc
+            raise
+
+
+def _save_run_artifacts(summary: RunSummary, log_dir: Path) -> None:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    payload = _run_payload(summary, datetime.now(UTC).isoformat())
+    run_log = log_dir / "run_log.jsonl"
+    latest_json = log_dir / "latest_run.json"
+    latest_markdown = log_dir / "latest_run_errors.md"
+    _write_run_artifact_group(
+        run_log,
+        latest_json,
+        latest_markdown,
+        payload_line=json.dumps(payload, ensure_ascii=False, allow_nan=False),
+        latest_json_text=json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False),
+        latest_markdown_text=_run_markdown(summary, payload, latest_json),
+    )
 
 
 def _file_size(path: Path) -> str:

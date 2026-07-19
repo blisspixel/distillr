@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -499,6 +500,74 @@ def test_youtube_attachment_success(monkeypatch, tmp_path):
     assert "Transcript content." in context
     assert updated.text_path == "abc123xyz99-transcript.txt"
     assert seen["tracker"] is tracker
+
+
+def test_youtube_attachment_reads_only_bounded_context_prefix(monkeypatch, tmp_path):
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir()
+    full_transcript = "a" * 35_000
+
+    def fake_get_transcript(_url, _video_id, transcript_path, _config, *, tracker=None):
+        transcript_path.write_text(full_transcript, encoding="utf-8")
+        return True
+
+    monkeypatch.setattr("distill.ingestors.sites.attachments.get_transcript", fake_get_transcript)
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("attachment must use the confined prefix reader")
+        ),
+    )
+
+    updated, context = _ingest_youtube_attachment(
+        _youtube_attachment(),
+        attachments_dir,
+        config,
+    )
+
+    assert updated.status == "ingested"
+    assert updated.content_chars == 30_000
+    assert context.endswith("a" * 30_000)
+
+
+@pytest.mark.parametrize("unsafe_kind", ["hardlink", "oversize", "utf8"])
+def test_youtube_attachment_rejects_unsafe_transcript_output(
+    monkeypatch,
+    tmp_path,
+    unsafe_kind,
+):
+    import distill.ingestors.sites.attachments as attachments_module
+
+    config = DistillConfig(distill_output_dir=tmp_path / "lib")
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir()
+    external = tmp_path / "external.txt"
+    external.write_text("external", encoding="utf-8")
+    if unsafe_kind == "oversize":
+        monkeypatch.setattr(attachments_module, "MAX_TRANSCRIPT_BYTES", 4)
+
+    def fake_get_transcript(_url, _video_id, transcript_path, _config, *, tracker=None):
+        if unsafe_kind == "hardlink":
+            os.link(external, transcript_path)
+        elif unsafe_kind == "oversize":
+            transcript_path.write_text("too large", encoding="utf-8")
+        else:
+            transcript_path.write_bytes(b"valid\xff")
+        return True
+
+    monkeypatch.setattr(attachments_module, "get_transcript", fake_get_transcript)
+
+    updated, context = _ingest_youtube_attachment(
+        _youtube_attachment(),
+        attachments_dir,
+        config,
+    )
+
+    assert updated.status == "failed"
+    assert "unsafe" in updated.note
+    assert context == ""
 
 
 def test_extract_youtube_id_returns_empty_for_youtube_without_id():

@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Official Distillr agent plugins",
-    "version": "0.19.38"
+    "version": "0.19.39"
   },
   "plugins": [
     {
       "name": "distill-corpus",
       "source": "./plugins/distill-corpus",
       "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs.",
-      "version": "0.19.38",
+      "version": "0.19.39",
       "author": {
         "name": "Nick Seal",
         "url": "https://github.com/blisspixel"

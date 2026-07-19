@@ -107,7 +107,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.38, 2026-07-18). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.39, 2026-07-18). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -222,6 +222,48 @@ and a fresh code graph remain deferred quality debt. This is reliability,
 security, accessibility, and operator refinement on the current surface. It
 does not create a freeze signal.
 
+**Cycle 11 refinement evidence (2026-07-18).** This pass stayed on the current
+product surface and closed independently reproduced security, reliability, and
+operator-trust defects:
+
+- **Security:** subprocesses retain one validated executable identity, remove
+  ambient Python and Node execution overrides plus credentials, and bound their
+  process trees, output, time, and memory. Local media uses one stable private
+  snapshot before local or cloud work. Network diagnostics omit URL secrets,
+  generated agent orientations place a static trust boundary first, synthesis
+  verification sidecars bind the exact rendered artifact, stale-source advice
+  stays inert structured data, and MCP regeneration requires a literal JSON
+  boolean authorization.
+- **Reliability:** claim and concept extraction serialize per topic, publish
+  model evidence before strict completion ledgers, checkpoint already-paid
+  work at budget boundaries, and repair interrupted completion or derived-state
+  updates before repeating provider work. Claim, mention, quality, eval,
+  topic-change, and run histories serialize writers; canonical knowledge
+  histories enforce typed row and byte capacity before append. Same-second
+  concept snapshots no longer collide, kind migration preserves history, and
+  linked child state cannot redirect reads, writes, repairs, or deletions.
+  Rendered playbook notes cannot exceed their own reader ceiling, colliding
+  slugs allocate in bounded linear work, failed migration removes only its new
+  snapshots, and recovery refuses oversized rollup projections before changing
+  a live note. Synthesis and saved-answer artifacts publish with their exact
+  verification sidecars under one rollback-capable transaction.
+- **Observability:** unrepresentable cost totals render as unavailable instead
+  of infinity or zero. Invalid quality history names its exact path while the
+  point-in-time audit remains usable without an invented baseline. Latest run
+  JSON and Markdown projections share a run ID and rollback as a correlated
+  pair while the append-only row remains diagnostic.
+- **Documentation and regression protection:** README, operator, security,
+  architecture, cost, MCP, output, contributor, generated example, public
+  contract, and Agent Skill surfaces follow tested behavior. Exploit-specific
+  controls cover path swaps, linked ancestry and state, child startup injection,
+  transport coercion, corrupted and oversized histories, concurrent writers,
+  partial derived-state recovery, and projection rollback.
+
+Lossless history archival, representative assistive-technology validation,
+browser-media validation, performance baselining, and a fresh code graph remain
+active quality debt. This is not a freeze signal and does not narrow the broader
+refinement program.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published
@@ -256,7 +298,7 @@ findings, evidence, fixes, and prioritized product implications are recorded in
 
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.38. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.39. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 The bounded active-session handoff now ships: provider-neutral tasks can be
 atomically claimed through `distill worker`, completed only in an isolated

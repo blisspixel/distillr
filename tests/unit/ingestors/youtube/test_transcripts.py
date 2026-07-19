@@ -1,10 +1,11 @@
 """Tests for distill.transcripts."""
 
+import io
 import os
 import sys
 import threading
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -657,67 +658,106 @@ class TestScribeFallback:
 
         assert result is False
 
-    @patch("distill.ingestors.youtube.transcripts.subprocess.run")
-    def test_try_scribe_returns_false_on_nonzero_exit(self, mock_run, tmp_path):
+    @patch("distill.ingestors.youtube.transcripts._run_scribe_process")
+    def test_try_scribe_returns_false_on_nonzero_exit(self, run_scribe, tmp_path):
         scribe_dir = tmp_path / "scribe"
         scribe_dir.mkdir()
         config = DistillConfig(
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
         )
-        mock_run.return_value.returncode = 1
-        mock_run.return_value.stderr = "bad things"
+        run_scribe.return_value = (1, "bad things")
 
         result = _try_scribe("https://youtube.com/watch?v=abc", tmp_path / "out.txt", config)
 
         assert result is False
 
-    @patch("distill.ingestors.youtube.transcripts.subprocess.run")
-    def test_try_scribe_returns_false_when_output_missing(self, mock_run, tmp_path):
+    @patch("distill.ingestors.youtube.transcripts._run_scribe_process")
+    def test_try_scribe_returns_false_when_output_missing(self, run_scribe, tmp_path):
         scribe_dir = tmp_path / "scribe"
         scribe_dir.mkdir()
         config = DistillConfig(
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
         )
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stderr = ""
+        run_scribe.return_value = (0, "")
 
         result = _try_scribe("https://youtube.com/watch?v=abc", tmp_path / "out.txt", config)
 
         assert result is False
 
-    @patch("distill.ingestors.youtube.transcripts.subprocess.run")
-    def test_try_scribe_copies_latest_output(self, mock_run, tmp_path):
+    @patch("distill.ingestors.youtube.transcripts._run_scribe_process")
+    def test_try_scribe_copies_latest_output(self, run_scribe, tmp_path, monkeypatch):
         scribe_dir = tmp_path / "scribe"
-        output_dir = scribe_dir / "output"
-        output_dir.mkdir(parents=True)
-        old_file = output_dir / "old.txt"
-        old_file.write_text("old", encoding="utf-8")
-        os.utime(old_file, (1_000_000, 1_000_000))
+        scribe_dir.mkdir()
+        monkeypatch.setenv("XAI_API_KEY", "must-not-reach-scribe")
+        monkeypatch.setenv("NODE_OPTIONS", "--require untrusted.js")
         config = DistillConfig(
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
         )
 
-        def create_output(*_args, **_kwargs):
-            new_file = output_dir / "new.txt"
+        def create_output(command, cwd, env):
+            new_file = cwd / "output" / "new.txt"
             new_file.write_text("new", encoding="utf-8")
-            os.utime(new_file, (2_000_000, 2_000_000))
-            return type("Result", (), {"returncode": 0, "stderr": ""})()
+            return 0, ""
 
-        mock_run.side_effect = create_output
+        run_scribe.side_effect = create_output
         target = tmp_path / "transcript.txt"
 
         result = _try_scribe("https://youtube.com/watch?v=abc", target, config)
 
         assert result is True
-        command = mock_run.call_args.args[0]
-        assert command[:3] == [sys.executable, "-m", "scribe"]
+        command, cwd, child_env = run_scribe.call_args.args
+        assert command[:4] == [str(Path(sys.executable).resolve()), "-P", "-m", "scribe"]
+        assert cwd != scribe_dir
+        assert child_env["PYTHONPATH"] == str(scribe_dir.resolve())
+        assert "XAI_API_KEY" not in child_env
+        assert "NODE_OPTIONS" not in child_env
         assert target.read_text(encoding="utf-8") == "new"
 
-    @patch("distill.ingestors.youtube.transcripts.subprocess.run")
-    def test_try_scribe_does_not_reuse_stale_output(self, mock_run, tmp_path):
+    @pytest.mark.parametrize("unsafe_kind", ["hardlink", "multiple", "oversize", "utf8"])
+    @patch("distill.ingestors.youtube.transcripts._run_scribe_process")
+    def test_try_scribe_rejects_unsafe_scratch_output(
+        self,
+        run_scribe,
+        tmp_path,
+        monkeypatch,
+        unsafe_kind,
+    ):
+        scribe_dir = tmp_path / "scribe"
+        scribe_dir.mkdir()
+        external = tmp_path / "external.txt"
+        external.write_text("external", encoding="utf-8")
+        if unsafe_kind == "oversize":
+            monkeypatch.setattr(transcripts, "MAX_TRANSCRIPT_BYTES", 4)
+
+        def create_unsafe_output(_command, cwd, _env):
+            output_dir = cwd / "output"
+            first = output_dir / "first.txt"
+            if unsafe_kind == "hardlink":
+                os.link(external, first)
+            elif unsafe_kind == "multiple":
+                first.write_text("first", encoding="utf-8")
+                (output_dir / "second.txt").write_text("second", encoding="utf-8")
+            elif unsafe_kind == "oversize":
+                first.write_text("too large", encoding="utf-8")
+            else:
+                first.write_bytes(b"valid\xff")
+            return 0, ""
+
+        run_scribe.side_effect = create_unsafe_output
+        target = tmp_path / "transcript.txt"
+        config = DistillConfig(
+            distill_output_dir=tmp_path / "lib",
+            scribe_path=str(scribe_dir),
+        )
+
+        assert _try_scribe("https://youtube.com/watch?v=abc", target, config) is False
+        assert not target.exists()
+
+    @patch("distill.ingestors.youtube.transcripts._run_scribe_process")
+    def test_try_scribe_does_not_reuse_stale_output(self, run_scribe, tmp_path):
         scribe_dir = tmp_path / "scribe"
         output_dir = scribe_dir / "output"
         output_dir.mkdir(parents=True)
@@ -726,15 +766,17 @@ class TestScribeFallback:
             distill_output_dir=tmp_path / "lib",
             scribe_path=str(scribe_dir),
         )
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stderr = ""
+        run_scribe.return_value = (0, "")
         target = tmp_path / "transcript.txt"
 
         assert _try_scribe("https://youtube.com/watch?v=abc", target, config) is False
         assert not target.exists()
 
-    @patch("distill.ingestors.youtube.transcripts.subprocess.run", side_effect=TimeoutError())
-    def test_try_scribe_handles_generic_exception(self, mock_run, tmp_path):
+    @patch(
+        "distill.ingestors.youtube.transcripts._run_scribe_process",
+        side_effect=TimeoutError(),
+    )
+    def test_try_scribe_handles_generic_exception(self, run_scribe, tmp_path):
         scribe_dir = tmp_path / "scribe"
         scribe_dir.mkdir()
         config = DistillConfig(
@@ -747,10 +789,10 @@ class TestScribeFallback:
         assert result is False
 
     @patch(
-        "distill.ingestors.youtube.transcripts.subprocess.run",
-        side_effect=__import__("subprocess").TimeoutExpired(cmd="scribe", timeout=600),
+        "distill.ingestors.youtube.transcripts._run_scribe_process",
+        side_effect=RuntimeError("Scribe exceeded its time budget"),
     )
-    def test_try_scribe_handles_timeout(self, mock_run, tmp_path):
+    def test_try_scribe_handles_timeout(self, run_scribe, tmp_path):
         scribe_dir = tmp_path / "scribe"
         scribe_dir.mkdir()
         config = DistillConfig(
@@ -761,3 +803,76 @@ class TestScribeFallback:
         result = _try_scribe("https://youtube.com/watch?v=abc", tmp_path / "out.txt", config)
 
         assert result is False
+
+    def test_scribe_process_applies_budgets_and_cleans_isolated_tree(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        process = type(
+            "Process",
+            (),
+            {
+                "pid": 123,
+                "returncode": 0,
+                "stderr": io.BytesIO(b"bounded diagnostic"),
+            },
+        )()
+        popen_mock = MagicMock(return_value=process)
+        monkeypatch.setattr(transcripts.subprocess, "Popen", popen_mock)
+        cleaned = []
+        jobs = []
+        monkeypatch.setattr(transcripts, "assign_windows_memory_job", lambda *a, **k: 77)
+        monkeypatch.setattr(transcripts, "wait_for_process_budget", lambda *a, **k: 0)
+        monkeypatch.setattr(
+            transcripts,
+            "terminate_isolated_process_tree",
+            lambda child: cleaned.append(child),
+        )
+        monkeypatch.setattr(transcripts, "close_windows_job", jobs.append)
+
+        result = transcripts._run_scribe_process(
+            [sys.executable, "-P", "-m", "scribe"],
+            tmp_path,
+            {"PYTHONSAFEPATH": "1"},
+        )
+
+        assert result == (0, "bounded diagnostic")
+        assert cleaned == [process]
+        assert jobs == [77]
+        kwargs = popen_mock.call_args.kwargs
+        assert kwargs["stdin"] is transcripts.subprocess.DEVNULL
+        assert kwargs["stdout"] is transcripts.subprocess.DEVNULL
+        assert kwargs["stderr"] is transcripts.subprocess.PIPE
+
+    def test_scribe_process_terminates_after_budget_failure(self, tmp_path, monkeypatch):
+        process = type(
+            "Process",
+            (),
+            {
+                "pid": 123,
+                "returncode": None,
+                "stderr": io.BytesIO(),
+            },
+        )()
+        monkeypatch.setattr(transcripts.subprocess, "Popen", lambda *a, **k: process)
+        monkeypatch.setattr(transcripts, "assign_windows_memory_job", lambda *a, **k: 81)
+        monkeypatch.setattr(
+            transcripts,
+            "wait_for_process_budget",
+            lambda *a, **k: (_ for _ in ()).throw(transcripts.ProcessBudgetExceeded("time", 1, 2)),
+        )
+        cleaned = []
+        jobs = []
+        monkeypatch.setattr(
+            transcripts,
+            "terminate_isolated_process_tree",
+            lambda child: cleaned.append(child),
+        )
+        monkeypatch.setattr(transcripts, "close_windows_job", jobs.append)
+
+        with pytest.raises(RuntimeError, match="time budget"):
+            transcripts._run_scribe_process([sys.executable], tmp_path, {})
+
+        assert cleaned == [process]
+        assert jobs == [81]

@@ -36,14 +36,33 @@ import contextlib
 import json
 import re
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import deal
 
-from distill.library.paths import artifact_path, atomic_write_text, strip_frontmatter
+from distill.library.confined_state import (
+    ConfinedStateError,
+    FileIdentity,
+    atomic_write_confined_bytes,
+    confined_file_identity,
+    confined_state_lock_path,
+    ensure_confined_parent,
+    read_confined_state_bytes,
+    unlink_confined_file,
+)
+from distill.library.insights import insight_content_sha256
+from distill.library.locking import exclusive_path_lock
+from distill.library.paths import (
+    artifact_path,
+    atomic_write_text,
+    render_markdown_artifact,
+    strip_frontmatter,
+    write_text_artifact,
+)
 from distill.pipeline.verify_entailment import (
     EntailmentChecker,
     EntailmentReport,
@@ -63,8 +82,12 @@ __all__ = [
     "run_synthesis_verify",
     "run_verify_hook",
     "verify_insight",
+    "write_verified_artifact",
+    "write_verified_synthesis",
     "write_verify_sidecar",
 ]
+
+_MAX_VERIFY_SIDECAR_BYTES = 8 * 1024 * 1024
 
 # The entailment checker loads once per process (the model is ~110M params);
 # None-after-attempt means the optional extra is absent and the deterministic
@@ -313,9 +336,11 @@ class VerifyOutcome:
     """A completed verification pass: the report, its sidecar, and what to do.
 
     ``refused`` is the strict-mode signal: the caller must not write the
-    insight artifact (the sidecar still exists, recording exactly why).
-    ``summary_line`` is the ready-made console message so every emit path
-    flags identically.
+    insight artifact. Generic insight verification publishes the refusal
+    sidecar; synthesis verification can defer publication so a rejected
+    candidate cannot replace the sidecar bound to the prior artifact.
+    ``summary_line`` is the ready-made console message so every emit path flags
+    identically.
     """
 
     report: VerifyReport
@@ -378,16 +403,20 @@ def run_verify_hook(
     insight_name: str = "",
     source_name: str = "",
     require_entailment: bool = False,
+    insight_sha256: str | None = None,
+    publish_sidecar: bool = True,
 ) -> VerifyOutcome | None:
-    """Verify one insight against its receipt and write the sidecar.
+    """Verify one insight against its receipt and optionally write the sidecar.
 
     The single entry point analysis emit paths call, *before* writing the
     insight artifact (strict mode must be able to refuse the write). Returns
     ``None`` when the mode is ``off`` or there is no source text to check
     against (nothing to ground means nothing to claim about grounding).
-    Never raises on sidecar IO problems -- verification bookkeeping must not
-    kill an ingest run -- but the outcome is still returned so callers can
-    surface flags and honor refusal.
+    When ``publish_sidecar`` is true, sidecar IO problems are suppressed so
+    verification bookkeeping cannot kill an ingest run. The outcome is still
+    returned so callers can surface flags and honor refusal. Synthesis callers
+    set ``publish_sidecar`` false and publish the bound sidecar only after the
+    candidate passes validation.
     """
     if mode == "off" or not source_text.strip():
         return None
@@ -417,17 +446,19 @@ def run_verify_hook(
             else:
                 entailment_status = "passed"
     path = artifact_path(directory, "verify", identity=identity, extension="json")
-    with contextlib.suppress(OSError):
-        path = write_verify_sidecar(
-            directory,
-            report,
-            identity=identity,
-            insight_name=insight_name,
-            source_name=source_name,
-            entailment=entailment,
-            entailment_status=entailment_status,
-            entailment_reason=entailment_reason,
-        )
+    if publish_sidecar:
+        with contextlib.suppress(OSError):
+            path = write_verify_sidecar(
+                directory,
+                report,
+                identity=identity,
+                insight_name=insight_name,
+                insight_sha256=insight_sha256,
+                source_name=source_name,
+                entailment=entailment,
+                entailment_status=entailment_status,
+                entailment_reason=entailment_reason,
+            )
     return VerifyOutcome(
         report=report,
         sidecar=path,
@@ -448,6 +479,7 @@ def run_synthesis_verify(
     identity: str,
     insight_name: str,
     source_name: str,
+    insight_sha256: str,
     notify: Callable[[str], None],
 ) -> bool:
     """Verify a synthesis against its own inputs and report via *notify*.
@@ -456,23 +488,247 @@ def run_synthesis_verify(
     grounded against the receipt it was built from (per-source insights or the
     rendered claim set), the summary line is surfaced through *notify* (a
     ``console.print`` or ``logger.warning`` -- callers differ), and the return
-    value is the strict-mode refusal signal: ``True`` means the caller must not
-    write the artifact (the sidecar still records exactly why).
+    value is the refusal signal: ``True`` means the caller must not write the
+    artifact. A rejected strict candidate does not replace the sidecar bound to
+    the prior artifact.
     """
+    mode = resolve_verify_mode(verify_mode)
+    sidecar = artifact_path(directory, "verify", identity=identity, extension="json")
+    if mode == "off" or not receipt.strip():
+        try:
+            sidecar_identity = confined_file_identity(sidecar, directory)
+            if sidecar_identity is not None:
+                unlink_confined_file(sidecar, directory, expected=sidecar_identity)
+        except (OSError, ConfinedStateError):
+            notify(
+                f"Synthesis not written because stale verification sidecar "
+                f"{sidecar.name} could not be removed."
+            )
+            return True
+        return False
+
     outcome = run_verify_hook(
         directory,
         synthesis,
         receipt,
-        mode=resolve_verify_mode(verify_mode),
+        mode=mode,
         identity=identity,
         insight_name=insight_name,
         source_name=source_name,
+        insight_sha256=insight_sha256,
+        publish_sidecar=False,
     )
     if outcome is None:
-        return False
+        return True
+    if outcome.refused:
+        summary = outcome.summary_line.rsplit("; see ", 1)[0]
+        notify(f"{summary}; previous artifact and verification sidecar retained")
+        return True
     if not outcome.report.ok:
         notify(outcome.summary_line)
-    return outcome.refused
+    try:
+        write_verify_sidecar(
+            directory,
+            outcome.report,
+            identity=identity,
+            insight_name=insight_name,
+            insight_sha256=insight_sha256,
+            source_name=source_name,
+            entailment=outcome.entailment,
+            entailment_status=outcome.entailment_status,
+            entailment_reason=outcome.entailment_reason,
+        )
+    except OSError:
+        notify(
+            f"Synthesis not written because verification sidecar {sidecar.name} "
+            "could not be published."
+        )
+        return True
+    return False
+
+
+def write_verified_synthesis(
+    directory: Path,
+    artifact_type: str,
+    synthesis: str,
+    receipt: str,
+    *,
+    verify_mode: str,
+    artifact_identity: str,
+    verify_identity: str,
+    source_name: str,
+    notify: Callable[[str], None],
+    frontmatter: Mapping[str, Any] | None = None,
+) -> Path | None:
+    """Verify and persist one exact rendered synthesis plus its bound sidecar."""
+
+    rendered = render_markdown_artifact(
+        artifact_type,
+        synthesis,
+        frontmatter=frontmatter,
+    )
+    output_path = artifact_path(directory, artifact_type, identity=artifact_identity)
+    sidecar_path = artifact_path(
+        directory,
+        "verify",
+        identity=verify_identity,
+        extension="json",
+    )
+
+    def publish_sidecar() -> bool:
+        return run_synthesis_verify(
+            directory,
+            synthesis,
+            receipt,
+            verify_mode=verify_mode,
+            identity=verify_identity,
+            insight_name=output_path.name,
+            source_name=source_name,
+            insight_sha256=insight_content_sha256(rendered),
+            notify=notify,
+        )
+
+    return _publish_bound_artifact(
+        directory,
+        sidecar_path,
+        publish_sidecar=publish_sidecar,
+        publish_artifact=lambda: write_text_artifact(
+            directory,
+            artifact_type,
+            rendered,
+            identity=artifact_identity,
+        ),
+    )
+
+
+def write_verified_artifact(
+    directory: Path,
+    output_path: Path,
+    content: str,
+    *,
+    outcome: VerifyOutcome,
+    verify_identity: str,
+    source_name: str,
+) -> Path:
+    """Publish an already-verified artifact and its digest-bound sidecar."""
+
+    sidecar_path = artifact_path(
+        directory,
+        "verify",
+        identity=verify_identity,
+        extension="json",
+    )
+
+    def publish_sidecar() -> bool:
+        write_verify_sidecar(
+            directory,
+            outcome.report,
+            identity=verify_identity,
+            insight_name=output_path.name,
+            insight_sha256=insight_content_sha256(content),
+            source_name=source_name,
+            entailment=outcome.entailment,
+            entailment_status=outcome.entailment_status,
+            entailment_reason=outcome.entailment_reason,
+        )
+        return False
+
+    published = _publish_bound_artifact(
+        directory,
+        sidecar_path,
+        publish_sidecar=publish_sidecar,
+        publish_artifact=lambda: _write_verified_output(output_path, content),
+    )
+    if published is None:  # pragma: no cover - callback always publishes
+        raise RuntimeError("Verified artifact publication was unexpectedly refused")
+    return published
+
+
+def _write_verified_output(path: Path, content: str) -> Path:
+    atomic_write_text(path, content)
+    return path
+
+
+def _publish_bound_artifact(
+    directory: Path,
+    sidecar_path: Path,
+    *,
+    publish_sidecar: Callable[[], bool],
+    publish_artifact: Callable[[], Path],
+) -> Path | None:
+    """Serialize and roll back one sidecar-first artifact publication."""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    lock_path = confined_state_lock_path(
+        directory / ".verification-bindings",
+        directory,
+        "verification",
+    )
+    ensure_confined_parent(lock_path, directory, create=False)
+    with exclusive_path_lock(
+        lock_path,
+        timeout_seconds=30.0,
+        timeout_message=f"Timed out publishing verified artifact in {directory}",
+    ):
+        prior_sidecar = _read_verification_sidecar_snapshot(sidecar_path, directory)
+        if publish_sidecar():
+            return None
+        published_sidecar = confined_file_identity(sidecar_path, directory)
+        try:
+            return publish_artifact()
+        except Exception as artifact_error:
+            try:
+                _rollback_verification_sidecar(
+                    sidecar_path,
+                    directory,
+                    prior_sidecar,
+                    published_sidecar,
+                )
+            except Exception as rollback_error:
+                raise ExceptionGroup(
+                    "Artifact publication failed and verification sidecar rollback failed",
+                    [artifact_error, rollback_error],
+                ) from None
+            raise
+
+
+def _read_verification_sidecar_snapshot(path: Path, root: Path) -> bytes | None:
+    """Read stable bounded sidecar bytes before a synthesis transaction."""
+
+    initial_identity = confined_file_identity(path, root)
+    if initial_identity is None:
+        return None
+    content = read_confined_state_bytes(
+        path,
+        root,
+        max_bytes=_MAX_VERIFY_SIDECAR_BYTES,
+    )
+    if content is None or confined_file_identity(path, root) != initial_identity:
+        raise ConfinedStateError(f"Verification sidecar changed while it was read: {path}")
+    return content
+
+
+def _rollback_verification_sidecar(
+    path: Path,
+    root: Path,
+    prior_content: bytes | None,
+    published_identity: FileIdentity | None,
+) -> None:
+    """Restore the prior artifact binding after synthesis publication fails."""
+
+    if prior_content is None:
+        if published_identity is not None:
+            unlink_confined_file(path, root, expected=published_identity)
+        return
+    if published_identity is None:
+        atomic_write_confined_bytes(path, prior_content, root, exclusive=True)
+        return
+    atomic_write_confined_bytes(
+        path,
+        prior_content,
+        root,
+        expected=published_identity,
+    )
 
 
 def _inferred_entailment_status(entailment: EntailmentReport | None) -> EntailmentStatus:

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 import distill.process_security as process_security
-from distill.process_security import resolve_executable, sanitized_package_env
+from distill.process_security import (
+    resolve_executable,
+    sanitized_package_env,
+    unsafe_package_overrides,
+)
 
 
 def _make_executable(path: Path) -> None:
@@ -189,12 +195,21 @@ def test_sanitized_package_env_strips_provider_credentials_case_insensitively():
             "PATH": "trusted-path",
             "PYTHONPATH": "untrusted-path",
             "PYTHONHOME": "untrusted-home",
+            "PYTHONWARNINGS": "ignore::startup_hook.Trigger",
+            "PYTHONUSERBASE": "untrusted-userbase",
+            "PYTHONINSPECT": "1",
             "XAI_API_KEY": "xai-secret",
             "openai_api_key": "openai-secret",
             "GEMINI_API_KEY": "gemini-secret",
             "GOOGLE_API_KEY": "google-secret",
             "ANTHROPIC_API_KEY": "anthropic-secret",
             "GITHUB_TOKEN": "github-secret",
+            "DISTILL_WORKER_CLAIM_TOKEN": "claim-secret",
+            "SERVICE_PASSWORD": "password-secret",
+            "PLAYWRIGHT_NODEJS_PATH": "untrusted-node",
+            "PLAYWRIGHT_BROWSERS_PATH": "untrusted-browser",
+            "node_options": "--require untrusted.js",
+            "NODE_PATH": "untrusted-modules",
             "ORDINARY_SETTING": "kept",
         }
     )
@@ -202,13 +217,64 @@ def test_sanitized_package_env_strips_provider_credentials_case_insensitively():
     assert env["PATH"] == "trusted-path"
     assert env["ORDINARY_SETTING"] == "kept"
     assert env["PYTHONSAFEPATH"] == "1"
+    assert env["PYTHONNOUSERSITE"] == "1"
     assert not {
         "pythonpath",
         "pythonhome",
+        "pythonwarnings",
+        "pythonuserbase",
+        "pythoninspect",
         "xai_api_key",
         "openai_api_key",
         "gemini_api_key",
         "google_api_key",
         "anthropic_api_key",
         "github_token",
+        "distill_worker_claim_token",
+        "service_password",
+        "playwright_nodejs_path",
+        "playwright_browsers_path",
+        "node_options",
+        "node_path",
     }.intersection(key.casefold() for key in env)
+
+
+def test_unsafe_package_overrides_reports_only_nonempty_execution_overrides() -> None:
+    assert unsafe_package_overrides(
+        {
+            "Path": "kept",
+            "playwright_nodejs_path": "replacement",
+            "playwright_browsers_path": "browser-replacement",
+            "NODE_OPTIONS": "--require hook.js",
+            "NODE_PATH": "",
+        }
+    ) == ("NODE_OPTIONS", "PLAYWRIGHT_BROWSERS_PATH", "PLAYWRIGHT_NODEJS_PATH")
+
+
+def test_sanitized_python_env_prevents_pythonwarnings_startup_import(tmp_path: Path) -> None:
+    marker = tmp_path / "startup-imported.txt"
+    hook = tmp_path / "startup_hook.py"
+    hook.write_text(
+        "\n".join(
+            [
+                f"with open({str(marker)!r}, 'w', encoding='utf-8') as marker_file:",
+                "    marker_file.write('imported')",
+                "class Trigger(Warning):",
+                "    pass",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    command = [str(Path(sys.executable).resolve()), "-P", "-c", "pass"]
+    controlled = sanitized_package_env()
+    controlled["PYTHONPATH"] = str(tmp_path)
+    unsafe = {**controlled, "PYTHONWARNINGS": "ignore::startup_hook.Trigger"}
+
+    subprocess.run(command, env=unsafe, check=True, capture_output=True)
+    assert marker.read_text(encoding="utf-8") == "imported"
+    marker.unlink()
+
+    safe = sanitized_package_env(unsafe)
+    safe["PYTHONPATH"] = str(tmp_path)
+    subprocess.run(command, env=safe, check=True, capture_output=True)
+    assert not marker.exists()

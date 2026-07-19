@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -19,6 +20,7 @@ __all__ = [
     "close_windows_job",
     "process_tree_rss_bytes",
     "start_bounded_pipe_drain",
+    "terminate_isolated_process_tree",
     "terminate_process_tree",
     "wait_for_process_budget",
 ]
@@ -161,6 +163,21 @@ def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+
+
+def terminate_isolated_process_tree(process: subprocess.Popen[bytes]) -> None:
+    """Kill a child unit launched in a new POSIX session or Windows Job Object.
+
+    POSIX descendants can outlive and be reparented after their direct parent
+    exits. Killing the process group first preserves cleanup coverage in that
+    state. Callers must launch the child with ``start_new_session=True`` off
+    Windows before using this helper.
+    """
+
+    if os.name != "nt":
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+    terminate_process_tree(process)
 
 
 def assign_windows_memory_job(

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import distill.library.links as links_mod
 from distill.library.links import check_links, fix_broken_links
 from distill.library.paths import atomic_write_text
 
@@ -196,13 +197,13 @@ class TestFixBrokenLinks:
         repair_read = threading.Event()
         release_repair = threading.Event()
         writer_finished = threading.Event()
-        real_read_text = Path.read_text
+        real_read_text = links_mod.read_confined_state_text
         intercepted = False
         intercept_lock = threading.Lock()
 
-        def blocking_read_text(path: Path, *args, **kwargs) -> str:
+        def blocking_read_text(path: Path, root: Path, *, max_bytes: int) -> str | None:
             nonlocal intercepted
-            content = real_read_text(path, *args, **kwargs)
+            content = real_read_text(path, root, max_bytes=max_bytes)
             if path == source:
                 with intercept_lock:
                     should_block = not intercepted
@@ -219,17 +220,20 @@ class TestFixBrokenLinks:
             )
             writer_finished.set()
 
-        monkeypatch.setattr(Path, "read_text", blocking_read_text)
+        monkeypatch.setattr(links_mod, "read_confined_state_text", blocking_read_text)
         with ThreadPoolExecutor(max_workers=2) as executor:
             repair = executor.submit(fix_broken_links, library_dir, broken)
             assert repair_read.wait(timeout=5)
             writer = executor.submit(concurrent_writer)
-            writer_finished.wait(timeout=0.25)
+            writer_finished_before_release = writer_finished.wait(timeout=0.25)
             release_repair.set()
             assert repair.result(timeout=5) == 1
             writer.result(timeout=5)
 
-        assert "Concurrent corpus update" in source.read_text(encoding="utf-8")
+        assert writer_finished_before_release is False
+        assert source.read_text(encoding="utf-8") == (
+            "# Source updated\n\nConcurrent corpus update\n\n[[missing|Missing]]\n"
+        )
 
     def test_fix_skips_a_stale_link_that_is_no_longer_present(self, tmp_path: Path) -> None:
         library_dir = tmp_path / "library"

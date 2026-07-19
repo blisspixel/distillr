@@ -307,11 +307,34 @@ def _positive_finite_cost(value: object) -> float | None:
     return cost if math.isfinite(cost) and cost > 0 else None
 
 
-def _median(values: list[float]) -> float:
+def _median(values: list[float]) -> float | None:
     ordered = sorted(values)
     n = len(ordered)
     mid = n // 2
-    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    if n % 2:
+        return ordered[mid]
+    midpoint = ordered[mid - 1] / 2.0 + ordered[mid] / 2.0
+    return midpoint if math.isfinite(midpoint) else None
+
+
+def _finite_percentage_difference(estimated: float, actual: float) -> float | None:
+    """Return signed percentage error only when the derived metric is representable."""
+
+    value = (estimated / actual - 1.0) * 100.0
+    return value if math.isfinite(value) else None
+
+
+def _finite_mean(values: list[float]) -> float | None:
+    """Average finite values without overflowing a representable mean."""
+
+    if not values:
+        return None
+    count = len(values)
+    try:
+        mean = math.fsum(value / count for value in values)
+    except OverflowError:
+        return None
+    return mean if math.isfinite(mean) else None
 
 
 def estimator_accuracy(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -324,19 +347,27 @@ def estimator_accuracy(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
         actual = _positive_finite_cost(row.get("actual_cost"))
         if estimated is None or actual is None:
             continue
-        signed_pct.append((estimated - actual) / actual * 100.0)
+        percentage = _finite_percentage_difference(estimated, actual)
+        if percentage is None:
+            return None
+        signed_pct.append(percentage)
     if not signed_pct:
         return None
     recent = signed_pct[-10:]
+    median_abs = _median([abs(value) for value in signed_pct])
+    median_signed = _median(signed_pct)
+    recent_median_abs = _median([abs(value) for value in recent])
+    if median_abs is None or median_signed is None or recent_median_abs is None:
+        return None
     return {
         "runs_compared": len(signed_pct),
-        "median_abs_pct_error": round(_median([abs(value) for value in signed_pct]), 1),
-        "median_signed_pct_error": round(_median(signed_pct), 1),
-        "recent10_median_abs_pct_error": round(_median([abs(value) for value in recent]), 1),
+        "median_abs_pct_error": round(median_abs, 1),
+        "median_signed_pct_error": round(median_signed, 1),
+        "recent10_median_abs_pct_error": round(recent_median_abs, 1),
     }
 
 
-def projected_next_run_cost(entries: list[dict[str, Any]]) -> float:
+def projected_next_run_cost(entries: list[dict[str, Any]]) -> float | None:
     """Average up to five recent positive costs from non-preview runs."""
     costs: list[float] = []
     for row in reversed(entries):
@@ -349,4 +380,4 @@ def projected_next_run_cost(entries: list[dict[str, Any]]) -> float:
             break
     if not costs:
         return 0.0
-    return sum(costs) / len(costs)
+    return _finite_mean(costs)

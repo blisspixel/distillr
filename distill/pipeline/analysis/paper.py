@@ -17,7 +17,6 @@ from distill.library.paths import (
     base_frontmatter,
     find_artifact,
     tags_for,
-    write_markdown_artifact,
 )
 from distill.llm import call as llm_call
 from distill.llm.metadata import ProviderMetadata, resolve_metadata_for_router
@@ -261,25 +260,18 @@ def synthesize_papers(
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="paper_synthesis"))
 
-    from distill.pipeline.verify import run_synthesis_verify
+    from distill.pipeline.verify import write_verified_synthesis
 
-    if run_synthesis_verify(
-        config.topic_dir(topic),
-        synthesis,
-        "\n\n".join(paper_summaries.values()),
-        verify_mode=config.distill_verify,
-        identity=f"{topic}-paper-synthesis",
-        insight_name=f"{topic} paper synthesis",
-        source_name="per-paper insights",
-        notify=logger.warning,
-    ):
-        logger.warning("paper synthesis for %s not written (verify strict)", topic)
-        return ""
-    write_markdown_artifact(
+    output = write_verified_synthesis(
         config.topic_dir(topic),
         "paper_synthesis",
         synthesis,
-        identity=topic,
+        "\n\n".join(paper_summaries.values()),
+        verify_mode=config.distill_verify,
+        artifact_identity=topic,
+        verify_identity=f"{topic}-paper-synthesis",
+        source_name="per-paper insights",
+        notify=logger.warning,
         frontmatter=base_frontmatter(
             artifact_type="paper-synthesis",
             title=f"Paper synthesis: {topic}",
@@ -296,6 +288,9 @@ def synthesize_papers(
             ),
         ),
     )
+    if output is None:
+        logger.warning("paper synthesis for %s not written (verification gate)", topic)
+        return ""
 
     try:
         from distill.library import claude_md

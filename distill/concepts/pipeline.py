@@ -28,11 +28,12 @@ can prune manually if they want.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from distill.concepts.exports import write_exports
 from distill.concepts.extract import extract_from_insight
@@ -46,21 +47,95 @@ from distill.concepts.normalize import (
 from distill.concepts.notes import (
     already_extracted_source_ids,
     append_mentions,
+    build_playbook_ownership_index,
+    ensure_extracted_sources_capacity,
+    ensure_mention_store_append_capacity,
     read_extracted_sources,
+    read_mentions,
     record_extracted_sources,
     write_playbook,
 )
 from distill.concepts.records import ConceptMention, utcnow_iso
+from distill.library.confined_state import (
+    atomic_write_confined_text,
+    confined_file_identity,
+    read_confined_state_text,
+    unlink_confined_file,
+)
 from distill.library.insights import InsightRef, discover_insights, read_discovered_insight
 from distill.llm import RouterConfig
+from distill.parsing import strict_json_loads
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
+_MAX_DERIVED_DIRTY_BYTES = 64 * 1024
 
 # InsightRef / discover_insights are re-exported from the shared
 # ``distill.library.insights`` helper, lifted there so the claim layer can
 # share the same topic walk.
 __all__ = ["ConceptRunSummary", "InsightRef", "discover_insights", "run_concepts"]
+
+
+def _derived_dirty_path(topic_dir: Path) -> Path:
+    return topic_dir / ".distill-concepts-derived-dirty"
+
+
+def _read_derived_dirty(topic_dir: Path) -> tuple[bool, dict[str, str]]:
+    path = _derived_dirty_path(topic_dir)
+    if confined_file_identity(path, topic_dir) is None:
+        return False, {}
+    content = read_confined_state_text(
+        path,
+        topic_dir,
+        max_bytes=_MAX_DERIVED_DIRTY_BYTES,
+    )
+    if content is None:
+        raise ValueError(f"Could not safely read derived-state recovery marker: {path}")
+    try:
+        loaded = strict_json_loads(content)
+    except (RecursionError, UnicodeDecodeError, ValueError) as exc:
+        raise ValueError(f"Invalid derived-state recovery marker at {path}: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise ValueError(f"Invalid derived-state recovery marker schema at {path}")
+    marker = cast("dict[object, object]", loaded)
+    if set(marker) != {"version", "provenance"}:
+        raise ValueError(f"Invalid derived-state recovery marker schema at {path}")
+    if marker.get("version") != 1:
+        raise ValueError(f"Unsupported derived-state recovery marker version at {path}")
+    raw_provenance = marker.get("provenance")
+    if not isinstance(raw_provenance, dict):
+        raise ValueError(f"Invalid derived-state recovery provenance at {path}")
+    provenance: dict[str, str] = {}
+    for key, value in cast("dict[object, object]", raw_provenance).items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError(f"Invalid derived-state recovery provenance at {path}")
+        provenance[key] = value
+    return True, provenance
+
+
+def _mark_derived_dirty(
+    topic_dir: Path,
+    *,
+    provenance: dict[str, str] | None = None,
+) -> None:
+    _, existing = _read_derived_dirty(topic_dir)
+    retained = existing or dict(provenance or {})
+    encoded = json.dumps(
+        {"version": 1, "provenance": retained},
+        ensure_ascii=False,
+        sort_keys=True,
+        allow_nan=False,
+    )
+    if len(encoded.encode("utf-8")) > _MAX_DERIVED_DIRTY_BYTES:
+        raise ValueError("Derived-state recovery provenance exceeds its storage limit")
+    atomic_write_confined_text(_derived_dirty_path(topic_dir), encoded, topic_dir)
+
+
+def _clear_derived_dirty(topic_dir: Path) -> None:
+    path = _derived_dirty_path(topic_dir)
+    identity = confined_file_identity(path, topic_dir)
+    if identity is not None:
+        unlink_confined_file(path, topic_dir, expected=identity)
 
 
 @dataclass
@@ -98,14 +173,8 @@ class ConceptRunSummary:
 
 
 def _mentions_from_jsonl(rows: Iterable[dict[str, Any]]) -> list[ConceptMention]:
-    """Hydrate ``ConceptMention`` records from ``mentions.jsonl`` rows."""
-    out: list[ConceptMention] = []
-    for row in rows:
-        try:
-            out.append(ConceptMention.from_jsonl_row(row))
-        except (KeyError, ValueError) as exc:
-            logger.warning("Skipping malformed mentions.jsonl row: %s", exc)
-    return out
+    """Hydrate rows already validated by the strict mention store."""
+    return [ConceptMention.from_jsonl_row(row) for row in rows]
 
 
 def run_concepts(
@@ -176,18 +245,28 @@ def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestra
     # extracted-sources ledger so a source that produced zero mentions (no row in
     # mentions.jsonl, but a valid empty extraction) is still recognized as done
     # and not re-extracted -- and re-billed -- on every subsequent run.
-    seen = (
-        set[str]()
-        if refresh
-        else already_extracted_source_ids(topic_dir) | read_extracted_sources(topic_dir)
-    )
+    derived_dirty, extraction_provenance = _read_derived_dirty(topic_dir)
+    mention_sources = already_extracted_source_ids(topic_dir)
+    completed_sources = read_extracted_sources(topic_dir)
+    missing_completion = mention_sources - completed_sources
+    if missing_completion:
+        # A durable mention row is canonical evidence that extraction completed.
+        # Repair a ledger publication interrupted after the mention append before
+        # issuing any more provider work.
+        record_extracted_sources(topic_dir, missing_completion)
+        completed_sources.update(missing_completion)
+        _mark_derived_dirty(topic_dir, provenance=extraction_provenance)
+        derived_dirty = True
+    seen = set[str]() if refresh else mention_sources | completed_sources
 
     pending = [r for r in refs if r.source_id not in seen]
+    if pending:
+        ensure_extracted_sources_capacity(topic_dir, (ref.source_id for ref in pending))
+        ensure_mention_store_append_capacity(topic_dir)
     summary.insights_extracted = len(pending)
 
     new_rows: list[dict[str, Any]] = []
-    processed: list[str] = []
-    extraction_provenance: dict[str, str] = {}
+    budget_error: BudgetExceededError | None = None
     for ref in pending:
         try:
             content = read_discovered_insight(ref, topic_dir.parent.parent)
@@ -204,23 +283,27 @@ def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestra
                 now_iso=timestamp,
                 insight_content=content,
             )
-        except BudgetExceededError:
-            raise
+        except BudgetExceededError as exc:
+            budget_error = exc
+            break
         except Exception as exc:
             logger.warning("Extraction failed for %s: %s", ref.path, exc)
             continue
-        for mention in result.mentions:
-            new_rows.append(mention.to_jsonl_row())
-        # Record every successfully-processed source -- even a zero-mention one --
-        # so it is not re-extracted on the next run.
-        processed.append(ref.source_id)
+        source_rows = [mention.to_jsonl_row() for mention in result.mentions]
         if not extraction_provenance:
             extraction_provenance = result.provenance
-
-    if new_rows:
-        append_mentions(topic_dir, new_rows)
-        summary.mentions_added = len(new_rows)
-    record_extracted_sources(topic_dir, processed)
+        # Evidence is durable before completion. Publishing each source as its
+        # own checkpoint preserves prior work when a later source reaches the
+        # budget boundary or fails.
+        if source_rows:
+            append_mentions(topic_dir, source_rows)
+            _mark_derived_dirty(topic_dir, provenance=extraction_provenance)
+            derived_dirty = True
+            new_rows.extend(source_rows)
+            summary.mentions_added += len(source_rows)
+        # Record every successfully processed source, including a zero-mention
+        # result, only after its evidence batch is durable.
+        record_extracted_sources(topic_dir, [ref.source_id])
 
     # Refresh path always rebuilds; otherwise only rebuild when new mentions
     # arrived. Without this short-circuit, a second run on an unchanged
@@ -228,22 +311,43 @@ def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestra
     # reads provenance from the *current* extraction run (which is empty on
     # idle runs), and that empty provenance differs from the existing note's
     # frontmatter -- producing spurious .history snapshots on every refresh.
-    if not refresh and not new_rows:
+    should_rebuild = (
+        bool(new_rows)
+        or bool(missing_completion)
+        or derived_dirty
+        or (refresh and budget_error is None)
+    )
+    if not should_rebuild:
+        if budget_error is not None:
+            raise budget_error
         return summary
-
-    from distill.concepts.notes import read_mentions
 
     all_rows = read_mentions(topic_dir)
     all_mentions = _mentions_from_jsonl(all_rows)
     if not all_mentions:
+        _clear_derived_dirty(topic_dir)
+        if budget_error is not None:
+            raise budget_error
         return summary
 
     grouped = group_mentions(all_mentions)
     filtered = filter_by_threshold(grouped, min_sources=threshold)
     merged = build_all(filtered.items(), topic=topic, provenance=extraction_provenance)
 
+    occupied_paths: set[Path] = set()
+    ownership = build_playbook_ownership_index(
+        topic_dir,
+        occupied_paths=occupied_paths,
+    )
     for concept in merged:
-        _, changed = write_playbook(topic_dir, concept, now_iso=timestamp)
+        path, changed = write_playbook(
+            topic_dir,
+            concept,
+            now_iso=timestamp,
+            owned_paths=list(ownership.get(concept.normalized_name, ())),
+            occupied_paths=occupied_paths,
+        )
+        ownership[concept.normalized_name] = [path]
         if changed:
             if concept.kind.is_entity:
                 summary.entities_written += 1
@@ -253,4 +357,7 @@ def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestra
             summary.concepts_unchanged += 1
 
     write_exports(topic_dir, merged)
+    _clear_derived_dirty(topic_dir)
+    if budget_error is not None:
+        raise budget_error
     return summary

@@ -1233,10 +1233,16 @@ def test_save_run_log_isolates_an_unterminated_tail(tmp_path):
 
 
 def test_save_run_log_rejects_nonfinite_cost_evidence(tmp_path):
-    with pytest.raises(ValueError, match="Out of range float values"):
+    with pytest.raises(ValueError, match="estimated cost must be a finite non-negative number"):
         save_run_log(tmp_path, "invalid", CostTracker(), estimated_cost=math.nan)
 
     assert not (tmp_path / ".distill" / "cost_log.jsonl").exists()
+
+
+@pytest.mark.parametrize("budget", [math.nan, math.inf, -1.0, True])
+def test_cost_tracker_rejects_invalid_budget(budget):
+    with pytest.raises(ValueError, match="cost budget must be a finite non-negative number"):
+        CostTracker(budget=budget)
 
 
 def test_save_run_log_durably_appends_before_advancing_profile_receipt(

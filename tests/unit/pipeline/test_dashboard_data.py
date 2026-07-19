@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
 from distill.library import Library
+from distill.pipeline import dashboard_costs as _dashboard_costs
 from distill.pipeline import dashboard_data as _dashboard_data
 from distill.pipeline.dashboard_data import (
     _load_site_manifest,
@@ -204,9 +205,39 @@ def test_dashboard_snapshot_suppresses_cost_claims_when_ledger_is_incomplete(con
     assert snapshot["topic_spend_rollups"] == []
     assert snapshot["source_spend_rollups"] == []
     assert snapshot["cost_warnings"] == []
+    assert snapshot["recent_spend"] is None
     assert len(snapshot["budget_messages"]) == 1
     assert str(log) in snapshot["budget_messages"][0]
     assert "unavailable" in snapshot["budget_messages"][0]
+
+
+def test_dashboard_snapshot_suppresses_unrepresentable_cost_totals(config):
+    now = datetime.now().isoformat()
+    log = config.library_dir / "cost_log.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "timestamp": now,
+                    "command": "report",
+                    "actual_cost": 1e308,
+                    "metadata": {"topic": "ai"},
+                }
+            )
+            for _ in range(2)
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = dashboard_snapshot(config)
+
+    assert snapshot["cost_history_coverage"]["complete"] is True
+    assert snapshot["recent_spend"] is None
+    assert snapshot["topic_spend_rollups"] == []
+    assert snapshot["source_spend_rollups"] == []
+    assert snapshot["cost_warnings"] == []
+    assert "supported aggregate range" in snapshot["budget_messages"][0]
 
 
 def test_dashboard_helper_rollups_and_parsing():
@@ -304,7 +335,6 @@ def test_dashboard_data_parser_helpers_handle_structural_fallbacks(tmp_path):
 
 
 def test_dashboard_data_private_numeric_helpers_and_cost_log_read_errors(tmp_path, monkeypatch):
-    assert _dashboard_data._float_value(object(), default=2.5) == 2.5
     assert _dashboard_data._int_value(object(), default=7) == 7
 
     log_file = tmp_path / "cost_log.jsonl"
@@ -495,6 +525,80 @@ def test_cost_helpers_handle_missing_and_invalid_data(tmp_path):
     assert all(isinstance(r, dict) for r in recent)
     assert load_all_cost_runs(tmp_path / "missing.jsonl") == []
     assert sum_recent_cost(recent) == 1.25
+
+
+def test_cost_aggregates_never_emit_infinity():
+    now = datetime.now().isoformat()
+    entries = [
+        {
+            "timestamp": now,
+            "actual_cost": 1e308,
+            "metadata": {"topic": "ai", "source_type": "report"},
+        },
+        {
+            "timestamp": now,
+            "actual_cost": 1e308,
+            "metadata": {"topic": "ai", "source_type": "report"},
+        },
+    ]
+
+    assert sum_recent_cost(entries) is None
+    assert topic_spend_last_days(entries, "ai") is None
+    assert topic_recent_costs(entries, "ai") == [1e308, 1e308]
+    assert topic_cost_rollups(entries) == []
+    assert source_cost_rollups(entries) == []
+
+
+def test_cost_surfaces_fail_closed_for_invalid_values_and_overflow():
+    now = datetime.now().replace(microsecond=0)
+    invalid = {
+        "timestamp": now.isoformat(),
+        "actual_cost": object(),
+        "metadata": {"topic": "ai"},
+    }
+    entry = SimpleNamespace(
+        name="AI daily",
+        topic="ai",
+        limit=1,
+        report=False,
+        max_run_cost=None,
+        monthly_budget=10.0,
+    )
+
+    assert _dashboard_costs._cost_value(False) is None
+    assert _dashboard_costs._cost_value(object()) is None
+    assert sum_recent_cost([invalid]) is None
+    assert topic_spend_last_days([invalid], "ai") is None
+    assert topic_recent_costs([invalid], "ai") is None
+
+    invalid_messages = topic_watch_budget_messages(entry, [invalid])
+    assert len(invalid_messages) == 2
+    assert all("unavailable" in message for message in invalid_messages)
+    assert "unavailable" in _dashboard_costs._monthly_budget_message(entry, [], float("inf"))
+
+    overflow_baseline = [
+        {
+            "timestamp": (now - timedelta(seconds=index)).isoformat(),
+            "actual_cost": 1e308,
+            "metadata": {"topic": "ai"},
+        }
+        for index in range(3)
+    ]
+    assert "unavailable" in _dashboard_costs._spend_spike_message(entry, overflow_baseline)
+
+    ordinary = [
+        {
+            "timestamp": (now - timedelta(seconds=index)).isoformat(),
+            "actual_cost": 1.0,
+            "metadata": {"topic": "ai"},
+        }
+        for index in range(2)
+    ]
+    assert _dashboard_costs._spend_spike_message(entry, ordinary) is None
+    assert (
+        topic_cost_rollups([{"timestamp": now.isoformat(), "actual_cost": 1.0, "metadata": {}}])
+        == []
+    )
 
 
 def test_topic_watch_estimation_helpers(config):

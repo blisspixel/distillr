@@ -12,6 +12,7 @@ import typer
 
 from distill.cli_shared import format_date as _format_date
 from distill.config import DistillConfig
+from distill.jsonl import append_jsonl_line
 from distill.library import Library
 from distill.library.locking import exclusive_path_lock
 from distill.library.paths import (
@@ -515,8 +516,11 @@ def _append_topic_change_history(
             "outputs": len(refreshed_outputs),
         },
     }
-    with history_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload) + "\n")
+    append_jsonl_line(
+        history_path,
+        json.dumps(payload, ensure_ascii=False, allow_nan=False),
+        durable=True,
+    )
     return history_path
 
 

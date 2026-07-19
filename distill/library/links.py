@@ -11,7 +11,16 @@ from typing import Any
 
 import deal
 
-from distill.library.paths import atomic_update_text
+from distill.library.confined_state import (
+    ConfinedStateError,
+    atomic_write_confined_text,
+    confined_file_identity,
+    confined_state_lock_path,
+    ensure_confined_parent,
+    read_confined_state_text,
+)
+from distill.library.locking import exclusive_path_lock
+from distill.library.paths import text_write_lock
 from distill.library.wikilinks import WIKI_LINK_PATTERN
 
 __all__ = [
@@ -22,6 +31,8 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+_MAX_LINK_REPAIR_FILE_BYTES = 64 * 1024 * 1024
+_LINK_REPAIR_LOCK_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,14 +163,90 @@ def fix_broken_links(library_dir: Path, broken: list[BrokenLink]) -> int:
     fixed_count = 0
     for file_path, file_broken in by_file.items():
         try:
-            fixed_count += atomic_update_text(
+            fixed_count += _update_confined_links(
+                library_dir,
                 file_path,
-                lambda content, repairs=file_broken: _repair_broken_links(content, repairs),
+                file_broken,
             )
-        except OSError:
+        except (OSError, ConfinedStateError):
             logger.warning("Could not read file for fixing: %s", file_path)
 
     return fixed_count
+
+
+def _update_confined_links(
+    library_dir: Path,
+    file_path: Path,
+    broken: list[BrokenLink],
+) -> int:
+    """Repair one file under the lock shared with confined playbook writers."""
+
+    confinement_root, is_playbook = _link_repair_scope(library_dir, file_path)
+    if is_playbook:
+        from distill.concepts.locking import concept_transaction
+
+        with concept_transaction(confinement_root):
+            return _update_confined_links_locked(
+                confinement_root,
+                file_path,
+                broken,
+            )
+    return _update_confined_links_locked(confinement_root, file_path, broken)
+
+
+def _update_confined_links_locked(
+    confinement_root: Path,
+    file_path: Path,
+    broken: list[BrokenLink],
+) -> int:
+    """Repair one file while any enclosing playbook transaction is held."""
+
+    lock_path = confined_state_lock_path(file_path, confinement_root, "note")
+    ensure_confined_parent(lock_path, confinement_root, create=False)
+    with (
+        exclusive_path_lock(
+            lock_path,
+            timeout_seconds=_LINK_REPAIR_LOCK_TIMEOUT_SECONDS,
+            timeout_message=f"Timed out repairing links in {file_path}",
+        ),
+        text_write_lock(file_path),
+    ):
+        initial_identity = confined_file_identity(file_path, confinement_root)
+        if initial_identity is None:
+            raise FileNotFoundError(file_path)
+        content = read_confined_state_text(
+            file_path,
+            confinement_root,
+            max_bytes=_MAX_LINK_REPAIR_FILE_BYTES,
+        )
+        if content is None:
+            raise ConfinedStateError(f"Could not safely read link repair target: {file_path}")
+        replacement, repaired = _repair_broken_links(content, broken)
+        if replacement != content:
+            atomic_write_confined_text(
+                file_path,
+                replacement,
+                confinement_root,
+                expected=initial_identity,
+            )
+        return repaired
+
+
+def _link_repair_scope(library_dir: Path, file_path: Path) -> tuple[Path, bool]:
+    """Return the confinement root and whether the target is a playbook note."""
+
+    try:
+        relative = file_path.absolute().relative_to(library_dir.absolute())
+    except ValueError as exc:
+        raise ConfinedStateError(
+            f"Link repair target escapes the library root: {file_path}"
+        ) from exc
+    parts = relative.parts
+    if len(parts) >= 4 and parts[0] == "topics" and parts[2] in {"concepts", "entities"}:
+        return library_dir / "topics" / parts[1], True
+    if len(parts) >= 2 and parts[0] in {"concepts", "entities"}:
+        return library_dir, True
+    return library_dir, False
 
 
 def _repair_broken_links(content: str, broken: list[BrokenLink]) -> tuple[str, int]:

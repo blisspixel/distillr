@@ -29,9 +29,12 @@ async def costs_page(request: Request):
     cost_scan = scan_confined_cost_log(cost_log, config.library_dir)
     all_entries = list(cost_scan.rows)
     total_spend = sum_recent_cost(all_entries) if cost_scan.complete else None
+    aggregate_available = total_spend is not None
     recent_entries = all_entries[-20:]
-    topic_rollups = topic_cost_rollups(all_entries, days=30, limit=10) if cost_scan.complete else []
-    source_rollups = source_cost_rollups(all_entries, days=30) if cost_scan.complete else []
+    topic_rollups = (
+        topic_cost_rollups(all_entries, days=30, limit=10) if aggregate_available else []
+    )
+    source_rollups = source_cost_rollups(all_entries, days=30) if aggregate_available else []
     biggest_prompts = [
         {
             "timestamp": record.timestamp,
@@ -53,11 +56,17 @@ async def costs_page(request: Request):
             "request": request,
             "entries": list(reversed(recent_entries)),
             "total_spend": total_spend,
+            "cost_aggregate_available": aggregate_available,
             "cost_history": cost_scan.coverage(),
             "cost_history_message": (
                 cost_history_integrity_message(cost_log, cost_scan)
                 if not cost_scan.complete
-                else ""
+                else (
+                    "Valid cost values exceed the supported aggregate range. "
+                    "Retained runs remain visible, but totals and rollups are unavailable."
+                    if not aggregate_available
+                    else ""
+                )
             ),
             "topic_rollups": topic_rollups,
             "source_rollups": source_rollups,

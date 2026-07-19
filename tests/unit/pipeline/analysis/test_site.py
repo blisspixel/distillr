@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from distill.config import DistillConfig
 from distill.ingestors.sites.scraper import SitePage
+from distill.library.insights import insight_content_sha256
 from distill.library.paths import find_artifact, strip_frontmatter
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis.site import (
@@ -172,7 +173,11 @@ def test_synthesize_site_topic_returns_empty_without_sites(tmp_path):
 
 def test_synthesize_site_writes_verify_sidecar(tmp_path):
     """0.13.1: site synthesis is verified against its per-page insights."""
-    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    config = DistillConfig(
+        xai_api_key="test-key",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="warn",
+    )
     page_dir = config.site_page_dir("web", "example.com", "Agent Overview", "page1")
     page_dir.mkdir(parents=True, exist_ok=True)
     (page_dir / "insights.md").write_text("# Insight\nObserved 12 items.", encoding="utf-8")
@@ -188,11 +193,22 @@ def test_synthesize_site_writes_verify_sidecar(tmp_path):
     assert sidecar.exists()
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "99.1" for c in data["unsupported"])
+    output = find_artifact(
+        config.site_dir("web", "example.com"),
+        "site_synthesis",
+        identity="web_example_com",
+    )
+    assert data["insight"] == output.name
+    assert data["insight_sha256"] == insight_content_sha256(output.read_text(encoding="utf-8"))
 
 
 def test_synthesize_site_topic_writes_verify_sidecar(tmp_path):
     """Site-topic synthesis has a receipt distinct from video topic synthesis."""
-    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    config = DistillConfig(
+        xai_api_key="test-key",
+        distill_output_dir=tmp_path / "lib",
+        distill_verify="warn",
+    )
     site_dir = config.site_dir("web", "example.com")
     site_dir.mkdir(parents=True, exist_ok=True)
     (site_dir / "synthesis.md").write_text("Site synthesis, baseline 20.", encoding="utf-8")
@@ -208,6 +224,9 @@ def test_synthesize_site_topic_writes_verify_sidecar(tmp_path):
     assert sidecar.exists()
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     assert any(c["token"] == "73.3" for c in data["unsupported"])
+    output = find_artifact(config.topic_dir("web"), "site_synthesis", identity="web")
+    assert data["insight"] == output.name
+    assert data["insight_sha256"] == insight_content_sha256(output.read_text(encoding="utf-8"))
 
 
 def test_site_and_video_topic_syntheses_coexist_with_distinct_receipts(tmp_path):
