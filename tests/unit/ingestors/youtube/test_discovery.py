@@ -49,10 +49,15 @@ def test_is_youtube_url_rejects_non_youtube_and_internal():
     assert not is_youtube_url("https://youtube.com/watch?v=abc#fragment")
 
 
-def test_get_video_info_refuses_non_youtube_url_without_fetching():
+def test_get_video_info_refuses_non_youtube_url_without_fetching(capsys):
     with patch("distill.ingestors.youtube.discovery.SafeYoutubeDL") as mock_ydl:
-        assert get_video_info("http://169.254.169.254/") is None
+        raw = "https://evil.example/private?token=VIDEO-DISCOVERY-CANARY"
+        assert get_video_info(raw) is None
         mock_ydl.assert_not_called()
+    output = capsys.readouterr().out
+    assert "https://evil.example" in output
+    assert "private" not in output
+    assert "VIDEO-DISCOVERY-CANARY" not in output
 
 
 def _recent(days_ago: int = 1) -> str:
@@ -62,7 +67,7 @@ def _recent(days_ago: int = 1) -> str:
 
 class TestDiscoverVideos:
     @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
-    def test_refuses_non_youtube_url_without_fetching(self, mock_ydl_cls):
+    def test_refuses_non_youtube_url_without_fetching(self, mock_ydl_cls, capsys):
         # SSRF guard: an attacker-influenced channel URL (reachable by default
         # via the MCP watch_add / catch_up write tools) must never reach yt-dlp,
         # which does its own networking outside the urllib/requests SSRF guards.
@@ -70,10 +75,13 @@ class TestDiscoverVideos:
             "http://169.254.169.254/latest/meta-data/",
             "http://127.0.0.1:6379/",
             "https://evil.example.com/@x",
+            "https://evil.example.com/@x?token=CHANNEL-DISCOVERY-CANARY",
             "file:///etc/passwd",
         ):
             assert discover_videos(url, months=3) == []
         mock_ydl_cls.assert_not_called()
+        output = capsys.readouterr().out
+        assert "CHANNEL-DISCOVERY-CANARY" not in output
 
     @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_basic_discovery(self, mock_ydl_cls):

@@ -36,19 +36,24 @@ Design discipline (foundational layer, same as the rest of ``distill.library``):
 from __future__ import annotations
 
 import json
+import logging
 import re
 import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from distill.library.confined import read_confined_text_prefix
 from distill.library.freshness import collect_synthesis_freshness
 from distill.library.paths import (
+    artifact_candidate_paths,
     atomic_write_text,
     find_artifact,
     sanitize_topic,
     strip_frontmatter,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MCP_TOOLS",
@@ -91,6 +96,9 @@ _INSIGHT_GLOBS: tuple[str, ...] = ("*_Insights.md", "*_insights.md", "insights.m
 _SKIP_TOP_DIRS = frozenset({"concepts", "entities"})
 _CONCEPTS_JSONL = "concepts.jsonl"
 _ENTITIES_JSONL = "entities.jsonl"
+_MAX_TOPIC_SUMMARY_FILE_BYTES = 4 * 1024 * 1024
+_MAX_TOPIC_SUMMARY_PREFIX_CHARS = 64 * 1024
+_TOPIC_SUMMARY_WARNING = "Topic synthesis unavailable for bounded summary"
 
 # Synthesis section headings that are not useful as a one-line summary -- when
 # the lede is exactly one of these (no topic-specific tail), keep scanning for
@@ -204,13 +212,29 @@ def topic_summary_line(topic_dir: Path, topic: str, *, max_len: int = 200) -> st
     A leading ``Sources:`` provenance line is skipped. Returns an empty string
     when no synthesis exists yet.
     """
-    synth = find_artifact(topic_dir, "topic_synthesis", identity=topic)
-    if not synth.exists():
+    synth: Path | None = None
+    for candidate in artifact_candidate_paths(topic_dir, "topic_synthesis", identity=topic):
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            logger.warning(_TOPIC_SUMMARY_WARNING)
+            return ""
+        synth = candidate
+        break
+    if synth is None:
         return ""
-    try:
-        body = strip_frontmatter(synth.read_text(encoding="utf-8"))
-    except OSError:
+    prefix = read_confined_text_prefix(
+        synth,
+        topic_dir.parent,
+        max_file_bytes=_MAX_TOPIC_SUMMARY_FILE_BYTES,
+        max_chars=_MAX_TOPIC_SUMMARY_PREFIX_CHARS,
+    )
+    if prefix is None:
+        logger.warning(_TOPIC_SUMMARY_WARNING)
         return ""
+    body = strip_frontmatter(prefix)
     for raw in body.splitlines():
         line = raw.strip().lstrip("#>*_- ").rstrip("*_ ").strip()
         if not line or line.lower().startswith("sources:"):

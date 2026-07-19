@@ -53,6 +53,11 @@ malicious input cannot turn a narrow operation into broad host authority:
   port needed to identify a failing origin. User information, passwords, query
   strings, and fragments are omitted so bearer URLs do not become persistent
   log secrets.
+- Source fetches keep the complete URL only at the request boundary. Website
+  artifacts, prompts, attachment inventories, and run evidence retain a
+  query-free public URL, while page ownership uses a domain-separated digest of
+  the complete canonical request identity. This preserves distinct pages
+  without copying URL capabilities into broader output channels.
 - Website discovery caps sitemap attempts and entries. PDF attachment ingest
   caps attachments, aggregate bytes, per-transfer time, and batch time. X
   syndication requests identity encoding and caps raw response bytes before
@@ -66,6 +71,10 @@ malicious input cannot turn a narrow operation into broad host authority:
   working directory and environments stripped of Python and Node loader
   overrides, provider credentials, bearer tokens, passwords, and secrets.
   Python module launches use safe-path mode.
+- Candidate adapter probes also bound stdout, stderr, elapsed time, process-tree
+  memory, config bytes, auth JSON bytes, structural depth, and node count.
+  Linked, multiply linked, oversized, malformed, or deeply nested adapter
+  configuration is reported as blocked evidence rather than parsed recursively.
 - Media transcription copies a stable, single-link regular input into private
   scratch before local or cloud work. Local faster-whisper and configured
   Scribe execution use isolated process trees with elapsed-time, memory,
@@ -92,6 +101,10 @@ malicious input cannot turn a narrow operation into broad host authority:
 - MCP file tools use workflow-specific namespaces and artifact classes rather
   than broad library-root readability. Reads are no-follow and bounded. OKF
   validation has aggregate tree-work ceilings.
+- MCP topic orientation reads only a bounded prefix of confined synthesis
+  candidates and distinguishes absent, degraded, and unavailable evidence.
+  Legacy wiki-link migration applies the same visible, bounded, no-follow file
+  posture and returns a nonzero exit when any repair cannot be completed.
 - The read-only web dashboard binds only to literal loopback hosts, rejects
   malformed or non-loopback Host headers, sanitizes rendered corpus Markdown,
   drops external images, and sends no-referrer and restrictive CSP headers.

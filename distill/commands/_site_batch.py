@@ -7,11 +7,15 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from rich.markup import escape
+
 from distill._console import console
 from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
+from distill.ingestors.net import url_for_diagnostic
+from distill.ingestors.sites._site_urls import site_url_for_persistence
 from distill.ingestors.sites.scraper import MAX_SITE_BATCH_PAGES, SiteSeed
-from distill.library.paths import find_artifact
+from distill.library.paths import find_artifact, site_name_from_url
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
@@ -138,7 +142,7 @@ def estimate_site_batch_plan_cost(
 def _site_batch_plan_row(index: int, seed: SiteSeed) -> SiteBatchPlanRow:
     return SiteBatchPlanRow(
         index=index,
-        url=seed.url,
+        url=site_url_for_persistence(seed.url),
         topic=seed.topic,
         label=seed.label,
         mode=_site_batch_mode(seed),
@@ -179,7 +183,7 @@ def process_site_batch_seed(
     process_site_seed: Callable[..., object],
 ) -> None:
     item_start = progress.start_item()
-    progress_title = seed.label or seed.resolved_site_name()
+    progress_title = escape(seed.label or url_for_diagnostic(seed.url))
     console.print(progress.item_line("crawl", progress_title))
     try:
         result = process_site_seed(
@@ -193,13 +197,18 @@ def process_site_batch_seed(
     except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
         raise
     except Exception as exc:
-        console.print(f"  [red]failed: {exc}[/red]")
+        safe_error = RuntimeError(f"{type(exc).__name__} during site ingest")
+        console.print(f"  [red]failed: {escape(str(safe_error))}[/red]")
         record_exception_issue(
             summary,
             stage="site-ingest",
-            exc=exc,
-            context=seed.url,
-            details={"topic": seed.topic, "site": seed.site_name or ""},
+            exc=safe_error,
+            context=url_for_diagnostic(seed.url),
+            details={
+                "topic": seed.topic,
+                "site": site_name_from_url(url_for_diagnostic(seed.url)),
+                "error_type": type(exc).__name__,
+            },
         )
         progress.finish_item(item_start, success=False)
         console.print(progress.status_line("failed"))

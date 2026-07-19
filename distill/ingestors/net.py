@@ -43,6 +43,8 @@ __all__ = [
     "pin_host_to_ip",
     "resolve_public_ip",
     "safe_urlopen",
+    "url_for_diagnostic",
+    "url_for_persistence",
 ]
 
 _ALLOWED_SCHEMES = frozenset({"https"})
@@ -799,19 +801,48 @@ def _request_uses_proxy(request: urllib.request.Request, target_url: str) -> boo
     )
 
 
-def _url_for_log(url: str, max_len: int = 80) -> str:
-    """Render only a URL origin for diagnostics, never secret-bearing components."""
+def _safe_url_view_parts(url: str) -> tuple[str, str, str] | None:
+    """Return normalized public-web scheme, authority, and path URL parts."""
 
+    if not isinstance(url, str) or not url:
+        return None
     try:
         parsed = urllib.parse.urlsplit(url)
         host = _normalize_host(parsed.hostname or "")
         port = parsed.port
     except (ValueError, UnicodeError):
-        return "<invalid-url>"
-    if not parsed.scheme or host is None:
-        return "<invalid-url>"
+        return None
+    scheme = parsed.scheme.lower()
+    if scheme not in _PUBLIC_WEB_SCHEMES or host is None:
+        return None
     authority = f"[{host}]" if ":" in host else host
     if port is not None:
         authority = f"{authority}:{port}"
-    rendered = urllib.parse.urlunsplit((parsed.scheme.lower(), authority, "", "", ""))
+    return scheme, authority, parsed.path or "/"
+
+
+def url_for_diagnostic(url: str, max_len: int = 80) -> str:
+    """Render only a normalized URL origin for diagnostics."""
+
+    parts = _safe_url_view_parts(url)
+    if parts is None:
+        return "<invalid-url>"
+    scheme, authority, _path = parts
+    rendered = urllib.parse.urlunsplit((scheme, authority, "", "", ""))
     return rendered[:max_len] + "..." if len(rendered) > max_len else rendered
+
+
+def url_for_persistence(url: str) -> str:
+    """Render scheme, host, explicit port, and path for storage or model input."""
+
+    parts = _safe_url_view_parts(url)
+    if parts is None:
+        return "<invalid-url>"
+    scheme, authority, path = parts
+    return urllib.parse.urlunsplit((scheme, authority, path, "", ""))
+
+
+def _url_for_log(url: str, max_len: int = 80) -> str:
+    """Compatibility wrapper for the public diagnostic URL view."""
+
+    return url_for_diagnostic(url, max_len=max_len)

@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import os
 import time
 from typing import Any, cast
@@ -19,6 +18,11 @@ import httpx
 
 from distill.llm._parsing import parse_ascii_uint
 from distill.llm.errors import ProviderBusyTimeoutError
+from distill.llm.providers._ollama_registry import (
+    TagRegistryLimits,
+    bounded_context_window,
+    parse_tags_response,
+)
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
 from distill.llm.usage import UsageAttemptSink
@@ -41,6 +45,14 @@ _CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
 _MAX_CONTEXT_WINDOW = 16_777_216
 _MAX_PARAMETERS_CHARS = 100_000
+_TAGS_RESPONSE_BYTES = 2 * 1024 * 1024
+_TAGS_MAX_MODELS = 1_024
+_TAGS_MAX_MODEL_FIELDS = 32
+_TAGS_MAX_DETAILS_FIELDS = 32
+_TAGS_MAX_LIST_ITEMS = 32
+_TAGS_MAX_FIELD_NAME_CHARS = 128
+_TAGS_MAX_MODEL_NAME_CHARS = 512
+_TAGS_MAX_STRING_CHARS = 4_096
 _STRUCTURED_JSON_CALL_TYPES = frozenset(
     {
         "discover_plan",
@@ -51,20 +63,6 @@ _STRUCTURED_JSON_CALL_TYPES = frozenset(
         "search_rerank",
     }
 )
-
-
-def _bounded_context_window(value: object) -> int | None:
-    if isinstance(value, str):
-        parsed = parse_ascii_uint(value)
-    elif isinstance(value, int) and not isinstance(value, bool):
-        parsed = value
-    elif isinstance(value, float) and math.isfinite(value) and value.is_integer():
-        parsed = int(value)
-    else:
-        parsed = None
-    if parsed is None or not 1 <= parsed <= _MAX_CONTEXT_WINDOW:
-        return None
-    return parsed
 
 
 def _is_thinking_model(model: str) -> bool:
@@ -86,6 +84,21 @@ def _uses_structured_json(call_type: str) -> bool:
     """Select JSON mode only from trusted first-party workload metadata."""
 
     return call_type in _STRUCTURED_JSON_CALL_TYPES
+
+
+def _parse_tags_response(raw: bytes) -> list[dict[str, Any]]:
+    return parse_tags_response(
+        raw,
+        limits=TagRegistryLimits(
+            models=_TAGS_MAX_MODELS,
+            model_fields=_TAGS_MAX_MODEL_FIELDS,
+            details_fields=_TAGS_MAX_DETAILS_FIELDS,
+            list_items=_TAGS_MAX_LIST_ITEMS,
+            field_name_chars=_TAGS_MAX_FIELD_NAME_CHARS,
+            model_name_chars=_TAGS_MAX_MODEL_NAME_CHARS,
+            string_chars=_TAGS_MAX_STRING_CHARS,
+        ),
+    )
 
 
 def _describe_ollama_error(exc: Exception) -> str:
@@ -450,7 +463,7 @@ class OllamaProvider:
         # Try model_info first (more reliable)
         for key, value in model_info.items():
             if isinstance(key, str) and "context_length" in key.casefold():
-                context_window = _bounded_context_window(value)
+                context_window = bounded_context_window(value, maximum=_MAX_CONTEXT_WINDOW)
                 if context_window:
                     return context_window
 
@@ -460,18 +473,24 @@ class OllamaProvider:
             for line in params.splitlines():
                 parts = line.split()
                 if len(parts) >= 2 and parts[0] == "num_ctx":
-                    return _bounded_context_window(parts[-1]) or 0
+                    return bounded_context_window(parts[-1], maximum=_MAX_CONTEXT_WINDOW) or 0
 
         return 0
 
     async def list_models(self) -> list[dict[str, Any]]:
         """Query Ollama /api/tags for locally available models."""
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self._base_url}/api/tags")
+            raw = bytearray()
+            async with (
+                httpx.AsyncClient(timeout=5) as client,
+                client.stream("GET", f"{self._base_url}/api/tags") as response,
+            ):
                 response.raise_for_status()
-                data = response.json()
-            return data.get("models", [])
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > _TAGS_RESPONSE_BYTES:
+                        raise ValueError("Ollama model registry exceeds its response byte limit")
+                    raw.extend(chunk)
+            return _parse_tags_response(bytes(raw))
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             raise ConnectionError(
                 f"Cannot reach Ollama at {self._base_url}. Run `ollama serve` to start the server."

@@ -6,10 +6,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from rich.markup import escape
+
 from distill._console import console
 from distill.commands._helpers import record_exception_issue
 from distill.commands._site_ingest import site_ingest_status_phase
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.sites.scraper import SiteSeed
+from distill.library.paths import site_name_from_url
 from distill.pipeline.costs import BudgetExceededError
 from distill.pipeline.summary import BatchProgress
 
@@ -116,13 +120,18 @@ def ingest_sites(
         except BudgetExceededError:
             raise
         except Exception as exc:
-            console.print(f"  [red]failed: {exc}[/red]")
+            safe_error = RuntimeError(f"{type(exc).__name__} during site ingest")
+            console.print(f"  [red]failed: {escape(str(safe_error))}[/red]")
             record_exception_issue(
                 summary,
                 stage="site-ingest",
-                exc=exc,
-                context=seed.url,
-                details={"topic": topic_name, "site": seed.site_name or ""},
+                exc=safe_error,
+                context=url_for_diagnostic(seed.url),
+                details={
+                    "topic": topic_name,
+                    "site": site_name_from_url(url_for_diagnostic(seed.url)),
+                    "error_type": type(exc).__name__,
+                },
             )
             progress.finish_item(item_start, success=False)
             console.print(progress.status_line("failed"))

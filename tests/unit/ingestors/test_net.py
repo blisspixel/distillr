@@ -24,6 +24,8 @@ from distill.ingestors.net import (
     pin_host_to_ip,
     resolve_public_ip,
     safe_urlopen,
+    url_for_diagnostic,
+    url_for_persistence,
 )
 
 _PUBLIC_IP_URL = "https://8.8.8.8/"  # literal public IP -> no DNS, passes the SSRF guard
@@ -508,6 +510,33 @@ def test_url_for_log_preserves_normalized_ipv6_origin_and_rejects_malformed() ->
         "https://[2001:4860:4860::8888]:443"
     )
     assert _url_for_log("https://example.com:invalid/secret") == "<invalid-url>"
+
+
+def test_url_views_omit_secret_bearing_components() -> None:
+    raw = "HTTPS://alice:password@Example.COM:8443/private/report?token=canary#section"
+
+    assert url_for_diagnostic(raw) == "https://example.com:8443"
+    assert url_for_persistence(raw) == "https://example.com:8443/private/report"
+
+
+def test_url_views_preserve_ipv6_authority_without_userinfo() -> None:
+    raw = "https://alice:password@[2001:4860:4860::8888]:443/a?q=canary"
+
+    assert url_for_diagnostic(raw) == "https://[2001:4860:4860::8888]:443"
+    assert url_for_persistence(raw) == "https://[2001:4860:4860::8888]:443/a"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "https://example.com:invalid/private?token=canary",
+        "not a URL?token=canary",
+        "file:///private?token=canary",
+    ],
+)
+def test_url_views_fail_closed_without_reflecting_malformed_input(raw: str) -> None:
+    assert url_for_diagnostic(raw) == "<invalid-url>"
+    assert url_for_persistence(raw) == "<invalid-url>"
 
 
 def test_retry_log_never_contains_url_credentials_or_query_secrets(caplog) -> None:

@@ -6,6 +6,8 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
+
 from distill.library.state import ChannelState
 
 
@@ -79,6 +81,17 @@ class TestMarkProcessed:
         assert state.is_processed("vid1")
         assert state.get_processed_count() == 1
         assert state.get_last_refresh() is not None
+
+    def test_invalid_video_id_is_refused_before_state_mutation(self, tmp_path):
+        state_file = tmp_path / "state.json"
+        state = ChannelState(state_file)
+
+        with pytest.raises(ValueError, match="invalid YouTube video id") as exc_info:
+            state.mark_processed("bad?token=STATE-CANARY", "Title", "20250101")
+
+        assert "STATE-CANARY" not in str(exc_info.value)
+        assert state.get_processed_count() == 0
+        assert not state_file.exists()
 
     def test_mark_multiple_videos(self, tmp_path):
         """Marking multiple videos works."""

@@ -5,28 +5,47 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from hashlib import sha1
+from hashlib import sha1, sha256
+from pathlib import Path
+
+from rich.markup import escape
 
 import distill.cli_shared as cli_shared
 from distill._console import console
 from distill.commands._helpers import resolve_intent
 from distill.commands._site_page_storage import (
+    OwnedSitePageDirectory,
     remove_absent_attachments,
     remove_absent_transcript,
     reserve_site_page_directory,
 )
 from distill.config import DistillConfig
+from distill.ingestors.net import url_for_diagnostic
+from distill.ingestors.sites._site_urls import (
+    canonicalize_url,
+    site_attachment_context_for_persistence,
+    site_embedded_url_for_persistence,
+    site_url_for_persistence,
+    site_url_list_for_persistence,
+)
 from distill.ingestors.sites.attachments import (
+    AttachmentRecord,
     collect_page_attachments,
     ingest_page_attachments,
     write_attachment_manifest,
 )
-from distill.ingestors.sites.scraper import SiteSeed, build_page_document, crawl_site
+from distill.ingestors.sites.scraper import (
+    SitePage,
+    SiteSeed,
+    build_page_document,
+    crawl_site,
+)
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
+    site_name_from_url,
     tags_for,
     write_markdown_artifact,
     write_text_artifact,
@@ -116,6 +135,71 @@ def content_hash(text: str) -> str:
     return sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
+@dataclass(frozen=True)
+class _PreparedSitePage:
+    page: SitePage
+    owner: OwnedSitePageDirectory
+
+
+def _sanitize_attachment_records(
+    page_dir: Path,
+    attachments: Sequence[AttachmentRecord],
+) -> list[AttachmentRecord]:
+    sanitized: list[AttachmentRecord] = []
+    for attachment in attachments:
+        safe_url = site_embedded_url_for_persistence(attachment.url)
+        if safe_url == "<invalid-url>":
+            safe_url = url_for_diagnostic(attachment.url)
+        note = (
+            attachment.note.replace(attachment.url, safe_url) if attachment.url else attachment.note
+        )
+        text_path = attachment.text_path
+        if text_path and Path(text_path).name == text_path:
+            original = page_dir / "attachments" / text_path
+            if original.exists():
+                suffix = original.suffix or ".txt"
+                digest = sha256(
+                    b"distill-site-attachment-v1\0"
+                    + canonicalize_url(attachment.url).encode("utf-8")
+                ).hexdigest()
+                target = original.with_name(f"attachment-{digest}{suffix}")
+                if original != target:
+                    original.replace(target)
+                text_path = target.name
+        sanitized.append(
+            replace(
+                attachment,
+                url=safe_url,
+                note=note,
+                text_path=text_path,
+            )
+        )
+    return sanitized
+
+
+def _sanitize_site_page(
+    page: SitePage,
+    *,
+    attachment_context: str,
+    attachments: Sequence[AttachmentRecord],
+) -> SitePage:
+    context = site_attachment_context_for_persistence(
+        attachment_context,
+        [attachment.url for attachment in attachments],
+    )
+    return replace(
+        page,
+        url=site_url_for_persistence(page.url),
+        final_url=site_url_for_persistence(page.final_url),
+        canonical_url=site_url_for_persistence(page.canonical_url),
+        source_url=site_url_for_persistence(page.source_url),
+        links=site_url_list_for_persistence(page.links),
+        pdf_links=site_url_list_for_persistence(page.pdf_links),
+        video_links=site_url_list_for_persistence(page.video_links),
+        attachment_context=context,
+    )
+
+
 def process_site_seed(  # noqa: C901 - legacy site ingest helper
     seed: SiteSeed,
     config: DistillConfig,
@@ -124,20 +208,29 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     scrape_only: bool = False,
     ingest_attachments: bool = False,
 ) -> SiteIngestResult:
-    site_name = seed.resolved_site_name()
+    raw_derived_site_name = site_name_from_url(seed.url)
+    safe_derived_site_name = site_name_from_url(url_for_diagnostic(seed.url))
+    site_name = (
+        safe_derived_site_name
+        if not seed.site_name or seed.site_name == raw_derived_site_name
+        else seed.site_name
+    )
     mode_label = "scrape-only" if scrape_only else "full"
-    console.print(f"\n[bold]Site: {site_name}[/bold]")
-    boundary = f" | crawl_prefix={seed.crawl_prefix}" if seed.crawl_prefix else ""
+    safe_seed_url = site_url_for_persistence(seed.url)
+    console.print(f"\n[bold]Site: {escape(site_name)}[/bold]")
+    boundary = f" | crawl_prefix={escape(seed.crawl_prefix)}" if seed.crawl_prefix else ""
     console.print(
-        f"[dim]Seed: {seed.url} | max_pages={seed.max_pages} depth={seed.max_depth}{boundary} mode={mode_label} | attachments={'on' if ingest_attachments else 'inventory-only'}[/dim]"
+        f"[dim]Seed: {escape(url_for_diagnostic(seed.url))} | max_pages={seed.max_pages} "
+        f"depth={seed.max_depth}{boundary} mode={mode_label} | "
+        f"attachments={'on' if ingest_attachments else 'inventory-only'}[/dim]"
     )
 
-    pages = crawl_site(seed)
-    if not pages:
+    raw_pages = crawl_site(seed)
+    if not raw_pages:
         summary.add_issue(
             "site-crawl",
             "No pages were extracted from the site.",
-            context=seed.url,
+            context=url_for_diagnostic(seed.url),
             details={"site": site_name, "topic": seed.topic, "scrape_only": scrape_only},
         )
         return SiteIngestResult(site_name=site_name, page_count=0, scrape_only=scrape_only)
@@ -145,6 +238,48 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     site_dir = config.site_dir(seed.topic, site_name)
     pages_dir = config.site_pages_dir(seed.topic, site_name)
     pages_dir.mkdir(parents=True, exist_ok=True)
+    prepared_pages: list[_PreparedSitePage] = []
+    for index, raw_page in enumerate(raw_pages, 1):
+        console.print(f"  [{index}/{len(raw_pages)}] [bold]{escape(raw_page.title)}[/bold]")
+        owned_page = reserve_site_page_directory(
+            config,
+            seed.topic,
+            site_name,
+            raw_page,
+        )
+        page_dir = owned_page.path
+        attachment_context = raw_page.attachment_context
+        if ingest_attachments:
+            raw_attachments, fetched_context = ingest_page_attachments(
+                raw_page,
+                page_dir,
+                config,
+                tracker=tracker,
+            )
+            if fetched_context:
+                attachment_context = fetched_context
+        else:
+            raw_attachments = collect_page_attachments(raw_page)
+        if not raw_attachments:
+            raw_attachments = collect_page_attachments(raw_page)
+
+        attachments = _sanitize_attachment_records(page_dir, raw_attachments)
+        safe_page = _sanitize_site_page(
+            raw_page,
+            attachment_context=attachment_context,
+            attachments=raw_attachments,
+        )
+        if not attachments:
+            remove_absent_attachments(page_dir)
+        attachment_manifest = write_attachment_manifest(page_dir, attachments)
+        if attachment_manifest:
+            summary.add_output(attachment_manifest)
+            for item in attachments:
+                if item.text_path:
+                    summary.add_output(page_dir / "attachments" / item.text_path)
+        prepared_pages.append(_PreparedSitePage(page=safe_page, owner=owned_page))
+
+    pages = [prepared.page for prepared in prepared_pages]
     site_manifest_path = site_dir / "site.json"
     previous_manifest = load_site_manifest(site_manifest_path)
     crawled_at = datetime.now().isoformat(timespec="seconds")
@@ -153,7 +288,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         section["last_crawled_at"] = crawled_at
     section_changes = site_section_change_summary(previous_manifest, section_state)
     manifest = {
-        "seed_url": seed.url,
+        "seed_url": safe_seed_url,
         "site_name": site_name,
         "page_count": len(pages),
         "max_depth": seed.max_depth,
@@ -172,7 +307,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         update_lines = [
             f"# Site Update: {site_name}",
             "",
-            f"- Seed: {seed.url}",
+            f"- Seed: {safe_seed_url}",
             f"- Generated: {crawled_at}",
             "",
             "## Section Changes",
@@ -188,7 +323,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 title=f"Site Update: {site_name}",
                 topic=seed.topic,
                 source="website",
-                url=seed.url,
+                url=safe_seed_url,
                 tags=tags_for(seed.topic, "website", "update"),
                 synthesis_scope="operational",
                 extra={"site": site_name, "legacy_filename": "site_update.md"},
@@ -198,38 +333,10 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
 
     analyzed_pages = 0
     skipped_pages = 0
-    for index, page_obj in enumerate(pages, 1):
-        console.print(f"  [{index}/{len(pages)}] [bold]{page_obj.title}[/bold]")
-        owned_page = reserve_site_page_directory(
-            config,
-            seed.topic,
-            site_name,
-            page_obj,
-        )
+    for prepared_page in prepared_pages:
+        page_obj = prepared_page.page
+        owned_page = prepared_page.owner
         page_dir = owned_page.path
-        attachments = []
-        if ingest_attachments:
-            attachments, attachment_context = ingest_page_attachments(
-                page_obj,
-                page_dir,
-                config,
-                tracker=tracker,
-            )
-            if attachment_context:
-                page_obj.attachment_context = attachment_context
-        else:
-            attachments = collect_page_attachments(page_obj)
-        if not attachments:
-            attachments = collect_page_attachments(page_obj)
-        if not attachments:
-            remove_absent_attachments(page_dir)
-        attachment_manifest = write_attachment_manifest(page_dir, attachments)
-        if attachment_manifest:
-            summary.add_output(attachment_manifest)
-            for item in attachments:
-                if item.text_path:
-                    attachment_text_path = page_dir / "attachments" / item.text_path
-                    summary.add_output(attachment_text_path)
         page_document = build_page_document(page_obj)
         page_content_hash = content_hash(page_document)
         previous_metadata: JsonObject = {}
@@ -309,7 +416,11 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 style = "red" if outcome.refused else "yellow"
                 console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
             if outcome is not None and outcome.refused:
-                summary.add_issue("verify", outcome.summary_line, context=page_obj.url)
+                summary.add_issue(
+                    "verify",
+                    outcome.summary_line,
+                    context=url_for_diagnostic(page_obj.url),
+                )
                 continue
 
             insights_path = write_markdown_artifact(
@@ -328,12 +439,12 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
             raise
         except Exception as exc:
-            console.print(f"  [red]Insight extraction failed: {exc}[/red]")
+            console.print(f"  [red]Insight extraction failed: {escape(str(exc))}[/red]")
             cli_shared.record_exception_issue(
                 summary,
                 stage="site-page-analysis",
                 exc=exc,
-                context=page_obj.url,
+                context=url_for_diagnostic(page_obj.url),
                 details={"site": site_name, "topic": seed.topic, "title": page_obj.title},
             )
 
@@ -372,7 +483,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             summary,
             stage="site-synthesis",
             exc=exc,
-            context=seed.url,
+            context=url_for_diagnostic(seed.url),
             details={"site": site_name, "topic": seed.topic},
         )
 

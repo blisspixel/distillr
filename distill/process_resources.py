@@ -14,16 +14,51 @@ from typing import IO
 import psutil
 
 __all__ = [
+    "BoundedByteHead",
     "BoundedByteTail",
     "ProcessBudgetExceeded",
     "assign_windows_memory_job",
     "close_windows_job",
     "process_tree_rss_bytes",
     "start_bounded_pipe_drain",
+    "start_bounded_pipe_head_drain",
     "terminate_isolated_process_tree",
     "terminate_process_tree",
     "wait_for_process_budget",
 ]
+
+
+class BoundedByteHead:
+    """Retain a fixed-size byte prefix while tracking the full drained size."""
+
+    def __init__(self, limit: int) -> None:
+        if limit <= 0:
+            raise ValueError("diagnostic byte limit must be positive")
+        self._limit = limit
+        self._data = bytearray()
+        self._total_bytes = 0
+        self._lock = threading.Lock()
+
+    def append(self, chunk: bytes) -> None:
+        with self._lock:
+            self._total_bytes += len(chunk)
+            remaining = self._limit - len(self._data)
+            if remaining > 0:
+                self._data.extend(chunk[:remaining])
+
+    def bytes(self) -> bytes:
+        with self._lock:
+            return bytes(self._data)
+
+    @property
+    def total_bytes(self) -> int:
+        with self._lock:
+            return self._total_bytes
+
+    @property
+    def truncated(self) -> bool:
+        with self._lock:
+            return self._total_bytes > self._limit
 
 
 class BoundedByteTail:
@@ -72,6 +107,32 @@ def start_bounded_pipe_drain(
     )
     thread.start()
     return tail, thread
+
+
+def start_bounded_pipe_head_drain(
+    stream: IO[bytes],
+    *,
+    limit: int,
+    thread_name: str,
+) -> tuple[BoundedByteHead, threading.Thread]:
+    """Drain a binary pipe to EOF while retaining only a fixed prefix."""
+
+    head = BoundedByteHead(limit)
+
+    def drain() -> None:
+        try:
+            while chunk := stream.read(8_192):
+                head.append(chunk)
+        except (OSError, ValueError):
+            return
+
+    thread = threading.Thread(
+        target=drain,
+        daemon=True,
+        name=thread_name,
+    )
+    thread.start()
+    return head, thread
 
 
 @dataclass(frozen=True)

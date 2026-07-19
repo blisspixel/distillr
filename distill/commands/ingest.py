@@ -26,6 +26,7 @@ from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.podcasts import (
     PodcastFetchError,
     fetch_feed,
@@ -46,7 +47,11 @@ __all__ = ["ingest_cmd", "register"]
 
 
 def _host(url: str) -> str:
-    return urlparse(url).netloc.lower().removeprefix("www.")
+    try:
+        host = urlparse(url).hostname or ""
+    except (UnicodeError, ValueError):
+        return ""
+    return host.casefold().rstrip(".").removeprefix("www.")
 
 
 def ingest_cmd(
@@ -171,7 +176,7 @@ def ingest_cmd(
             return
 
         console.print(
-            f"[yellow]No dedicated adapter for host {host!r} yet.[/yellow] "
+            f"[yellow]No dedicated adapter for host {escape(host)!r} yet.[/yellow] "
             "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
             "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed."
         )
@@ -237,8 +242,9 @@ def _ingest_tweet_url(
     force: bool = False,
 ) -> None:
     if not parse_tweet_url(url):
+        displayed_url = escape(url_for_diagnostic(url))
         console.print(
-            f"[red]Could not parse a tweet id from {url!r}.[/red] "
+            f"[red]Could not parse a tweet id from {displayed_url}.[/red] "
             "Expected something like https://x.com/<user>/status/<id>."
         )
         raise typer.Exit(2)
@@ -342,7 +348,7 @@ def _ingest_feed(
             feed=feed,
         )
     except PodcastFetchError as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(2) from None
     console.print("")
     console.print(f"  [green]Show[/green]      {result.feed_title}")
@@ -359,15 +365,16 @@ def _ingest_github(
     url: str, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
 ) -> None:
     if parse_github_url(url) is None:
+        displayed_url = escape(url_for_diagnostic(url))
         console.print(
-            f"[red]Could not parse an owner/repo from {url!r}.[/red] "
+            f"[red]Could not parse an owner/repo from {displayed_url}.[/red] "
             "Expected something like https://github.com/<owner>/<repo>."
         )
         raise typer.Exit(2)
     try:
         result = ingest_repo(url, topic=topic, config=config, analyze=analyze, tracker=tracker)
     except GitHubFetchError as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape(str(exc))}[/red]")
         raise typer.Exit(2) from None
     console.print("")
     console.print(

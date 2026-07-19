@@ -12,10 +12,12 @@ class of pre-existing artifacts.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.paths import (
     ARTIFACT_SUFFIXES,
     LEGACY_ARTIFACT_NAMES,
@@ -35,6 +37,8 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+_MAX_WIKI_LINK_MARKDOWN_BYTES = 4 * 1024 * 1024
+
 # Reverse lookup: legacy filename → artifact type key
 # When multiple types share the same legacy filename (e.g., synthesis.md is used
 # by both "synthesis" and "site_synthesis"), prefer the shorter/simpler type name.
@@ -42,6 +46,24 @@ logger = logging.getLogger(__name__)
 _REVERSE_LEGACY: dict[str, str] = {}
 for _type, _filename in sorted(LEGACY_ARTIFACT_NAMES.items(), key=lambda x: -len(x[0])):
     _REVERSE_LEGACY[_filename] = _type
+
+
+def _has_hidden_ancestor(path: Path, root: Path) -> bool:
+    """Return whether a path below root has a dot-prefixed parent component."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return False
+    return any(part.startswith(".") for part in relative.parts[:-1])
+
+
+def _is_lexically_confined(path: Path, root: Path) -> bool:
+    """Reject action paths that normalize outside the selected migration root."""
+    try:
+        relative = path.absolute().relative_to(root.absolute())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return bool(relative.parts) and all(part not in {"", ".", ".."} for part in relative.parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +92,27 @@ class _StemRemap:
 
     source_path: Path
     target_path: Path
+
+
+def _confined_single_link_file(
+    path: Path,
+    root: Path,
+) -> tuple[Path, os.stat_result] | None:
+    validated = validate_confined_path(path, root, expect_directory=False)
+    if validated is None or validated[1].st_nlink != 1:
+        return None
+    return validated
+
+
+def _record_stem_remap(
+    stem_remaps: dict[str, list[_StemRemap]],
+    source: Path,
+    target: Path,
+) -> None:
+    if source.stem != target.stem:
+        stem_remaps.setdefault(source.stem, []).append(
+            _StemRemap(source_path=source, target_path=target)
+        )
 
 
 def _ambiguous_wiki_link_errors(stem_remaps: dict[str, list[_StemRemap]]) -> list[str]:
@@ -112,12 +155,13 @@ def scan_legacy_artifacts(library_dir: Path) -> list[MigrationAction]:
     legacy_filenames = set(LEGACY_ARTIFACT_NAMES.values())
 
     for file_path in sorted(library_dir.rglob("*")):
-        if not file_path.is_file():
-            continue
         if file_path.name not in legacy_filenames:
             continue
         # Skip hidden directories (.git, .hypothesis, .distill, etc.)
-        if any(part.startswith(".") for part in file_path.relative_to(library_dir).parts[:-1]):
+        if _has_hidden_ancestor(file_path, library_dir):
+            continue
+        validated = validate_confined_path(file_path, library_dir, expect_directory=False)
+        if validated is None or validated[1].st_nlink != 1:
             continue
         # Skip files at the library root (they need a parent slug)
         if file_path.parent == library_dir:
@@ -142,7 +186,7 @@ def scan_legacy_artifacts(library_dir: Path) -> list[MigrationAction]:
     return actions
 
 
-def apply_migration(
+def apply_migration(  # noqa: C901 - bounded rename and repair transaction
     actions: list[MigrationAction], *, library_dir: Path | None = None
 ) -> MigrationResult:
     """Execute proposed renames and update wiki-links in referencing files.
@@ -159,6 +203,7 @@ def apply_migration(
     errors: list[str] = []
 
     stem_remaps: dict[str, list[_StemRemap]] = {}
+    root = library_dir or _find_library_root(actions)
 
     for action in actions:
         if action.action_type != "rename":
@@ -167,38 +212,67 @@ def apply_migration(
         source = action.source_path
         target = action.target_path
 
-        # Check if source still exists
-        if not source.exists():
+        if root is None or not all(_is_lexically_confined(path, root) for path in (source, target)):
+            errors.append(f"Rename paths are outside the migration root: {source} → {target}")
+            continue
+
+        source_state = _confined_single_link_file(source, root)
+        if source_state is None:
+            try:
+                source.lstat()
+            except FileNotFoundError:
+                # A prior attempt may have completed the rename before a later
+                # link repair failed. Rebuild that remap so retrying converges.
+                target_state = _confined_single_link_file(target, root)
+                if target_state is not None:
+                    _record_stem_remap(stem_remaps, source, target)
+                    continue
+            except OSError as exc:
+                errors.append(f"Source check failed {source}: {exc}")
+                continue
+            else:
+                errors.append(f"Rename refused {source}: not a confined single-link regular file")
+                continue
             errors.append(f"Source disappeared: {source}")
             continue
 
-        # Check for conflicts
-        if target.exists():
+        try:
+            target.lstat()
+        except FileNotFoundError:
+            target_exists = False
+        except OSError as exc:
+            errors.append(f"Target check failed {target}: {exc}")
+            continue
+        else:
+            target_exists = True
+
+        if target_exists:
+            if _confined_single_link_file(target, root) is None:
+                errors.append(
+                    f"Rename refused {target}: target is not a confined single-link regular file"
+                )
+                continue
             conflicts_skipped += 1
             logger.info("Conflict: target already exists, skipping: %s", target)
             continue
 
+        if validate_confined_path(target.parent, root, expect_directory=True) is None:
+            errors.append(f"Rename target parent is outside the migration root: {target.parent}")
+            continue
+
         # Execute rename
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
             source.rename(target)
             files_renamed += 1
-            # Record stem mapping for link updates
-            old_stem = source.stem
-            new_stem = target.stem
-            if old_stem != new_stem:
-                stem_remaps.setdefault(old_stem, []).append(
-                    _StemRemap(source_path=source, target_path=target)
-                )
+            _record_stem_remap(stem_remaps, source, target)
         except OSError as e:
             errors.append(f"Rename failed {source} → {target}: {e}")
 
     # Update wiki-links in all markdown files in the library
-    if stem_remaps:
-        root = library_dir or _find_library_root(actions)
-        if root:
-            errors.extend(_ambiguous_wiki_link_errors(stem_remaps))
-            links_updated = _update_wiki_links(root, stem_remaps)
+    if stem_remaps and root is not None:
+        errors.extend(_ambiguous_wiki_link_errors(stem_remaps))
+        links_updated, link_errors = _update_wiki_links(root, stem_remaps)
+        errors.extend(link_errors)
 
     return MigrationResult(
         files_renamed=files_renamed,
@@ -392,15 +466,40 @@ def _link_target_for_file(md_file: Path, remaps: list[_StemRemap]) -> str | None
     return None
 
 
-def _update_wiki_links(library_dir: Path, stem_remaps: dict[str, list[_StemRemap]]) -> int:
-    """Update only wiki-links whose renamed destination is unambiguous."""
+def _read_wiki_link_markdown(path: Path, root: Path) -> tuple[str | None, str | None]:
+    state = _confined_single_link_file(path, root)
+    if state is None:
+        return None, f"Read failed {path}: not a confined single-link regular file"
+    if state[1].st_size > _MAX_WIKI_LINK_MARKDOWN_BYTES:
+        return (
+            None,
+            f"Read failed {path}: exceeds the {_MAX_WIKI_LINK_MARKDOWN_BYTES}-byte Markdown limit",
+        )
+    content = read_confined_text(
+        path,
+        root,
+        max_bytes=_MAX_WIKI_LINK_MARKDOWN_BYTES,
+    )
+    if content is None:
+        return None, f"Read failed {path}: unreadable, unstable, or invalid UTF-8"
+    return content, None
+
+
+def _update_wiki_links(
+    library_dir: Path,
+    stem_remaps: dict[str, list[_StemRemap]],
+) -> tuple[int, list[str]]:
+    """Update visible, confined wiki-links whose destination is unambiguous."""
     updated_count = 0
+    errors: list[str] = []
 
     for md_file in sorted(library_dir.rglob("*.md")):
-        try:
-            content = md_file.read_text(encoding="utf-8")
-        except OSError:
-            logger.warning("Could not read file for link update: %s", md_file)
+        if _has_hidden_ancestor(md_file, library_dir):
+            continue
+        content, read_error = _read_wiki_link_markdown(md_file, library_dir)
+        if content is None:
+            if read_error is not None:
+                errors.append(read_error)
             continue
 
         new_content = content
@@ -421,10 +520,17 @@ def _update_wiki_links(library_dir: Path, stem_remaps: dict[str, list[_StemRemap
             )
 
         if new_content != content:
+            state = _confined_single_link_file(md_file, library_dir)
+            if state is None or state[1].st_size > _MAX_WIKI_LINK_MARKDOWN_BYTES:
+                errors.append(
+                    f"Write failed {md_file}: path is no longer a confined, bounded "
+                    "single-link regular file"
+                )
+                continue
             try:
                 atomic_write_text(md_file, new_content)
                 updated_count += file_updates
-            except OSError:
-                logger.warning("Could not write updated links: %s", md_file)
+            except OSError as exc:
+                errors.append(f"Write failed {md_file}: {exc}")
 
-    return updated_count
+    return updated_count, errors

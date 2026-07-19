@@ -713,6 +713,21 @@ def test_cost_resource_does_not_follow_library_symlink(mock_config):
 
 
 class TestWatchAdd:
+    def test_invalid_url_is_refused_before_lookup_or_mutation(self, mock_config):
+        raw_url = "https://user:pass@youtube.com/@Channel?token=WATCH-CANARY"
+
+        with (
+            patch("distill.mcp.server._config", return_value=mock_config),
+            patch("distill.ingestors.youtube.discovery.resolve_channel_name") as resolve,
+        ):
+            result = json.loads(watch_add(url=raw_url))
+
+        assert result["status"] == "invalid_url"
+        assert "WATCH-CANARY" not in json.dumps(result)
+        assert "pass" not in json.dumps(result)
+        assert Library(mock_config).get_watchlist() == []
+        resolve.assert_not_called()
+
     def test_add_new_channel(self, mock_config):
         Library(mock_config)  # init library
 
@@ -883,7 +898,7 @@ class TestWatchAdd:
 class TestWatchRemove:
     def test_remove_existing(self, mock_config):
         lib = Library(mock_config)
-        lib.add_to_watchlist("https://youtube.com/@Ch", "Ch", topic="t")
+        lib.add_to_watchlist("https://youtube.com/@Channel", "Ch", topic="t")
 
         with patch("distill.mcp.server._config", return_value=mock_config):
             result = json.loads(watch_remove("Ch"))
@@ -967,7 +982,7 @@ class TestCatchUp:
     def test_channel_not_found(self, mock_config):
         lib = Library(mock_config)
         lib.add_to_watchlist(
-            "https://youtube.com/@Ch",
+            "https://youtube.com/@Channel",
             "Ch",
             topic="ai",
             days=7,
@@ -979,7 +994,7 @@ class TestCatchUp:
     def test_topic_filter_no_match(self, mock_config):
         lib = Library(mock_config)
         lib.add_to_watchlist(
-            "https://youtube.com/@Ch",
+            "https://youtube.com/@Channel",
             "Ch",
             topic="ai",
             days=7,

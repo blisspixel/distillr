@@ -23,6 +23,32 @@ def test_bounded_byte_tail_requires_a_positive_limit() -> None:
         resources.BoundedByteTail(0)
 
 
+def test_bounded_byte_head_tracks_exact_boundary_without_truncation() -> None:
+    head = resources.BoundedByteHead(4)
+
+    head.append(b"ab")
+    head.append(b"cd")
+
+    assert head.bytes() == b"abcd"
+    assert head.total_bytes == 4
+    assert head.truncated is False
+
+
+def test_bounded_byte_head_retains_prefix_and_reports_over_limit() -> None:
+    head = resources.BoundedByteHead(4)
+
+    head.append(b"abcdef")
+
+    assert head.bytes() == b"abcd"
+    assert head.total_bytes == 6
+    assert head.truncated is True
+
+
+def test_bounded_byte_head_requires_a_positive_limit() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        resources.BoundedByteHead(0)
+
+
 def test_bounded_pipe_drain_consumes_all_input_and_retains_tail() -> None:
     stream = io.BytesIO(b"0123456789")
     tail, thread = resources.start_bounded_pipe_drain(
@@ -50,6 +76,21 @@ def test_bounded_pipe_drain_treats_pipe_errors_as_end_of_stream() -> None:
 
     assert thread.is_alive() is False
     assert tail.bytes() == b""
+
+
+def test_bounded_head_pipe_drain_consumes_all_input_and_retains_prefix() -> None:
+    stream = io.BytesIO(b"0123456789")
+    head, thread = resources.start_bounded_pipe_head_drain(
+        stream,
+        limit=3,
+        thread_name="test-head-drain",
+    )
+    thread.join(timeout=1)
+
+    assert thread.is_alive() is False
+    assert head.bytes() == b"012"
+    assert head.total_bytes == 10
+    assert head.truncated is True
 
 
 class _WaitProcess:

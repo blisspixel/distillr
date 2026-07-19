@@ -264,6 +264,38 @@ browser-media validation, performance baselining, and a fresh code graph remain
 active quality debt. This is not a freeze signal and does not narrow the broader
 refinement program.
 
+**Cycle 12 refinement evidence (2026-07-18).** This pass hardened current URL,
+site, local-provider, migration, Agent Skill, and MCP workflows without adding
+feature breadth:
+
+- **Security and privacy:** request URLs remain available only to the fetch
+  boundary. Diagnostics retain an origin, while stored artifacts, prompts,
+  failure evidence, and attachment manifests retain a query-free public URL.
+  Full request identity remains in domain-separated hashes, and query order is
+  preserved when it affects request identity. The public Agent Skill bundle
+  constructor now enforces exact identity, digest, size, file count, required
+  entrypoint, and cross-platform relative-path safety.
+- **Reliability and resource control:** adapter doctor probes now use bounded
+  concurrent output drains, isolated process-tree cleanup, elapsed and memory
+  ceilings, trusted execution context, and bounded iterative auth or config
+  parsing. Local readiness probes do not consume response bodies. Ollama model
+  discovery applies response, shape, model-count, field-count, and string
+  bounds. Browser workers receive process-tree cleanup on every exit.
+- **Operator trust:** visible legacy migration reads only bounded, confined,
+  single-link Markdown, reports every repair failure, and exits nonzero after
+  partial failure. MCP topic summaries distinguish absent, degraded, and
+  unavailable synthesis evidence. CLI and MCP watch additions canonicalize and
+  validate YouTube channel URLs before lookup, discovery, or mutation.
+- **Regression protection:** all nine original URL-disclosure reproductions no
+  longer reach their vulnerable assertions. Focused resource, migration,
+  ownership, model-registry, site-boundary, watch, and MCP controls pass, along
+  with the complete local release gate.
+
+Lossless history archival, live assistive-technology review, representative
+browser media, a measured performance baseline, broad test-fixture typing, and
+a fresh code graph remain active quality debt. This cycle is another refinement
+checkpoint, not a freeze signal.
+
 The future 1.0 stability commitment is a readiness gate, not the next release
 instruction. Candidate contracts can keep improving during this program. The
 stability decision requires compatibility and migration evidence, a published
@@ -298,7 +330,7 @@ findings, evidence, fixes, and prioritized product implications are recorded in
 
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.39. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.40. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 The bounded active-session handoff now ships: provider-neutral tasks can be
 atomically claimed through `distill worker`, completed only in an isolated

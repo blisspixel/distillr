@@ -588,9 +588,11 @@ def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "c
         import os
 
         url = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-        with httpx.Client(timeout=3) as client:
-            resp = client.get(f"{url}/models")
-            if resp.status_code == 200:
+        with (
+            httpx.Client(timeout=3) as client,
+            client.stream("GET", f"{url}/models") as response,
+        ):
+            if response.status_code == 200:
                 return "running"
     except Exception:
         return "unavailable"

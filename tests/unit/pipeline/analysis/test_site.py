@@ -61,6 +61,55 @@ def test_analyze_site_page_allows_no_tracker(tmp_path):
     assert result.rstrip().endswith("site body")
 
 
+def test_analyze_site_page_direct_boundary_sanitizes_prompt_and_provenance(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    page_url = "https://user:URLPASS-CANARY@example.com/private/page?token=PAGE-CANARY#fragment"
+    pdf_url = "https://cdn.example/private/guide.pdf?signature=PDF-CANARY"
+    video_url = "https://www.youtube.com/watch?v=abc123&token=VIDEO-CANARY"
+    page = SitePage(
+        url=page_url,
+        final_url=page_url,
+        canonical_url=page_url,
+        source_url="https://example.com/start?token=SOURCE-CANARY",
+        title="Direct analysis",
+        site_name="user-urlpass-canary@example.com",
+        page_type="article",
+        text="Stable source content.",
+        links=["https://example.com/next?token=LINK-CANARY"],
+        pdf_links=[pdf_url],
+        video_links=[video_url],
+        attachment_context=(
+            f"### PDF Attachment: {pdf_url}\nPDF content.\n\n"
+            f"### YouTube Attachment: {video_url}\nVideo content."
+        ),
+    )
+    captured: dict[str, str] = {}
+
+    def fake_call(config, workload_tag, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return LLM_Response(text="safe body", input_tokens=10, output_tokens=20, model="test")
+
+    with patch("distill.pipeline.analysis.site.llm_call", fake_call):
+        result = analyze_site_page(page, config)
+
+    combined = captured["prompt"] + result
+    for canary in (
+        "PAGE-CANARY",
+        "PDF-CANARY",
+        "VIDEO-CANARY",
+        "SOURCE-CANARY",
+        "LINK-CANARY",
+        "URLPASS-CANARY",
+        "urlpass-canary",
+    ):
+        assert canary not in combined
+    assert "https://example.com/private/page" in combined
+    assert "https://cdn.example/private/guide.pdf" in captured["prompt"]
+    assert "https://www.youtube.com/watch?v=abc123" in captured["prompt"]
+    assert 'site: "example.com"' in result
+    assert page.url == page_url
+
+
 def test_synthesize_site_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     page_dir = config.site_page_dir("web", "example.com", "Agent Overview", "page1")

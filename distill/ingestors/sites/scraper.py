@@ -71,7 +71,7 @@ from distill.process_resources import (
     assign_windows_memory_job,
     close_windows_job,
     start_bounded_pipe_drain,
-    terminate_process_tree,
+    terminate_isolated_process_tree,
     wait_for_process_budget,
 )
 from distill.process_security import package_install_context
@@ -612,15 +612,17 @@ def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
         )
         stderr_stream = process.stderr
         if stderr_stream is None:
-            terminate_process_tree(process)
+            terminate_isolated_process_tree(process)
             return []
-        diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
-            stderr_stream,
-            limit=_BROWSER_WORKER_DIAGNOSTIC_BYTES,
-            thread_name="distill-browser-diagnostics",
-        )
+        diagnostic_tail = None
+        diagnostic_thread = None
         job_handle: int | None = None
         try:
+            diagnostic_tail, diagnostic_thread = start_bounded_pipe_drain(
+                stderr_stream,
+                limit=_BROWSER_WORKER_DIAGNOSTIC_BYTES,
+                thread_name="distill-browser-diagnostics",
+            )
             job_handle = assign_windows_memory_job(
                 process,
                 job_memory_bytes=_BROWSER_TREE_MEMORY_BYTES,
@@ -638,17 +640,23 @@ def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
             )
         except (ProcessBudgetExceeded, OSError, RuntimeError) as exc:
             logger.warning("Browser crawl stopped at its resource boundary: %s", exc)
-            terminate_process_tree(process)
             return []
         finally:
+            terminate_isolated_process_tree(process)
             close_windows_job(job_handle)
-            diagnostic_thread.join(timeout=1)
+            if diagnostic_thread is not None:
+                diagnostic_thread.join(timeout=1)
             with contextlib.suppress(OSError):
                 stderr_stream.close()
-            diagnostic_thread.join(timeout=1)
+            if diagnostic_thread is not None:
+                diagnostic_thread.join(timeout=1)
 
         if process.returncode != 0:
-            detail = diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()[-500:]
+            detail = (
+                diagnostic_tail.bytes().decode("utf-8", errors="replace").strip()[-500:]
+                if diagnostic_tail is not None
+                else ""
+            )
             if detail:
                 logger.warning("Browser crawl worker failed: %s", detail)
             return []

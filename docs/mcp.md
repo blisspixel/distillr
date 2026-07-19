@@ -69,7 +69,7 @@ crawling, writes, or spend, and that preview is allowed even when
 |---|---|
 | `list_topics` | Free list of the corpus topics, so tool-only clients can discover what exists before calling a topic-scoped tool |
 | `find_insights_summary` | Token-bounded, query-focused brief over a topic's matching insights (cached by corpus revision -- repeats are free; spend-gated in read-only mode) |
-| `list_topic_summary` | Free one-paragraph topic orientation for sub-agents choosing where to query |
+| `list_topic_summary` | Free bounded topic orientation with explicit synthesis evidence status for sub-agents choosing where to query |
 | `ask` | Answer a question grounded only in a topic's corpus, with cited sources (promotion via --save is CLI-only; citation failures return `status: refused`) |
 | `find_insights` | Ranked `(path, preview, score)` matches for a topic + query - paths, not payloads |
 | `read_insight` | Read a specific insight artifact (drill-down after `find_insights`) |
@@ -85,13 +85,24 @@ and returns at most 200,000 content characters. A missing section is an error
 and never falls back to returning the full artifact. `ask` limits question and
 answer size before an oversized prompt or response can cross the MCP boundary.
 
+`list_topic_summary` reads only bounded prefixes from confined synthesis
+candidates. Its top-level `status` is `ok`, `degraded`, `unavailable`, or
+`error`; nested `synthesis.status` distinguishes `available`, `degraded`,
+`absent`, and `unavailable`. A rejected newest candidate can degrade to an older
+safe synthesis with the reason preserved. No synthesis is reported separately
+from unsafe, unreadable, invalid, or oversized synthesis evidence.
+
 **Watch & ops**
 
 | Tool | What it does |
 |---|---|
-| `watch_add` / `watch_remove` | Manage your watch list |
+| `watch_add` / `watch_remove` | Manage your watch list; additions validate and canonicalize a public HTTPS YouTube channel URL before lookup or mutation |
 | `costs` | Bounded cost history for `days` 1..3650 and `limit` 0..100, with explicit ledger coverage and returned-row total scope |
 | `doctor` | Environment + corpus health diagnostics |
+
+`watch_add` returns `status: invalid_url` before allowlist, configuration,
+discovery, or state access when the URL contains credentials, query text, a
+fragment, a custom port, an unsupported host, or a non-channel path.
 
 **OKF interop**
 

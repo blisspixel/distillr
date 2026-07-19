@@ -98,6 +98,120 @@ def test_skill_bundle_copies_the_input_mapping() -> None:
     assert bundle.files == {PurePosixPath("SKILL.md"): b"content"}
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "../secret",
+        "/absolute",
+        r"..\secret",
+        r"folder\secret",
+        r"C:\secret",
+        r"C:secret",
+        r"\\server\share\secret",
+        "CON",
+        "nested/NUL.txt",
+        "name:stream",
+        "trailing.",
+        "trailing ",
+    ],
+)
+def test_safe_relative_rejects_cross_platform_unsafe_paths(value: str) -> None:
+    with pytest.raises(SkillBundleError, match="Unsafe"):
+        bundle_module._safe_relative(value)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"name": "another-skill"}, "identity"),
+        ({"version": "next"}, "version"),
+        ({"bundle_sha256": "bad"}, "digest"),
+        ({"files": {}}, "must not be empty"),
+        ({"files": {PurePosixPath("README.md"): b"content"}}, r"missing SKILL\.md"),
+        (
+            {"files": {PurePosixPath(".distill-install.json"): b"{}"}},
+            "ownership manifest",
+        ),
+    ],
+)
+def test_skill_bundle_constructor_enforces_identity_and_inventory(
+    kwargs: dict[str, object], message: str
+) -> None:
+    files = {PurePosixPath("SKILL.md"): b"content"}
+    values: dict[str, object] = {
+        "name": "distill-corpus",
+        "version": "1.0.0",
+        "bundle_sha256": tree_digest(files),
+        "files": files,
+    }
+    values.update(kwargs)
+    with pytest.raises(SkillBundleError, match=message):
+        bundle_module.SkillBundle(**values)  # pyright: ignore[reportArgumentType]
+
+
+def test_skill_bundle_constructor_rejects_wrong_key_payload_and_digest() -> None:
+    files = {PurePosixPath("SKILL.md"): b"content"}
+    with pytest.raises(SkillBundleError, match="PurePosixPath"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256=tree_digest(files),
+            files={"SKILL.md": b"content"},  # type: ignore[dict-item]
+        )
+    with pytest.raises(SkillBundleError, match="payload must be bytes"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256=tree_digest(files),
+            files={PurePosixPath("SKILL.md"): bytearray(b"content")},  # type: ignore[dict-item]
+        )
+    with pytest.raises(SkillBundleError, match="tree digest"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256="0" * 64,
+            files=files,
+        )
+
+
+def test_skill_bundle_constructor_enforces_resource_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = {PurePosixPath("SKILL.md"): b"ab"}
+    monkeypatch.setattr(bundle_module, "_MAX_FILE_BYTES", 1)
+    with pytest.raises(SkillBundleError, match="file is too large"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256=tree_digest(files),
+            files=files,
+        )
+
+    monkeypatch.setattr(bundle_module, "_MAX_FILE_BYTES", 1_000_000)
+    monkeypatch.setattr(bundle_module, "_MAX_BUNDLE_BYTES", 1)
+    with pytest.raises(SkillBundleError, match="total size"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256=tree_digest(files),
+            files=files,
+        )
+
+    monkeypatch.setattr(bundle_module, "_MAX_BUNDLE_BYTES", 5_000_000)
+    monkeypatch.setattr(bundle_module, "_MAX_FILES", 1)
+    bounded_files = {
+        PurePosixPath("SKILL.md"): b"a",
+        PurePosixPath("references/worker.md"): b"b",
+    }
+    with pytest.raises(SkillBundleError, match="file-count"):
+        bundle_module.SkillBundle(
+            name="distill-corpus",
+            version="1.0.0",
+            bundle_sha256=tree_digest(bounded_files),
+            files=bounded_files,
+        )
+
+
 def test_custom_bundle_loads_and_detects_content_or_inventory_drift(tmp_path: Path) -> None:
     root, manifest = _fixture(tmp_path)
     loaded = bundle_module._load_bundle(root, manifest)
@@ -177,13 +291,6 @@ def test_bundle_requires_manifest_directory_and_skill_entrypoint(tmp_path: Path)
     _write_manifest(root, manifest)
     with pytest.raises(SkillBundleError, match="ownership manifest"):
         bundle_module._load_bundle(root, manifest)
-
-
-def test_safe_relative_rejects_parent_and_absolute_paths() -> None:
-    with pytest.raises(SkillBundleError, match="Unsafe"):
-        bundle_module._safe_relative("../secret")
-    with pytest.raises(SkillBundleError, match="Unsafe"):
-        bundle_module._safe_relative("/absolute")
 
 
 def test_resource_reader_enforces_file_total_and_count_bounds(

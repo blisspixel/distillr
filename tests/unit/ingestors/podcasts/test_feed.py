@@ -51,6 +51,48 @@ class TestFetchErrorTranslation:
         with pytest.raises(feed_mod.PodcastFetchError, match="Could not fetch feed"):
             feed_mod.fetch_feed("https://example.com/feed.xml")
 
+    def test_fetch_errors_omit_secret_url_components(self, monkeypatch):
+        raw = "https://user:password@example.com/private/feed.xml?token=ERROR-CANARY"
+
+        def boom(_request, timeout=60):
+            raise NetworkError(f"failed for {raw}")
+
+        monkeypatch.setattr(feed_mod, "safe_urlopen", boom)
+        with pytest.raises(feed_mod.PodcastFetchError) as exc_info:
+            feed_mod.fetch_feed(raw)
+
+        message = str(exc_info.value)
+        assert "https://example.com" in message
+        assert "password" not in message
+        assert "private" not in message
+        assert "ERROR-CANARY" not in message
+
+    def test_fetch_size_errors_omit_secret_url_components(self, monkeypatch):
+        raw = "https://example.com/private/feed.xml?token=SIZE-CANARY"
+        _stub_urlopen(monkeypatch, b"abcd")
+
+        with pytest.raises(feed_mod.PodcastFetchError) as exc_info:
+            feed_mod._fetch_bytes(raw, max_bytes=3, what="feed")
+
+        message = str(exc_info.value)
+        assert "https://example.com" in message
+        assert "private" not in message
+        assert "SIZE-CANARY" not in message
+
+    def test_fetch_request_retains_raw_url_for_legitimate_network_semantics(self, monkeypatch):
+        raw = "https://example.com/feed.xml?cursor=two&signature=FETCH-CANARY"
+        captured: dict[str, str] = {}
+
+        def fake_urlopen(request, timeout=60):
+            captured["url"] = request.full_url
+            return _BytesResponse(_RSS.encode("utf-8"))
+
+        monkeypatch.setattr(feed_mod, "safe_urlopen", fake_urlopen)
+
+        feed_mod.fetch_feed(raw)
+
+        assert captured["url"] == raw
+
 
 _RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"

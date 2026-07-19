@@ -401,40 +401,6 @@ def test_adapter_doctor_posix_probes_keep_resolved_executable_identity(monkeypat
     assert all(command[0].startswith("/opt/adapters/") for command in commands)
 
 
-def test_adapter_command_runner_keeps_shell_disabled(monkeypatch):
-    executable = r"C:\Program Files\adapter shims\codex.cmd"
-    calls: list[tuple[list[str], dict[str, object]]] = []
-
-    def run(command: list[str], **kwargs: object):
-        calls.append((command, kwargs))
-        return adapters.subprocess.CompletedProcess(command, 0, "codex 0.140.0\n", "")
-
-    monkeypatch.setattr(adapters.subprocess, "run", run)
-    monkeypatch.setattr(
-        adapters,
-        "package_install_context",
-        lambda: ("/trusted", {"PATH": "/opt/adapters"}),
-    )
-
-    result = adapters._run_command((executable, "--version"), 7)
-
-    assert result == (0, "codex 0.140.0\n", "")
-    assert calls == [
-        (
-            [executable, "--version"],
-            {
-                "capture_output": True,
-                "text": True,
-                "timeout": 7,
-                "check": False,
-                "shell": False,
-                "cwd": "/trusted",
-                "env": {"PATH": "/opt/adapters"},
-            },
-        )
-    ]
-
-
 def _command_key(command: Sequence[str]) -> tuple[str, ...]:
     executable = command[0].replace("\\", "/").rsplit("/", maxsplit=1)[-1]
     for suffix in (".bat", ".cmd", ".com", ".exe"):

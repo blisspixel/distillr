@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from xml.etree.ElementTree import Element
 
-from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.ingestors.net import NetworkError, safe_urlopen, url_for_diagnostic
 from distill.library.source_ledger import validate_source_id
 from distill.parsing import parse_ascii_uint
 from distill.xml_stream import iter_bounded_xml_events
@@ -384,6 +384,7 @@ def parse_feed(xml_text: str) -> PodcastFeed:
 
 
 def _fetch_bytes(url: str, *, max_bytes: int, what: str) -> bytes:
+    displayed_url = url_for_diagnostic(url)
     request = urllib.request.Request(url, headers={"User-Agent": "distillr"})
     try:
         with safe_urlopen(request, timeout=60) as resp:
@@ -396,9 +397,9 @@ def _fetch_bytes(url: str, *, max_bytes: int, what: str) -> bytes:
         OSError,
         ValueError,
     ) as exc:
-        raise PodcastFetchError(f"Could not fetch {what} from {url}: {exc}") from exc
+        raise PodcastFetchError(f"Could not fetch {what} from {displayed_url}.") from exc
     if len(data) > max_bytes:
-        raise PodcastFetchError(f"{what} at {url} exceeds the {max_bytes:,}-byte cap.")
+        raise PodcastFetchError(f"{what} at {displayed_url} exceeds the {max_bytes:,}-byte cap.")
     return data
 
 

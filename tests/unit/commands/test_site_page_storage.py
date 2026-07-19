@@ -1,16 +1,19 @@
-"""Regression tests for collision-resistant site page persistence."""
+"""Regression tests for site page ownership and persistence."""
 
 from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from hashlib import sha256
 from threading import Barrier
+from types import SimpleNamespace
 
 import pytest
 
 from distill.commands import _site_ingest as ingest_mod
 from distill.commands import _site_page_storage as storage_mod
 from distill.config import DistillConfig
+from distill.ingestors.sites.attachments import AttachmentRecord
 from distill.ingestors.sites.scraper import (
     SitePage,
     SiteSeed,
@@ -67,20 +70,37 @@ def test_exact_report_collision_reserves_distinct_owned_directories(tmp_path):
     second_owned = storage_mod.reserve_site_page_directory(config, "web", "shared.example", second)
 
     assert first_owned.path != second_owned.path
-    assert first_owned.source_id == first.page_id
-    assert second_owned.source_id == second.page_id
-    assert (
-        json.loads((first_owned.path / ".source_meta.json").read_text(encoding="utf-8"))[
-            "source_id"
-        ]
-        == first.final_url
+    first_owner = json.loads((first_owned.path / ".source_meta.json").read_text(encoding="utf-8"))
+    second_owner = json.loads((second_owned.path / ".source_meta.json").read_text(encoding="utf-8"))
+    assert first_owner["schema_version"] == 2
+    assert second_owner["schema_version"] == 2
+    assert first_owner["source_id"] == first.final_url
+    assert second_owner["source_id"] == second.final_url
+    assert first_owned.source_id == first_owner["source_hash"]
+    assert second_owned.source_id == second_owner["source_hash"]
+
+
+def test_query_sensitive_owner_identity_never_persists_raw_url(tmp_path):
+    config = _config(tmp_path)
+    first_url = "https://shared.example/docs/report?version=1&token=FIRST-CANARY"
+    second_url = "https://shared.example/docs/report?version=2&token=SECOND-CANARY"
+
+    first = storage_mod.reserve_site_page_directory(
+        config, "web", "shared.example", _page(first_url)
     )
-    assert (
-        json.loads((second_owned.path / ".source_meta.json").read_text(encoding="utf-8"))[
-            "source_id"
-        ]
-        == second.final_url
+    second = storage_mod.reserve_site_page_directory(
+        config, "web", "shared.example", _page(second_url)
     )
+
+    assert first.path != second.path
+    assert first.source_url == second.source_url == "https://shared.example/docs/report"
+    assert first.source_id != second.source_id
+    expected = sha256(b"distill-site-owner-v2\0" + first_url.encode("utf-8")).hexdigest()
+    assert first.source_id == expected
+    owner_text = (first.path / ".source_meta.json").read_text(encoding="utf-8")
+    owner_text += (second.path / ".source_meta.json").read_text(encoding="utf-8")
+    assert "FIRST-CANARY" not in owner_text
+    assert "SECOND-CANARY" not in owner_text
 
 
 def test_same_landed_url_reuses_owned_directory_when_title_changes(tmp_path):
@@ -96,7 +116,7 @@ def test_same_landed_url_reuses_owned_directory_when_title_changes(tmp_path):
     assert renamed_owned.path == first_owned.path
 
 
-def test_full_owner_check_separates_forced_digest_collision(tmp_path, monkeypatch):
+def test_full_owner_check_separates_forced_allocator_collision(tmp_path, monkeypatch):
     config = _config(tmp_path)
     monkeypatch.setattr(storage_mod, "site_page_id", lambda _url: "a" * 64)
 
@@ -167,6 +187,36 @@ def test_valid_legacy_directory_is_claimed_without_moving_data(tmp_path):
         json.loads((legacy / ".source_meta.json").read_text(encoding="utf-8"))["source_id"]
         == page.final_url
     )
+
+
+def test_matching_v1_owner_is_rewritten_to_sanitized_v2_under_reservation(tmp_path):
+    config = _config(tmp_path)
+    raw_url = "https://shared.example/docs/legacy?token=V1-CANARY"
+    page = _page(raw_url)
+    pages_dir = config.site_pages_dir("web", "shared.example")
+    page_dir = pages_dir / site_page_id(raw_url)
+    page_dir.mkdir(parents=True)
+    (page_dir / ".source_meta.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source_type": "site_page",
+                "source_id": raw_url,
+                "source_hash": site_page_id(raw_url),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    owned = storage_mod.reserve_site_page_directory(config, "web", "shared.example", page)
+
+    owner_text = (owned.path / ".source_meta.json").read_text(encoding="utf-8")
+    owner = json.loads(owner_text)
+    assert owned.path == page_dir
+    assert owner["schema_version"] == 2
+    assert owner["source_id"] == "https://shared.example/docs/legacy"
+    assert owner["source_hash"] == owned.source_id
+    assert "V1-CANARY" not in owner_text
 
 
 def test_unprovable_legacy_directory_is_preserved_but_not_claimed(tmp_path):
@@ -243,7 +293,7 @@ def test_concurrent_forced_collision_claims_are_atomic(tmp_path, monkeypatch):
         owned = [future.result(timeout=10) for future in futures]
 
     assert {item.path.name for item in owned} == {"c" * 64, f"{'c' * 64}_2"}
-    assert len({item.source_url for item in owned}) == 2
+    assert len({item.source_id for item in owned}) == 2
 
 
 def test_absent_optional_outputs_remove_only_owned_generated_files(tmp_path):
@@ -313,3 +363,125 @@ def test_process_site_seed_preserves_both_colliding_sources(tmp_path, monkeypatc
     for source_url, path in owners.items():
         assert source_url in find_artifact(path, "content").read_text(encoding="utf-8")
         assert source_url in find_artifact(path, "insights").read_text(encoding="utf-8")
+
+
+def test_process_site_seed_sanitizes_every_post_fetch_consumer(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    config.distill_verify = "strict"
+    seed_url = "https://seed-user:seed-pass@shared.example/docs?token=SEED-CANARY#fragment"
+    page_url = (
+        "https://page-user:page-pass@shared.example/docs/report"
+        "?view=full&token=PAGE-CANARY#fragment"
+    )
+    pdf_url = "https://cdn.example/private/guide.pdf?signature=PDF-CANARY"
+    video_url = "https://www.youtube.com/watch?v=abc123&token=VIDEO-LINK-CANARY"
+    page = SitePage(
+        url=page_url,
+        final_url=page_url,
+        canonical_url=page_url,
+        source_url=seed_url,
+        title="Privacy report",
+        site_name="shared.example",
+        page_type="article",
+        text="Stable report content.",
+        links=[f"{page_url}&next=LINK-CANARY"],
+        pdf_links=[pdf_url],
+        video_links=[video_url],
+    )
+    captured: dict[str, object] = {}
+
+    def fake_attachments(raw_page, page_dir, _config, *, tracker):
+        captured["attachment_page"] = raw_page
+        attachments_dir = page_dir / "attachments"
+        attachments_dir.mkdir(parents=True, exist_ok=True)
+        raw_text_path = "guide-PDF-CANARY.txt"
+        (attachments_dir / raw_text_path).write_text(
+            "Extracted attachment content.", encoding="utf-8"
+        )
+        return (
+            [
+                AttachmentRecord(
+                    url=pdf_url,
+                    kind="pdf",
+                    status="ingested",
+                    text_path=raw_text_path,
+                ),
+                AttachmentRecord(url=video_url, kind="video", provider="youtube"),
+            ],
+            f"### PDF Attachment: {pdf_url}\nExtracted attachment content.\n\n"
+            f"### YouTube Attachment: {video_url}\nVideo transcript.",
+        )
+
+    def fake_analysis(safe_page, *_args, **_kwargs):
+        captured["analysis_page"] = safe_page
+        return "# Safe insight"
+
+    monkeypatch.setattr(ingest_mod, "crawl_site", lambda _seed: [page])
+    monkeypatch.setattr(ingest_mod, "ingest_page_attachments", fake_attachments)
+    monkeypatch.setattr(ingest_mod, "analyze_site_page", fake_analysis)
+    monkeypatch.setattr(
+        ingest_mod,
+        "synthesize_site",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("synthesis failed")),
+    )
+    monkeypatch.setattr(ingest_mod, "resolve_intent", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "distill.pipeline.verify.run_verify_hook",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            report=SimpleNamespace(ok=False),
+            refused=True,
+            summary_line="verification refused",
+        ),
+    )
+    summary = RunSummary(command="site-privacy")
+
+    result = ingest_mod.process_site_seed(
+        SiteSeed(
+            url=seed_url,
+            topic="web",
+            site_name="seed-user-seed-pass@shared.example",
+        ),
+        config,
+        CostTracker(),
+        summary,
+        ingest_attachments=True,
+    )
+
+    raw_attachment_page = captured["attachment_page"]
+    assert isinstance(raw_attachment_page, SitePage)
+    assert raw_attachment_page.final_url == page_url
+    assert raw_attachment_page.pdf_links == [pdf_url]
+    safe_analysis_page = captured["analysis_page"]
+    assert isinstance(safe_analysis_page, SitePage)
+    assert safe_analysis_page.final_url == "https://shared.example/docs/report"
+    assert safe_analysis_page.source_url == "https://shared.example/docs"
+    assert safe_analysis_page.pdf_links == ["https://cdn.example/private/guide.pdf"]
+    assert safe_analysis_page.video_links == ["https://www.youtube.com/watch?v=abc123"]
+    assert "https://www.youtube.com/watch?v=abc123" in (safe_analysis_page.attachment_context)
+    assert "PDF-CANARY" not in safe_analysis_page.attachment_context
+
+    canaries = (
+        "SEED-CANARY",
+        "PAGE-CANARY",
+        "LINK-CANARY",
+        "PDF-CANARY",
+        "VIDEO-LINK-CANARY",
+        "seed-pass",
+        "page-pass",
+    )
+    persisted = []
+    for path in config.library_dir.rglob("*"):
+        persisted.append(str(path))
+        if path.is_file():
+            persisted.append(path.read_text(encoding="utf-8"))
+    run_evidence = json.dumps(
+        {
+            "issues": [issue.to_dict() for issue in summary.issues],
+            "outputs": [str(path) for path in summary.output_files],
+        }
+    )
+    combined = "\n".join([*persisted, run_evidence])
+    assert result.page_count == 1
+    assert {issue.context for issue in summary.issues} == {"https://shared.example"}
+    for canary in canaries:
+        assert canary not in combined

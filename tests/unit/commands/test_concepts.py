@@ -273,7 +273,7 @@ class TestConceptsCommand:
         from distill.library.state import Library
 
         lib = Library(fixture_config)
-        lib.add_channel("tkg", "https://example.com", "TestChan")
+        lib.add_channel("tkg", "https://youtube.com/@TestChan", "TestChan")
 
         result = runner.invoke(cli.app, ["health", "tkg"])
         assert result.exit_code == 0

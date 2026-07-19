@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from distill.library import migration as migration_mod
 from distill.library.migration import (
     FrontmatterFieldAction,
     MigrationAction,
@@ -211,6 +212,98 @@ class TestApplyMigration:
         assert "[[insights" not in updated_content
         assert "[[my-topic_Insights" in updated_content
 
+    def test_link_update_skips_hidden_ancestors(self, library_dir: Path) -> None:
+        """Link repair uses the same hidden-ancestor exclusion as discovery."""
+        artifact_dir, visible_ref, actions = _legacy_insights_with_reference(library_dir)
+        hidden_ref = library_dir / "topics" / ".history" / "snapshot.md"
+        hidden_ref.parent.mkdir(parents=True)
+        hidden_ref.write_text("See [[insights|Snapshot]].\n", encoding="utf-8")
+
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 1
+        assert result.links_updated == 1
+        assert result.errors == []
+        assert "[[my-topic_Insights|X]]" in visible_ref.read_text(encoding="utf-8")
+        assert hidden_ref.read_text(encoding="utf-8") == "See [[insights|Snapshot]].\n"
+        assert (artifact_dir / "my-topic_Insights.md").exists()
+
+    def test_link_update_accepts_exact_byte_ceiling(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A valid regular Markdown file exactly at the input ceiling is repaired."""
+        _artifact_dir, ref, actions = _legacy_insights_with_reference(library_dir)
+        prefix = "See [[insights|X]].\n"
+        limit = len(prefix.encode("utf-8")) + 17
+        ref.write_bytes((prefix + ("x" * 17)).encode("utf-8"))
+        monkeypatch.setattr(migration_mod, "_MAX_WIKI_LINK_MARKDOWN_BYTES", limit)
+
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.links_updated == 1
+        assert result.errors == []
+        assert "[[my-topic_Insights|X]]" in ref.read_text(encoding="utf-8")
+
+    def test_link_update_reports_oversized_and_invalid_utf8_files(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Bounded reads distinguish oversized input from an undecodable file."""
+        _artifact_dir, ref, actions = _legacy_insights_with_reference(library_dir)
+        oversized = library_dir / "topics" / "oversized.md"
+        oversized.write_text("[[insights]] too large", encoding="utf-8")
+        corrupt = library_dir / "topics" / "corrupt.md"
+        corrupt.write_bytes(b"[[insights]]\xff")
+        monkeypatch.setattr(migration_mod, "_MAX_WIKI_LINK_MARKDOWN_BYTES", 16)
+
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 1
+        assert result.links_updated == 0
+        assert any(str(ref) in error and "exceeds" in error for error in result.errors)
+        assert any(str(oversized) in error and "exceeds" in error for error in result.errors)
+        assert any(str(corrupt) in error and "invalid UTF-8" in error for error in result.errors)
+
+    def test_link_update_rejects_symlink_and_hardlink_candidates(self, library_dir: Path) -> None:
+        """No-follow repair refuses link-like candidates without touching their targets."""
+        _artifact_dir, _ref, actions = _legacy_insights_with_reference(library_dir)
+        outside = library_dir.parent / "outside.md"
+        outside.write_text("See [[insights|Outside]].\n", encoding="utf-8")
+        symlink = library_dir / "topics" / "linked.md"
+        try:
+            symlink.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlinks unavailable: {exc}")
+        hardlink = library_dir / "topics" / "hardlinked.md"
+        try:
+            hardlink.hardlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"hardlinks unavailable: {exc}")
+
+        result = apply_migration(actions, library_dir=library_dir)
+
+        assert result.files_renamed == 1
+        assert (
+            sum("not a confined single-link regular file" in error for error in result.errors) == 2
+        )
+        assert outside.read_text(encoding="utf-8") == "See [[insights|Outside]].\n"
+
+    def test_out_of_root_action_is_rejected(self, library_dir: Path) -> None:
+        """Manually supplied actions cannot rename files across the library boundary."""
+        outside = library_dir.parent / "insights.md"
+        outside.write_text("outside\n", encoding="utf-8")
+        action = MigrationAction(
+            source_path=outside,
+            target_path=library_dir / "topics" / "outside_Insights.md",
+            action_type="rename",
+            details="outside",
+        )
+
+        result = apply_migration([action], library_dir=library_dir)
+
+        assert result.files_renamed == 0
+        assert outside.exists()
+        assert any("outside the migration root" in error for error in result.errors)
+
     def test_duplicate_legacy_stems_update_only_colocated_links(
         self,
         library_dir: Path,
@@ -351,11 +444,12 @@ class TestApplyMigration:
         """An unreadable file during link update is skipped; the rename still succeeds."""
         artifact_dir, _ref, actions = _legacy_insights_with_reference(library_dir)
 
-        monkeypatch.setattr(Path, "read_text", _raise_oserror)
+        monkeypatch.setattr(migration_mod, "read_confined_text", lambda *_args, **_kwargs: None)
         result = apply_migration(actions, library_dir=library_dir)
 
         assert result.files_renamed == 1
         assert result.links_updated == 0
+        assert any("unreadable, unstable, or invalid UTF-8" in error for error in result.errors)
         # The rename genuinely happened on disk even though link update could not read.
         assert not (artifact_dir / "insights.md").exists()
         assert (artifact_dir / "my-topic_Insights.md").exists()
@@ -363,7 +457,7 @@ class TestApplyMigration:
     def test_link_update_write_failure_degrades_cleanly(
         self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A write failure during link update is swallowed with a warning, not a crash."""
+        """A write failure is returned exactly while the successful rename remains."""
         _artifact_dir, ref, actions = _legacy_insights_with_reference(library_dir)
 
         monkeypatch.setattr("distill.library.migration.atomic_write_text", _raise_oserror)
@@ -371,8 +465,31 @@ class TestApplyMigration:
 
         assert result.files_renamed == 1
         assert result.links_updated == 0
+        assert len(result.errors) == 1
+        assert str(ref) in result.errors[0]
+        assert "simulated IO failure" in result.errors[0]
         # The referencing file is left untouched on disk.
         assert "[[insights|X]]" in ref.read_text(encoding="utf-8")
+
+    def test_retry_after_link_write_failure_converges(
+        self, library_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A retry reuses a completed rename and repairs the remaining stale link."""
+        artifact_dir, ref, actions = _legacy_insights_with_reference(library_dir)
+        real_writer = migration_mod.atomic_write_text
+        monkeypatch.setattr(migration_mod, "atomic_write_text", _raise_oserror)
+
+        first = apply_migration(actions, library_dir=library_dir)
+        monkeypatch.setattr(migration_mod, "atomic_write_text", real_writer)
+        second = apply_migration(actions, library_dir=library_dir)
+
+        assert first.files_renamed == 1
+        assert first.errors
+        assert second.files_renamed == 0
+        assert second.links_updated == 1
+        assert second.errors == []
+        assert (artifact_dir / "my-topic_Insights.md").exists()
+        assert "[[my-topic_Insights|X]]" in ref.read_text(encoding="utf-8")
 
 
 class TestComputeModernName:

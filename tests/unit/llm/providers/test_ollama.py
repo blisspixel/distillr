@@ -20,6 +20,7 @@ from hypothesis import strategies as st
 
 from distill.commands._json import ExitCode, map_exception_to_exit_code
 from distill.llm.errors import ProviderBusyTimeoutError, describe_provider_error
+from distill.llm.providers import ollama as ollama_module
 from distill.llm.providers.ollama import (
     _STRUCTURED_JSON_CALL_TYPES,
     OllamaProvider,
@@ -840,48 +841,177 @@ class TestOllamaGetContextWindow:
 class TestOllamaListModels:
     """Test OllamaProvider.list_models()."""
 
+    class _TagsResponse:
+        def __init__(self, *chunks: bytes, status_code: int = 200) -> None:
+            self.chunks = chunks
+            self.status_code = status_code
+            self.closed = False
+
+        async def aiter_bytes(self) -> AsyncIterator[bytes]:
+            for chunk in self.chunks:
+                yield chunk
+
+        def raise_for_status(self) -> None:
+            if self.status_code >= 400:
+                request = httpx.Request("GET", "http://localhost:11434/api/tags")
+                raise httpx.HTTPStatusError(
+                    f"HTTP {self.status_code}",
+                    request=request,
+                    response=httpx.Response(self.status_code, request=request),
+                )
+
+    class _TagsStream:
+        def __init__(self, response: TestOllamaListModels._TagsResponse) -> None:
+            self.response = response
+
+        async def __aenter__(self) -> TestOllamaListModels._TagsResponse:
+            return self.response
+
+        async def __aexit__(self, *exc: object) -> None:
+            self.response.closed = True
+
+    class _TagsClient:
+        def __init__(
+            self,
+            response: TestOllamaListModels._TagsResponse,
+            *,
+            failure: Exception | None = None,
+        ) -> None:
+            self.response = response
+            self.failure = failure
+            self.closed = False
+
+        async def __aenter__(self) -> TestOllamaListModels._TagsClient:
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            self.closed = True
+
+        def stream(self, method: str, url: str) -> TestOllamaListModels._TagsStream:
+            assert method == "GET"
+            assert url == "http://localhost:11434/api/tags"
+            if self.failure is not None:
+                raise self.failure
+            return TestOllamaListModels._TagsStream(self.response)
+
     def test_list_models_returns_model_list(self) -> None:
         """list_models returns the models from /api/tags."""
         provider = OllamaProvider(base_url="http://localhost:11434")
         json_data = _make_tags_response(["llama3:8b", "qwen3.5:27b"])
-        mock_response = httpx.Response(
-            status_code=200,
-            json=json_data,
-            request=httpx.Request("GET", "http://localhost:11434/api/tags"),
-        )
+        response = self._TagsResponse(json.dumps(json_data).encode("utf-8"))
+        client = self._TagsClient(response)
 
-        async def mock_get(*args: Any, **kwargs: Any) -> httpx.Response:
-            return mock_response
-
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.get = mock_get
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
-
+        with patch("httpx.AsyncClient", return_value=client):
             result = asyncio.run(provider.list_models())
 
         assert len(result) == 2
         assert result[0]["name"] == "llama3:8b"
         assert result[1]["name"] == "qwen3.5:27b"
+        assert response.closed is True
+        assert client.closed is True
 
     def test_list_models_connection_error(self) -> None:
         """list_models raises ConnectionError when server unreachable."""
         provider = OllamaProvider(base_url="http://localhost:11434")
+        response = self._TagsResponse()
+        client = self._TagsClient(response, failure=httpx.ConnectError("Connection refused"))
 
-        async def mock_get(*args: Any, **kwargs: Any) -> httpx.Response:
-            raise httpx.ConnectError("Connection refused")
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            pytest.raises(ConnectionError, match="Cannot reach Ollama"),
+        ):
+            asyncio.run(provider.list_models())
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.get = mock_get
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+        assert client.closed is True
 
-            with pytest.raises(ConnectionError, match="Cannot reach Ollama"):
-                asyncio.run(provider.list_models())
+    def test_list_models_accepts_exact_response_limit_and_rejects_one_byte_over(
+        self, monkeypatch
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        payload = b'{"models":[]}'
+        monkeypatch.setattr(ollama_module, "_TAGS_RESPONSE_BYTES", len(payload))
+        exact = self._TagsResponse(payload[:5], payload[5:])
+
+        with patch("httpx.AsyncClient", return_value=self._TagsClient(exact)):
+            assert asyncio.run(provider.list_models()) == []
+
+        over = self._TagsResponse(payload, b" ")
+        with (
+            patch("httpx.AsyncClient", return_value=self._TagsClient(over)),
+            pytest.raises(ValueError, match="byte limit"),
+        ):
+            asyncio.run(provider.list_models())
+        assert over.closed is True
+
+    @pytest.mark.parametrize(
+        ("payload", "reason"),
+        [
+            (b"\xff", "UTF-8"),
+            (b"not-json", "valid JSON"),
+            (b"[]", "object"),
+            (b"{}", "models list"),
+            (b'{"models":{}}', "models list"),
+            (b'{"models":[1]}', "model object"),
+            (b'{"models":[{}]}', "name field"),
+        ],
+    )
+    def test_list_models_rejects_invalid_encoding_and_malformed_shape(
+        self, payload: bytes, reason: str
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        response = self._TagsResponse(payload)
+
+        with (
+            patch("httpx.AsyncClient", return_value=self._TagsClient(response)),
+            pytest.raises(ValueError, match=reason),
+        ):
+            asyncio.run(provider.list_models())
+
+        assert response.closed is True
+
+    def test_list_models_bounds_model_count_and_fields(self, monkeypatch) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        monkeypatch.setattr(ollama_module, "_TAGS_MAX_MODELS", 1)
+        payload = json.dumps(_make_tags_response(["one", "two"])).encode("utf-8")
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                return_value=self._TagsClient(self._TagsResponse(payload)),
+            ),
+            pytest.raises(ValueError, match="model count"),
+        ):
+            asyncio.run(provider.list_models())
+
+        monkeypatch.setattr(ollama_module, "_TAGS_MAX_MODELS", 10)
+        monkeypatch.setattr(ollama_module, "_TAGS_MAX_MODEL_FIELDS", 1)
+        payload = b'{"models":[{"name":"one","size":1}]}'
+        with (
+            patch(
+                "httpx.AsyncClient",
+                return_value=self._TagsClient(self._TagsResponse(payload)),
+            ),
+            pytest.raises(ValueError, match="field count"),
+        ):
+            asyncio.run(provider.list_models())
+
+    def test_list_models_preserves_bounded_normal_details(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        expected = {
+            "name": "qwen3.5:27b",
+            "size": 1_000_000,
+            "details": {
+                "family": "qwen3",
+                "families": ["qwen3"],
+                "quantization_level": "Q4_K_M",
+            },
+        }
+        payload = json.dumps({"models": [expected]}).encode("utf-8")
+
+        with patch("httpx.AsyncClient", return_value=self._TagsClient(self._TagsResponse(payload))):
+            result = asyncio.run(provider.list_models())
+
+        assert result == [expected]
 
 
 class TestOllamaProviderInit:

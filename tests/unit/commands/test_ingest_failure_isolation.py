@@ -182,7 +182,43 @@ class TestSiteLoopIsolation:
         assert "phase skipped (1 unchanged)" in out
         issues = [i for i in summary.issues if i.stage == "site-ingest"]
         assert len(issues) == 1
-        assert issues[0].context == "https://bad.example.com/a"
+        assert issues[0].context == "https://bad.example.com"
+
+    def test_discover_site_failure_sanitizes_output_and_run_evidence(self, tmp_path, capsys):
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")
+        raw_url = "https://user:DISCOVER-PASSWORD-CANARY@bad.example/private?token=DISCOVER-CANARY"
+        ranked = [
+            SimpleNamespace(
+                site_seed=SiteSeed(url=raw_url, topic="old"),
+                title="bad site",
+            )
+        ]
+        summary = RunSummary(command="discover")
+
+        def fail(*args, **kwargs):
+            raise RuntimeError(f"[bold]failed for {raw_url} EXCEPTION-CANARY[/bold]")
+
+        _discover_ingest.ingest_sites(
+            "web",
+            config,
+            CostTracker(),
+            summary,
+            ranked,
+            ingest_attachments=False,
+            has_videos=False,
+            process_site_seed_fn=fail,
+            synthesize_site_topic_fn=lambda *args, **kwargs: None,
+            find_artifact_fn=lambda *args, **kwargs: tmp_path / "unused.md",
+        )
+
+        [issue] = summary.issues
+        evidence = str(issue.to_dict())
+        output = capsys.readouterr().out
+        assert issue.context == "https://bad.example"
+        assert issue.message == "RuntimeError during site ingest"
+        assert "DISCOVER-CANARY" not in output + evidence
+        assert "EXCEPTION-CANARY" not in output + evidence
+        assert "DISCOVER-PASSWORD-CANARY" not in output + evidence
 
     def test_none_site_candidate_is_skipped_and_video_runs_skip_site_synthesis(self, tmp_path):
         config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "lib")

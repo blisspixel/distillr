@@ -700,7 +700,7 @@ def ingest_tweet(
        run Whisper, write Transcript.txt.
     4. If ``analyze`` is true, run the insight prompt and write Insights.md.
     """
-    console.print(f"  [cyan]X[/cyan]  fetching tweet [bold]{url_or_id}[/bold]")
+    console.print("  [cyan]X[/cyan]  fetching tweet")
     tweet = fetch_tweet(url_or_id)
     source_content_hash = _tweet_source_content_hash(tweet)
     existing_receipt = _existing_tweet_receipt(config, topic, tweet.tweet_id)

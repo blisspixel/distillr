@@ -304,6 +304,15 @@ Single-pass synthesis stays the default until the 1.0 golden-eval gate validates
 - Corpus reads exposed through MCP, local ingestion, cost history, and File
   Search use bounded no-follow regular-file validation. Linked, multiply
   linked, special, oversized, or identity-swapped files fail closed.
+- Public source URLs use three explicit views. Request code retains the complete
+  URL, persistent artifacts and model inputs retain scheme, authority, and
+  path, and diagnostics retain only the origin. Site ownership hashes the
+  complete canonical request identity with a domain separator so query-bearing
+  pages remain distinct without persisting URL capabilities.
+- Local provider status checks inspect response status without retaining bodies.
+  Ollama registry discovery and candidate adapter probes enforce byte,
+  structure, time, memory, output, and process-tree limits before their results
+  can influence readiness or routing evidence.
 - Concept storage keys retain legacy short slugs, bound long components with a
   stable digest, avoid Windows device names, and key collision history by the
   resolved live filename rather than a shared lossy slug.

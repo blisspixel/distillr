@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from hashlib import sha256
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
-from distill.ingestors.net import is_public_web_url
+from distill.ingestors.net import is_public_web_url, url_for_persistence
 from distill.library.paths import slugify_title
+from distill.youtube_urls import normalize_youtube_video_url
 
 MAX_SITE_CRAWL_DEPTH = 4
 MAX_SITE_CRAWL_PAGES = 100
@@ -31,7 +32,7 @@ def page_id_from_url(url: str) -> str:
 
 
 def site_page_id(url: str) -> str:
-    """Return a stable, collision-resistant identity for a landed page URL."""
+    """Return a stable allocator key for a landed page URL."""
 
     canonical_url = canonicalize_url(url)
     return sha256(canonical_url.encode("utf-8")).hexdigest()
@@ -177,7 +178,7 @@ def canonicalize_url(url: str) -> str:
             for part in parsed.query.split("&")
             if not part.startswith(("utm_", "fbclid=", "gclid="))
         ]
-        query = "&".join(sorted(filter(None, keep)))
+        query = "&".join(filter(None, keep))
     normalized = parsed._replace(
         scheme=parsed.scheme.lower(),
         netloc=netloc,
@@ -188,8 +189,54 @@ def canonicalize_url(url: str) -> str:
     return normalized.geturl()
 
 
+def site_url_for_persistence(url: str) -> str:
+    """Return the query-free site URL view used by storage and model boundaries."""
+
+    if not url:
+        return ""
+    return url_for_persistence(canonicalize_url(url))
+
+
+def site_embedded_url_for_persistence(url: str) -> str:
+    """Preserve only a validated YouTube video identity in an embedded URL."""
+
+    return normalize_youtube_video_url(url) or site_url_for_persistence(url)
+
+
+def site_url_list_for_persistence(urls: Sequence[str]) -> list[str]:
+    """Sanitize and order-dedupe a page's embedded URL inventory."""
+
+    sanitized: list[str] = []
+    seen: set[str] = set()
+    for url in urls:
+        safe_url = site_embedded_url_for_persistence(url)
+        if not safe_url or safe_url == "<invalid-url>" or safe_url in seen:
+            continue
+        seen.add(safe_url)
+        sanitized.append(safe_url)
+    return sanitized
+
+
+def site_attachment_context_for_persistence(
+    context: str,
+    urls: Sequence[str],
+) -> str:
+    """Replace attachment header URLs with their safe embedded identities."""
+
+    replacements: dict[str, str] = {}
+    for raw_url in urls:
+        replacements[raw_url] = site_embedded_url_for_persistence(raw_url)
+        normalized_video = normalize_youtube_video_url(raw_url)
+        if normalized_video:
+            replacements[normalized_video] = normalized_video
+    for raw_url in sorted(replacements, key=len, reverse=True):
+        if raw_url:
+            context = context.replace(raw_url, replacements[raw_url])
+    return context
+
+
 def normalize_host(url: str) -> str:
-    host = urlparse(url).netloc.lower()
+    host = urlparse(site_url_for_persistence(url)).netloc.lower()
     return host.removeprefix("www.")
 
 

@@ -165,6 +165,7 @@ class TestDoctorMigrationMode:
         assert result.exit_code == 0
         assert "Migration Plan (dry-run)" in result.output
         assert "RENAME:" in result.output
+        assert "Wiki-link repair follows successful renames" in result.output
 
     def test_migrate_links_apply(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -178,6 +179,33 @@ class TestDoctorMigrationMode:
         assert result.exit_code == 0
         assert "Migration Complete" in result.output
         assert (topic_dir / "ai_Insights.md").exists()
+
+    def test_migrate_links_apply_exits_nonzero_after_printing_write_error(
+        self, tmp_path, monkeypatch
+    ):
+        from distill.library import migration as migration_mod
+
+        config = _config(tmp_path)
+        topic_dir = config.library_dir / "topics" / "ai"
+        source_dir = topic_dir / "source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "insights.md").write_text("# Legacy\n", encoding="utf-8")
+        reference = topic_dir / "reference.md"
+        reference.write_text("See [[insights|X]].\n", encoding="utf-8")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+
+        def fail_write(_path, _content):
+            raise OSError("DOCTOR_LINK_WRITE_DENIED")
+
+        monkeypatch.setattr(migration_mod, "atomic_write_text", fail_write)
+        result = runner.invoke(cli.app, ["doctor", "--migrate-links", "--apply"])
+
+        assert result.exit_code == 1
+        assert "Migration Complete" in result.output
+        assert "Errors:" in result.output
+        assert reference.name in result.output
+        assert "DOCTOR_LINK_WRITE_DENIED" in result.output
+        assert (source_dir / "source_Insights.md").exists()
 
     def test_migrate_links_missing_library_exits(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -222,6 +250,28 @@ class TestDoctorMigrationMode:
         assert result.exit_code == 0
         assert "Frontmatter Migration Complete" in result.output
         assert "synthesis_scope:" in note.read_text(encoding="utf-8")
+
+    def test_migrate_frontmatter_apply_exits_nonzero_after_printing_error(
+        self, tmp_path, monkeypatch
+    ):
+        from distill.library import migration as migration_mod
+
+        config = _config(tmp_path)
+        note = config.library_dir / "topics" / "ai" / "note.md"
+        note.parent.mkdir(parents=True)
+        note.write_text("---\nconfidence: high\n---\n\nBody.\n", encoding="utf-8")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+
+        def fail_write(_path, _content):
+            raise OSError("DOCTOR_FRONTMATTER_WRITE_DENIED")
+
+        monkeypatch.setattr(migration_mod, "atomic_write_text", fail_write)
+        result = runner.invoke(cli.app, ["doctor", "--migrate-frontmatter", "--apply"])
+
+        assert result.exit_code == 1
+        assert "Frontmatter Migration Complete" in result.output
+        assert "Errors:" in result.output
+        assert "DOCTOR_FRONTMATTER_WRITE_DENIED" in result.output
 
     def test_migrate_frontmatter_nothing_found(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

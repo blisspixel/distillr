@@ -406,8 +406,8 @@ def _local_reachable(provider: str) -> str:
         base = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
         probe = base.rstrip("/") + "/models"
     try:
-        resp = httpx.get(probe, timeout=2.0)
-        return "reachable" if resp.status_code < 500 else "unreachable"
+        with httpx.stream("GET", probe, timeout=2.0) as response:
+            return "reachable" if response.status_code < 500 else "unreachable"
     except Exception:
         return "unreachable"
 

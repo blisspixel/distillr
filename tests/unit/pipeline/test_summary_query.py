@@ -585,8 +585,119 @@ class TestMcpTools:
 
         assert "Newest corpus synthesis paragraph wins." in result["summary"]
         assert result["from"] == "t_Corpus_Synthesis.md"
+        assert result["status"] == "ok"
+        assert result["evidence"]["status"] == "available"
+
+    def test_list_topic_summary_falls_back_from_newest_unsafe_symlink(self, config, monkeypatch):
+        import os
+
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        topic_dir = config.topic_dir("t")
+        topic_dir.mkdir(parents=True)
+        older = topic_dir / "t_Paper_Synthesis.md"
+        older.write_text("---\n---\n\nSafe fallback paragraph.\n", encoding="utf-8")
+        os.utime(older, (1_000_000, 1_000_000))
+        outside = config.library_dir.parent / "outside.md"
+        outside.write_text("---\n---\n\nMust not be followed.\n", encoding="utf-8")
+        newest = topic_dir / "t_Corpus_Synthesis.md"
+        try:
+            newest.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlinks unavailable: {exc}")
+
+        result = json.loads(list_topic_summary("t"))
+
+        assert result["status"] == "degraded"
+        assert result["from"] == older.name
+        assert result["summary"] == "Safe fallback paragraph."
+        assert result["evidence"] == {
+            "status": "degraded",
+            "newest": newest.name,
+            "selected": older.name,
+            "reason": "unsafe",
+        }
+
+    def test_list_topic_summary_falls_back_from_newest_unsafe_hardlink(self, config, monkeypatch):
+        import os
+
+        from distill.mcp import server as _server
+        from distill.mcp.tools.summaries import list_topic_summary
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        topic_dir = config.topic_dir("t")
+        topic_dir.mkdir(parents=True)
+        older = topic_dir / "t_Paper_Synthesis.md"
+        older.write_text("---\n---\n\nSafe hardlink fallback.\n", encoding="utf-8")
+        os.utime(older, (1_000_000, 1_000_000))
+        outside = config.library_dir.parent / "outside-hardlink.md"
+        outside.write_text("---\n---\n\nMust not be read.\n", encoding="utf-8")
+        newest = topic_dir / "t_Corpus_Synthesis.md"
+        try:
+            newest.hardlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"hardlinks unavailable: {exc}")
+        os.utime(outside, (2_000_000, 2_000_000))
+
+        result = json.loads(list_topic_summary("t"))
+
+        assert result["status"] == "degraded"
+        assert result["from"] == older.name
+        assert result["evidence"]["reason"] == "unsafe"
+
+    def test_list_topic_summary_accepts_exact_byte_limit_with_frontmatter_and_multibyte(
+        self, config, monkeypatch
+    ):
+        from distill.mcp import server as _server
+        from distill.mcp.tools import summaries as summaries_mod
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        topic_dir = config.topic_dir("t")
+        topic_dir.mkdir(parents=True)
+        synth = topic_dir / "t_Topic_Synthesis.md"
+        text = '---\ntitle: "Résumé"\n---\n\nRésumé 量子 synthesis.\n'
+        synth.write_bytes(text.encode("utf-8"))
+        monkeypatch.setattr(summaries_mod, "_MAX_SYNTHESIS_FILE_BYTES", len(text.encode("utf-8")))
+        monkeypatch.setattr(summaries_mod, "_MAX_SYNTHESIS_PREFIX_CHARS", len(text))
+
+        result = json.loads(summaries_mod.list_topic_summary("t"))
+
+        assert result["status"] == "ok"
+        assert result["summary"] == "Résumé 量子 synthesis."
+        assert result["from"] == synth.name
+
+    def test_list_topic_summary_exposes_oversized_and_invalid_utf8_evidence(
+        self, config, monkeypatch
+    ):
+        from distill.mcp import server as _server
+        from distill.mcp.tools import summaries as summaries_mod
+
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        topic_dir = config.topic_dir("t")
+        topic_dir.mkdir(parents=True)
+        synth = topic_dir / "t_Topic_Synthesis.md"
+        synth.write_text("---\n---\n\nOversized synthesis.\n", encoding="utf-8")
+        monkeypatch.setattr(summaries_mod, "_MAX_SYNTHESIS_FILE_BYTES", 8)
+
+        oversized = json.loads(summaries_mod.list_topic_summary("t"))
+
+        assert oversized["status"] == "unavailable"
+        assert oversized["evidence"]["reason"] == "oversized"
+        assert "No synthesis artifact yet" not in oversized["summary"]
+
+        synth.write_bytes(b"---\n---\n\n\xff")
+        monkeypatch.setattr(summaries_mod, "_MAX_SYNTHESIS_FILE_BYTES", 64)
+        corrupt = json.loads(summaries_mod.list_topic_summary("t"))
+
+        assert corrupt["status"] == "unavailable"
+        assert corrupt["evidence"]["reason"] == "unreadable"
+        assert "No synthesis artifact yet" not in corrupt["summary"]
 
     def test_list_topic_summary_skips_unreadable_synthesis(self, config, monkeypatch):
+        import os
+
         from distill.mcp import server as _server
         from distill.mcp.tools.summaries import list_topic_summary
 
@@ -599,20 +710,31 @@ class TestMcpTools:
             "---\n---\n\nReadable paper synthesis paragraph after read failure.\n",
             encoding="utf-8",
         )
+        os.utime(unreadable, (2_000_000, 2_000_000))
+        os.utime(fallback, (1_000_000, 1_000_000))
 
-        original_read_text = type(unreadable).read_text
+        from distill.mcp.tools import summaries as summaries_mod
 
-        def flaky_read_text(self, *args, **kwargs):
-            if self.name == "t_Topic_Synthesis.md":
-                raise OSError("denied")
-            return original_read_text(self, *args, **kwargs)
+        real_reader = summaries_mod.read_confined_text_prefix
 
-        monkeypatch.setattr(type(unreadable), "read_text", flaky_read_text)
+        def flaky_reader(path, root, *, max_file_bytes, max_chars):
+            if path.name == "t_Topic_Synthesis.md":
+                return None
+            return real_reader(
+                path,
+                root,
+                max_file_bytes=max_file_bytes,
+                max_chars=max_chars,
+            )
+
+        monkeypatch.setattr(summaries_mod, "read_confined_text_prefix", flaky_reader)
 
         result = json.loads(list_topic_summary("t"))
 
         assert "Readable paper synthesis paragraph after read failure." in result["summary"]
         assert result["from"] == "t_Paper_Synthesis.md"
+        assert result["status"] == "degraded"
+        assert result["evidence"]["reason"] == "unreadable"
 
     def test_list_topic_summary_skips_heading_only_blocks(self, config, monkeypatch):
         from distill.mcp import server as _server
@@ -628,7 +750,9 @@ class TestMcpTools:
 
         result = json.loads(list_topic_summary("t"))
 
-        assert "No synthesis artifact yet" in result["summary"]
+        assert result["status"] == "unavailable"
+        assert result["evidence"]["reason"] == "no_summary_text"
+        assert "no substantive prose" in result["summary"]
         assert result["from"] == ""
 
     def test_list_topic_summary_free_and_available_in_read_only(
@@ -651,6 +775,7 @@ class TestMcpTools:
         assert "grounding checkers" in result["summary"]
         assert result["insights"] == 1
         assert result["from"] == "t_Topic_Synthesis.md"
+        assert result["status"] == "ok"
 
     def test_list_topic_summary_without_synthesis(self, config, monkeypatch):
         from distill.mcp import server as _server
@@ -663,3 +788,10 @@ class TestMcpTools:
 
         assert "No synthesis artifact yet" in result["summary"]
         assert result["insights"] == 1
+        assert result["status"] == "unavailable"
+        assert result["evidence"] == {
+            "status": "absent",
+            "newest": "",
+            "selected": "",
+            "reason": "no_synthesis",
+        }

@@ -510,6 +510,18 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
     class _Response:
         status_code = 200
 
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            calls.append("response-closed")
+
+        @staticmethod
+        def read() -> bytes:
+            pytest.fail("LM Studio status check must not consume the response body")
+
+    calls: list[str] = []
+
     class _Client:
         def __init__(self, *, timeout: int) -> None:
             self.timeout = timeout
@@ -518,10 +530,11 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
             return self
 
         def __exit__(self, exc_type, exc, tb) -> None:
-            return None
+            calls.append("client-closed")
 
         @staticmethod
-        def get(url: str) -> _Response:
+        def stream(method: str, url: str) -> _Response:
+            assert method == "GET"
             assert url == "http://lmstudio.test/v1/models"
             return _Response()
 
@@ -529,22 +542,24 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_Client))
 
     assert checks.check_lmstudio_status() == "running"
+    assert calls == ["response-closed", "client-closed"]
 
-    class _UnavailableResponse:
+    class _UnavailableResponse(_Response):
         status_code = 500
 
     class _UnavailableClient(_Client):
         @staticmethod
-        def get(url: str) -> _UnavailableResponse:
+        def stream(method: str, url: str) -> _UnavailableResponse:
             return _UnavailableResponse()
 
     monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_UnavailableClient))
 
     assert checks.check_lmstudio_status() == "unavailable"
+    assert calls[-2:] == ["response-closed", "client-closed"]
 
     class _FailingClient(_Client):
         @staticmethod
-        def get(url: str) -> _Response:
+        def stream(method: str, url: str) -> _Response:
             raise OSError("offline")
 
     monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_FailingClient))

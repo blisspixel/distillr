@@ -36,6 +36,7 @@ def test_host_strips_www() -> None:
     assert _host("https://www.x.com/x") == "x.com"
     assert _host("https://x.com/x") == "x.com"
     assert _host("https://twitter.com/x") == "twitter.com"
+    assert _host("https://alice:password@www.x.com/status/1?token=canary") == "x.com"
 
 
 def _tweet() -> TweetRecord:
@@ -343,10 +344,41 @@ def test_ingest_cmd_invalid_tweet_url_exits_with_code_2(tmp_path: Path) -> None:
             xai_api_key="x", distill_output_dir=tmp_path / "lib"
         )
         runner = CliRunner()
-        result = runner.invoke(app, ["ingest", "https://x.com/alice/profile"])
+        result = runner.invoke(
+            app,
+            ["ingest", "https://x.com/alice/profile?access_token=X-CANARY"],
+        )
 
     assert result.exit_code == 2
     assert "tweet id" in result.stdout.lower()
+    assert "X-CANARY" not in result.stdout
+
+
+def test_ingest_tweet_preserves_raw_fetch_url_but_omits_it_from_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    raw = "https://x.com/alice/status/12345?access_token=FETCH-CANARY"
+    captured: dict[str, str] = {}
+
+    def fake_ingest(url: str, **_kwargs: object) -> IngestedTweet:
+        captured["url"] = url
+        return _ingested(tmp_path)
+
+    monkeypatch.setattr(_ingest, "ingest_tweet", fake_ingest)
+
+    _ingest._ingest_tweet_url(
+        raw,
+        "t",
+        _config(tmp_path),
+        CostTracker(),
+        transcribe=False,
+        analyze=False,
+    )
+
+    assert captured["url"] == raw
+    assert "FETCH-CANARY" not in capsys.readouterr().out
 
 
 def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
@@ -777,11 +809,17 @@ def test_ingest_github_reports_invalid_fetch_errors_and_skipped_reasons(
 
     with pytest.raises(typer.Exit) as invalid_exc:
         _ingest._ingest_github(
-            "https://github.com/settings", "t", config, CostTracker(), analyze=True
+            "https://github.com/settings?access_token=GITHUB-CANARY",
+            "t",
+            config,
+            CostTracker(),
+            analyze=True,
         )
 
     assert invalid_exc.value.exit_code == 2
-    assert "owner/repo" in capsys.readouterr().out
+    invalid_output = capsys.readouterr().out
+    assert "owner/repo" in invalid_output
+    assert "GITHUB-CANARY" not in invalid_output
 
     monkeypatch.setattr(
         _ingest,

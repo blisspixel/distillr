@@ -172,6 +172,11 @@ or use `distill reanalyze` for a registered channel or topic.
 
 The watch list is for channels you want to stay current on without running full analysis every time. Each watched channel has its own lookback window and optional custom analysis instructions.
 
+Watch URLs must be public HTTPS YouTube channel URLs without credentials,
+queries, fragments, or custom ports. Accepted `youtube.com`, `www.youtube.com`,
+and mobile hosts converge on `https://www.youtube.com/...` before duplicate
+lookup, discovery, or state mutation.
+
 ```bash
 distill watch add https://www.youtube.com/@SomeCreator
 
@@ -487,6 +492,12 @@ a wall-clock runtime limit, so a generation that keeps streaming can run
 longer. A contention timeout exits as a network-class failure with retry
 guidance, which lets an external loop reschedule the command without scraping
 an apparent hang.
+
+Ollama model discovery streams `/api/tags` through a 2 MiB response ceiling and
+accepts only a strict bounded `models` object. Oversized, deeply structured, or
+malformed registries fail visibly instead of being retained in memory. Local
+readiness checks for Ollama and LM Studio inspect status without reading an
+unneeded response body.
 
 ## Websites
 
@@ -891,6 +902,11 @@ distill migrate                                     # rename legacy ID-based vid
 distill cleanup                                     # delete orphaned Gemini File Search stores
 ```
 
+Migration scans and wiki-link repair touch only visible, confined, bounded,
+single-link regular files. Dry-run output states that link repair follows
+successful renames. An apply run reports every refused read or write and exits
+with status 1 when any error remains, even when earlier renames succeeded.
+
 When a run has failed results or recorded issues, its terminal summary prints
 the exact local `latest_run_errors.md` receipt after that file is written.
 `run_log.jsonl`, `latest_run.json`, and `latest_run_errors.md` share one run ID
@@ -1236,6 +1252,19 @@ distill --json update --check   # same, machine-readable
 `distill update` detects the install method - **uv tool**, **pipx**, or **pip** - and runs the matching upgrade (`uv tool upgrade` / `pipx upgrade` / `pip install --upgrade`). On a **source/editable checkout** it won't touch your working tree; it tells you to `git pull` + `uv sync` instead.
 
 distill also surfaces a one-line "update available" nudge on startup when a newer release is published - checked against PyPI at most once per day (cached), non-blocking, and silenced with `DISTILL_NO_UPDATE_CHECK=1`.
+
+### 0.19.40 compatibility notes
+
+- Existing site page owner receipts migrate automatically to a query-free
+  source URL plus full-identity digest when their directory is next reserved.
+- MCP `list_topic_summary` now exposes top-level and synthesis evidence status.
+  Clients should handle `ok`, `degraded`, and `unavailable`, with nested
+  synthesis states that also distinguish `absent`.
+- Watch and library channel URLs are canonicalized before duplicate lookup and
+  mutation. Credentials, queries, fragments, custom ports, and non-channel
+  YouTube paths are rejected.
+- Migration automation must treat exit status 1 as failure after the command
+  prints any completed renames and exact link-repair errors.
 
 ### 0.19.39 compatibility notes
 

@@ -84,11 +84,11 @@ class TestLibraryInit:
 
     def test_mutation_quarantines_corruption_created_after_initial_load(self, config, caplog):
         lib = Library(config)
-        assert lib.add_channel("first", "https://example.com/first", "First") is True
+        assert lib.add_channel("first", "https://youtube.com/@First", "First") is True
         lib.library_file.write_bytes(b"\xff")
 
         with caplog.at_level(logging.WARNING, logger="distill.library.state"):
-            added = lib.add_channel("second", "https://example.com/second", "Second")
+            added = lib.add_channel("second", "https://youtube.com/@Second", "Second")
 
         assert added is True
         assert lib.get_topics() == ["second"]
@@ -156,14 +156,33 @@ class TestAddChannel:
         channels = lib.get_channels("ai")
         assert len(channels) == 1
         assert channels[0].name == "Test"
-        assert channels[0].url == "https://youtube.com/@Test"
+        assert channels[0].url == "https://www.youtube.com/@Test"
         assert channels[0].topic == "ai"
+
+    def test_add_channel_normalizes_before_persisting(self, config):
+        lib = Library(config)
+
+        assert lib.add_channel("ai", "https://m.youtube.com/@Test/videos", "Test") is True
+
+        [channel] = lib.get_channels("ai")
+        assert channel.url == "https://www.youtube.com/@Test/videos"
+
+    def test_add_channel_refuses_invalid_url_before_any_write(self, config):
+        lib = Library(config)
+        raw = "https://evil.example/@Test?token=LIBRARY-CANARY"
+
+        with pytest.raises(ValueError, match="invalid YouTube channel URL") as exc_info:
+            lib.add_channel("ai", raw, "Test")
+
+        assert "LIBRARY-CANARY" not in str(exc_info.value)
+        assert not lib.library_file.exists()
+        assert not config.topics_dir().exists()
 
     def test_add_channel_existing_topic(self, config):
         """Adding a second channel to existing topic works."""
         lib = Library(config)
-        lib.add_channel("ai", "https://youtube.com/@A", "A")
-        lib.add_channel("ai", "https://youtube.com/@B", "B")
+        lib.add_channel("ai", "https://youtube.com/@ChanA", "A")
+        lib.add_channel("ai", "https://youtube.com/@ChanB", "B")
         assert len(lib.get_channels("ai")) == 2
 
     def test_add_duplicate_channel(self, config):
@@ -211,8 +230,8 @@ class TestAddChannel:
         first = Library(config)
         second = Library(config)
 
-        assert first.add_channel("ai", "https://youtube.com/@A", "A") is True
-        assert second.add_channel("ai", "https://youtube.com/@B", "B") is True
+        assert first.add_channel("ai", "https://youtube.com/@ChanA", "A") is True
+        assert second.add_channel("ai", "https://youtube.com/@ChanB", "B") is True
 
         assert [channel.name for channel in Library(config).get_channels("ai")] == ["A", "B"]
         assert [channel.name for channel in second.get_channels("ai")] == ["A", "B"]
@@ -249,14 +268,14 @@ class TestAddChannel:
         monkeypatch.setattr(paths, "_atomic_write_text_unlocked", fail_write)
 
         with pytest.raises(OSError, match="disk full"):
-            library.add_channel("ai", "https://youtube.com/@A", "A")
+            library.add_channel("ai", "https://youtube.com/@ChanA", "A")
 
         assert library.get_channels("ai") == []
 
     def test_add_channel_empty_name(self, config):
         """Adding a channel with empty name still works (edge case)."""
         lib = Library(config)
-        result = lib.add_channel("ai", "https://youtube.com/@X", "")
+        result = lib.add_channel("ai", "https://youtube.com/@ChanX", "")
         assert result is True
 
 
@@ -314,8 +333,8 @@ class TestGetChannels:
     def test_get_channel_by_name(self, config):
         """get_channel_by_name finds the right channel."""
         lib = Library(config)
-        lib.add_channel("ai", "https://youtube.com/@A", "A")
-        lib.add_channel("ai", "https://youtube.com/@B", "B")
+        lib.add_channel("ai", "https://youtube.com/@ChanA", "A")
+        lib.add_channel("ai", "https://youtube.com/@ChanB", "B")
         ch = lib.get_channel_by_name("ai", "B")
         assert ch is not None
         assert ch.name == "B"

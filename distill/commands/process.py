@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import cast
 
 import typer
+from rich.markup import escape
 from rich.panel import Panel
 
 from distill import cli_shared
@@ -52,6 +53,7 @@ from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
 from distill.config import DistillConfig
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.youtube.discovery import (
     discover_videos,
     get_video_info,
@@ -78,6 +80,10 @@ from distill.pipeline.summary import (
     display_summary,
 )
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+from distill.youtube_urls import (
+    normalize_youtube_channel_url,
+    normalize_youtube_video_url,
+)
 
 _duration_str = duration_str
 _file_link = file_link
@@ -160,6 +166,12 @@ def video(
     Replays converge: an exact completed video ID is reused without a model call.
     Use --force to reanalyze it, or --show to print the existing analysis inline.
     """
+    normalized_url = normalize_youtube_video_url(url)
+    if not normalized_url:
+        displayed_url = escape(url_for_diagnostic(url))
+        console.print(f"[red]Refusing invalid YouTube video URL from {displayed_url}.[/red]")
+        raise typer.Exit(2)
+    url = normalized_url
     config = get_config()
 
     tracker = budgeted_cost_tracker(config, "video")
@@ -171,7 +183,7 @@ def video(
         summary.add_issue(
             "video-info",
             "Could not get video info. Check the URL.",
-            context=url,
+            context=url_for_diagnostic(url),
             details={"topic": topic},
         )
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
@@ -283,6 +295,12 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
       distill channel https://www.youtube.com/@SecurityGuy --topic security --months 6
       distill channel https://www.youtube.com/@NateBJones --report
     """
+    normalized_url = normalize_youtube_channel_url(url)
+    if not normalized_url:
+        displayed_url = escape(url_for_diagnostic(url))
+        console.print(f"[red]Refusing invalid YouTube channel URL from {displayed_url}.[/red]")
+        raise typer.Exit(2)
+    url = normalized_url
     _preflight()
     config = get_config()
     _require_model()

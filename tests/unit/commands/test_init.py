@@ -582,26 +582,41 @@ class TestProviderBoundaries:
         expected_url,
         expected,
     ):
-        observed = {}
+        observed = {"closed": False}
 
-        def get(url, *, timeout):
+        class _StatusOnlyResponse:
+            def __init__(self, response_status: int) -> None:
+                self.status_code = response_status
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                observed["closed"] = True
+
+            def read(self):
+                pytest.fail("reachability probe must not consume the response body")
+
+        def stream(method, url, *, timeout):
+            assert method == "GET"
             observed.update(url=url, timeout=timeout)
-            return SimpleNamespace(status_code=status_code)
+            return _StatusOnlyResponse(status_code)
 
         monkeypatch.setenv(env_name, base_url)
-        monkeypatch.setattr(httpx, "get", get)
+        monkeypatch.setattr(httpx, "stream", stream)
 
         assert init_mod._local_reachable(provider) == expected
-        assert observed == {"url": expected_url, "timeout": 2.0}
+        assert observed == {"url": expected_url, "timeout": 2.0, "closed": True}
 
     def test_local_reachability_handles_request_failure(self, monkeypatch):
-        def fail_get(url, *, timeout):
+        def fail_stream(method, url, *, timeout):
+            assert method == "GET"
             assert url == "http://localhost:11434/api/tags"
             assert timeout == 2.0
             raise httpx.ConnectError("local provider unavailable")
 
         monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
-        monkeypatch.setattr(httpx, "get", fail_get)
+        monkeypatch.setattr(httpx, "stream", fail_stream)
 
         assert init_mod._local_reachable("ollama") == "unreachable"
 

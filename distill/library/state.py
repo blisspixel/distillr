@@ -26,6 +26,7 @@ from typing import Any, TypedDict, cast
 from distill.config import DistillConfig
 from distill.library.paths import atomic_update_text, sanitize_topic, text_write_lock
 from distill.parsing import strict_json_loads
+from distill.youtube_urls import normalize_video_id, normalize_youtube_channel_url
 
 __all__ = [
     "ChannelInfo",
@@ -190,15 +191,20 @@ def _bool(value: object, default: bool = False) -> bool:
     return value if isinstance(value, bool) else default
 
 
+def _channel_url(value: object) -> str:
+    raw_url = _str(value)
+    return normalize_youtube_channel_url(raw_url) or raw_url
+
+
 def _channel_row(value: object) -> ChannelRow:
     row = _as_dict(value)
-    return {"url": _str(row.get("url")), "name": _str(row.get("name"))}
+    return {"url": _channel_url(row.get("url")), "name": _str(row.get("name"))}
 
 
 def _watch_row(value: object) -> WatchRow:
     row = _as_dict(value)
     return {
-        "url": _str(row.get("url")),
+        "url": _channel_url(row.get("url")),
         "name": _str(row.get("name")),
         "topic": _str(row.get("topic"), "watch"),
         "added_at": _str(row.get("added_at")),
@@ -403,6 +409,10 @@ class Library:
 
     def add_channel(self, topic: str, url: str, name: str):
         """Add a channel to a topic."""
+        normalized_url = normalize_youtube_channel_url(url)
+        if not normalized_url:
+            raise ValueError("Refusing invalid YouTube channel URL")
+        url = normalized_url
         topic = sanitize_topic(topic)
 
         def add(data: LibraryData) -> bool:
@@ -425,6 +435,10 @@ class Library:
 
     def remove_channel(self, topic: str, url: str) -> bool:
         """Remove a channel from a topic."""
+        normalized_url = normalize_youtube_channel_url(url)
+        if not normalized_url:
+            return False
+        url = normalized_url
         topic = sanitize_topic(topic)
 
         def remove(data: LibraryData) -> bool:
@@ -549,6 +563,10 @@ class Library:
         days: int = 14,
     ) -> bool:
         """Add a channel to the watch list. Also registers it under the topic."""
+        normalized_url = normalize_youtube_channel_url(url)
+        if not normalized_url:
+            raise ValueError("Refusing invalid YouTube channel URL")
+        url = normalized_url
         topic = sanitize_topic(topic)
         added_at = datetime.now().isoformat()
 
@@ -826,11 +844,16 @@ class ChannelState:
         self._data = data
 
     def is_processed(self, video_id: str) -> bool:
-        return video_id in self._data["processed_videos"]
+        normalized_id = normalize_video_id(video_id)
+        return bool(normalized_id and normalized_id in self._data["processed_videos"])
 
     def mark_processed(
         self, video_id: str, title: str, upload_date: str, analysis_mode: str = "full"
     ):
+        normalized_id = normalize_video_id(video_id)
+        if not normalized_id:
+            raise ValueError("Refusing invalid YouTube video id")
+        video_id = normalized_id
         processed_at = datetime.now().isoformat()
 
         def mark(data: ChannelStateData) -> None:

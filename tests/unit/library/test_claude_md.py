@@ -110,6 +110,69 @@ def test_summary_truncates_long_line(tmp_path: Path):
     assert out.endswith("...")
 
 
+def test_summary_accepts_exact_byte_ceiling_and_multibyte_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    td = tmp_path / "tkg"
+    synthesis = td / "tkg_Topic_Synthesis.md"
+    text = '---\ntype: "topic-synthesis"\n---\n\nRésumé 量子 evidence.\n'
+    synthesis.parent.mkdir(parents=True)
+    synthesis.write_bytes(text.encode("utf-8"))
+    monkeypatch.setattr(claude_md, "_MAX_TOPIC_SUMMARY_FILE_BYTES", len(text.encode("utf-8")))
+    monkeypatch.setattr(claude_md, "_MAX_TOPIC_SUMMARY_PREFIX_CHARS", len(text))
+
+    assert claude_md.topic_summary_line(td, "tkg") == "Résumé 量子 evidence."
+
+
+def test_summary_rejects_oversized_and_invalid_utf8_with_bounded_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    td = tmp_path / "tkg"
+    synthesis = td / "tkg_Topic_Synthesis.md"
+    _write(synthesis, "---\n---\n\nToo large.\n")
+    monkeypatch.setattr(claude_md, "_MAX_TOPIC_SUMMARY_FILE_BYTES", 8)
+
+    assert claude_md.topic_summary_line(td, "tkg") == ""
+    assert caplog.records[-1].getMessage() == "Topic synthesis unavailable for bounded summary"
+    assert len(caplog.records[-1].getMessage()) < 80
+
+    synthesis.write_bytes(b"---\n---\n\n\xff")
+    monkeypatch.setattr(claude_md, "_MAX_TOPIC_SUMMARY_FILE_BYTES", 64)
+    assert claude_md.topic_summary_line(td, "tkg") == ""
+    assert caplog.records[-1].getMessage() == "Topic synthesis unavailable for bounded summary"
+
+
+def test_summary_rejects_symlink_and_hardlink_artifacts(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
+    td = tmp_path / "tkg"
+    td.mkdir()
+    outside = tmp_path / "outside.md"
+    outside.write_text("---\n---\n\nOutside summary.\n", encoding="utf-8")
+    synthesis = td / "tkg_Topic_Synthesis.md"
+    try:
+        synthesis.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    assert claude_md.topic_summary_line(td, "tkg") == ""
+    assert caplog.records[-1].getMessage() == "Topic synthesis unavailable for bounded summary"
+
+    synthesis.unlink()
+    try:
+        synthesis.hardlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"hardlinks unavailable: {exc}")
+    assert claude_md.topic_summary_line(td, "tkg") == ""
+
+
+def test_summary_uses_legacy_fallback_when_modern_artifact_is_absent(tmp_path: Path):
+    td = tmp_path / "tkg"
+    _write(td / "topic_synthesis.md", "---\n---\n\nLegacy synthesis summary.\n")
+
+    assert claude_md.topic_summary_line(td, "tkg") == "Legacy synthesis summary."
+
+
 # ---- top_named_things ------------------------------------------------------
 
 

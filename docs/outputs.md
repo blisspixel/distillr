@@ -96,6 +96,11 @@ Used by `distill catch-up`. Custom per-channel instructions shape the output.
 - **`attachments/*.txt`** - Optional extracted PDF text or embedded-video transcript
 - **`<page-slug>_Insights.md`** - Structured page-level analysis
 
+Website output URLs retain public scheme, authority, and path but omit
+credentials, queries, and fragments. The hidden page-owner receipt stores that
+safe URL plus a domain-separated digest of the complete canonical request URL,
+so distinct page identities do not require persisting bearer parameters.
+
 ## Per site / site batch
 
 - **`site.json`** - Manifest of processed pages (includes section-level crawl state)

@@ -41,6 +41,7 @@ from distill.commands._helpers import (
     run_preflight as _preflight,
 )
 from distill.config import DistillConfig
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.youtube.discovery import (
     VideoInfo,
     discover_videos,
@@ -60,6 +61,7 @@ from distill.pipeline.summary import (
     display_summary,
 )
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+from distill.youtube_urls import normalize_youtube_channel_url
 
 _ACCENT = "rgb(100,149,237)"
 
@@ -222,6 +224,15 @@ def _print_goal_refreshes(config: DistillConfig, *, topic_filter: str | None = N
     return lines
 
 
+def _validated_watch_url(url: str) -> str:
+    normalized_url = normalize_youtube_channel_url(url)
+    if normalized_url:
+        return normalized_url
+    displayed_url = escape(url_for_diagnostic(url))
+    console.print(f"[red]Refusing invalid YouTube channel URL from {displayed_url}.[/red]")
+    raise typer.Exit(2)
+
+
 @watch_app.command("add")
 def watch_add(
     url: str = typer.Argument(help="YouTube channel URL"),
@@ -242,6 +253,7 @@ def watch_add(
       distill watch add https://www.youtube.com/@NateBJones
       distill watch add https://www.youtube.com/@Smokemon07 --days 2 --instructions "Extract top deals"
     """
+    url = _validated_watch_url(url)
     config = get_config()
     lib = Library(config)
     existing = next((entry for entry in lib.get_watchlist() if entry.url == url), None)

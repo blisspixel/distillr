@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -32,6 +33,17 @@ def test_site_batch_plan_boundary_defaults_to_same_host():
 
     assert row.mode == "shallow-crawl"
     assert row.boundary == "same-host"
+
+
+def test_site_batch_plan_uses_safe_view_without_changing_fetch_seed():
+    raw = "https://user:pass@example.com/private?token=PLAN-CANARY#fragment"
+    seed = SiteSeed(url=raw, topic="web")
+
+    [row] = _site_batch.site_batch_plan_rows([seed])
+    execution_seed = _site_batch.site_batch_seed(seed, seed_only=False, same_section_only=False)
+
+    assert row.url == "https://example.com/private"
+    assert execution_seed.url == raw
 
 
 def test_resolve_site_batch_seeds_enforces_aggregate_page_budget():
@@ -112,6 +124,36 @@ def test_process_site_batch_seed_budget_exceeded_is_hard_stop(tmp_path):
             ingest_attachments=False,
             process_site_seed=process_site_seed,
         )
+
+
+def test_process_site_batch_seed_sanitizes_failure_output_and_run_evidence(tmp_path, capsys):
+    raw_url = "https://user:BATCH-PASSWORD-CANARY@example.com/private?token=BATCH-CANARY"
+    seed = SiteSeed(url=raw_url, topic="web")
+    summary = RunSummary(command="site-batch")
+    progress = BatchProgress("site", 1, CostTracker())
+
+    def process_site_seed(*args, **kwargs):
+        raise RuntimeError(f"[bold]failed for {raw_url} EXCEPTION-CANARY[/bold]")
+
+    _site_batch.process_site_batch_seed(
+        seed,
+        config=_config(tmp_path),
+        tracker=CostTracker(),
+        summary=summary,
+        progress=progress,
+        scrape_only=False,
+        ingest_attachments=False,
+        process_site_seed=process_site_seed,
+    )
+
+    [issue] = summary.issues
+    evidence = json.dumps(issue.to_dict())
+    output = capsys.readouterr().out
+    assert issue.context == "https://example.com"
+    assert issue.message == "RuntimeError during site ingest"
+    assert "BATCH-CANARY" not in output + evidence
+    assert "EXCEPTION-CANARY" not in output + evidence
+    assert "BATCH-PASSWORD-CANARY" not in output + evidence
 
 
 def test_run_site_batch_syntheses_records_outputs(tmp_path, monkeypatch):

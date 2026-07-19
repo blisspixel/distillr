@@ -284,6 +284,31 @@ class TestWatchAdd:
         discover.assert_not_called()
         generate.assert_not_called()
 
+    def test_add_rejects_invalid_url_before_state_or_discovery(self, monkeypatch):
+        get_config = MagicMock()
+        resolve_name = MagicMock()
+        discover = MagicMock()
+        monkeypatch.setattr(watch_mod, "get_config", get_config)
+        monkeypatch.setattr(watch_mod, "resolve_channel_name", resolve_name)
+        monkeypatch.setattr(watch_mod, "discover_videos", discover)
+
+        result = runner.invoke(
+            cli.app,
+            [
+                "watch",
+                "add",
+                "https://user-urlpass-canary:secret@youtube.com/@WatchMe?token=query-canary",
+            ],
+        )
+
+        assert result.exit_code == 2
+        assert "Refusing invalid YouTube channel URL" in result.output
+        assert "user-urlpass-canary" not in result.output
+        assert "query-canary" not in result.output
+        get_config.assert_not_called()
+        resolve_name.assert_not_called()
+        discover.assert_not_called()
+
 
 class TestWatchMutations:
     def _patch(self, monkeypatch, config):
@@ -835,7 +860,7 @@ class TestCatchUp:
         result = runner.invoke(cli.app, ["catch-up", "--topic", "ai"])
 
         assert result.exit_code == 0
-        assert seen == ["https://youtube.com/@Alpha"]
+        assert seen == ["https://www.youtube.com/@Alpha"]
 
 
 class TestRegister:

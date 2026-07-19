@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib import resources
 from importlib.resources.abc import Traversable
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from types import MappingProxyType
 from typing import Any, cast
 
@@ -29,6 +29,11 @@ _MAX_FILE_BYTES = 1_000_000
 _MAX_BUNDLE_BYTES = 5_000_000
 _MAX_FILES = 256
 _INSTALL_MANIFEST = PurePosixPath(".distill-install.json")
+_WINDOWS_INVALID_COMPONENT = re.compile(r'[<>:"|?*\x00-\x1f]')
+_WINDOWS_DEVICE_NAME = re.compile(
+    r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$",
+    re.IGNORECASE,
+)
 
 
 class SkillBundleError(ValueError):
@@ -45,7 +50,9 @@ class SkillBundle:
     files: Mapping[PurePosixPath, bytes]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "files", MappingProxyType(dict(self.files)))
+        _validate_bundle_identity(self.name, self.version, self.bundle_sha256)
+        verified = _validated_bundle_files(self.files, self.bundle_sha256)
+        object.__setattr__(self, "files", MappingProxyType(verified))
 
     @property
     def total_bytes(self) -> int:
@@ -67,9 +74,72 @@ class SkillBundle:
         }
 
 
+def _validate_bundle_identity(name: object, version: object, bundle_sha256: object) -> None:
+    if name != _NAME:
+        raise SkillBundleError("Bundled skill identity is invalid")
+    if not isinstance(version, str) or _SEMVER.fullmatch(version) is None:
+        raise SkillBundleError("Bundled skill version is invalid")
+    if not isinstance(bundle_sha256, str) or _SHA256.fullmatch(bundle_sha256) is None:
+        raise SkillBundleError("Bundled skill digest is invalid")
+
+
+def _validated_bundle_file(raw_relative: object, payload: object) -> tuple[PurePosixPath, bytes]:
+    if not isinstance(raw_relative, PurePosixPath):
+        raise SkillBundleError("Bundled skill paths must be PurePosixPath values")
+    relative = _safe_relative(raw_relative.as_posix())
+    if relative == _INSTALL_MANIFEST:
+        raise SkillBundleError("Bundled skill cannot contain its install ownership manifest")
+    if not isinstance(payload, bytes):
+        raise SkillBundleError(f"Bundled skill file payload must be bytes: {relative}")
+    if len(payload) > _MAX_FILE_BYTES:
+        raise SkillBundleError(f"Bundled skill file is too large: {relative}")
+    return relative, payload
+
+
+def _validated_bundle_files(
+    files: Mapping[PurePosixPath, bytes], bundle_sha256: str
+) -> dict[PurePosixPath, bytes]:
+    source_files = dict(files)
+    if not source_files:
+        raise SkillBundleError("Bundled skill files must not be empty")
+    if len(source_files) > _MAX_FILES:
+        raise SkillBundleError("Bundled skill exceeds its file-count limit")
+
+    verified: dict[PurePosixPath, bytes] = {}
+    total_bytes = 0
+    for raw_relative, raw_payload in source_files.items():
+        relative, payload = _validated_bundle_file(raw_relative, raw_payload)
+        total_bytes += len(payload)
+        if total_bytes > _MAX_BUNDLE_BYTES:
+            raise SkillBundleError("Bundled skill exceeds its total size limit")
+        verified[relative] = payload
+
+    if PurePosixPath("SKILL.md") not in verified:
+        raise SkillBundleError("Bundled skill is missing SKILL.md")
+    if tree_digest(verified) != bundle_sha256:
+        raise SkillBundleError("Bundled skill tree digest does not match its manifest")
+    return verified
+
+
 def _safe_relative(value: str) -> PurePosixPath:
     path = PurePosixPath(value)
-    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
+    windows_path = PureWindowsPath(value)
+    unsafe_windows_component = any(
+        _WINDOWS_INVALID_COMPONENT.search(part) is not None
+        or part.endswith((" ", "."))
+        or _WINDOWS_DEVICE_NAME.fullmatch(part.rstrip(" .")) is not None
+        for part in windows_path.parts
+        if part not in {windows_path.anchor, "", ".", ".."}
+    )
+    if (
+        "\\" in value
+        or path.is_absolute()
+        or windows_path.drive
+        or windows_path.root
+        or unsafe_windows_component
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
         raise SkillBundleError(f"Unsafe bundled skill path: {value}")
     return path
 

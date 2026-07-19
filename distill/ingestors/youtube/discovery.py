@@ -5,7 +5,10 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from rich.markup import escape
+
 from distill._console import console
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.youtube._yt_dlp_boundary import (
     YtDlpInfo,
     date_range,
@@ -118,7 +121,8 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     """
     normalized_channel_url = normalize_youtube_channel_url(channel_url)
     if not normalized_channel_url:
-        console.print(f"  [red]Refusing non-YouTube URL: {channel_url}[/red]")
+        displayed_url = escape(url_for_diagnostic(channel_url))
+        console.print(f"  [red]Refusing non-YouTube URL: {displayed_url}[/red]")
         return []
 
     if hours is not None:
@@ -234,7 +238,8 @@ def get_video_info(video_url: str) -> VideoInfo | None:
     """Get metadata for a single video URL."""
     canonical_url = normalize_youtube_video_url(video_url)
     if not canonical_url:
-        console.print(f"[red]Refusing non-YouTube URL: {video_url}[/red]")
+        displayed_url = escape(url_for_diagnostic(video_url))
+        console.print(f"[red]Refusing non-YouTube URL: {displayed_url}[/red]")
         return None
     ydl_opts: dict[str, object] = {
         "quiet": True,

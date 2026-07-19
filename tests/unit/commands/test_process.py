@@ -137,6 +137,24 @@ class TestVideoCommand:
         assert result.exit_code == 1
         assert "Could not get video info" in result.output
 
+    def test_invalid_video_is_refused_before_config_fetch_or_run_evidence(self, monkeypatch):
+        get_config = MagicMock()
+        get_video_info = MagicMock()
+        display_summary = MagicMock()
+        raw = "https://evil.example/watch?v=abc&token=VIDEO-CANARY"
+        monkeypatch.setattr(process_mod, "get_config", get_config)
+        monkeypatch.setattr(process_mod, "get_video_info", get_video_info)
+        monkeypatch.setattr(process_mod, "display_summary", display_summary)
+
+        result = runner.invoke(cli.app, ["video", raw])
+
+        assert result.exit_code == 2
+        assert "Refusing invalid YouTube video URL" in result.output
+        assert "VIDEO-CANARY" not in result.output
+        get_config.assert_not_called()
+        get_video_info.assert_not_called()
+        display_summary.assert_not_called()
+
     def test_process_video_failure_exits(self, tmp_path, monkeypatch):
         info = _video()
         config = _config(tmp_path)
@@ -246,6 +264,29 @@ class TestChannelCommand:
         assert "Added TestCh" in result.output
         assert processed == ["v1", "v2"]
         assert "What's next" in result.output
+
+    def test_invalid_channel_is_refused_before_preflight_config_or_library_mutation(
+        self, monkeypatch
+    ):
+        preflight = MagicMock()
+        get_config = MagicMock()
+        resolve_name = MagicMock()
+        discover = MagicMock()
+        raw = "https://www.youtube.com/@TestCh?token=CHANNEL-CANARY"
+        monkeypatch.setattr(process_mod, "_preflight", preflight)
+        monkeypatch.setattr(process_mod, "get_config", get_config)
+        monkeypatch.setattr(process_mod, "resolve_channel_name", resolve_name)
+        monkeypatch.setattr(process_mod, "discover_videos", discover)
+
+        result = runner.invoke(cli.app, ["channel", raw])
+
+        assert result.exit_code == 2
+        assert "Refusing invalid YouTube channel URL" in result.output
+        assert "CHANNEL-CANARY" not in result.output
+        preflight.assert_not_called()
+        get_config.assert_not_called()
+        resolve_name.assert_not_called()
+        discover.assert_not_called()
 
     def test_channel_already_registered_and_skips_processed(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -621,8 +662,8 @@ class TestRunCommand:
     def test_run_filters_to_single_channel(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         lib = Library(config)
-        lib.add_channel("ai", "https://www.youtube.com/@A", "Alpha")
-        lib.add_channel("ai", "https://www.youtube.com/@B", "Beta")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanA", "Alpha")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanB", "Beta")
         seen: list[str] = []
         monkeypatch.setattr(
             process_mod,
@@ -634,7 +675,7 @@ class TestRunCommand:
         result = runner.invoke(cli.app, ["run", "ai", "--channel", "Alpha", "--dry-run"])
 
         assert result.exit_code == 0
-        assert seen == ["https://www.youtube.com/@A"]
+        assert seen == ["https://www.youtube.com/@ChanA"]
 
     def test_run_skips_already_processed_videos(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

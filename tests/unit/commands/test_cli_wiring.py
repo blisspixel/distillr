@@ -3311,7 +3311,7 @@ class TestCatchUpHints:
         from distill.library import Library
 
         lib = Library(mock_config)
-        lib.add_to_watchlist("https://youtube.com/@Ch", "Ch", topic="ai")
+        lib.add_to_watchlist("https://youtube.com/@Channel", "Ch", topic="ai")
         result = runner.invoke(cli.app, ["catch-up", "NobodyHere"])
         assert result.exit_code == 0
         assert "not on watch list" in result.output
@@ -3320,7 +3320,7 @@ class TestCatchUpHints:
         from distill.library import Library
 
         lib = Library(mock_config)
-        lib.add_to_watchlist("https://youtube.com/@Ch", "Ch", topic="ai")
+        lib.add_to_watchlist("https://youtube.com/@Channel", "Ch", topic="ai")
         result = runner.invoke(cli.app, ["catch-up", "--topic", "nonexistent"])
         assert result.exit_code == 0
         assert "No watched channels" in result.output

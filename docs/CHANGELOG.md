@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.40 - 2026-07-19
+
+### Security
+
+- Separated complete request URLs from diagnostic and persistent URL views.
+  Network diagnostics now retain only the normalized origin. Site artifacts,
+  model prompts, manifests, failure receipts, GitHub, podcast, and X paths omit
+  credentials, query strings, and fragments while the fetch boundary retains
+  the exact request URL it needs.
+- Advanced site page ownership to schema v2. Owner receipts store a query-free
+  public source URL plus a domain-separated digest of the complete canonical
+  request identity. Legacy v1 receipts migrate under the ownership lock, and
+  distinct query order remains distinct without persisting bearer parameters.
+- Made the public `SkillBundle` constructor enforce the same integrity contract
+  as the packaged loader: exact bundle identity and version, SHA-256 digest,
+  aggregate and per-file limits, required `SKILL.md`, immutable bytes, and
+  POSIX plus Windows relative-path safety.
+- Confined adapter doctor probes to one trusted executable and working
+  directory with scrubbed environment, bounded concurrent output drains,
+  process-tree time and memory ceilings, recursive cleanup, bounded no-follow
+  config reads, bounded auth JSON, and iterative depth and node limits.
+- Confined legacy migration and MCP topic orientation reads against links,
+  oversized files, invalid UTF-8, hidden state, path swaps, and unbounded
+  materialization. Partial migration failures remain visible and machine
+  detectable.
+
+### Fixed
+
+- Preserved complete site request URLs through crawling and attachment fetches,
+  then sanitized copied page records before metadata, content, attachment,
+  analysis, verification, synthesis, or run-evidence publication. Direct site
+  analysis applies the same defensive boundary.
+- Canonicalized and validated YouTube channel URLs before library or watch
+  mutation, duplicate lookup, channel discovery, and MCP allowlist checks.
+  Invalid URLs fail before configuration or state access, and channel state
+  rejects invalid video identifiers.
+- Made CLI and batch ingest failures identify only a safe origin and escaped
+  untrusted exception or title text before terminal rendering.
+- Stopped init and LM Studio status probes from consuming response bodies.
+  Ollama model discovery now streams through a 2 MiB ceiling and validates one
+  strict, bounded `models` registry before returning it.
+- Applied isolated process-tree cleanup to browser workers on normal,
+  exceptional, timeout, and malformed-result exits.
+- Made migration dry runs describe link-repair ordering. Applied migrations
+  update only visible bounded single-link Markdown, retain partial progress
+  counts, report every read or write error, and exit with status 1 on error.
+- Made MCP `list_topic_summary` return explicit synthesis evidence for absent,
+  degraded, unsafe, oversized, unreadable, invalid, and available states while
+  retaining a bounded useful fallback when an older safe synthesis exists.
+
+### Changed
+
+- Query tracking fields are removed without sorting the remaining fields, so
+  canonical request identity no longer aliases order-sensitive duplicate
+  parameters.
+- Persisted embedded YouTube URLs retain only their validated video identity.
+  Other persisted page and attachment URLs retain scheme, host, explicit port,
+  and path only.
+- Large Ollama registry validation moved into a focused provider helper so the
+  main provider remains below the project's 500-line module cap.
+
+### Validation
+
+- Passed 6,125 local tests with 4 skipped, 8 deselected, and 95.05 percent
+  branch coverage. Ruff lint and formatting, package-scoped Pyright, all four
+  import contracts, generated public contracts, Agent Skill drift, and CLI
+  help passed.
+- Bandit reported no medium or high findings, and pip-audit reported no known
+  dependency vulnerabilities. All nine original URL-disclosure reproductions
+  no longer reach their vulnerable assertions.
+- Focused process, parser, migration, site ownership, URL, watch, MCP, browser,
+  and model-registry controls passed entirely with local fixtures and $0 added
+  validation spend.
+
+### Upgrade notes
+
+- Existing site owner receipts migrate automatically when their page directory
+  is next reserved. No manual corpus migration is required.
+- MCP clients should read `list_topic_summary.status` and its nested
+  `synthesis.status` instead of treating every nonempty response as complete
+  synthesis evidence.
+- YouTube watch and library entries now use canonical
+  `https://www.youtube.com/...` channel URLs. Equivalent accepted hosts converge
+  on the same duplicate identity; credentials, query strings, and fragments are
+  rejected.
+- Automation around `distill migrate` or doctor migration modes must treat exit
+  status 1 as a partial or complete migration failure even when some renames
+  succeeded.
+
 ## 0.19.39 - 2026-07-18
 
 ### Security

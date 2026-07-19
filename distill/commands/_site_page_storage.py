@@ -1,5 +1,5 @@
 # pyright: strict
-"""Collision-resistant ownership for persisted website page directories."""
+"""Stable ownership records for persisted website page directories."""
 
 from __future__ import annotations
 
@@ -7,10 +7,12 @@ import contextlib
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import cast
 
 from distill.config import DistillConfig
+from distill.ingestors.net import url_for_persistence
 from distill.ingestors.sites.scraper import (
     SitePage,
     canonicalize_url,
@@ -28,7 +30,8 @@ from distill.library.paths import (
 _SOURCE_TYPE = "site_page"
 _OWNER_FILENAME = ".source_meta.json"
 _OWNER_LOCK_FILENAME = ".site-page-ownership.lock"
-_OWNER_SCHEMA_VERSION = 1
+_OWNER_SCHEMA_VERSION = 2
+_OWNER_DIGEST_DOMAIN = b"distill-site-owner-v2\0"
 _OWNER_MAX_BYTES = 4_096
 _LEGACY_METADATA_MAX_BYTES = 1_048_576
 _ATTACHMENT_MANIFEST_MAX_BYTES = 1_048_576
@@ -47,7 +50,19 @@ def _mapping(value: object) -> Mapping[str, object] | None:
     return cast("Mapping[str, object]", value) if isinstance(value, dict) else None
 
 
-def _owner_matches(page_dir: Path, pages_dir: Path, source_url: str) -> bool | None:
+def _owner_digest(source_url: str) -> str:
+    return sha256(_OWNER_DIGEST_DOMAIN + source_url.encode("utf-8")).hexdigest()
+
+
+def _owner_matches(
+    page_dir: Path,
+    pages_dir: Path,
+    source_url: str,
+    persisted_url: str,
+    owner_digest: str,
+) -> bool | None:
+    """Match an owner record while the caller holds the site ownership lock."""
+
     owner_path = page_dir / _OWNER_FILENAME
     try:
         owner_path.lstat()
@@ -62,19 +77,24 @@ def _owner_matches(page_dir: Path, pages_dir: Path, source_url: str) -> bool | N
         owner = _mapping(json.loads(raw))
     except json.JSONDecodeError:
         return False
-    return bool(
-        owner is not None
-        and owner.get("source_type") == _SOURCE_TYPE
-        and owner.get("source_id") == source_url
-    )
+    if owner is None or owner.get("source_type") != _SOURCE_TYPE:
+        return False
+    if owner.get("schema_version") == _OWNER_SCHEMA_VERSION:
+        return bool(
+            owner.get("source_id") == persisted_url and owner.get("source_hash") == owner_digest
+        )
+    if owner.get("schema_version") == 1 and owner.get("source_id") == source_url:
+        _write_owner(page_dir, persisted_url, owner_digest)
+        return True
+    return False
 
 
-def _write_owner(page_dir: Path, source_url: str, source_id: str) -> None:
+def _write_owner(page_dir: Path, persisted_url: str, owner_digest: str) -> None:
     owner = {
         "schema_version": _OWNER_SCHEMA_VERSION,
         "source_type": _SOURCE_TYPE,
-        "source_id": source_url,
-        "source_hash": source_id,
+        "source_id": persisted_url,
+        "source_hash": owner_digest,
     }
     atomic_write_text(
         page_dir / _OWNER_FILENAME,
@@ -119,17 +139,24 @@ def _claim_legacy_directory(
     page: SitePage,
     pages_dir: Path,
     source_url: str,
-    source_id: str,
+    persisted_url: str,
+    owner_digest: str,
 ) -> Path | None:
     legacy = config.site_page_dir(topic, site_name, page.title, _legacy_page_id(page))
     if not _safe_existing_directory(legacy, pages_dir):
         return None
-    owner_match = _owner_matches(legacy, pages_dir, source_url)
+    owner_match = _owner_matches(
+        legacy,
+        pages_dir,
+        source_url,
+        persisted_url,
+        owner_digest,
+    )
     if owner_match is True:
         return legacy
     if owner_match is False or not _legacy_metadata_matches(legacy, pages_dir, source_url):
         return None
-    _write_owner(legacy, source_url, source_id)
+    _write_owner(legacy, persisted_url, owner_digest)
     return legacy
 
 
@@ -144,7 +171,11 @@ def reserve_site_page_directory(
     pages_dir = config.site_pages_dir(topic, site_name)
     pages_dir.mkdir(parents=True, exist_ok=True)
     source_url = canonicalize_url(page.final_url or page.url)
-    source_id = site_page_id(source_url)
+    persisted_url = url_for_persistence(source_url)
+    if persisted_url == "<invalid-url>":
+        raise ValueError("Refusing to reserve a directory for an invalid site page URL")
+    allocator_id = site_page_id(source_url)
+    owner_digest = _owner_digest(source_url)
     lock_path = pages_dir / _OWNER_LOCK_FILENAME
     with (
         open_lock_file(lock_path) as lock_file,
@@ -161,29 +192,34 @@ def reserve_site_page_directory(
             page,
             pages_dir,
             source_url,
-            source_id,
+            persisted_url,
+            owner_digest,
         )
         if legacy is not None:
-            return OwnedSitePageDirectory(legacy, source_url, source_id)
+            return OwnedSitePageDirectory(legacy, persisted_url, owner_digest)
 
         for counter in range(1, _MAX_COLLISION_ATTEMPTS + 1):
-            name = source_id if counter == 1 else f"{source_id}_{counter}"
+            name = allocator_id if counter == 1 else f"{allocator_id}_{counter}"
             candidate = pages_dir / name
             try:
                 candidate.mkdir()
             except FileExistsError:
                 if _safe_existing_directory(candidate, pages_dir) and _owner_matches(
-                    candidate, pages_dir, source_url
+                    candidate,
+                    pages_dir,
+                    source_url,
+                    persisted_url,
+                    owner_digest,
                 ):
-                    return OwnedSitePageDirectory(candidate, source_url, source_id)
+                    return OwnedSitePageDirectory(candidate, persisted_url, owner_digest)
                 continue
             try:
-                _write_owner(candidate, source_url, source_id)
+                _write_owner(candidate, persisted_url, owner_digest)
             except BaseException:
                 with contextlib.suppress(OSError):
                     candidate.rmdir()
                 raise
-            return OwnedSitePageDirectory(candidate, source_url, source_id)
+            return OwnedSitePageDirectory(candidate, persisted_url, owner_digest)
     raise RuntimeError(
         f"Could not allocate a collision-free page directory after {_MAX_COLLISION_ATTEMPTS} attempts"
     )

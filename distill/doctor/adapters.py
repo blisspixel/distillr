@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -15,6 +16,15 @@ from typing import Any, cast
 from distill.doctor.adapter_manifest import adapter_result_manifest_contract
 from distill.doctor.adapter_native_usage import adapter_native_usage_contract
 from distill.doctor.adapter_workload import adapter_workload_contract
+from distill.library.confined import read_confined_bytes, validate_confined_path
+from distill.process_resources import (
+    ProcessBudgetExceeded,
+    assign_windows_memory_job,
+    close_windows_job,
+    start_bounded_pipe_head_drain,
+    terminate_isolated_process_tree,
+    wait_for_process_budget,
+)
 from distill.process_security import package_install_context, resolve_executable
 
 __all__ = [
@@ -33,6 +43,18 @@ __all__ = [
 CommandRunner = Callable[[Sequence[str], int], tuple[int, str, str]]
 
 _DEFAULT_PROBE_TIMEOUT_SECONDS = 10
+_ADAPTER_PROBE_OUTPUT_BYTES = 256 * 1024
+_ADAPTER_PROBE_TREE_MEMORY_BYTES = 512 * 1024 * 1024
+_ADAPTER_CONFIG_BYTES = 1024 * 1024
+_ADAPTER_AUTH_JSON_BYTES = 256 * 1024
+_ADAPTER_CONFIG_MAX_DEPTH = 64
+_ADAPTER_CONFIG_MAX_NODES = 10_000
+_ADAPTER_CONFIG_MAX_KEY_CHARS = 512
+_ADAPTER_CONFIG_MAX_PATH_CHARS = 4_096
+_ADAPTER_CONFIG_MAX_VALUE_CHARS = 4_096
+_ADAPTER_RESOURCE_EXIT_CODE = 124
+_ADAPTER_OUTPUT_EXIT_CODE = 125
+_ADAPTER_BLOCKED_PREFIX = "Distill adapter probe blocked:"
 
 _CLAUDE_METERED_ENV_BLOCKERS = (
     "ANTHROPIC_API_KEY",
@@ -75,6 +97,10 @@ class ConfigProbe:
     relative_path: tuple[str, ...]
     metered_markers: tuple[str, ...]
     session_markers: tuple[str, ...] = ()
+
+
+class _StructuredInputBlocked(ValueError):
+    """Raised when auth or config input crosses a deterministic boundary."""
 
 
 @dataclass(frozen=True)
@@ -574,22 +600,108 @@ def _probe_adapter(
     )
 
 
-def _run_command(command: Sequence[str], timeout_seconds: int) -> tuple[int, str, str]:
+def _run_command(  # noqa: C901
+    command: Sequence[str], timeout_seconds: int
+) -> tuple[int, str, str]:
     trusted_cwd, child_env = package_install_context()
+    process: subprocess.Popen[bytes] | None = None
+    job_handle: int | None = None
+    stdout_stream: Any = None
+    stderr_stream: Any = None
+    stdout_head: Any = None
+    stderr_head: Any = None
+    stdout_thread: Any = None
+    stderr_thread: Any = None
+    resource_reason = ""
     try:
-        result = subprocess.run(
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        process = subprocess.Popen(
             list(command),
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             shell=False,
             cwd=trusted_cwd,
             env=child_env,
+            creationflags=creationflags,
+            start_new_session=os.name != "nt",
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return 124, "", str(exc)
-    return result.returncode, result.stdout, result.stderr
+        stdout_stream = process.stdout
+        stderr_stream = process.stderr
+        if stdout_stream is None or stderr_stream is None:
+            raise OSError("adapter probe did not expose diagnostic pipes")
+        stdout_head, stdout_thread = start_bounded_pipe_head_drain(
+            stdout_stream,
+            limit=_ADAPTER_PROBE_OUTPUT_BYTES,
+            thread_name="distill-adapter-stdout",
+        )
+        stderr_head, stderr_thread = start_bounded_pipe_head_drain(
+            stderr_stream,
+            limit=_ADAPTER_PROBE_OUTPUT_BYTES,
+            thread_name="distill-adapter-stderr",
+        )
+        job_handle = assign_windows_memory_job(
+            process,
+            job_memory_bytes=_ADAPTER_PROBE_TREE_MEMORY_BYTES,
+        )
+        wait_for_process_budget(
+            process,
+            timeout_seconds=timeout_seconds,
+            memory_limit_bytes=_ADAPTER_PROBE_TREE_MEMORY_BYTES,
+        )
+    except ProcessBudgetExceeded as exc:
+        resource_reason = f"{_ADAPTER_BLOCKED_PREFIX} {exc}"
+    except OSError:
+        resource_reason = f"{_ADAPTER_BLOCKED_PREFIX} child process could not be supervised"
+    finally:
+        if process is not None:
+            terminate_isolated_process_tree(process)
+        close_windows_job(job_handle)
+        for thread in (stdout_thread, stderr_thread):
+            if thread is not None:
+                thread.join(timeout=1)
+        for stream in (stdout_stream, stderr_stream):
+            if stream is not None:
+                with contextlib.suppress(OSError, ValueError):
+                    stream.close()
+        for thread in (stdout_thread, stderr_thread):
+            if thread is not None:
+                thread.join(timeout=1)
+
+    stdout, stdout_reason = _decode_probe_output(stdout_head, "stdout")
+    stderr, stderr_reason = _decode_probe_output(stderr_head, "stderr")
+    reasons = [reason for reason in (resource_reason, stdout_reason, stderr_reason) if reason]
+    if reasons:
+        if stderr:
+            stderr = f"{stderr.rstrip()}\n"
+        stderr += "\n".join(reasons)
+    if resource_reason:
+        return _ADAPTER_RESOURCE_EXIT_CODE, stdout, stderr
+    if stdout_reason or stderr_reason:
+        return _ADAPTER_OUTPUT_EXIT_CODE, stdout, stderr
+    if process is None or not isinstance(process.returncode, int):
+        return _ADAPTER_RESOURCE_EXIT_CODE, stdout, stderr
+    return process.returncode, stdout, stderr
+
+
+def _decode_probe_output(capture: Any, stream_name: str) -> tuple[str, str]:
+    if capture is None:
+        return "", ""
+    raw = capture.bytes()
+    try:
+        output = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return "", f"{_ADAPTER_BLOCKED_PREFIX} {stream_name} is not valid UTF-8"
+    if capture.truncated:
+        return (
+            output,
+            (
+                f"{_ADAPTER_BLOCKED_PREFIX} {stream_name} exceeded "
+                f"{_ADAPTER_PROBE_OUTPUT_BYTES}-byte limit "
+                f"(observed at least {capture.total_bytes} bytes)"
+            ),
+        )
+    return output, ""
 
 
 def _support_statement(
@@ -640,10 +752,12 @@ def _run_command_probes(
         command = _command_with_executable(probe.command, executable)
         exit_code, stdout, stderr = runner(command, timeout_seconds)
         output = f"{stdout}\n{stderr}"
-        if probe.label == "version" and exit_code == 0:
+        if probe.label == "version":
             version = _first_line(output)
         if exit_code != 0:
-            blocked_reasons.append(f"{probe.label} exited {exit_code}")
+            blocked_reasons.append(
+                _probe_block_reason(stderr) or f"{probe.label} exited {exit_code}"
+            )
         missing_flags.extend(flag for flag in probe.required_flags if flag not in output)
     return _CommandProbeResult(
         version=version,
@@ -681,12 +795,17 @@ def _run_auth_command_probes(
         command = _command_with_executable(probe.command, executable)
         exit_code, stdout, stderr = runner(command, timeout_seconds)
         if exit_code != 0:
-            blocked_reasons.append(f"{probe.label} exited {exit_code}")
+            blocked_reasons.append(
+                _probe_block_reason(stderr) or f"{probe.label} exited {exit_code}"
+            )
             continue
         try:
             keys = _json_marker_keys(stdout or stderr)
         except json.JSONDecodeError:
             blocked_reasons.append(f"{probe.label} output is not JSON")
+            continue
+        except _StructuredInputBlocked as exc:
+            blocked_reasons.append(f"{probe.label} output blocked: {exc}")
             continue
         metered_evidence.extend(
             f"{probe.label}: {marker}"
@@ -711,6 +830,17 @@ def _command_with_executable(command: tuple[str, ...], executable: str) -> tuple
     return (executable, *command[1:])
 
 
+def _probe_block_reason(stderr: str) -> str:
+    return next(
+        (
+            line.strip()
+            for line in stderr.splitlines()
+            if line.strip().startswith(_ADAPTER_BLOCKED_PREFIX)
+        ),
+        "",
+    )
+
+
 def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _ConfigScanResult:
     files_found: list[str] = []
     metered_evidence: list[str] = []
@@ -718,13 +848,19 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
     blocked_reasons: list[str] = []
     for probe in probes:
         path = home_dir.joinpath(*probe.relative_path)
-        if not path.exists():
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            files_found.append(probe.display_path)
+            blocked_reasons.append(f"{probe.display_path} could not be inspected safely")
             continue
         files_found.append(probe.display_path)
         try:
-            keys = _config_marker_keys(path)
-        except (OSError, UnicodeDecodeError):
-            blocked_reasons.append(f"{probe.display_path} could not be read")
+            keys = _config_marker_keys(path, home_dir)
+        except _StructuredInputBlocked as exc:
+            blocked_reasons.append(f"{probe.display_path} blocked: {exc}")
             continue
         except (json.JSONDecodeError, tomllib.TOMLDecodeError):
             blocked_reasons.append(f"{probe.display_path} could not be parsed")
@@ -748,35 +884,73 @@ def _scan_config_probes(probes: Sequence[ConfigProbe], home_dir: Path) -> _Confi
 
 
 def _json_marker_keys(text: str) -> set[str]:
-    payload = json.loads(text)
+    try:
+        raw = text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise _StructuredInputBlocked("auth JSON is not valid UTF-8") from exc
+    if len(raw) > _ADAPTER_AUTH_JSON_BYTES:
+        raise _StructuredInputBlocked(f"auth JSON exceeds {_ADAPTER_AUTH_JSON_BYTES}-byte limit")
+    try:
+        payload = json.loads(text)
+    except (MemoryError, RecursionError) as exc:
+        raise _StructuredInputBlocked("auth JSON parser resource limit exceeded") from exc
     return _flatten_config_keys(payload)
 
 
-def _config_marker_keys(path: Path) -> set[str]:
-    text = path.read_text(encoding="utf-8-sig")
+def _config_marker_keys(path: Path, home_dir: Path) -> set[str]:
+    validated = validate_confined_path(path, home_dir, expect_directory=False)
+    if validated is None or validated[1].st_nlink != 1:
+        raise _StructuredInputBlocked("path is not a confined regular file")
+    if validated[1].st_size > _ADAPTER_CONFIG_BYTES:
+        raise _StructuredInputBlocked(f"file exceeds {_ADAPTER_CONFIG_BYTES}-byte limit")
+    raw = read_confined_bytes(path, home_dir, max_bytes=_ADAPTER_CONFIG_BYTES)
+    if raw is None:
+        raise _StructuredInputBlocked("file could not be read safely")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise _StructuredInputBlocked("file is not valid UTF-8") from exc
     suffix = path.suffix.lower()
-    if suffix == ".toml":
-        parsed = tomllib.loads(text)
-    elif suffix == ".json":
-        parsed = json.loads(text)
-    else:
-        return set()
+    try:
+        if suffix == ".toml":
+            parsed = tomllib.loads(text)
+        elif suffix == ".json":
+            parsed = json.loads(text)
+        else:
+            return set()
+    except (MemoryError, RecursionError) as exc:
+        raise _StructuredInputBlocked("config parser resource limit exceeded") from exc
     return _flatten_config_keys(parsed)
 
 
-def _flatten_config_keys(value: object, prefix: str = "") -> set[str]:
+def _flatten_config_keys(value: object, prefix: str = "") -> set[str]:  # noqa: C901
     keys: set[str] = set()
-    if isinstance(value, Mapping):
-        for raw_key, raw_child in cast("Mapping[object, object]", value).items():  # pyright: ignore[reportUnknownVariableType]
-            key_text: str = str(raw_key)
-            full_key = f"{prefix}.{key_text}" if prefix else key_text
-            keys.add(full_key)
-            keys.update(_flatten_config_keys(raw_child, full_key))
-    elif isinstance(value, list):
-        for raw_item in cast(list[object], value):  # pyright: ignore[reportUnknownVariableType]
-            keys.update(_flatten_config_keys(raw_item, prefix))
-    elif isinstance(value, str):
-        keys.add(value)
+    pending: list[tuple[object, str, int]] = [(value, prefix, 0)]
+    visited = 0
+    while pending:
+        current, current_prefix, depth = pending.pop()
+        visited += 1
+        if visited > _ADAPTER_CONFIG_MAX_NODES:
+            raise _StructuredInputBlocked("structured input node limit exceeded")
+        if depth > _ADAPTER_CONFIG_MAX_DEPTH:
+            raise _StructuredInputBlocked("structured input depth limit exceeded")
+        if isinstance(current, Mapping):
+            for raw_key, raw_child in cast("Mapping[object, object]", current).items():  # pyright: ignore[reportUnknownVariableType]
+                key_text = str(raw_key)
+                if len(key_text) > _ADAPTER_CONFIG_MAX_KEY_CHARS:
+                    raise _StructuredInputBlocked("structured input key length limit exceeded")
+                full_key = f"{current_prefix}.{key_text}" if current_prefix else key_text
+                if len(full_key) > _ADAPTER_CONFIG_MAX_PATH_CHARS:
+                    raise _StructuredInputBlocked("structured input path length limit exceeded")
+                keys.add(full_key)
+                pending.append((raw_child, full_key, depth + 1))
+        elif isinstance(current, list):
+            items = cast(list[object], current)  # pyright: ignore[reportUnknownVariableType]
+            pending.extend((raw_item, current_prefix, depth + 1) for raw_item in items)
+        elif isinstance(current, str):
+            if len(current) > _ADAPTER_CONFIG_MAX_VALUE_CHARS:
+                raise _StructuredInputBlocked("structured input value length limit exceeded")
+            keys.add(current)
     return keys
 
 

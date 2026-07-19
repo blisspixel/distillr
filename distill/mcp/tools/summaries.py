@@ -12,20 +12,78 @@ free, for a sub-agent choosing which topic to query at all.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from distill.library.claude_md import count_topic_sources, topic_summary_line
+from distill.library.confined import read_confined_text_prefix, validate_confined_path
+from distill.library.paths import strip_frontmatter
 from distill.llm.availability import model_available
 from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
 
 __all__: list[str] = []
 
+_MAX_SYNTHESIS_FILE_BYTES = 4 * 1024 * 1024
+_MAX_SYNTHESIS_PREFIX_CHARS = 128 * 1024
+_MAX_TOPIC_SUMMARY_CHARS = 1200
+_SYNTHESIS_PATTERNS = (
+    "*_Corpus_Synthesis.md",
+    "*_Topic_Synthesis.md",
+    "*_Paper_Synthesis.md",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _SynthesisCandidate:
+    path: Path
+    mtime_ns: int
+    state: str
+
+
+def _synthesis_candidates(topic_dir: Path, library_dir: Path) -> list[_SynthesisCandidate]:
+    candidates: list[_SynthesisCandidate] = []
+    seen: set[Path] = set()
+    for pattern in _SYNTHESIS_PATTERNS:
+        for path in topic_dir.glob(pattern):
+            if path in seen:
+                continue
+            seen.add(path)
+            try:
+                initial = path.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                candidates.append(_SynthesisCandidate(path=path, mtime_ns=-1, state="unreadable"))
+                continue
+            validated = validate_confined_path(path, library_dir, expect_directory=False)
+            if validated is None or validated[1].st_nlink != 1:
+                state = "unsafe"
+            elif validated[1].st_size > _MAX_SYNTHESIS_FILE_BYTES:
+                state = "oversized"
+            else:
+                state = "available"
+            candidates.append(
+                _SynthesisCandidate(
+                    path=path,
+                    mtime_ns=initial.st_mtime_ns,
+                    state=state,
+                )
+            )
+    return sorted(candidates, key=lambda item: (-item.mtime_ns, item.path.name.casefold()))
+
+
+def _summary_paragraph(prefix: str) -> str:
+    normalized = prefix.replace("\r\n", "\n").replace("\r", "\n")
+    body = strip_frontmatter(normalized)
+    for block in body.split("\n\n"):
+        stripped = block.strip()
+        if stripped and not stripped.startswith("#"):
+            return " ".join(stripped.split())[:_MAX_TOPIC_SUMMARY_CHARS]
+    return ""
+
 
 def _has_synthesis(topic_dir: Path) -> bool:
-    return any(
-        any(topic_dir.glob(pattern))
-        for pattern in ("*_Corpus_Synthesis.md", "*_Topic_Synthesis.md", "*_Paper_Synthesis.md")
-    )
+    return any(any(topic_dir.glob(pattern)) for pattern in _SYNTHESIS_PATTERNS)
 
 
 @mcp.tool()
@@ -144,7 +202,7 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
 
 
 @mcp.tool()
-def list_topic_summary(topic: str) -> str:
+def list_topic_summary(topic: str) -> str:  # noqa: C901 - bounded candidate fallback states
     """One-paragraph orientation for a topic (free, no model call).
 
     Pulled from the topic's newest synthesis artifact; used when a sub-agent
@@ -153,51 +211,106 @@ def list_topic_summary(topic: str) -> str:
     Args:
         topic: Topic to summarize.
     """
-    from distill.library.paths import strip_frontmatter
-
     config = load_config()
     topic_dir = config.topic_dir(topic)
-    if not topic_dir.exists():
+    try:
+        topic_dir.lstat()
+    except FileNotFoundError:
         return json.dumps({"status": "error", "error": f"Topic '{topic}' not found."}, indent=2)
+    except OSError:
+        return json.dumps(
+            {"status": "error", "error": f"Topic '{topic}' is unavailable."}, indent=2
+        )
+    if validate_confined_path(topic_dir, config.library_dir, expect_directory=True) is None:
+        return json.dumps(
+            {"status": "error", "error": f"Topic '{topic}' is unavailable."}, indent=2
+        )
 
-    synth_files = sorted(
-        (
-            p
-            for pattern in ("*_Corpus_Synthesis.md", "*_Topic_Synthesis.md", "*_Paper_Synthesis.md")
-            for p in topic_dir.glob(pattern)
-        ),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    paragraph = ""
-    source_file = ""
-    for synth in synth_files:
-        try:
-            body = strip_frontmatter(synth.read_text(encoding="utf-8"))
-        except OSError:
-            continue
-        # First substantive prose paragraph: skip headings and blank lines.
-        for block in body.split("\n\n"):
-            stripped = block.strip()
-            if stripped and not stripped.startswith("#"):
-                paragraph = " ".join(stripped.split())[:1200]
-                break
-        if paragraph:
-            source_file = synth.name
-            break
-
+    candidates = _synthesis_candidates(topic_dir, config.library_dir)
     insight_count = sum(1 for _ in topic_dir.rglob("*_Insights.md"))
-    if not paragraph:
+    if not candidates:
+        return json.dumps(
+            {
+                "topic": topic,
+                "summary": (
+                    f"No synthesis artifact yet; the topic holds {insight_count} insight "
+                    "artifact(s). Run distill synthesize to produce an overview."
+                ),
+                "from": "",
+                "insights": insight_count,
+                "status": "unavailable",
+                "evidence": {
+                    "status": "absent",
+                    "newest": "",
+                    "selected": "",
+                    "reason": "no_synthesis",
+                },
+            },
+            indent=2,
+        )
+
+    newest = candidates[0]
+    first_failure = ""
+    for candidate in candidates:
+        reason = candidate.state
+        paragraph = ""
+        if reason == "available":
+            prefix = read_confined_text_prefix(
+                candidate.path,
+                config.library_dir,
+                max_file_bytes=_MAX_SYNTHESIS_FILE_BYTES,
+                max_chars=_MAX_SYNTHESIS_PREFIX_CHARS,
+            )
+            if prefix is None:
+                reason = "unreadable"
+            else:
+                paragraph = _summary_paragraph(prefix)
+                if not paragraph:
+                    reason = "no_summary_text"
+        if paragraph:
+            degraded = bool(first_failure)
+            return json.dumps(
+                {
+                    "topic": topic,
+                    "summary": paragraph,
+                    "from": candidate.path.name,
+                    "insights": insight_count,
+                    "status": "degraded" if degraded else "ok",
+                    "evidence": {
+                        "status": "degraded" if degraded else "available",
+                        "newest": newest.path.name,
+                        "selected": candidate.path.name,
+                        **({"reason": first_failure} if degraded else {}),
+                    },
+                },
+                indent=2,
+            )
+        if not first_failure:
+            first_failure = reason
+
+    if first_failure == "no_summary_text":
         paragraph = (
-            f"No synthesis artifact yet; the topic holds {insight_count} insight artifact(s). "
-            "Run distill synthesize to produce an overview."
+            "Synthesis artifact contains no substantive prose; the topic holds "
+            f"{insight_count} insight artifact(s)."
+        )
+    else:
+        paragraph = (
+            f"Synthesis evidence is unavailable ({first_failure}); the topic holds "
+            f"{insight_count} insight artifact(s)."
         )
     return json.dumps(
         {
             "topic": topic,
             "summary": paragraph,
-            "from": source_file,
+            "from": "",
             "insights": insight_count,
+            "status": "unavailable",
+            "evidence": {
+                "status": "unavailable",
+                "newest": newest.path.name,
+                "selected": "",
+                "reason": first_failure,
+            },
         },
         indent=2,
     )

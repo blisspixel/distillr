@@ -345,8 +345,8 @@ class TestResynthesize:
     def test_resynthesize_single_channel_filter(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         lib = Library(config)
-        lib.add_channel("ai", "https://www.youtube.com/@A", "Alpha")
-        lib.add_channel("ai", "https://www.youtube.com/@B", "Beta")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanA", "Alpha")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanB", "Beta")
         self._patch_common(monkeypatch, config)
         seen: list[str] = []
 
@@ -692,8 +692,8 @@ class TestReanalyze:
     def test_skips_channel_without_videos_dir(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         lib = Library(config)
-        lib.add_channel("ai", "https://www.youtube.com/@A", "Alpha")
-        lib.add_channel("ai", "https://www.youtube.com/@B", "Beta")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanA", "Alpha")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanB", "Beta")
         _seed_video(config, channel="Alpha", video_id="v1", title="Alpha Video")
         self._patch_common(monkeypatch, config)
         monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")

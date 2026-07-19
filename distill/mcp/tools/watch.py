@@ -187,7 +187,18 @@ def watch_add(
         instructions: Custom analysis instructions
     """
     from distill.ingestors.youtube.discovery import resolve_channel_name
+    from distill.youtube_urls import normalize_youtube_channel_url
 
+    normalized_url = normalize_youtube_channel_url(url)
+    if not normalized_url:
+        return json.dumps(
+            {
+                "status": "invalid_url",
+                "error": "Expected a public HTTPS YouTube channel URL without credentials, query, or fragment.",
+            },
+            indent=2,
+        )
+    url = normalized_url
     refusal = refuse_if_host_not_allowed(url)
     if refusal is not None:
         return refusal

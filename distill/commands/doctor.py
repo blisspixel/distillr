@@ -202,6 +202,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
             for action in actions:
                 console.print(f"  RENAME: {action.source_path.relative_to(library_dir)}")
                 console.print(f"       → {action.target_path.relative_to(library_dir)}")
+            console.print("  Wiki-link repair follows successful renames when the plan is applied.")
             console.print(
                 f"\n  Summary: {len(actions)} rename(s) proposed. Use --apply to execute."
             )
@@ -216,6 +217,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
                 console.print(f"  Errors:             {len(migration_result.errors)}")
                 for err in migration_result.errors:
                     console.print(f"    [red]•[/red] {err}")
+                raise typer.Exit(1)
 
         return
 
@@ -260,6 +262,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
                 console.print(f"  Errors:          {len(result.errors)}")
                 for err in result.errors:
                     console.print(f"    [red]•[/red] {err}")
+                raise typer.Exit(1)
 
         return
 

@@ -4,15 +4,22 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from distill._console import console
 from distill.config import DistillConfig
+from distill.ingestors.sites._site_urls import (
+    site_attachment_context_for_persistence,
+    site_url_for_persistence,
+    site_url_list_for_persistence,
+)
 from distill.ingestors.sites.scraper import SitePage, build_page_document
 from distill.library.intent import CorpusIntent
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
     find_artifact,
+    site_name_from_url,
     tags_for,
 )
 from distill.llm import call as llm_call
@@ -32,6 +39,28 @@ __all__ = [
 ]
 
 
+def _page_for_model(page: SitePage) -> SitePage:
+    raw_derived_site_name = site_name_from_url(page.url)
+    safe_derived_site_name = site_name_from_url(site_url_for_persistence(page.url))
+    return replace(
+        page,
+        site_name=(
+            safe_derived_site_name if page.site_name == raw_derived_site_name else page.site_name
+        ),
+        url=site_url_for_persistence(page.url),
+        final_url=site_url_for_persistence(page.final_url),
+        canonical_url=site_url_for_persistence(page.canonical_url),
+        source_url=site_url_for_persistence(page.source_url),
+        links=site_url_list_for_persistence(page.links),
+        pdf_links=site_url_list_for_persistence(page.pdf_links),
+        video_links=site_url_list_for_persistence(page.video_links),
+        attachment_context=site_attachment_context_for_persistence(
+            page.attachment_context,
+            [*page.pdf_links, *page.video_links],
+        ),
+    )
+
+
 def analyze_site_page(
     page: SitePage,
     config: DistillConfig,
@@ -43,15 +72,16 @@ def analyze_site_page(
     """Analyze a site page. ``router_config`` lets a caller (e.g. the eval
     harness) force a specific model/provider; defaults to the configured routing.
     ``intent`` selects the analysis lens and goal focus; ``None`` keeps neutral."""
+    safe_page = _page_for_model(page)
     rc = router_config or RouterConfig()
     goal = intent.goal if intent else ""
     lens = intent.lens if intent else ""
     prompt = site_page_insight_prompt(
-        page.title,
-        page.url,
-        page.site_name,
-        page.page_type,
-        build_page_document(page),
+        safe_page.title,
+        safe_page.url,
+        safe_page.site_name,
+        safe_page.page_type,
+        build_page_document(safe_page),
         goal=goal,
         lens=lens,
     )
@@ -74,10 +104,10 @@ def analyze_site_page(
 
     return (
         f"---\n"
-        f"page_title: {_q(page.title)}\n"
-        f"site: {_q(page.site_name)}\n"
-        f"page_type: {_q(page.page_type)}\n"
-        f"url: {_q(page.url)}\n"
+        f"page_title: {_q(safe_page.title)}\n"
+        f"site: {_q(safe_page.site_name)}\n"
+        f"page_type: {_q(safe_page.page_type)}\n"
+        f"url: {_q(safe_page.url)}\n"
         f"analyzed_by: {response.model}\n"
         f"model: {response.model}\n"
         f"model_version: {response.model}\n"

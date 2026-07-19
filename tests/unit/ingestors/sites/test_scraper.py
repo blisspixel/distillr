@@ -431,8 +431,12 @@ def test_site_page_metadata_and_page_id():
 def test_url_helpers_normalize_and_filter():
     assert normalize_host("https://www.example.com/path") == "example.com"
     assert (
+        normalize_host("https://user:pass@www.example.com:8443/path?token=canary")
+        == "example.com:8443"
+    )
+    assert (
         canonicalize_url("https://example.com/path/?utm_source=x&b=2&a=1")
-        == "https://example.com/path?a=1&b=2"
+        == "https://example.com/path?b=2&a=1"
     )
     assert canonicalize_url("HTTPS://EXAMPLE.COM.:443/path/") == "https://example.com/path"
     assert page_id_from_url("https://example.com/some/page")
@@ -552,7 +556,7 @@ def test_crawl_prefix_from_url_uses_path_only():
     assert crawl_prefix_from_url("https://example.com") == ""
 
 
-def test_dedupe_urls_canonicalizes_query_order():
+def test_dedupe_urls_preserves_query_order_as_identity():
     result = dedupe_urls(
         [
             "https://example.com/path?b=2&a=1",
@@ -560,7 +564,10 @@ def test_dedupe_urls_canonicalizes_query_order():
         ]
     )
 
-    assert result == ["https://example.com/path?a=1&b=2"]
+    assert result == [
+        "https://example.com/path?b=2&a=1",
+        "https://example.com/path?a=1&b=2",
+    ]
 
 
 def test_is_same_section_matches_first_path_segment():
@@ -747,7 +754,10 @@ def test_extract_page_parses_payload_and_dedupes_fields():
     assert extracted.title == "Agent Lab - Example"
     assert extracted.authors == ["Alice", "Bob"]
     assert extracted.tags == ["AI", "Agents"]
-    assert extracted.links[0] == "https://example.com/topic/agents?a=1&b=2"
+    assert extracted.links[:2] == [
+        "https://example.com/topic/agents?b=2&a=1",
+        "https://example.com/topic/agents?a=1&b=2",
+    ]
     assert extracted.pdf_links == ["https://example.com/guide.pdf"]
     assert extracted.video_links == ["https://player.example.com/embed/123"]
     assert extracted.final_url == "https://example.com/video/agent-lab"
@@ -972,8 +982,15 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
     monkeypatch.setattr(scraper_module, "assign_windows_memory_job", lambda *a, **k: None)
     monkeypatch.setattr(scraper_module, "close_windows_job", lambda _handle: None)
     monkeypatch.setattr(scraper_module, "wait_for_process_budget", lambda *a, **k: 100)
+    terminated = []
+    monkeypatch.setattr(
+        scraper_module,
+        "terminate_isolated_process_tree",
+        terminated.append,
+    )
 
     assert scraper_module._run_browser_worker(seed) == [page]
+    assert terminated == [process]
     assert process.stdin is None
     assert observed["argv"][:4] == [
         sys.executable,
@@ -1002,7 +1019,7 @@ def test_browser_worker_parent_terminates_on_memory_budget(monkeypatch, tmp_path
             scraper_module.ProcessBudgetExceeded("memory", 100, 101)
         ),
     )
-    monkeypatch.setattr(scraper_module, "terminate_process_tree", terminated.append)
+    monkeypatch.setattr(scraper_module, "terminate_isolated_process_tree", terminated.append)
 
     assert scraper_module._run_browser_worker(seed) == []
     assert terminated == [process]

@@ -444,18 +444,21 @@ def test_analyze_tweet_passes_exact_quoted_post_receipt_to_prompt(tmp_path: Path
 # ---------------------------------------------------------------------------
 
 
-def test_ingest_tweet_text_only_writes_two_artifacts(tmp_path: Path) -> None:
+def test_ingest_tweet_text_only_writes_two_artifacts(tmp_path: Path, capsys) -> None:
     """Tweet without video: writes Tweet.md + Insights.md, no transcript."""
     config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
     text_tweet = _tweet(text="text only post")
 
+    raw_url = "https://x.com/alice/status/12345?access_token=BANNER-CANARY"
     with (
-        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=text_tweet),
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=text_tweet) as fetch,
         patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("insights body")),
     ):
-        result = ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
+        result = ingest_tweet(raw_url, topic="t", config=config)
 
     assert isinstance(result, IngestedTweet)
+    fetch.assert_called_once_with(raw_url)
+    assert "BANNER-CANARY" not in capsys.readouterr().out
     assert result.tweet_path.exists()
     assert result.transcript_path is None
     assert result.insights_path is not None and result.insights_path.exists()
