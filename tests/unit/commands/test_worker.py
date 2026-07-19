@@ -262,7 +262,8 @@ def test_worker_rejects_literal_claim_token_option_without_echoing_value(
     )
 
     assert result.exit_code == 2
-    assert "--claim-token" in result.output
+    plain_output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--claim-token" in plain_output
     assert sentinel not in result.output
     assert opened == []
 

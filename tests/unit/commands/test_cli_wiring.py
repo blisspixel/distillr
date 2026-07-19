@@ -844,6 +844,16 @@ class TestLearnCommand:
                 config.channel_dir(topic, channel_name) / "synthesis.md"
             ).write_text("# Synth", encoding="utf-8"),
         )
+        monkeypatch.setattr(
+            _learning_support,
+            "synthesize_topic",
+            lambda topic, config, tracker=None: None,
+        )
+        monkeypatch.setattr(
+            _learning_support,
+            "synthesize_corpus",
+            lambda topic, config, tracker=None: None,
+        )
         result = runner.invoke(cli.app, ["learn", "Microsoft Fabric", "--ephemeral"])
 
         assert result.exit_code == 0
