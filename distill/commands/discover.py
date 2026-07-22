@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import typer
+from rich.text import Text
 
 from distill import cli_shared
 from distill._console import console
@@ -33,6 +34,7 @@ from distill.commands._helpers import (
     budgeted_cost_tracker,
     enforce_projected_workflow_budget,
     get_config,
+    quote_cli_value,
     save_command_cost,
 )
 from distill.commands._helpers import (
@@ -618,7 +620,12 @@ def discover(  # noqa: C901 — legacy, will refactor
     from_preview: str = _discover_options.FROM_PREVIEW_OPTION,
     size: bool = _discover_options.SIZE_OPTION,
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the interactive confirmation prompt"),
-):
+    emit_replay_command: bool = typer.Option(
+        True,
+        "--emit-replay-command/--no-emit-replay-command",
+        hidden=True,
+    ),
+) -> str | None:
     """Goal-aware cross-source discovery: papers + videos, reranked against a goal.
 
     With ``--from-gaps``, the goal is synthesized from the topic's coverage gaps
@@ -705,7 +712,16 @@ def discover(  # noqa: C901 — legacy, will refactor
         console.print()
         if snapshot.goal:
             save_intent(
-                config.topic_dir(replay_topic), make_intent(snapshot.goal, lens=lens, rigor=rigor)
+                config.topic_dir(replay_topic),
+                make_intent(snapshot.goal, lens=lens, rigor=snapshot.rigor),
+            )
+            from distill.pipeline.goals import save_topic_goal
+
+            save_topic_goal(
+                config.library_dir,
+                replay_topic,
+                snapshot.goal,
+                now_iso=datetime.now().isoformat(),
             )
         replay_estimate = estimate_discover_items(
             papers=len(replay_papers),
@@ -727,7 +743,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             ingest_attachments=ingest_attachments,
             yes=yes,
         )
-        return
+        return None
 
     if from_gaps:
         from distill.pipeline.gaps import gap_discovery_goal, topic_gap_summary
@@ -867,7 +883,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             display_summary(
                 summary, cost_tracker=tracker, console=console, log_dir=config.library_dir
             )
-            return
+            return None
         console.print("[red]No candidates found. Broaden the goal or widen --days.[/red]")
         raise typer.Exit(1)
 
@@ -896,7 +912,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             site_limit=effective_site_limit,
             ingest_attachments=ingest_attachments,
         )
-        return
+        return None
 
     # --rigor: drop candidates below the level's rerank-score (final_score) threshold.
     threshold = rigor_threshold(rigor)
@@ -959,12 +975,31 @@ def discover(  # noqa: C901 — legacy, will refactor
                 "calibrated": estimate.calibrated,
             },
             now_iso=datetime.now().isoformat(),
+            settings={
+                "video_limit": video_limit,
+                "paper_limit": paper_limit,
+                "days": days,
+                "shorts": shorts,
+            },
         )
-        console.print(
-            f"\n[dim]Previewed set saved as[/dim] [bold]{snapshot.id}[/bold]. "
-            "[dim]Ingest exactly this set with:[/dim]\n"
-            f"  [cyan]distill discover --from-preview {snapshot.id} --topic {topic_name}[/cyan]"
-        )
+        if emit_replay_command:
+            console.print(
+                f"\n[dim]Previewed set saved as[/dim] [bold]{snapshot.id}[/bold]. "
+                "[dim]Ingest exactly this set with:[/dim]"
+            )
+            try:
+                quoted_topic = quote_cli_value(topic_name)
+            except ValueError as exc:
+                console.print(
+                    "[yellow]No paste-ready replay command was emitted because the topic "
+                    f"{exc}. Re-enter the literal topic with `distill discover "
+                    f"--from-preview {snapshot.id}`.[/yellow]"
+                )
+            else:
+                command = f"  distill discover --from-preview {snapshot.id} --topic={quoted_topic}"
+                console.print(Text(command, style="cyan"), soft_wrap=True)
+        else:
+            console.print(f"\n[dim]Previewed set saved as[/dim] [bold]{snapshot.id}[/bold].")
         display_summary(
             summary,
             cost_tracker=tracker,
@@ -972,7 +1007,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             log_dir=config.library_dir,
             preview=True,
         )
-        return
+        return snapshot.id
 
     enforce_projected_workflow_budget(config, "discover", estimate.expected)
     _discover_ingest_set(
@@ -986,6 +1021,7 @@ def discover(  # noqa: C901 — legacy, will refactor
         ingest_attachments=ingest_attachments,
         yes=yes,
     )
+    return None
 
 
 def register(app: typer.Typer) -> None:

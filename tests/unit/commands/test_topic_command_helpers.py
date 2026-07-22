@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -13,7 +14,7 @@ from typer.testing import CliRunner
 
 from distill import _cli_impl, cli
 from distill.commands import topic as _topic
-from distill.commands._json import ExitCode
+from distill.commands._json import ExitCode, set_json_active
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_path
@@ -107,13 +108,25 @@ def test_topic_preview_videos_only_uses_preview_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
+    preview_logs: list[tuple[object, Path, str, dict[str, str]]] = []
+    tracker = object()
 
     def preview_learning_selection(query: str, **kwargs: Any) -> tuple[DistillConfig, object, list]:
         captured["query"] = query
         captured.update(kwargs)
-        return mock_config, object(), []
+        return mock_config, tracker, []
+
+    def log_preview_cost(
+        received_tracker: object,
+        log_dir: Path,
+        command: str,
+        *,
+        metadata: dict[str, str],
+    ) -> None:
+        preview_logs.append((received_tracker, log_dir, command, metadata))
 
     monkeypatch.setattr(_topic, "_preview_learning_selection", preview_learning_selection)
+    monkeypatch.setattr(_topic, "log_preview_cost", log_preview_cost, raising=False)
 
     result = runner.invoke(
         cli.app,
@@ -124,7 +137,201 @@ def test_topic_preview_videos_only_uses_preview_selection(
     assert captured["query"] == "Agent memory"
     assert captured["limit"] == 4
     assert captured["header"] == "Topic Preview"
+    assert preview_logs == [
+        (tracker, mock_config.library_dir, "topic", {"topic": "memory", "source_type": "video"})
+    ]
+    expected_goal = _topic._quote_cli_value("Agent memory")
+    assert (
+        "distill --cost-mode auto topic create --topic=memory "
+        f"--videos 4 --papers 0 --days 30 --no-shorts {expected_goal}"
+    ) in result.output
+    normalized_output = " ".join(result.output.split())
+    assert "selection is refreshed when you run it" in normalized_output
+    assert "No corpus artifacts were written" in normalized_output
     assert not (mock_config.topic_dir("memory") / "topic_profile.json").exists()
+
+
+def test_topic_mixed_preview_emits_one_exact_topic_continuation(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def invoke(command, **kwargs: Any) -> str:
+        captured.update(kwargs)
+        return "abc123def4"
+
+    monkeypatch.setattr(_topic, "_invoke_command", invoke)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "topic",
+            "preview",
+            "Agent memory",
+            "--topic",
+            "memory",
+            "--videos",
+            "4",
+            "--papers",
+            "3",
+            "--days",
+            "14",
+            "--shorts",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["emit_replay_command"] is False
+    assert result.output.count("distill --cost-mode auto topic create") == 1
+    assert (
+        "distill --cost-mode auto topic create --from-preview abc123def4 --topic=memory "
+        "--videos 4 --papers 3 --days 14 --shorts"
+    ) in result.output
+    assert "distill discover --from-preview" not in result.output
+    assert "exactly this saved set" in result.output
+
+
+def test_topic_preview_json_emits_one_structured_continuation(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _topic,
+        "_preview_learning_selection",
+        lambda *args, **kwargs: (mock_config, object(), []),
+    )
+    monkeypatch.setattr(_topic, "log_preview_cost", lambda *args, **kwargs: None)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--json",
+            "topic",
+            "preview",
+            "Research agents",
+            "--topic",
+            "memory",
+            "--videos",
+            "2",
+            "--papers",
+            "0",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["status"] == "ok"
+    assert payload["data"]["topic"] == "memory"
+    assert payload["data"]["goal"] == "Research agents"
+    assert payload["data"]["selection_replay"] == "refreshed"
+    assert payload["data"]["preview_id"] is None
+    assert "topic create" in payload["data"]["command"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'Research "quoted" agents',
+        "topic;whoami",
+        "topic&whoami",
+        "$(whoami)",
+        "@args",
+        "%PATH%",
+    ],
+)
+def test_topic_preview_command_declines_cross_shell_unsafe_values(value: str) -> None:
+    with pytest.raises(ValueError, match="portable command"):
+        _topic._quote_cli_value(value)
+
+
+def test_topic_preview_command_quotes_markup_like_literal_text() -> None:
+    assert _topic._quote_cli_value("memory[red]") == '"memory[red]"'
+
+
+def test_render_topic_preview_treats_command_values_as_plain_text(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_json_active(False)
+    resolved = _topic._TopicWorkflowConfig(
+        topic="memory[red]",
+        goal="Research [red] agents",
+        videos=2,
+        papers=0,
+        days=7,
+        shorts=False,
+    )
+    output: list[object] = []
+
+    class PlainConsole:
+        def print(self, value: object = "", **kwargs: object) -> None:
+            output.append(value)
+
+    monkeypatch.setattr(_topic, "console", PlainConsole())
+
+    _topic._render_topic_preview(mock_config, resolved, "")
+
+    rendered = "\n".join(str(value) for value in output)
+    assert "memory[red]" in rendered
+    assert "Research [red] agents" in rendered
+
+
+def test_topic_preview_leading_dash_goal_uses_end_of_options_marker(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _topic,
+        "_preview_learning_selection",
+        lambda *args, **kwargs: (mock_config, object(), []),
+    )
+    monkeypatch.setattr(_topic, "log_preview_cost", lambda *args, **kwargs: None)
+
+    result = runner.invoke(
+        cli.app,
+        ["topic", "preview", "--papers", "0", "--", "--report"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "--no-shorts -- --report" in result.output
+
+
+def test_topic_preview_leading_dash_topic_round_trips_as_one_option_value(
+    mock_config: DistillConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_json: dict[str, Any] = {}
+    resolved = _topic._TopicWorkflowConfig(
+        topic="-research",
+        goal="Agent memory",
+        videos=2,
+        papers=0,
+        days=7,
+        shorts=False,
+    )
+    monkeypatch.setattr(_topic, "emit_json", lambda data: captured_json.update(data))
+    set_json_active(True)
+    try:
+        _topic._render_topic_preview(mock_config, resolved, "")
+    finally:
+        set_json_active(False)
+
+    command = captured_json["command"]
+    assert isinstance(command, str)
+    argv = shlex.split(command)[1:]
+    assert "--topic=-research" in argv
+
+    captured_workflow: dict[str, Any] = {}
+    monkeypatch.setattr(
+        _topic,
+        "_run_topic_workflow",
+        lambda **kwargs: captured_workflow.update(kwargs),
+    )
+    result = runner.invoke(cli.app, argv)
+
+    assert result.exit_code == 0, result.output
+    assert captured_workflow["topic"] == "-research"
 
 
 def test_topic_create_videos_only_runs_brief_and_report_hooks(

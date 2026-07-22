@@ -17,11 +17,10 @@ import json
 import logging
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from distill.eval._models import is_local as _is_local
-from distill.eval._models import provider_for_model
+from distill.eval._models import LOCAL_PROVIDERS, provider_for_model
 from distill.eval.fixtures import Fixture, load_fixtures
 from distill.eval.judge import (
     DEFAULT_JUDGE_MODEL,
@@ -31,6 +30,7 @@ from distill.eval.judge import (
 )
 from distill.eval.scoring import QualityScore, score_output
 from distill.llm import call as llm_call
+from distill.llm.cost_policy import classify_provider, local_provider_endpoint
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.analysis import pass1_extraction_prompt, pass2_synthesis_prompt
@@ -39,10 +39,42 @@ from distill.prompts.synthesis import paper_insight_prompt, site_page_insight_pr
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["EvalRow", "estimate_eval_cost", "provider_for_model", "run_model_eval"]
+__all__ = [
+    "EvalRow",
+    "UnpricedEvalRouteError",
+    "estimate_eval_cost",
+    "provider_for_model",
+    "run_model_eval",
+]
 
 # Analysis LLM calls per workload (video is 2-pass).
 _CALLS_PER_WORKLOAD: dict[str, int] = {"paper": 1, "video": 2, "site": 1}
+
+
+class UnpricedEvalRouteError(ValueError):
+    """An eval route has usage evidence but no trustworthy price contract."""
+
+
+def _eval_provider_type(provider: str) -> str:
+    if provider in LOCAL_PROVIDERS:
+        return "local" if classify_provider(provider) == "local" else "unknown"
+    if provider == "adapter":
+        return "included-plan"
+    return "cloud"
+
+
+def _eval_model_is_no_metered(model: str) -> bool:
+    return _eval_provider_type(provider_for_model(model)) in {"local", "included-plan"}
+
+
+def _require_known_eval_cost(model: str) -> None:
+    provider = provider_for_model(model)
+    if provider in LOCAL_PROVIDERS and _eval_provider_type(provider) == "unknown":
+        raise UnpricedEvalRouteError(
+            f"Cannot evaluate cost for model '{model}' through a non-loopback {provider} "
+            "endpoint because its external price is unknown. Use a loopback endpoint "
+            "or a provider with a configured price contract."
+        )
 
 
 def estimate_eval_cost(
@@ -57,18 +89,20 @@ def estimate_eval_cost(
     """
     from distill.llm.cost import compute_cost
 
+    for model in {*models, judge_model}:
+        if model:
+            _require_known_eval_cost(model)
+
     total = 0.0
-    judge_local = _is_local(judge_model)
+    judge_no_metered = not judge_model or _eval_model_is_no_metered(judge_model)
     for fixture in fixtures:
         in_tok = len(fixture.source_text) // 4 + 600  # source + prompt template overhead
         out_tok = 800
         calls = _CALLS_PER_WORKLOAD.get(fixture.workload, 1)
         for model in models:
-            if not (
-                _is_local(model) or model.startswith("adapter:")
-            ):  # local and plan-quota adapter are free (no incremental)
+            if not _eval_model_is_no_metered(model):
                 total += calls * compute_cost(model, in_tok, out_tok)
-            if not judge_local:
+            if not judge_no_metered:
                 # Faithfulness judge: 1 absolute call per (model, fixture), anchor included.
                 total += compute_cost(judge_model, in_tok + out_tok, 120)
                 if model != anchor:  # pairwise judge: 2 order-randomized calls
@@ -188,7 +222,17 @@ def _analyze(
     run_tracker: CostTracker,
     cache_dir: Path | None,
 ) -> _Analysis:
-    key = _hash("analysis", model, fixture.id, _src_hash(fixture))
+    provider = provider_for_model(model)
+    endpoint = local_provider_endpoint(provider) if provider in LOCAL_PROVIDERS else ""
+    key = _hash(
+        "analysis-v2",
+        model,
+        fixture.id,
+        _src_hash(fixture),
+        provider,
+        _eval_provider_type(provider),
+        endpoint,
+    )
     cached = _load_json(cache_dir, key)
     if cached is not None:
         try:
@@ -204,11 +248,8 @@ def _analyze(
             # recompute rather than crashing the sweep on a poisoned/corrupt row.
             logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
     row_tracker = CostTracker()
-    rc = RouterConfig(provider=provider_for_model(model), model=model)
-    local = _is_local(model) or model.startswith(
-        "adapter:"
-    )  # local + plan-quota adapter: free (no incremental metered)
-    if provider_for_model(model) == "adapter" and runner is _run_analysis:
+    rc = RouterConfig(provider=provider, model=model)
+    if provider == "adapter" and runner is _run_analysis:
         # Adapter plan-quota routes require a live adapter analyzer. A synthetic
         # output would create false graduation evidence, so the default path
         # records an errored zero-cost row instead.
@@ -226,22 +267,32 @@ def _analyze(
     try:
         output = runner(fixture, rc, row_tracker)
     except Exception as exc:
-        if not local:
-            run_tracker.entries.extend(row_tracker.entries)
+        external_cost_unavailable = _merge_eval_usage(row_tracker, run_tracker, provider)
         logger.warning("eval analysis failed for %s on %s: %s", model, fixture.id, exc)
+        error = f"{type(exc).__name__}: {exc}"[:200]
+        if external_cost_unavailable:
+            error = f"external cost unavailable; {error}"[:200]
         return _Analysis(
             output="",
-            cost=0.0 if local else row_tracker.total_cost,
+            cost=row_tracker.total_cost,
             input_tokens=row_tracker.total_input_tokens,
             output_tokens=row_tracker.total_output_tokens,
             cached=False,
-            error=f"{type(exc).__name__}: {exc}"[:200],
+            error=error,
         )
-    if not local:
-        run_tracker.entries.extend(row_tracker.entries)
+    external_cost_unavailable = _merge_eval_usage(row_tracker, run_tracker, provider)
+    if external_cost_unavailable:
+        return _Analysis(
+            output="",
+            cost=row_tracker.total_cost,
+            input_tokens=row_tracker.total_input_tokens,
+            output_tokens=row_tracker.total_output_tokens,
+            cached=False,
+            error="external cost unavailable for eval route",
+        )
     analysis = _Analysis(
         output=output,
-        cost=0.0 if local else row_tracker.total_cost,
+        cost=row_tracker.total_cost,
         input_tokens=row_tracker.total_input_tokens,
         output_tokens=row_tracker.total_output_tokens,
         cached=False,
@@ -259,6 +310,35 @@ def _analyze(
         },
     )
     return analysis
+
+
+def _merge_eval_usage(
+    row_tracker: CostTracker,
+    run_tracker: CostTracker,
+    provider: str,
+) -> bool:
+    """Normalize route identity, merge every attempt, and flag unknown cost."""
+
+    route_type = _eval_provider_type(provider)
+    normalized: list[TokenUsage] = []
+    for entry in row_tracker.entries:
+        if provider in LOCAL_PROVIDERS:
+            normalized_entry = replace(
+                entry,
+                provider_name=provider,
+                provider_type=route_type,
+            )
+        else:
+            normalized_entry = replace(
+                entry,
+                provider_name=entry.provider_name or provider,
+                provider_type=entry.provider_type or route_type,
+            )
+        normalized.append(normalized_entry)
+    row_tracker.entries[:] = normalized
+    for entry in normalized:
+        run_tracker.record(entry)
+    return any(entry.external_cost_unavailable for entry in normalized)
 
 
 def _heuristic_summary(qs: QualityScore) -> str:

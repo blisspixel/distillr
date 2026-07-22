@@ -545,6 +545,55 @@ def test_cost_tracker_distinguishes_local_from_unproven_agent_usage():
     assert tracker.entries[1].no_metered_cost is False
 
 
+@pytest.mark.parametrize("provider_name", ["ollama", "lmstudio"])
+def test_remote_local_provider_name_does_not_bypass_metered_accounting(provider_name):
+    tracker = CostTracker()
+
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            model="unpriced-hosted-model",
+            provider_name=provider_name,
+            provider_type="unknown",
+            call_type="analysis",
+        )
+    )
+
+    assert tracker.entries[0].no_metered_cost is False
+    assert tracker.entries[0].external_cost_unavailable is True
+    assert tracker.total_cost == 0.0
+    assert tracker.summary_dict()["metered_calls"] == 0
+    assert tracker.summary_dict()["no_metered_calls"] == 0
+    assert tracker.summary_dict()["unknown_external_cost_calls"] == 1
+    assert tracker.summary_dict()["external_cost_status"] == "unavailable"
+    assert tracker.format_cost() == "$0.0000 direct; external cost unavailable"
+
+
+def test_remote_local_route_log_marks_external_cost_unavailable(tmp_path):
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=120,
+            completion_tokens=40,
+            model="hosted-local-model",
+            provider_name="ollama",
+            provider_type="unknown",
+            call_type="analysis",
+        )
+    )
+
+    save_run_log(tmp_path, "analysis", tracker)
+
+    row = json.loads((tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8"))
+    assert row["actual_cost"] == 0
+    assert row["external_cost_status"] == "unavailable"
+    assert row["actual_cost_scope"] == "distill-direct-charges"
+    assert row["usage_ledger"]["unknown_external_cost_llm_calls"] == 1
+    assert row["usage_ledger"]["metered_llm_calls"] == 0
+    assert row["by_route_class"]["unknown-external"]["calls"] == 1
+
+
 def test_host_managed_usage_has_unavailable_external_cost(tmp_path, monkeypatch):
     receipt_id = "c" * 64
     monkeypatch.setenv(PROFILE_RECEIPT_ENV, receipt_id)
@@ -594,6 +643,7 @@ def test_host_managed_usage_has_unavailable_external_cost(tmp_path, monkeypatch)
         "metered_llm_calls": 0,
         "no_metered_llm_calls": 0,
         "host_managed_llm_calls": 1,
+        "unknown_external_cost_llm_calls": 0,
         "conservative_usage_calls": 0,
         "gemini_queries": 0,
         "gemini_query_outcomes": {},

@@ -185,6 +185,20 @@ def test_eval_no_cpu_note_when_cloud_only(mock_config, monkeypatch):
     assert "run on CPU" not in result.output  # cloud-only is unaffected by GPU absence
 
 
+def test_ollama_sizing_does_not_probe_untrusted_remote_endpoint(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+
+    def forbidden_provider():
+        pytest.fail("untrusted remote endpoint must not be probed for local model sizing")
+
+    monkeypatch.setattr(
+        "distill.llm.providers.ollama.OllamaProvider",
+        forbidden_provider,
+    )
+
+    assert _eval._ollama_model_sizes() == {}
+
+
 def test_eval_local_only_works_without_cloud_key(tmp_path, monkeypatch):
     # No XAI key: a local-only user can still run the eval. But with only the two
     # local models under test and nothing else configured, there is no neutral

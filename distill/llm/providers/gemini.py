@@ -32,6 +32,20 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SECONDS = 300
 
+# Gemini 3.6 Flash, 3.5 Flash-Lite, and later releases deprecate sampling
+# parameters (temperature / top_p / top_k). The API currently ignores them and
+# will reject them on future generations; omit rather than forward.
+_NO_CUSTOM_SAMPLING_PREFIXES: tuple[str, ...] = (
+    "gemini-3.6",
+    "gemini-3.5-flash-lite",
+    "gemini-4",
+)
+
+
+def _supports_custom_sampling(model: str) -> bool:
+    normalized = model.strip().lower()
+    return not normalized.startswith(_NO_CUSTOM_SAMPLING_PREFIXES)
+
 
 def _http_options(timeout_seconds: int) -> HttpOptionsDict:
     return cast(
@@ -102,7 +116,7 @@ class GeminiProvider:
             for attempt in range(retries + 1):
                 try:
                     config: dict[str, Any] = {"max_output_tokens": max_tokens}
-                    if temperature is not None:
+                    if temperature is not None and _supports_custom_sampling(model):
                         config["temperature"] = temperature
 
                     response: Any = client.models.generate_content(

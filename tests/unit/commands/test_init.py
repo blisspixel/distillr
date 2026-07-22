@@ -19,12 +19,12 @@ from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
 import pytest
 from typer.testing import CliRunner
 
 from distill.cli import app
 from distill.commands import init as init_mod
+from distill.llm.router import RouterConfig
 
 runner = CliRunner()
 
@@ -335,11 +335,50 @@ class TestEnvFileHelpers:
         assert "# DISTILL_PROVIDER=ollama" in text
         assert "\nDISTILL_PROVIDER=ollama" in text
 
+    def test_set_env_var_canonicalizes_duplicate_and_export_assignments(self, tmp_path):
+        path = tmp_path / ".env"
+        path.write_text(
+            "# XAI_API_KEY=commented\n"
+            "XAI_API_KEY=old-first\n"
+            "OTHER=keep\n"
+            "export XAI_API_KEY = stale-last\n",
+            encoding="utf-8",
+        )
+
+        init_mod.set_env_var(path, "XAI_API_KEY", "new-value")
+
+        text = path.read_text(encoding="utf-8")
+        active = [
+            line
+            for line in text.splitlines()
+            if not line.lstrip().startswith("#") and "XAI_API_KEY" in line
+        ]
+        assert active == ["XAI_API_KEY=new-value"]
+        assert "# XAI_API_KEY=commented" in text
+        assert "OTHER=keep" in text
+        assert init_mod._env_file_value(text, "XAI_API_KEY") == "new-value"
+
     def test_set_env_var_creates_file_if_absent(self, tmp_path):
         path = tmp_path / ".env"
         init_mod.set_env_var(path, "XAI_API_KEY", "k")
         assert path.exists()
         assert "XAI_API_KEY=k" in path.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize(
+        ("key", "value", "message"),
+        [
+            ("INVALID-KEY", "value", "name is invalid"),
+            ("VALID_KEY", "line\nbreak", "control characters"),
+            ("VALID_KEY", "nul\x00byte", "control characters"),
+        ],
+    )
+    def test_set_env_var_rejects_unsafe_assignments(self, tmp_path, key, value, message):
+        path = tmp_path / ".env"
+
+        with pytest.raises(ValueError, match=message):
+            init_mod.set_env_var(path, key, value)
+
+        assert not path.exists()
 
     @pytest.mark.parametrize("operation", ["set", "force"])
     def test_env_writes_reject_symlinks_without_touching_the_target(self, tmp_path, operation):
@@ -535,91 +574,6 @@ class TestProviderBoundaries:
         assert init_mod._validate_xai() == ("ok", "grok-4.3")
         assert observed == {"provider": "xai", "config": config}
 
-    @pytest.mark.parametrize(
-        ("provider", "env_name", "base_url", "status_code", "expected_url", "expected"),
-        [
-            (
-                "ollama",
-                "OLLAMA_BASE_URL",
-                "http://ollama.test/",
-                200,
-                "http://ollama.test/api/tags",
-                "reachable",
-            ),
-            (
-                "ollama",
-                "OLLAMA_BASE_URL",
-                "http://ollama.test/",
-                503,
-                "http://ollama.test/api/tags",
-                "unreachable",
-            ),
-            (
-                "lmstudio",
-                "LMSTUDIO_BASE_URL",
-                "http://lmstudio.test/v1/",
-                200,
-                "http://lmstudio.test/v1/models",
-                "reachable",
-            ),
-            (
-                "lmstudio",
-                "LMSTUDIO_BASE_URL",
-                "http://lmstudio.test/v1/",
-                503,
-                "http://lmstudio.test/v1/models",
-                "unreachable",
-            ),
-        ],
-    )
-    def test_local_reachability_uses_provider_endpoint(
-        self,
-        monkeypatch,
-        provider,
-        env_name,
-        base_url,
-        status_code,
-        expected_url,
-        expected,
-    ):
-        observed = {"closed": False}
-
-        class _StatusOnlyResponse:
-            def __init__(self, response_status: int) -> None:
-                self.status_code = response_status
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                observed["closed"] = True
-
-            def read(self):
-                pytest.fail("reachability probe must not consume the response body")
-
-        def stream(method, url, *, timeout):
-            assert method == "GET"
-            observed.update(url=url, timeout=timeout)
-            return _StatusOnlyResponse(status_code)
-
-        monkeypatch.setenv(env_name, base_url)
-        monkeypatch.setattr(httpx, "stream", stream)
-
-        assert init_mod._local_reachable(provider) == expected
-        assert observed == {"url": expected_url, "timeout": 2.0, "closed": True}
-
-    def test_local_reachability_handles_request_failure(self, monkeypatch):
-        def fail_stream(method, url, *, timeout):
-            assert method == "GET"
-            assert url == "http://localhost:11434/api/tags"
-            assert timeout == 2.0
-            raise httpx.ConnectError("local provider unavailable")
-
-        monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
-        monkeypatch.setattr(httpx, "stream", fail_stream)
-
-        assert init_mod._local_reachable("ollama") == "unreachable"
-
 
 # ─── Command behavior ─────────────────────────────────────────────────
 
@@ -628,12 +582,34 @@ class TestProviderBoundaries:
 def in_tmp(tmp_path, monkeypatch):
     """Run init in an isolated cwd so .env lands in tmp, not the repo."""
     monkeypatch.chdir(tmp_path)
-    return tmp_path
+    base_names = (
+        "DISTILL_PROVIDER",
+        "DISTILL_COST_MODE",
+        "OLLAMA_BASE_URL",
+        "LMSTUDIO_BASE_URL",
+    )
+    route_names = tuple(
+        f"DISTILL_{field_name.upper()}"
+        for field_name in RouterConfig.model_fields
+        if field_name == "model"
+        or field_name.endswith("_model")
+        or field_name.endswith("_provider")
+    )
+    names = tuple(dict.fromkeys((*base_names, *route_names)))
+    original = {name: os.environ.get(name) for name in names}
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
+    yield tmp_path
+    for name, value in original.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
 
 
 def test_no_tty_does_not_hang_and_creates_env(in_tmp, monkeypatch):
     """The loop-ready failure mode: no stdin, no flags -> completes, no hang."""
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("missing", ""))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda _model="": ("missing", ""))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "missing")
     # CliRunner provides a non-TTY stdin; with no input the wizard must not block.
     result = runner.invoke(app, ["init"], input="")
@@ -642,19 +618,86 @@ def test_no_tty_does_not_hang_and_creates_env(in_tmp, monkeypatch):
 
 
 def test_cloud_ready_path(in_tmp, monkeypatch):
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
     result = runner.invoke(app, ["init", "--yes"])
     assert result.exit_code == 0, result.output
     assert "ready" in result.output.lower()
     assert "distill --cost-mode paid-ok papers" in result.output
+    assert "Analysis route:" in result.output
+    compact = " ".join(result.output.split())
+    assert "distill provider list" in compact
+    assert "distill provider set gemini gemini-3.6-flash" in compact
+
+
+def test_cloud_setup_blocks_conflicting_shell_provider(in_tmp, monkeypatch):
+    monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+
+    def forbidden_validation(_model=""):
+        pytest.fail("conflicting shell routing must be resolved before a live key probe")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden_validation)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "cloud", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["ready"] is False
+    assert payload["data"]["xai_key"] == "not-checked"
+    assert "shell-level DISTILL_PROVIDER" in payload["data"]["blocking"][0]
+    assert "DISTILL_PROVIDER=xai" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_cloud_setup_blocks_stale_local_model_override(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text(
+        "DISTILL_PROVIDER=ollama\nDISTILL_MODEL=qwen3.5:27b\n",
+        encoding="utf-8",
+    )
+
+    def forbidden_validation(_model=""):
+        pytest.fail("incompatible model routing must be resolved before a live key probe")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden_validation)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "cloud", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["ready"] is False
+    assert "not an xAI text model" in payload["data"]["blocking"][0]
+    assert "DISTILL_PROVIDER=xai" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_cloud_setup_validates_exact_resolved_xai_model(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text(
+        "DISTILL_PROVIDER=xai\nDISTILL_MODEL=grok-does-not-exist\n",
+        encoding="utf-8",
+    )
+    validated: list[str] = []
+
+    def reject_unknown_model(model: str):
+        validated.append(model)
+        return ("unknown", "model not found")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", reject_unknown_model)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "cloud", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert validated == ["grok-does-not-exist"]
+    assert payload["data"]["ready"] is False
+    assert payload["data"]["xai_key"] == "unknown"
 
 
 def test_cloud_policy_skip_reports_actionable_blocker(in_tmp, monkeypatch):
     monkeypatch.setattr(
         init_mod,
         "_validate_xai",
-        lambda: ("skipped", "Route blocked by no-metered cost policy"),
+        lambda _model="": ("skipped", "Route blocked by no-metered cost policy"),
     )
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
 
@@ -668,7 +711,7 @@ def test_cloud_policy_skip_reports_actionable_blocker(in_tmp, monkeypatch):
 
 
 def test_json_verdict(in_tmp, monkeypatch):
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
     result = runner.invoke(app, ["--json", "init", "--yes"])
     env = json.loads(result.stdout)
@@ -677,11 +720,13 @@ def test_json_verdict(in_tmp, monkeypatch):
     assert env["data"]["provider"] == "cloud"
     assert env["data"]["xai_key"] == "ok"
     assert env["data"]["next"].startswith("distill --cost-mode paid-ok papers ")
+    assert env["data"]["analysis_provider"] == "xai"
+    assert env["data"]["analysis_model"] == "grok-4.3"
 
 
 def test_existing_env_not_clobbered_by_command(in_tmp, monkeypatch):
     (in_tmp / ".env").write_text("XAI_API_KEY=keepme\n", encoding="utf-8")
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
     runner.invoke(app, ["init", "--yes"])
     assert "keepme" in (in_tmp / ".env").read_text(encoding="utf-8")
@@ -717,18 +762,48 @@ def test_env_lock_timeout_is_json_runtime_error(in_tmp, monkeypatch):
 
 
 def test_local_provider_path(in_tmp, monkeypatch):
-    monkeypatch.setattr(init_mod, "_local_reachable", lambda prov: "reachable")
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda prov: ("running", ["qwen3.5:27b"]),
+    )
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
     result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
     env = json.loads(result.stdout)
     assert env["data"]["provider"] == "local"
     assert env["data"]["ready"] is True
+    assert env["data"]["local_model"] == "qwen3.5:27b"
+    assert env["data"]["local_model_ready"] is True
+    assert env["data"]["local_models"] == ["qwen3.5:27b"]
     assert env["data"]["next"].startswith("distill --cost-mode no-metered papers ")
-    # DISTILL_PROVIDER was written to .env
+    assert env["data"]["analysis_provider"] == "ollama"
+    assert env["data"]["analysis_model"] == "qwen3.5:27b"
+    env_text = (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "DISTILL_PROVIDER=ollama" in env_text
+    assert "DISTILL_MODEL=qwen3.5:27b" in env_text
+
+
+def test_local_setup_blocks_conflicting_shell_provider_before_probe(in_tmp, monkeypatch):
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+
+    def forbidden_inventory(provider):
+        pytest.fail("conflicting shell routing must be resolved before a local probe")
+
+    monkeypatch.setattr(init_mod, "_local_model_inventory", forbidden_inventory)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["ready"] is False
+    assert payload["data"]["local_reachable"] is False
+    assert "shell-level DISTILL_PROVIDER" in payload["data"]["blocking"][0]
     assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
 
 
 def test_interactive_cloud_path_saves_entered_key(in_tmp, monkeypatch):
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
     responses = iter(["cloud", "xai-entered"])
     prompt_messages = []
 
@@ -739,7 +814,7 @@ def test_interactive_cloud_path_saves_entered_key(in_tmp, monkeypatch):
         return next(responses)
 
     monkeypatch.setattr(init_mod, "tty_prompt", prompt)
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
 
     result = runner.invoke(app, ["init"])
@@ -750,21 +825,65 @@ def test_interactive_cloud_path_saves_entered_key(in_tmp, monkeypatch):
     assert "XAI_API_KEY=xai-entered" in (in_tmp / ".env").read_text(encoding="utf-8")
 
 
+def test_interactive_cloud_validation_uses_newly_saved_key(in_tmp, monkeypatch):
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    (in_tmp / ".env").write_text("XAI_API_KEY=\n", encoding="utf-8")
+    responses = iter(["cloud", "replacement-key"])
+    monkeypatch.setattr(
+        init_mod,
+        "tty_prompt",
+        lambda *_args, **_kwargs: next(responses),
+    )
+
+    def validate(model: str):
+        assert os.environ["XAI_API_KEY"] == "replacement-key"
+        return ("ok", model)
+
+    monkeypatch.setattr(init_mod, "_validate_xai", validate)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["init"])
+
+    assert result.exit_code == 0, result.output
+    assert "XAI_API_KEY=replacement-key" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_cloud_setup_blocks_conflicting_shell_key(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text("XAI_API_KEY=saved-key\n", encoding="utf-8")
+    monkeypatch.setenv("XAI_API_KEY", "shell-key")
+
+    def forbidden_validation(_model=""):
+        pytest.fail("conflicting shell key must be resolved before a live key probe")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden_validation)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "cloud", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["xai_key"] == "not-checked"
+    assert "shell-level XAI_API_KEY" in payload["data"]["blocking"][0]
+
+
 def test_local_non_json_path_sets_default_and_renders_status(in_tmp, monkeypatch):
-    def reachable(provider):
+    def inventory(provider):
         assert provider == "ollama"
-        return "reachable"
+        return ("running", ["qwen3.5:27b"])
 
     monkeypatch.setattr(init_mod, "_local_provider", lambda: "")
-    monkeypatch.setattr(init_mod, "_local_reachable", reachable)
+    monkeypatch.setattr(init_mod, "_local_model_inventory", inventory)
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
 
     result = runner.invoke(app, ["init", "--provider", "local", "--yes"])
 
     assert result.exit_code == 0, result.output
     assert "Set" in result.output
-    assert "ollama: reachable" in result.output
-    assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "ollama: running" in result.output
+    assert "qwen3.5:27b (loaded)" in result.output
+    env_text = (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "DISTILL_PROVIDER=ollama" in env_text
+    assert "DISTILL_MODEL=qwen3.5:27b" in env_text
 
 
 @pytest.mark.parametrize(
@@ -782,12 +901,12 @@ def test_local_non_json_path_sets_default_and_renders_status(in_tmp, monkeypatch
     ],
 )
 def test_local_unreachable_path_reports_blocker(in_tmp, monkeypatch, provider, expected_blocker):
-    def unreachable(received_provider):
+    def unavailable(received_provider):
         assert received_provider == provider
-        return "unreachable"
+        return ("unavailable", [])
 
     monkeypatch.setattr(init_mod, "_local_provider", lambda: provider)
-    monkeypatch.setattr(init_mod, "_local_reachable", unreachable)
+    monkeypatch.setattr(init_mod, "_local_model_inventory", unavailable)
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
 
     result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
@@ -795,7 +914,160 @@ def test_local_unreachable_path_reports_blocker(in_tmp, monkeypatch, provider, e
 
     assert result.exit_code == 1
     assert payload["data"]["local_reachable"] is False
+    assert payload["data"]["local_model_ready"] is False
     assert payload["data"]["blocking"] == [expected_blocker]
+
+
+def test_local_model_mismatch_reports_exact_ollama_recovery(in_tmp, monkeypatch):
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["another-model"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["local_reachable"] is True
+    assert payload["data"]["local_model"] == "qwen3.5:27b"
+    assert payload["data"]["local_model_ready"] is False
+    assert payload["data"]["local_models"] == ["another-model"]
+    assert payload["data"]["blocking"] == [
+        "Configured model 'qwen3.5:27b' is not installed in Ollama. "
+        "Run `ollama pull qwen3.5:27b`, then re-run `distill init`."
+    ]
+
+
+def test_local_existing_model_is_preserved_and_verified(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text(
+        "DISTILL_PROVIDER=ollama\nDISTILL_MODEL=custom-model\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["custom-model"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["data"]["local_model"] == "custom-model"
+    assert payload["data"]["local_model_ready"] is True
+    assert (in_tmp / ".env").read_text(encoding="utf-8") == (
+        "DISTILL_PROVIDER=ollama\nDISTILL_MODEL=custom-model\n"
+    )
+
+
+def test_force_local_setup_discards_values_loaded_from_replaced_env(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text(
+        "DISTILL_PROVIDER=ollama\n"
+        "DISTILL_MODEL=stale-model\n"
+        "OLLAMA_BASE_URL=https://hosted.example/v1\n",
+        encoding="utf-8",
+    )
+
+    def inventory(provider):
+        assert provider == "ollama"
+        assert "OLLAMA_BASE_URL" not in os.environ
+        return ("running", ["qwen3.5:27b"])
+
+    monkeypatch.setattr(init_mod, "_local_model_inventory", inventory)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(
+        app,
+        [
+            "--json",
+            "--cost-mode",
+            "no-metered",
+            "init",
+            "--provider",
+            "local",
+            "--yes",
+            "--force",
+            "--no-browser",
+        ],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["data"]["local_model"] == "qwen3.5:27b"
+    assert payload["data"]["local_model_ready"] is True
+    env_text = (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "DISTILL_MODEL=stale-model" not in env_text
+    assert "hosted.example" not in env_text
+
+
+def test_local_workload_models_are_preserved_without_global_override(in_tmp, monkeypatch):
+    original = (
+        "DISTILL_PROVIDER=ollama\n"
+        "DISTILL_ANALYSIS_MODEL=analysis-model\n"
+        "DISTILL_RERANK_MODEL=rerank-model\n"
+    )
+    (in_tmp / ".env").write_text(original, encoding="utf-8")
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["analysis-model", "rerank-model"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["data"]["local_model"] == "analysis-model"
+    assert payload["data"]["local_model_ready"] is True
+    assert (in_tmp / ".env").read_text(encoding="utf-8") == original
+    assert "DISTILL_MODEL=" not in original
+
+
+def test_lmstudio_requires_explicit_loaded_model(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text("DISTILL_PROVIDER=lmstudio\n", encoding="utf-8")
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["loaded-model"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(app, ["--json", "init", "--provider", "local", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["local_models"] == ["loaded-model"]
+    assert payload["data"]["blocking"] == [
+        "Set DISTILL_MODEL or DISTILL_ANALYSIS_MODEL to an exact loaded lmstudio "
+        "model id, for example 'loaded-model', then re-run `distill init`."
+    ]
+
+
+def test_no_metered_remote_local_init_blocks_before_inventory(in_tmp, monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+
+    def inventory(provider):
+        pytest.fail("blocked remote topology must not be probed")
+
+    monkeypatch.setattr(init_mod, "_local_model_inventory", inventory)
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+
+    result = runner.invoke(
+        app,
+        ["--json", "--cost-mode", "no-metered", "init", "--provider", "local", "--yes"],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 1
+    assert payload["data"]["local_reachable"] is False
+    assert payload["data"]["local_model_ready"] is False
+    assert "non-loopback" in payload["data"]["blocking"][0]
+    env_lines = (in_tmp / ".env").read_text(encoding="utf-8").splitlines()
+    assert "DISTILL_MODEL=qwen3.5:27b" not in env_lines
 
 
 @pytest.mark.parametrize(
@@ -803,7 +1075,7 @@ def test_local_unreachable_path_reports_blocker(in_tmp, monkeypatch, provider, e
     [(True, 0), (False, 1)],
 )
 def test_yes_installs_missing_browser(in_tmp, monkeypatch, install_succeeds, expected_exit):
-    monkeypatch.setattr(init_mod, "_validate_xai", lambda: ("ok", "grok-4.3"))
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
     monkeypatch.setattr(init_mod, "chromium_status", lambda: "missing")
     monkeypatch.setattr(init_mod, "_install_chromium", lambda: install_succeeds)
 

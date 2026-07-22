@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import typer
+from rich.markup import escape
 
 from distill._console import console
 from distill._version import get_version as _get_version
@@ -25,13 +26,15 @@ from distill.commands._doctor_data import corpus_library_stats as _corpus_librar
 from distill.commands._helpers import _complete_topics, get_config
 from distill.config import DistillConfig
 from distill.doctor.checks import (
-    check_lmstudio_status,
+    check_lmstudio_models,
     check_ollama_status,
     check_retired_models,
     doctor_key_validation_session,
     doctor_validate_key,
 )
 from distill.library import Library
+from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES, CostPolicyError, classify_provider
+from distill.llm.router import ConfigurationError, RouterConfig
 from distill.pipeline.dashboard_data import (
     collect_corpus_health_warnings as _collect_corpus_health_warnings,
 )
@@ -44,7 +47,7 @@ from distill.preflight import (
 
 __all__ = ["doctor", "health", "register"]
 
-_check_lmstudio_status = check_lmstudio_status
+_check_lmstudio_models = check_lmstudio_models
 _check_ollama_status = check_ollama_status
 _doctor_validate_key = doctor_validate_key
 
@@ -73,6 +76,79 @@ def _cost_mode_warnings(config: DistillConfig) -> list[str]:
         f"{', '.join(keys)}. Commands may use API-billed routes; pass "
         "`--cost-mode no-metered` or set `DISTILL_COST_MODE=no-metered` to fail closed."
     ]
+
+
+def _router_config(config: DistillConfig) -> RouterConfig:
+    """Build route settings with the same validated credentials doctor reports."""
+    return RouterConfig(
+        cost_mode=config.distill_cost_mode,
+        xai_api_key=config.xai_api_key.get_secret_value(),
+        gemini_api_key=config.gemini_api_key.get_secret_value(),
+        anthropic_api_key=config.anthropic_api_key.get_secret_value(),
+        openai_api_key=config.openai_api_key.get_secret_value(),
+    )
+
+
+def _configured_cloud_probe_model(config: DistillConfig, provider: str) -> str:
+    """Return the exact selected model only for a valid cloud analysis route."""
+    router = _router_config(config)
+    route_provider, route_model = router.resolve("analysis")
+    if route_provider != provider or route_provider in LOCAL_PROVIDER_NAMES:
+        return ""
+    try:
+        router.validate_config("analysis")
+    except (ConfigurationError, CostPolicyError):
+        return ""
+    return route_model
+
+
+def _doctor_key_result(provider: str, config: DistillConfig) -> tuple[str, str]:
+    """Validate a key against the selected model when this provider owns the route."""
+    model = _configured_cloud_probe_model(config, provider)
+    if model:
+        return _doctor_validate_key(provider, config, model=model)
+    return _doctor_validate_key(provider, config)
+
+
+def _configured_analysis_readiness(
+    config: DistillConfig,
+    *,
+    key_statuses: dict[str, str],
+    key_details: dict[str, str],
+    ollama_status: str,
+    ollama_models: tuple[str, ...],
+    lmstudio_status: str,
+    lmstudio_models: tuple[str, ...],
+) -> tuple[str, str, bool]:
+    """Resolve the configured analysis route and require route-specific evidence."""
+    router = _router_config(config)
+    provider, model = router.resolve("analysis")
+    try:
+        router.validate_config("analysis")
+    except (ConfigurationError, CostPolicyError):
+        return (provider, model, False)
+    if provider == "ollama":
+        return (provider, model, ollama_status == "running" and model in ollama_models)
+    if provider == "lmstudio":
+        return (provider, model, lmstudio_status == "running" and model in lmstudio_models)
+    return (
+        provider,
+        model,
+        key_statuses.get(provider) == "ok" and key_details.get(provider) == model,
+    )
+
+
+def _local_model_inventory(
+    config: DistillConfig,
+    provider: str,
+) -> tuple[str, list[str]]:
+    """Probe only endpoints whose topology is proven loopback."""
+    if classify_provider(provider) != "local":
+        status = "blocked" if config.distill_cost_mode == "no-metered" else "untrusted"
+        return (status, [])
+    if provider == "ollama":
+        return _check_ollama_status()
+    return _check_lmstudio_models()
 
 
 class _CTranslate2Module(Protocol):
@@ -283,10 +359,10 @@ def doctor(  # noqa: C901 - legacy, will refactor
         # is present but dead; reporting it as "set" is a false-green that the
         # human doctor path (which makes a live call) would never produce.
         with doctor_key_validation_session(config):
-            xai_status, xai_detail = _doctor_validate_key("xai", config)
-            gem_status, gem_detail = _doctor_validate_key("gemini", config)
-            ant_status, ant_detail = _doctor_validate_key("anthropic", config)
-            oai_status, oai_detail = _doctor_validate_key("openai", config)
+            xai_status, xai_detail = _doctor_key_result("xai", config)
+            gem_status, gem_detail = _doctor_key_result("gemini", config)
+            ant_status, ant_detail = _doctor_key_result("anthropic", config)
+            oai_status, oai_detail = _doctor_key_result("openai", config)
         checks["xai_api_key"] = xai_status  # ok | invalid | missing | skipped
         checks["gemini_api_key"] = gem_status  # ok | invalid | not_set | skipped
         checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set | skipped
@@ -324,13 +400,38 @@ def doctor(  # noqa: C901 - legacy, will refactor
         from distill.doctor.recommendations import recommend_models as _recommend
 
         profile = detect_hardware()
-        ollama_status, ollama_models = _check_ollama_status()
-        lmstudio_status = _check_lmstudio_status()
+        ollama_status, ollama_models = _local_model_inventory(config, "ollama")
+        lmstudio_status, lmstudio_models = _local_model_inventory(config, "lmstudio")
+        configured_provider, configured_model, configured_route_ready = (
+            _configured_analysis_readiness(
+                config,
+                key_statuses={
+                    "xai": xai_status,
+                    "gemini": gem_status,
+                    "anthropic": ant_status,
+                    "openai": oai_status,
+                },
+                key_details={
+                    "xai": xai_detail,
+                    "gemini": gem_detail,
+                    "anthropic": ant_detail,
+                    "openai": oai_detail,
+                },
+                ollama_status=ollama_status,
+                ollama_models=tuple(ollama_models),
+                lmstudio_status=lmstudio_status,
+                lmstudio_models=tuple(lmstudio_models),
+            )
+        )
+        local_provider = configured_provider if configured_provider in LOCAL_PROVIDER_NAMES else ""
+        local_model = configured_model if local_provider else ""
+        local_model_ready = configured_route_ready if local_provider else False
         recommendations = _recommend(profile)
         local_route_availability = _local_route_availability_report(
             ollama_status=ollama_status,
             ollama_models=tuple(ollama_models),
             lmstudio_status=lmstudio_status,
+            lmstudio_models=tuple(lmstudio_models),
         )
 
         # Browser capture readiness (the #1 silent ingest failure for YouTube/web).
@@ -348,6 +449,10 @@ def doctor(  # noqa: C901 - legacy, will refactor
             "ollama_status": ollama_status,
             "ollama_models": ollama_models,
             "lmstudio_status": lmstudio_status,
+            "lmstudio_models": lmstudio_models,
+            "configured_provider": local_provider,
+            "configured_model": local_model,
+            "configured_model_ready": local_model_ready,
             "route_availability": local_route_availability,
             "recommended_models": [
                 {
@@ -360,18 +465,20 @@ def doctor(  # noqa: C901 - legacy, will refactor
         }
 
         # Top-level readiness verdict: can this environment analyze a source at
-        # all? Provider-ready = a working cloud key OR a running local server.
+        # all? Local readiness requires the configured exact model, not merely a
+        # process listening on the provider port.
         # Browser is reported separately (papers / local-file ingest need no
         # browser), so a missing browser does not by itself mean "not ready".
-        ready = (
-            checks["xai_api_key"] == "ok"
-            or ollama_status == "running"
-            or lmstudio_status == "running"
-        )
+        ready = configured_route_ready
 
         envelope = JsonEnvelope.success(
             {
                 "ready": ready,
+                "configured_route": {
+                    "provider": configured_provider,
+                    "model": configured_model,
+                    "ready": configured_route_ready,
+                },
                 "checks": checks,
                 "warnings": warnings_list,
                 "local_inference": local_inference,
@@ -407,13 +514,13 @@ def doctor(  # noqa: C901 - legacy, will refactor
     # XAI/Grok -- required. Live-validated via the shared helper so this human
     # view and the --json view can never disagree about a key's health.
     with doctor_key_validation_session(config):
-        xai_status, xai_detail = _doctor_validate_key("xai", config)
-        gem_status, gem_detail = _doctor_validate_key("gemini", config)
-        ant_status, ant_detail = _doctor_validate_key("anthropic", config)
-        oai_status, oai_detail = _doctor_validate_key("openai", config)
+        xai_status, xai_detail = _doctor_key_result("xai", config)
+        gem_status, gem_detail = _doctor_key_result("gemini", config)
+        ant_status, ant_detail = _doctor_key_result("anthropic", config)
+        oai_status, oai_detail = _doctor_key_result("openai", config)
 
     if xai_status == "ok":
-        console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{xai_detail}[/dim]")
+        console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{escape(xai_detail)}[/dim]")
     elif xai_status == "missing":
         console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
     elif xai_status == "skipped":
@@ -423,14 +530,15 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     elif xai_status == "unknown":
         console.print(
-            f"  [yellow]--[/yellow]  XAI_API_KEY       [yellow]could not verify: {xai_detail:.45}[/yellow]"
+            "  [yellow]--[/yellow]  XAI_API_KEY       [yellow]could not verify: "
+            f"{escape(xai_detail[:45])}[/yellow]"
         )
     else:
-        console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{xai_detail:.60}[/red]")
+        console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{escape(xai_detail[:60])}[/red]")
 
     # Gemini -- needed for reports
     if gem_status == "ok":
-        console.print("  [green]OK[/green]  GEMINI_API_KEY    [dim]Deep Research[/dim]")
+        console.print(f"  [green]OK[/green]  GEMINI_API_KEY    [dim]{escape(gem_detail)}[/dim]")
     elif gem_status == "not_set":
         console.print(
             "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (needed for reports)[/dim]"
@@ -442,14 +550,15 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     elif gem_status == "unknown":
         console.print(
-            f"  [yellow]--[/yellow]  GEMINI_API_KEY    [yellow]could not verify: {gem_detail:.45}[/yellow]"
+            "  [yellow]--[/yellow]  GEMINI_API_KEY    [yellow]could not verify: "
+            f"{escape(gem_detail[:45])}[/yellow]"
         )
     else:
-        console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{gem_detail:.60}[/red]")
+        console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{escape(gem_detail[:60])}[/red]")
 
     # Anthropic -- optional metered analysis route
     if ant_status == "ok":
-        console.print("  [green]OK[/green]  ANTHROPIC_API_KEY [dim]claude-sonnet-5[/dim]")
+        console.print(f"  [green]OK[/green]  ANTHROPIC_API_KEY [dim]{escape(ant_detail)}[/dim]")
     elif ant_status == "not_set":
         console.print("  [dim]--  ANTHROPIC_API_KEY not set (optional)[/dim]")
     elif ant_status == "skipped":
@@ -459,14 +568,15 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     elif ant_status == "unknown":
         console.print(
-            f"  [yellow]--[/yellow]  ANTHROPIC_API_KEY [yellow]could not verify: {ant_detail:.45}[/yellow]"
+            "  [yellow]--[/yellow]  ANTHROPIC_API_KEY [yellow]could not verify: "
+            f"{escape(ant_detail[:45])}[/yellow]"
         )
     else:
-        console.print(f"  [red]XX[/red]  ANTHROPIC_API_KEY [red]{ant_detail:.60}[/red]")
+        console.print(f"  [red]XX[/red]  ANTHROPIC_API_KEY [red]{escape(ant_detail[:60])}[/red]")
 
     # OpenAI -- optional
     if oai_status == "ok":
-        console.print("  [green]OK[/green]  OPENAI_API_KEY    [dim]optional[/dim]")
+        console.print(f"  [green]OK[/green]  OPENAI_API_KEY    [dim]{escape(oai_detail)}[/dim]")
     elif oai_status == "not_set":
         console.print("  [dim]--  OPENAI_API_KEY    not set (optional)[/dim]")
     elif oai_status == "skipped":
@@ -476,10 +586,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     elif oai_status == "unknown":
         console.print(
-            f"  [yellow]--[/yellow]  OPENAI_API_KEY    [yellow]could not verify: {oai_detail:.45}[/yellow]"
+            "  [yellow]--[/yellow]  OPENAI_API_KEY    [yellow]could not verify: "
+            f"{escape(oai_detail[:45])}[/yellow]"
         )
     else:
-        console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{oai_detail:.60}[/red]")
+        console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{escape(oai_detail[:60])}[/red]")
 
     # Tools
     console.print()
@@ -688,7 +799,22 @@ def doctor(  # noqa: C901 - legacy, will refactor
             console.print(f"  [yellow]⚠[/yellow]  {warning}")
 
     # Local Inference
-    _doctor_local_inference_section(config, _ACCENT)
+    _doctor_local_inference_section(
+        config,
+        _ACCENT,
+        key_statuses={
+            "xai": xai_status,
+            "gemini": gem_status,
+            "anthropic": ant_status,
+            "openai": oai_status,
+        },
+        key_details={
+            "xai": xai_detail,
+            "gemini": gem_detail,
+            "anthropic": ant_detail,
+            "openai": oai_detail,
+        },
+    )
 
     console.print()
 
@@ -751,6 +877,7 @@ def _local_route_availability_report(
     ollama_status: str,
     ollama_models: tuple[str, ...],
     lmstudio_status: str,
+    lmstudio_models: tuple[str, ...],
 ) -> list[dict[str, object]]:
     """Return portable local-service availability evidence for doctor JSON."""
 
@@ -773,6 +900,7 @@ def _local_route_availability_report(
             provider="lmstudio",
             status=lmstudio_status,
             checked_at=checked_at,
+            models=lmstudio_models,
         ),
     ]
     signals.extend(
@@ -785,6 +913,16 @@ def _local_route_availability_report(
         )
         for model in ollama_models
     )
+    signals.extend(
+        local_service_route_availability_signal(
+            provider="lmstudio",
+            status=lmstudio_status,
+            checked_at=checked_at,
+            models=lmstudio_models,
+            model=model,
+        )
+        for model in lmstudio_models
+    )
     return [
         {
             "signal": signal.to_dict(),
@@ -794,10 +932,29 @@ def _local_route_availability_report(
     ]
 
 
-def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:  # noqa: C901
+def _doctor_local_inference_section(  # noqa: C901
+    config: DistillConfig,
+    accent: str,
+    *,
+    key_statuses: dict[str, str] | None = None,
+    key_details: dict[str, str] | None = None,
+) -> None:
     """Display the Local Inference section in distill doctor output."""
     from distill.doctor.hardware import detect_hardware
     from distill.doctor.recommendations import recommend_models
+
+    if key_statuses is None:
+        key_statuses = {
+            "xai": "ok" if config.xai_api_key.get_secret_value().strip() else "not_set",
+            "gemini": "ok" if config.gemini_api_key.get_secret_value().strip() else "not_set",
+            "anthropic": (
+                "ok" if config.anthropic_api_key.get_secret_value().strip() else "not_set"
+            ),
+            "openai": "ok" if config.openai_api_key.get_secret_value().strip() else "not_set",
+        }
+    if key_details is None:
+        route_provider, route_model = _router_config(config).resolve("analysis")
+        key_details = {route_provider: route_model}
 
     console.print()
     console.print("  [bold]Local Inference[/bold]")
@@ -823,25 +980,47 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
         console.print("  Container:  [yellow]yes[/yellow]")
 
     # Ollama server status
-    ollama_status, ollama_models = _check_ollama_status()
+    ollama_status, ollama_models = _local_model_inventory(config, "ollama")
     if ollama_status == "running":
         console.print(
             f"  Ollama:     [green]running[/green]  [dim]({len(ollama_models)} model(s))[/dim]"
         )
         if ollama_models:
             for m in ollama_models[:5]:
-                console.print(f"              [dim]• {m}[/dim]")
+                console.print(f"              [dim]- {escape(m)}[/dim]")
             if len(ollama_models) > 5:
                 console.print(f"              [dim]  ... and {len(ollama_models) - 5} more[/dim]")
+    elif ollama_status in {"blocked", "untrusted"}:
+        console.print("  Ollama:     [yellow]not probed (non-loopback endpoint)[/yellow]")
     else:
         console.print("  Ollama:     [dim]not running[/dim]")
 
     # LM Studio server status
-    lmstudio_status = _check_lmstudio_status()
+    lmstudio_status, lmstudio_models = _local_model_inventory(config, "lmstudio")
     if lmstudio_status == "running":
-        console.print("  LM Studio:  [green]running[/green]")
+        console.print(
+            f"  LM Studio:  [green]running[/green]  [dim]({len(lmstudio_models)} model(s))[/dim]"
+        )
+        for model in lmstudio_models[:5]:
+            console.print(f"              [dim]  {escape(model)}[/dim]")
+    elif lmstudio_status in {"blocked", "untrusted"}:
+        console.print("  LM Studio:  [yellow]not probed (non-loopback endpoint)[/yellow]")
     else:
         console.print("  LM Studio:  [dim]not running[/dim]")
+
+    route_provider, route_model, route_ready = _configured_analysis_readiness(
+        config,
+        key_statuses=key_statuses,
+        key_details=key_details,
+        ollama_status=ollama_status,
+        ollama_models=tuple(ollama_models),
+        lmstudio_status=lmstudio_status,
+        lmstudio_models=tuple(lmstudio_models),
+    )
+    local_model_ready = route_ready and route_provider in LOCAL_PROVIDER_NAMES
+    if route_provider:
+        status = "[green]ready[/green]" if route_ready else "[yellow]not ready[/yellow]"
+        console.print(f"  Configured: {escape(route_provider)} / {escape(route_model)}  ({status})")
 
     # Model recommendations
     recommendations = recommend_models(profile)
@@ -867,21 +1046,30 @@ def _doctor_local_inference_section(config: DistillConfig, accent: str) -> None:
     console.print()
     console.print("  [bold]Next step[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")
-    if get_config().xai_api_key:
+    if route_ready and route_provider not in LOCAL_PROVIDER_NAMES:
         console.print(
-            '  Cloud ready:  [cyan]distill --cost-mode paid-ok papers "agent memory" '
+            '  Configured cloud route ready:  [cyan]distill --cost-mode paid-ok papers "agent memory" '
             "--limit 5 --preview[/cyan]"
         )
         if ollama_models:
             console.print(
                 f"  Compare local vs cloud (local is free):  "
-                f"[cyan]distill eval --models grok-4.3,{ollama_models[0]}[/cyan]"
+                f"[cyan]distill eval --models grok-4.3,{escape(ollama_models[0])}[/cyan]"
             )
-    elif ollama_models:
+    elif local_model_ready:
         console.print(
-            f"  Local ready, no API key:  [cyan]distill eval --models {ollama_models[0]}[/cyan]"
+            "  Local ready, no API key:  [cyan]distill --cost-mode no-metered papers "
+            '"agent memory" --limit 5 --preview[/cyan]'
         )
         console.print("  [dim]Add XAI_API_KEY to .env to also use cloud models.[/dim]")
+    elif ollama_models or lmstudio_models:
+        example_model = ollama_models[0] if ollama_models else lmstudio_models[0]
+        example_provider = "ollama" if ollama_models else "lmstudio"
+        console.print(
+            "  Model available but routing is not ready: set "
+            f"DISTILL_PROVIDER={example_provider} and DISTILL_MODEL={escape(example_model)}, "
+            "then re-run `distill doctor`."
+        )
     else:
         console.print(
             "  Not set up yet:  [cyan]distill --cost-mode no-metered init[/cyan]  "

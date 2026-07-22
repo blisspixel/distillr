@@ -103,6 +103,7 @@ from distill.commands.papers import register as _register_papers
 from distill.commands.process import register as _register_process
 from distill.commands.profile import profile_app  # noqa: F401
 from distill.commands.profile import register as _register_profile
+from distill.commands.provider import register as _register_provider
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.skill import skill_app
@@ -144,6 +145,7 @@ _register_update(app)
 _register_init(app)
 _register_intent(app)
 _register_maintain(app)
+_register_provider(app)
 _register_doctor(app)
 _register_eval(app)
 _register_reprocess(app)
@@ -185,6 +187,8 @@ def _mark_cli_exit_outcome(code: object) -> None:
 
 def _handle_provider_cli_error(exc: Exception, message: str) -> int:
     """Render one recognized provider failure and return its semantic status."""
+    from rich.markup import escape
+
     from distill.commands._json import (
         handle_cli_error,
         json_mode_active,
@@ -193,7 +197,7 @@ def _handle_provider_cli_error(exc: Exception, message: str) -> int:
 
     if json_mode_active():
         return handle_cli_error(exc, json_mode=True)
-    console.print(f"\n[red]{message}[/red]")
+    console.print(f"\n[red]{escape(message)}[/red]")
     return int(map_exception_to_exit_code(exc))
 
 

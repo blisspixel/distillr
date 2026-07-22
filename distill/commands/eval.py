@@ -38,6 +38,10 @@ def _ollama_model_sizes() -> dict[str, float]:
     """Map installed Ollama model name -> on-disk size in GB ({} if unavailable)."""
     import asyncio
 
+    from distill.llm.cost_policy import classify_provider
+
+    if classify_provider("ollama") != "local":
+        return {}
     try:
         from distill.llm.providers.ollama import OllamaProvider
 
@@ -132,6 +136,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 
     from distill.eval import (
         WORKLOADS,
+        UnpricedEvalRouteError,
         console_lines,
         estimate_eval_cost,
         judge_shares_family,
@@ -227,7 +232,16 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         console.print(f"[yellow]No fixtures for workload '{workload}'.[/yellow]")
         raise typer.Exit(1)
 
-    est = estimate_eval_cost(fixtures, model_list, anchor=anchor, judge_model=judge)
+    try:
+        est = estimate_eval_cost(fixtures, model_list, anchor=anchor, judge_model=judge)
+    except UnpricedEvalRouteError as exc:
+        from distill.commands._json import ExitCode, emit_json, json_mode_active
+
+        if json_mode_active():
+            emit_json({"reason": "external_cost_unavailable"}, error=str(exc))
+        else:
+            console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=ExitCode.CONFIG_ERROR) from exc
     judge_label = judge or "none (no neutral judge available)"
     console.print(
         f"[bold]Model eval[/bold]: {len(model_list)} model(s) x {len(fixtures)} fixture(s) "

@@ -12,9 +12,11 @@ present the results.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from time import monotonic
 from typing import Any, Literal, Protocol, cast
 
 from distill.config import DistillConfig
@@ -43,6 +45,11 @@ _DOCTOR_TRACKER: ContextVar[CostTracker | None] = ContextVar(
 _DOCTOR_COMMAND = "doctor"
 _DOCTOR_CALL_TYPE = "doctor-key-validation"
 _PROBE_PROMPT = "hi"
+_LMSTUDIO_MODELS_RESPONSE_BYTES = 1024 * 1024
+_LMSTUDIO_MAX_MODELS = 256
+_LMSTUDIO_MAX_MODEL_FIELDS = 32
+_LMSTUDIO_MAX_MODEL_ID_CHARS = 512
+_LMSTUDIO_MODELS_TOTAL_SECONDS = 10.0
 
 
 @contextmanager
@@ -124,15 +131,16 @@ def doctor_validate_key(
     config: DistillConfig,
     *,
     live: bool = True,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:
-    """Return provider-key health, optionally without provider contact."""
+    """Return provider-key health, optionally probing one exact model."""
     if not live:
         return _doctor_key_presence(provider, config)
     tracker = _DOCTOR_TRACKER.get()
     if tracker is not None:
-        return _doctor_validate_key(provider, config, tracker)
+        return _doctor_validate_key(provider, config, tracker, model=model)
     with doctor_key_validation_session(config) as owned_tracker:
-        return _doctor_validate_key(provider, config, owned_tracker)
+        return _doctor_validate_key(provider, config, owned_tracker, model=model)
 
 
 def _doctor_key_presence(provider: str, config: DistillConfig) -> tuple[DoctorKeyStatus, str]:
@@ -157,6 +165,8 @@ def _doctor_validate_key(
     provider: str,
     config: DistillConfig,
     tracker: CostTracker,
+    *,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:  # pyright: ignore[reportUnusedFunction] "called through the public doctor_validate_key seam"
     """Live-validate one provider's API key with a minimal request.
 
@@ -182,13 +192,13 @@ def _doctor_validate_key(
     human check that let a dead key report as healthy.
     """
     if provider == "xai":
-        return _validate_xai_key(config, tracker)
+        return _validate_xai_key(config, tracker, model=model)
     if provider == "gemini":
-        return _validate_gemini_key(config, tracker)
+        return _validate_gemini_key(config, tracker, model=model)
     if provider == "anthropic":
-        return _validate_anthropic_key(config, tracker)
+        return _validate_anthropic_key(config, tracker, model=model)
     if provider == "openai":
-        return _validate_openai_key(config, tracker)
+        return _validate_openai_key(config, tracker, model=model)
     raise ValueError(f"unknown provider: {provider}")
 
 
@@ -323,12 +333,14 @@ def _openai_compatible_probe_usage(
 def _validate_xai_key(
     config: DistillConfig,
     tracker: CostTracker,
+    *,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:
     if not config.xai_api_key:
         return ("missing", "")
     if skipped := _cost_policy_skip("xai", config):
         return skipped
-    model = config.xai_model_for("analysis")
+    model = model or config.xai_model_for("analysis")
     max_tokens = 5
     if refused := _authorize_probe(
         tracker,
@@ -343,6 +355,7 @@ def _validate_xai_key(
         client = OpenAI(
             api_key=config.xai_api_key.get_secret_value(),
             base_url="https://api.x.ai/v1",
+            max_retries=0,
         )
         response = client.chat.completions.create(
             model=model,
@@ -374,12 +387,14 @@ def _validate_xai_key(
 def _validate_gemini_key(
     config: DistillConfig,
     tracker: CostTracker,
+    *,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:
     if not config.gemini_api_key:
         return ("not_set", "")
     if skipped := _cost_policy_skip("gemini", config):
         return skipped
-    model = "gemini-3.5-flash"
+    model = model or "gemini-3.6-flash"
     max_tokens = 5
     if refused := _authorize_probe(
         tracker,
@@ -418,7 +433,7 @@ def _validate_gemini_key(
             output_value=getattr(usage, "candidates_token_count", None),
         )
     )
-    return ("ok", "Deep Research")
+    return ("ok", model)
 
 
 class _JsonResponse(Protocol):
@@ -443,12 +458,14 @@ def _anthropic_probe_counts(response: object) -> tuple[object, object]:
 def _validate_anthropic_key(
     config: DistillConfig,
     tracker: CostTracker,
+    *,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:
     if not config.anthropic_api_key:
         return ("not_set", "")
     if skipped := _cost_policy_skip("anthropic", config):
         return skipped
-    model = "claude-sonnet-5"
+    model = model or "claude-sonnet-5"
     max_tokens = 1
     if refused := _authorize_probe(
         tracker,
@@ -503,12 +520,14 @@ def _validate_anthropic_key(
 def _validate_openai_key(
     config: DistillConfig,
     tracker: CostTracker,
+    *,
+    model: str = "",
 ) -> tuple[DoctorKeyStatus, str]:
     if not config.openai_api_key:
         return ("not_set", "")
     if skipped := _cost_policy_skip("openai", config):
         return skipped
-    model = "gpt-4.1-mini"
+    model = model or "gpt-4.1-mini"
     max_tokens = 5
     if refused := _authorize_probe(
         tracker,
@@ -520,7 +539,10 @@ def _validate_openai_key(
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=config.openai_api_key.get_secret_value())
+        client = OpenAI(
+            api_key=config.openai_api_key.get_secret_value(),
+            max_retries=0,
+        )
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": _PROBE_PROMPT}],
@@ -545,11 +567,15 @@ def _validate_openai_key(
             max_tokens=max_tokens,
         )
     )
-    return ("ok", "optional")
+    return ("ok", model)
 
 
 def check_ollama_status() -> tuple[str, list[str]]:
     """Public local-provider probe for CLI and MCP doctor surfaces."""
+    from distill.llm.cost_policy import classify_provider
+
+    if classify_provider("ollama") != "local":
+        return ("unavailable", [])
     return _check_ollama_status()
 
 
@@ -577,6 +603,10 @@ def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUn
 
 def check_lmstudio_status() -> str:
     """Public LM Studio probe for CLI and MCP doctor surfaces."""
+    from distill.llm.cost_policy import classify_provider
+
+    if classify_provider("lmstudio") != "local":
+        return "unavailable"
     return _check_lmstudio_status()
 
 
@@ -589,7 +619,7 @@ def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "c
 
         url = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
         with (
-            httpx.Client(timeout=3) as client,
+            httpx.Client(timeout=3, trust_env=False) as client,
             client.stream("GET", f"{url}/models") as response,
         ):
             if response.status_code == 200:
@@ -597,3 +627,82 @@ def _check_lmstudio_status() -> str:  # pyright: ignore[reportUnusedFunction] "c
     except Exception:
         return "unavailable"
     return "unavailable"
+
+
+def _reject_non_finite_json(value: str) -> object:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _validated_lmstudio_model_id(value: object) -> str:
+    """Return one bounded model identifier, or empty for a non-string id."""
+
+    if not isinstance(value, str):
+        return ""
+    model = value.strip()
+    if len(model) > _LMSTUDIO_MAX_MODEL_ID_CHARS:
+        raise ValueError("LM Studio model identifier is too long")
+    if any(ord(character) < 32 or ord(character) == 127 for character in model):
+        raise ValueError("LM Studio model identifier contains control characters")
+    return model
+
+
+def _parse_lmstudio_models(raw: bytes) -> list[str]:
+    payload_obj: object = json.loads(
+        raw.decode("utf-8"),
+        parse_constant=_reject_non_finite_json,
+    )
+    if not isinstance(payload_obj, dict):
+        raise ValueError("LM Studio model inventory must be an object")
+    payload = cast(dict[str, object], payload_obj)
+    data_obj = payload.get("data")
+    if not isinstance(data_obj, list):
+        raise ValueError("LM Studio model inventory has an invalid data list")
+    data = cast(list[object], data_obj)
+    if len(data) > _LMSTUDIO_MAX_MODELS:
+        raise ValueError("LM Studio model inventory has an invalid data list")
+
+    models: list[str] = []
+    seen: set[str] = set()
+    for entry_obj in data:
+        if not isinstance(entry_obj, dict):
+            continue
+        entry = cast(dict[str, object], entry_obj)
+        if len(entry) > _LMSTUDIO_MAX_MODEL_FIELDS:
+            raise ValueError("LM Studio model entry has too many fields")
+        model = _validated_lmstudio_model_id(entry.get("id"))
+        if model and model not in seen:
+            seen.add(model)
+            models.append(model)
+    return models
+
+
+def check_lmstudio_models() -> tuple[str, list[str]]:
+    """Check LM Studio and return a bounded list of exact loaded model ids."""
+    import os
+
+    import httpx
+
+    from distill.llm.cost_policy import classify_provider
+
+    if classify_provider("lmstudio") != "local":
+        return ("unavailable", [])
+
+    url = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1").rstrip("/")
+    started = monotonic()
+    try:
+        with (
+            httpx.Client(timeout=3, trust_env=False) as client,
+            client.stream("GET", f"{url}/models") as response,
+        ):
+            if response.status_code != 200:
+                return ("unavailable", [])
+            raw = bytearray()
+            for chunk in response.iter_bytes():
+                if monotonic() - started > _LMSTUDIO_MODELS_TOTAL_SECONDS:
+                    return ("unavailable", [])
+                if len(raw) + len(chunk) > _LMSTUDIO_MODELS_RESPONSE_BYTES:
+                    return ("unavailable", [])
+                raw.extend(chunk)
+        return ("running", _parse_lmstudio_models(bytes(raw)))
+    except Exception:
+        return ("unavailable", [])

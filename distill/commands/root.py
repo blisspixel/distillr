@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import typer
@@ -23,6 +24,7 @@ __all__ = [
     "console",
     "default_callback",
     "get_model_override",
+    "get_provider_override",
     "show_banner",
 ]
 
@@ -45,7 +47,18 @@ def default_callback(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress human output"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON to stdout"),
-    model: str = typer.Option("", "--model", "-m", help="Override model for all workloads"),
+    model: str = typer.Option(
+        "",
+        "--model",
+        "-m",
+        help="Override model for all workloads (cloud ids may auto-select provider)",
+    ),
+    provider: str = typer.Option(
+        "",
+        "--provider",
+        "-p",
+        help="Override analysis provider for all workloads (xai, gemini, anthropic, ollama, ...)",
+    ),
     cost_mode: str = typer.Option("", "--cost-mode", help="Override cost policy"),
     version: bool = typer.Option(
         False,
@@ -59,6 +72,14 @@ def default_callback(
     """Distill - YouTube channels to strategic intelligence."""
     from distill._logging import configure_logging
 
+    initial_provider_environment = {
+        name: os.environ.get(name, "")
+        for name in (
+            "DISTILL_PROVIDER",
+            "DISTILL_ANALYSIS_PROVIDER",
+            "XAI_API_KEY",
+        )
+    }
     # In --json mode, redirect all human/progress/diagnostic output to stderr so
     # stdout carries only the JSON envelope. Called every invocation so a reused
     # process resets the stream instead of leaking a prior redirect.
@@ -69,8 +90,11 @@ def default_callback(
         debug=debug,
         json_output=json_output,
         model=model,
+        provider=provider,
     )
     _apply_cost_mode_override(cost_mode)
+    ctx.obj["initial_provider_environment"] = initial_provider_environment
+    ctx.obj["pre_dotenv_environment_keys"] = tuple(os.environ)
 
     try:
         ops_dir = get_config().library_dir / ".distill"
@@ -110,4 +134,11 @@ def get_model_override(ctx: typer.Context | None = None) -> str:
     """Get the --model override from the CLI context, if set."""
     if ctx and ctx.obj:
         return ctx.obj.get("model", "")
+    return ""
+
+
+def get_provider_override(ctx: typer.Context | None = None) -> str:
+    """Get the --provider override from the CLI context, if set."""
+    if ctx and ctx.obj:
+        return ctx.obj.get("provider", "")
     return ""

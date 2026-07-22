@@ -175,6 +175,7 @@ def test_show_dashboard_falls_back_to_first_run_when_config_fails(monkeypatch) -
     assert "--cost-mode paid-ok" in output
     assert "--preview" in output
     assert "distill video" in output
+    assert 'distill --cost-mode no-metered topic preview "AI news"' in output
     assert "Spend control" in output
     assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
     assert "Preview before spend" not in output
@@ -195,6 +196,7 @@ def test_first_run_commands_remain_copyable_at_80_columns(monkeypatch) -> None:
     assert "distill --cost-mode no-metered init" in output
     assert "distill --cost-mode no-metered doctor" in output
     assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
+    assert 'distill --cost-mode no-metered topic preview "AI news"' in output
 
 
 def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch) -> None:
@@ -216,6 +218,32 @@ def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch)
     library_dir = _snapshot()["lib"].config.library_dir
     assert str(library_dir / ".distill" / "distill.log") in output
     assert str(library_dir / ".distill" / "phase_telemetry.jsonl") in output
+
+
+def test_dashboard_preserves_direct_spend_when_external_cost_is_unknown(monkeypatch) -> None:
+    stream = _console_buffer(monkeypatch)
+    monkeypatch.setattr(_dashboard, "get_config", lambda: SimpleNamespace())
+    snapshot = _snapshot(
+        recent_runs=[
+            {
+                "timestamp": "2026-07-18T10:00:00",
+                "command": "analysis",
+                "actual_cost": 1.25,
+                "elapsed_seconds": 1.0,
+                "external_cost_status": "unavailable",
+            }
+        ],
+        recent_spend=1.25,
+    )
+    monkeypatch.setattr(_dashboard, "_dashboard_snapshot", lambda _config: snapshot)
+
+    _dashboard._show_dashboard()
+
+    output = stream.getvalue()
+    assert "$1.25 + external unknown" in output
+
+    html = _dashboard.render_dashboard_html("dev", snapshot)
+    assert "$1.25 + external unknown" in html
 
 
 def test_show_dashboard_renders_empty_non_first_run_sections(monkeypatch) -> None:

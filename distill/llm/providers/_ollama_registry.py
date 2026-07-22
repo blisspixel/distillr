@@ -87,7 +87,12 @@ def _bounded_model(value: object, *, limits: TagRegistryLimits) -> dict[str, Any
     if len(model) > limits.model_fields:
         raise ValueError("Ollama model field count exceeds its limit")
     name = model.get("name")
-    if not isinstance(name, str) or not name or len(name) > limits.model_name_chars:
+    if (
+        not isinstance(name, str)
+        or not name
+        or len(name) > limits.model_name_chars
+        or any(ord(character) < 32 or ord(character) == 127 for character in name)
+    ):
         raise ValueError("Ollama model object has an invalid name field")
     bounded: dict[str, Any] = {}
     for raw_key, raw_value in model.items():
@@ -120,3 +125,47 @@ def parse_tags_response(raw: bytes, *, limits: TagRegistryLimits) -> list[dict[s
     if len(models) > limits.models:
         raise ValueError("Ollama model registry model count exceeds its limit")
     return [_bounded_model(model, limits=limits) for model in models]
+
+
+def _bounded_running_model_name(value: object, *, limits: TagRegistryLimits) -> str:
+    if not isinstance(value, dict):
+        raise ValueError("Ollama running-model list contains a non-model object")
+    model = cast(dict[object, object], value)
+    if len(model) > limits.model_fields:
+        raise ValueError("Ollama running-model field count exceeds its limit")
+    for field in model:
+        if not isinstance(field, str) or len(field) > limits.field_name_chars:
+            raise ValueError("Ollama running-model object has an invalid field name")
+    name = model.get("name", model.get("model"))
+    if (
+        not isinstance(name, str)
+        or not name
+        or len(name) > limits.model_name_chars
+        or any(ord(character) < 32 or ord(character) == 127 for character in name)
+    ):
+        raise ValueError("Ollama running-model object has an invalid name field")
+    return name
+
+
+def parse_running_model_names(raw: bytes, *, limits: TagRegistryLimits) -> tuple[str, ...]:
+    """Parse one strict, bounded Ollama ``/api/ps`` document."""
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Ollama running-model response is not valid UTF-8") from exc
+    try:
+        data = json.loads(text, parse_constant=_reject_json_constant)
+    except (json.JSONDecodeError, MemoryError, RecursionError, ValueError) as exc:
+        raise ValueError("Ollama running-model response is not valid JSON") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Ollama running-model response must be an object")
+    payload = cast(dict[object, object], data)
+    if set(payload) != {"models"} or not isinstance(payload.get("models"), list):
+        raise ValueError("Ollama running-model response must contain only a models list")
+    models = cast(list[object], payload["models"])
+    if len(models) > limits.models:
+        raise ValueError("Ollama running-model count exceeds its limit")
+
+    names = {_bounded_running_model_name(model, limits=limits) for model in models}
+    return tuple(sorted(names))

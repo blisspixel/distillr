@@ -75,6 +75,18 @@ malicious input cannot turn a narrow operation into broad host authority:
   memory, config bytes, auth JSON bytes, structural depth, and node count.
   Linked, multiply linked, oversized, malformed, or deeply nested adapter
   configuration is reported as blocked evidence rather than parsed recursively.
+- No-metered local inference is topology-bound. Ollama and LM Studio count as
+  local only at strict loopback HTTP(S) endpoints. Remote, deceptive, malformed,
+  wildcard, and unsupported endpoint overrides fail closed before provider
+  construction and are never recorded as local or zero-dollar model work.
+- Local-provider endpoint URLs cannot contain credentials, query strings,
+  fragments, control characters, or invalid ports. Provider inventories and
+  Ollama contention metadata are streamed through byte, time, count, field, and
+  identifier limits before they can affect routing or user-visible diagnostics.
+- Preview snapshots are written through the serialized atomic artifact writer
+  and require the supported schema before exact-set replay. Generated replay
+  commands bind topic option values as one argument and decline values that
+  cannot be represented portably.
 - Media transcription copies a stable, single-link regular input into private
   scratch before local or cloud work. Local faster-whisper and configured
   Scribe execution use isolated process trees with elapsed-time, memory,

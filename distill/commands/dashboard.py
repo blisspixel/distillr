@@ -60,6 +60,17 @@ def _cost_run_float(entry: CostRun, key: str) -> float:
     return 0.0
 
 
+def _cost_run_has_unknown_external_cost(entry: CostRun) -> bool:
+    return entry.get("external_cost_status") == "unavailable"
+
+
+def _cost_run_display(entry: CostRun) -> str:
+    direct = f"${_cost_run_float(entry, 'actual_cost'):.2f}"
+    if _cost_run_has_unknown_external_cost(entry):
+        return f"{direct} + external unknown"
+    return direct
+
+
 def _build_setup_table() -> Table:
     table = Table.grid(expand=True)
     table.add_column(style="bold cyan", width=16)
@@ -75,23 +86,23 @@ def _build_setup_table() -> Table:
 
 def _build_start_here_table() -> Table:
     table = Table.grid(expand=True)
-    table.add_column(style="bold cyan", width=23)
+    table.add_column(style="bold cyan", width=17)
     table.add_column()
-    table.add_row("Have one YouTube URL?", 'distill video "https://www.youtube.com/watch?v=..."')
+    table.add_row("YouTube URL", 'distill video "https://www.youtube.com/watch?v=..."')
     table.add_row(
-        "Have one website URL?",
+        "Website URL",
         "distill site https://example.com/page --topic scratch --seed-only",
     )
     table.add_row(
-        "Have one paper URL?",
+        "Paper URL",
         "distill paper https://arxiv.org/abs/2602.12670 --topic papers",
     )
     table.add_row(
-        "Need latest on a topic?",
-        'distill latest "Microsoft AI news" --topic microsoft-news',
+        "Topic corpus",
+        'distill --cost-mode no-metered topic preview "AI news"',
     )
     table.add_row(
-        "Want recurring updates?",
+        "Recurring updates",
         'distill monitor "Microsoft AI news" --topic microsoft-news',
     )
     return table
@@ -179,9 +190,18 @@ def _show_dashboard() -> None:  # noqa: C901
     all_cost_entries = snapshot["all_cost_entries"]
     recent_runs = snapshot["recent_runs"]
     recent_spend = snapshot["recent_spend"]
-    recent_spend_text = f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable"
+    recent_external_unknown = any(
+        _cost_run_has_unknown_external_cost(entry) for entry in recent_runs
+    )
+    recent_spend_text = (
+        f"${recent_spend:.2f} + external unknown"
+        if recent_external_unknown and recent_spend is not None
+        else (f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable")
+    )
     recent_spend_note = (
-        f"last {len(recent_runs)} run{'s' if len(recent_runs) != 1 else ''}"
+        f"${recent_spend:.2f} direct recorded; external cost unavailable"
+        if recent_external_unknown and recent_spend is not None
+        else f"last {len(recent_runs)} run{'s' if len(recent_runs) != 1 else ''}"
         if recent_spend is not None and recent_runs
         else (
             "no cost log yet"
@@ -324,7 +344,7 @@ def _show_dashboard() -> None:  # noqa: C901
     recent = Table.grid(expand=True, padding=(0, 2))
     recent.add_column(style="bold dim", width=16)
     recent.add_column(style="bold dim")
-    recent.add_column(style="bold dim", justify="right", width=8)
+    recent.add_column(style="bold dim", justify="right", width=30)
     recent.add_column(style="bold dim", justify="right", width=9)
     recent.add_row("When", "Command", "Cost", "Time")
     if recent_runs:
@@ -332,7 +352,7 @@ def _show_dashboard() -> None:  # noqa: C901
             recent.add_row(
                 _format_run_timestamp(_cost_run_text(entry, "timestamp")),
                 _cost_run_text(entry, "command", "unknown"),
-                f"${_cost_run_float(entry, 'actual_cost'):.2f}",
+                _cost_run_display(entry),
                 f"{_cost_run_float(entry, 'elapsed_seconds'):.1f}s",
             )
     else:
@@ -369,8 +389,10 @@ def _show_dashboard() -> None:  # noqa: C901
         learn_fast.add_row("Newest Work", "[dim]No recent synthesis or reports yet[/dim]")
     if recent_runs:
         last_command = _cost_run_text(recent_runs[-1], "command", "unknown")
-        last_cost = _cost_run_float(recent_runs[-1], "actual_cost")
-        learn_fast.add_row("Last Run", f"{last_command} [dim]${last_cost:.2f} actual[/dim]")
+        learn_fast.add_row(
+            "Last Run",
+            f"{last_command} [dim]{_cost_run_display(recent_runs[-1])}[/dim]",
+        )
     else:
         learn_fast.add_row("Last Run", "[dim]No runs logged yet[/dim]")
 
@@ -395,7 +417,12 @@ def _show_dashboard() -> None:  # noqa: C901
     build_corpus.add_row(
         "Spend",
         (
-            f"[bold]${recent_spend:.2f}[/bold] [dim]recent actual[/dim]\n"
+            (
+                f"[yellow]External unknown[/yellow] [dim]${recent_spend:.2f} "
+                "Distill-direct recorded[/dim]\n"
+                if recent_external_unknown
+                else f"[bold]${recent_spend:.2f}[/bold] [dim]recent actual[/dim]\n"
+            )
             if recent_spend is not None
             else "[yellow]Unavailable[/yellow] [dim]recent actual, cost evidence incomplete[/dim]\n"
         )
@@ -549,13 +576,21 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
 
     evidence_paths = dashboard_evidence_paths(snapshot)
     recent_spend = snapshot["recent_spend"]
+    recent_external_unknown = any(
+        _cost_run_has_unknown_external_cost(entry) for entry in snapshot["recent_runs"]
+    )
     metrics = [
         ("Topics", str(len(snapshot["topics"]))),
         ("Channels", str(snapshot["total_channels"])),
         ("Videos", str(snapshot["total_videos"])),
         ("Sites", str(snapshot["site_count"])),
         ("Papers", str(snapshot["paper_count"])),
-        ("Recent Spend", f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable"),
+        (
+            "Recent Spend",
+            f"${recent_spend:.2f} + external unknown"
+            if recent_external_unknown and recent_spend is not None
+            else (f"${recent_spend:.2f}" if recent_spend is not None else "Unavailable"),
+        ),
         ("Next Sweep", f"${snapshot['next_sweep_cost']:.2f}"),
     ]
     metric_cards = "".join(
@@ -589,7 +624,7 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
             "<tr>"
             f"<td>{escape(_format_run_timestamp(_cost_run_text(entry, 'timestamp')))}</td>"
             f"<td>{escape(_cost_run_text(entry, 'command', 'unknown'))}</td>"
-            f"<td>${_cost_run_float(entry, 'actual_cost'):.2f}</td>"
+            f"<td>{escape(_cost_run_display(entry))}</td>"
             f"<td>{_cost_run_float(entry, 'elapsed_seconds'):.1f}s</td>"
             "</tr>"
             for entry in reversed(snapshot["recent_runs"])

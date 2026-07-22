@@ -65,6 +65,11 @@ class _RootCallbackContext:
 @pytest.fixture
 def mock_config(tmp_path, monkeypatch):
     """Patch get_config to return a test config."""
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("DISTILL_COST_MODE", "auto")
+    monkeypatch.delenv("DISTILL_MODEL", raising=False)
     config = DistillConfig(
         xai_api_key="test-key",
         gemini_api_key="test-gemini",
@@ -179,19 +184,32 @@ def _populate_videos(config, topic, channel, count=3):
 class TestTopLevelExperience:
     def test_help_shows_intent_led_examples(self):
         result = runner.invoke(cli.app, ["--help"])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.output
         output = ANSI_RE.sub("", result.output)
         assert "First-time setup" in output
         assert "distill --cost-mode no-metered init" in output
         assert "distill --cost-mode no-metered doctor" in output
+        assert "distill provider list" in output
         assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
         assert "distill --cost-mode paid-ok init" in output
         assert "--preview" in output
         assert "Have one YouTube URL?" in output
         assert "Build a topic corpus?" in output
+        assert "Change analysis provider/model?" in output
+        assert "distill provider set gemini gemini-3.6-flash" in output
+        assert 'topic preview "AI news"' in output
+        assert 'topic create "AI news"' not in output
         assert "Want recurring updates?" in output
         assert "distill monitor" in output
         assert "Microsoft AI news" in output
+
+    def test_topic_help_lists_preview_before_create(self):
+        result = runner.invoke(cli.app, ["topic", "--help"])
+        assert result.exit_code == 0, result.output
+        output = ANSI_RE.sub("", result.output)
+        preview_at = output.index("preview")
+        create_at = output.index("create")
+        assert preview_at < create_at
 
     def test_help_shows_recurring_workflow_examples(self):
         checks = [
@@ -332,6 +350,7 @@ class TestTopLevelExperience:
             verbose=False,
             json_output=False,
             model="",
+            provider="",
             cost_mode="",
             version=False,
         )
@@ -354,6 +373,7 @@ class TestTopLevelExperience:
             verbose=False,
             json_output=False,
             model="",
+            provider="",
             cost_mode="",
             version=False,
         )
@@ -399,7 +419,7 @@ class TestVideoCommand:
 
         result = runner.invoke(cli.app, ["video", info.url])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.output
         assert "transcript.txt" in result.output
         assert "insights.md" in result.output
         assert "Use --show to print the analysis inline" in result.output
@@ -3476,6 +3496,9 @@ class TestSiteCommands:
             _discover.get_config = original_discover_gc
 
     def test_site_ingest_attachments_writes_attachment_artifacts(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("DISTILL_COST_MODE", "auto")
         config = DistillConfig(
             xai_api_key="test-key",
             gemini_api_key="test-gemini",
@@ -3566,6 +3589,9 @@ class TestSiteCommands:
             _discover.get_config = original_discover_gc
 
     def test_site_reuses_existing_insights_when_page_is_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("DISTILL_COST_MODE", "auto")
         config = DistillConfig(
             xai_api_key="test-key",
             gemini_api_key="test-gemini",

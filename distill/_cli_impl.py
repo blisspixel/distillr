@@ -39,6 +39,7 @@ from distill.commands.root import (  # noqa: F401 - compatibility exports
     _version_callback,
     console,
     get_model_override,
+    get_provider_override,
     show_banner,
 )
 from distill.ingestors.youtube.discovery import resolve_channel_name

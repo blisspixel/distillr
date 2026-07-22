@@ -200,6 +200,22 @@ def test_missing_api_key_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
+def test_router_config_repr_omits_api_key_values() -> None:
+    config = RouterConfig(
+        xai_api_key="xai-secret",
+        gemini_api_key="gemini-secret",
+        anthropic_api_key="anthropic-secret",
+        openai_api_key="openai-secret",
+    )
+
+    rendered = repr(config)
+
+    assert "xai-secret" not in rendered
+    assert "gemini-secret" not in rendered
+    assert "anthropic-secret" not in rendered
+    assert "openai-secret" not in rendered
+
+
 def test_xai_media_model_refused_before_provider_call() -> None:
     """xAI media generation models are never sent through the chat route."""
     config = _make_config(model="grok-imagine-image")
@@ -226,9 +242,14 @@ def test_no_metered_blocks_api_billed_route_before_key_validation() -> None:
     assert "paid-ok" in message
 
 
-def test_no_metered_allows_local_route() -> None:
+def test_no_metered_allows_local_route(monkeypatch: pytest.MonkeyPatch) -> None:
     """Local inference is allowed by topology under no-metered policy."""
-    config = RouterConfig(provider="ollama", cost_mode="no-metered")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    config = RouterConfig(
+        provider="ollama",
+        model="qwen3.5:27b",
+        cost_mode="no-metered",
+    )
     mock_prov = _mock_provider(model="qwen3.5:27b")
 
     with patch("distill.llm.router._get_provider", return_value=mock_prov):
@@ -236,6 +257,78 @@ def test_no_metered_allows_local_route() -> None:
 
     assert result.provider_name == "ollama"
     assert result.provider_type == "local"
+
+
+def test_no_metered_blocks_remote_ollama_before_provider_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider label cannot prove local topology for no-metered routing."""
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    config = RouterConfig(
+        provider="ollama",
+        model="qwen3.5:27b",
+        cost_mode="no-metered",
+    )
+
+    with (
+        patch("distill.llm.router._get_provider") as get_provider,
+        pytest.raises(CostPolicyError, match="loopback"),
+    ):
+        call(config, "analysis", "secret prompt")
+
+    get_provider.assert_not_called()
+
+
+def test_local_route_requires_explicit_model_before_provider_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local provider must not inherit the cloud tier's default model name."""
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    config = RouterConfig(provider="ollama", cost_mode="no-metered")
+
+    with (
+        patch("distill.llm.router._get_provider") as get_provider,
+        pytest.raises(ConfigurationError, match="explicit local model"),
+    ):
+        call(config, "analysis", "test prompt")
+
+    get_provider.assert_not_called()
+
+
+def test_local_route_accepts_global_model_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    config = RouterConfig(provider="ollama", model="qwen3.5:27b", cost_mode="no-metered")
+
+    config.validate_config("analysis")
+
+
+def test_local_route_accepts_explicit_tier_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    config = RouterConfig(
+        provider="ollama",
+        fast_model="qwen3.5:27b",
+        cost_mode="no-metered",
+    )
+
+    config.validate_config("analysis")
+
+    with pytest.raises(ConfigurationError, match="explicit local model"):
+        config.validate_config("site")
+
+
+def test_local_workload_route_accepts_matching_model_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+    config = RouterConfig(
+        provider="xai",
+        xai_api_key="test-key",
+        analysis_provider="lmstudio",
+        analysis_model="loaded-model",
+        cost_mode="no-metered",
+    )
+
+    config.validate_config("analysis")
 
 
 def test_no_metered_blocks_unproven_agent_route() -> None:
@@ -268,6 +361,44 @@ def test_unknown_provider_raises_configuration_error() -> None:
 
     with pytest.raises(ConfigurationError, match="nonexistent"):
         call(config, "analysis", "test prompt")
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "expected_provider"),
+    [
+        ("gemini", "grok-4.3", "xai"),
+        ("xai", "gemini-3.5-flash", "gemini"),
+        ("anthropic", "grok-4.3", "xai"),
+    ],
+)
+def test_known_cross_provider_model_is_rejected(
+    provider: str,
+    model: str,
+    expected_provider: str,
+) -> None:
+    config = RouterConfig(
+        provider=provider,
+        model=model,
+        xai_api_key="xai-key",
+        gemini_api_key="gemini-key",
+        anthropic_api_key="anthropic-key",
+        cost_mode="paid-ok",
+    )
+
+    with pytest.raises(ConfigurationError, match=expected_provider):
+        config.validate_config("analysis")
+
+
+def test_model_identifier_rejects_surrounding_whitespace() -> None:
+    config = RouterConfig(
+        provider="xai",
+        model=" grok-4.3",
+        xai_api_key="xai-key",
+        cost_mode="paid-ok",
+    )
+
+    with pytest.raises(ConfigurationError, match="model identifier is invalid"):
+        config.validate_config("analysis")
 
 
 @pytest.mark.parametrize("provider", ["openai"])
@@ -538,7 +669,103 @@ def test_get_provider_constructs_local_providers(
         provider = get_provider(provider_name, config)
 
     assert provider is provider_instance
-    provider_cls.assert_called_once_with()
+    default_url = (
+        "http://localhost:11434" if provider_name == "ollama" else "http://localhost:1234/v1"
+    )
+    provider_cls.assert_called_once_with(base_url=default_url)
+
+
+@pytest.mark.parametrize(
+    ("provider_name", "env_name", "patch_target"),
+    [
+        ("ollama", "OLLAMA_BASE_URL", "distill.llm.providers.ollama.OllamaProvider"),
+        (
+            "lmstudio",
+            "LMSTUDIO_BASE_URL",
+            "distill.llm.providers.lmstudio.LMStudioProvider",
+        ),
+    ],
+)
+def test_local_provider_cache_and_construction_are_bound_to_endpoint_snapshot(
+    provider_name: str,
+    env_name: str,
+    patch_target: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_provider = object()
+    second_provider = object()
+    config = RouterConfig(
+        provider=provider_name,
+        model="loaded-model",
+        cost_mode="paid-ok",
+        ops_dir=str(tmp_path / "ops"),
+    )
+    monkeypatch.setenv(env_name, "https://hosted.example/v1")
+
+    with patch(patch_target, side_effect=[first_provider, second_provider]) as provider_cls:
+        first = get_provider(provider_name, config)
+        monkeypatch.setenv(env_name, "http://127.0.0.1:11434")
+        second = get_provider(provider_name, config)
+
+    assert first is first_provider
+    assert second is second_provider
+    assert provider_cls.call_count == 2
+    assert provider_cls.call_args_list[0].kwargs == {"base_url": "https://hosted.example/v1"}
+    assert provider_cls.call_args_list[1].kwargs == {"base_url": "http://127.0.0.1:11434"}
+
+
+def test_no_metered_provider_construction_rechecks_same_endpoint_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RouterConfig(
+        provider="ollama",
+        model="loaded-model",
+        cost_mode="no-metered",
+        ops_dir=str(tmp_path / "ops"),
+    )
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+
+    with (
+        patch("distill.llm.providers.ollama.OllamaProvider") as provider_cls,
+        pytest.raises(CostPolicyError, match="non-loopback"),
+    ):
+        get_provider("ollama", config)
+
+    provider_cls.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://user:secret@localhost:11434",
+        "http://localhost:11434?token=secret",
+        "http://localhost:11434#fragment",
+        "http://local\nhost:11434",
+    ],
+)
+def test_provider_construction_rejects_malformed_endpoint_without_echoing_it(
+    endpoint: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = RouterConfig(
+        provider="ollama",
+        model="loaded-model",
+        cost_mode="paid-ok",
+        ops_dir=str(tmp_path / "ops"),
+    )
+    monkeypatch.setenv("OLLAMA_BASE_URL", endpoint)
+
+    with (
+        patch("distill.llm.providers.ollama.OllamaProvider") as provider_cls,
+        pytest.raises(ConfigurationError, match="valid HTTP") as raised,
+    ):
+        get_provider("ollama", config)
+
+    assert "secret" not in str(raised.value)
+    provider_cls.assert_not_called()
 
 
 def test_get_provider_openai_branch_is_explicitly_unimplemented(tmp_path: Path) -> None:
@@ -581,7 +808,7 @@ def test_local_telemetry_records_tokens_per_second() -> None:
     """Successful local calls record local provider throughput."""
     with tempfile.TemporaryDirectory() as tmp:
         ops_dir = str(Path(tmp) / "ops")
-        config = RouterConfig(provider="ollama", ops_dir=ops_dir)
+        config = RouterConfig(provider="ollama", model="qwen3.5:27b", ops_dir=ops_dir)
         provider_call_result = object()
         mock_prov = Mock()
         mock_prov.call.return_value = provider_call_result

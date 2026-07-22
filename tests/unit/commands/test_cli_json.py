@@ -52,7 +52,7 @@ def mock_config(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _offline_key_validation():
+def _offline_key_validation(monkeypatch):
     """Keep doctor's live API-key validation off the network in unit tests.
 
     Both doctor paths now live-validate keys via ``_doctor_validate_key``;
@@ -60,9 +60,11 @@ def _offline_key_validation():
     calls. Individual tests re-patch it to exercise invalid-key handling.
     """
 
-    def _fake(provider, config):
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+
+    def _fake(provider, config, *, model=""):
         if provider == "xai":
-            return ("ok", "grok-4.3")
+            return ("ok", model or "grok-4.3")
         return ("not_set", "")
 
     with patch("distill.commands.doctor._doctor_validate_key", side_effect=_fake):
@@ -111,6 +113,34 @@ class TestJsonCosts:
         assert parsed["data"]["total_cost"] == 0.1234
         assert "projected_next_run_cost" in parsed["data"]
         assert parsed["data"]["projected_next_run_cost"] == 0.1234
+
+    def test_costs_surfaces_unknown_external_provider_cost(self, mock_config):
+        log_file = mock_config.library_dir / ".distill" / "cost_log.jsonl"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text(
+            json.dumps(
+                {
+                    "timestamp": "2026-07-18T10:00:00",
+                    "command": "analysis",
+                    "actual_cost": 0.0,
+                    "actual_cost_scope": "distill-direct-charges",
+                    "external_cost_status": "unavailable",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        with patch("distill.commands.maintain.get_config", return_value=mock_config):
+            json_result = runner.invoke(app, ["--json", "costs"])
+            human_result = runner.invoke(app, ["costs"])
+
+        data = json.loads(json_result.output)["data"]
+        assert data["total_cost"] == 0.0
+        assert data["total_cost_scope"] == "distill-direct-charges"
+        assert data["external_cost_status"] == "unavailable"
+        assert data["projected_next_run_cost"] is None
+        assert "External provider cost is unavailable" in human_result.output
 
     def test_costs_json_includes_biggest_prompts(self, mock_config):
         """costs --json includes largest per-call telemetry records."""
@@ -235,9 +265,9 @@ class TestJsonDoctor:
         so a revoked/expired key looked healthy while reports failed.
         """
 
-        def _fake(provider, config):
+        def _fake(provider, config, *, model=""):
             if provider == "xai":
-                return ("ok", "grok-4.3")
+                return ("ok", model or "grok-4.3")
             if provider == "gemini":
                 return ("invalid", "400 API_KEY_INVALID")
             return ("not_set", "")
@@ -258,8 +288,8 @@ class TestJsonDoctor:
     def test_doctor_json_ready_verdict_and_browser(self, mock_config):
         """--json doctor carries a top-level `ready` verdict and a browser check."""
 
-        def _ok(provider, config):
-            return ("ok", "grok-4.3") if provider == "xai" else ("not_set", "")
+        def _ok(provider, config, *, model=""):
+            return ("ok", model or "grok-4.3") if provider == "xai" else ("not_set", "")
 
         with (
             patch("distill.commands.doctor.get_config", return_value=mock_config),
@@ -276,7 +306,7 @@ class TestJsonDoctor:
     def test_doctor_json_not_ready_without_provider(self, mock_config):
         """`ready` is False with no validating cloud key and no local server."""
 
-        def _missing(provider, config):
+        def _missing(provider, config, *, model=""):
             return ("missing", "") if provider == "xai" else ("not_set", "")
 
         with (
@@ -284,7 +314,11 @@ class TestJsonDoctor:
             patch("distill.commands.doctor._doctor_validate_key", side_effect=_missing),
             patch("distill.commands.init.chromium_status", return_value="missing"),
             patch("distill.commands.doctor._check_ollama_status", return_value=("unavailable", [])),
-            patch("distill.commands.doctor._check_lmstudio_status", return_value="unavailable"),
+            patch(
+                "distill.commands.doctor._check_lmstudio_models",
+                return_value=("unavailable", []),
+                create=True,
+            ),
         ):
             result = runner.invoke(app, ["--json", "doctor"])
 

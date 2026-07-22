@@ -16,6 +16,7 @@ from distill.llm.types import LLM_Response
 from distill.llm.usage import (
     LLMUsageAttempt,
     attach_usage_attempts,
+    emit_usage_attempt,
     usage_attempts_from_exception,
 )
 from distill.pipeline.costs import BudgetExceededError, CostTracker
@@ -48,6 +49,45 @@ class _Provider:
         return self.result
 
 
+class _EndpointProvider(_Provider):
+    def __init__(self, result: LLM_Response | Exception, base_url: str) -> None:
+        super().__init__(result)
+        self._base_url = base_url
+
+
+class _CapturingEndpointProvider(_EndpointProvider):
+    def __init__(self, result: LLM_Response, base_url: str) -> None:
+        super().__init__(result, base_url)
+        self.kwargs: dict[str, object] = {}
+
+    async def call(self, _model: str, _prompt: str, **kwargs: object) -> LLM_Response:
+        self.kwargs = kwargs
+        return self.result  # type: ignore[return-value]
+
+
+class _EmittingSuccessProvider(_Provider):
+    async def call(self, model: str, _prompt: str, **kwargs: object) -> LLM_Response:
+        self.calls += 1
+        sink = kwargs.get("usage_sink")
+        assert callable(sink)
+        attempts: list[LLMUsageAttempt] = []
+        emit_usage_attempt(
+            attempts,
+            LLMUsageAttempt(
+                input_tokens=100,
+                output_tokens=100,
+                model=model,
+                provider_name="xai",
+                provider_type="cloud",
+                usage_source="reported",
+                outcome="success",
+                attempt_id="provider-success",
+            ),
+            sink,
+        )
+        raise AssertionError("a fail-closed accounting sink should interrupt the provider")
+
+
 def _options(
     provider: _Provider,
     sink: list[LLMUsageAttempt],
@@ -72,6 +112,64 @@ def _options(
         usage_batch_sink=lambda attempts: sink.extend(attempts),
         provider_getter=get_provider,
     )
+
+
+def test_provider_type_requires_loopback_for_local_cost_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    assert call_execution._provider_type("ollama") == "local"
+
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    assert call_execution._provider_type("ollama") == "unknown"
+
+
+def test_execution_uses_constructed_provider_endpoint_for_usage_and_telemetry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    provider = _EndpointProvider(
+        LLM_Response(
+            text="ok",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        ),
+        "https://hosted.example/v1",
+    )
+    emitted: list[LLMUsageAttempt] = []
+    telemetry: dict[str, object] = {}
+    monkeypatch.setattr(
+        call_execution,
+        "_emit_telemetry",
+        lambda **kwargs: telemetry.update(kwargs),
+    )
+
+    result = execute_call(_options(provider, emitted), "ollama", "grok-4.3")
+
+    assert result.provider_type == "unknown"
+    assert result.usage_attempts[0].provider_type == "unknown"
+    assert TokenUsage.from_response(result).expanded()[0].no_metered_cost is False
+    assert TokenUsage.from_response(result).expanded()[0].external_cost_unavailable is True
+    assert telemetry["provider_type"] == "unknown"
+
+
+def test_remote_local_adapter_receives_per_attempt_usage_sink() -> None:
+    provider = _CapturingEndpointProvider(
+        LLM_Response(
+            text="ok",
+            input_tokens=10,
+            output_tokens=20,
+            model="hosted-model",
+        ),
+        "https://hosted.example/v1",
+    )
+    emitted: list[LLMUsageAttempt] = []
+    options = _options(provider, emitted)
+
+    execute_call(options, "lmstudio", "hosted-model")
+
+    assert provider.kwargs["usage_sink"] is options.usage_sink
 
 
 def test_provider_supplied_success_attempt_is_normalized_and_emitted() -> None:
@@ -215,6 +313,35 @@ def test_post_response_accounting_failure_is_not_reemitted_or_rerouted() -> None
     assert [attempt.attempt_id for attempt in attached] == ["attempt-1", "attempt-2"]
     assert {attempt.provider_name for attempt in attached} == {"xai"}
     assert {attempt.provider_type for attempt in attached} == {"cloud"}
+
+
+def test_provider_side_success_accounting_failure_records_success_telemetry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = _EmittingSuccessProvider(RuntimeError("unused"))
+    tracker = CostTracker(budget=0.000001)
+    telemetry: dict[str, object] = {}
+    options = replace(
+        _options(provider, []),
+        usage_sink=tracker.record_attempt,
+        usage_batch_sink=None,
+    )
+    monkeypatch.setattr(
+        call_execution,
+        "_emit_telemetry",
+        lambda **kwargs: telemetry.update(kwargs),
+    )
+
+    with pytest.raises(BudgetExceededError):
+        execute_call(options, "xai", "grok-4.3")
+
+    assert provider.calls == 1
+    assert len(tracker.entries) == 1
+    assert tracker.entries[0].outcome == "success"
+    assert telemetry["outcome"] == "success"
+    assert telemetry["error_type"] == ""
+    assert telemetry["input_tokens"] == 100
+    assert telemetry["output_tokens"] == 100
 
 
 def test_route_telemetry_falls_back_to_response_usage_without_attempt_rows(monkeypatch) -> None:

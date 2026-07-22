@@ -249,6 +249,38 @@ class TestGeminiProviderSuccess:
             "temperature": 0.4,
         }
 
+    def test_temperature_is_omitted_for_models_that_deprecate_sampling(self) -> None:
+        """3.6 Flash and 3.5 Flash-Lite ignore sampling params; do not forward them."""
+        provider, mock_client = _build_provider()
+        mock_client.models.generate_content.return_value = _make_mock_response()
+
+        asyncio.run(
+            provider.call(
+                "gemini-3.6-flash",
+                "hello",
+                max_tokens=123,
+                temperature=0.4,
+            )
+        )
+
+        assert mock_client.models.generate_content.call_args.kwargs["config"] == {
+            "max_output_tokens": 123,
+        }
+
+        mock_client.models.generate_content.reset_mock()
+        mock_client.models.generate_content.return_value = _make_mock_response()
+        asyncio.run(
+            provider.call(
+                "gemini-3.5-flash-lite",
+                "hello",
+                max_tokens=50,
+                temperature=0.2,
+            )
+        )
+        assert mock_client.models.generate_content.call_args.kwargs["config"] == {
+            "max_output_tokens": 50,
+        }
+
     def test_temperature_is_omitted_when_not_supplied(self) -> None:
         """Default calls do not forward a null temperature value to Gemini."""
         provider, mock_client = _build_provider()

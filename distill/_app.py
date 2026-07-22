@@ -58,12 +58,18 @@ _HELP = (
     "      guided .env, provider, and browser setup\n"
     "  distill --cost-mode no-metered doctor\n"
     "      readiness check without API-billed provider probes\n"
+    "  distill provider list\n"
+    "      show analysis providers and known models (xai default; gemini optional)\n"
     '  distill --cost-mode no-metered papers "topic" -n 5 --preview\n'
     "      shortlist without paper ingest; refuses ambiguous billing\n\n"
     "Cloud key validation requires explicit permission:\n"
     "  distill --cost-mode paid-ok init\n\n"
     "Then pick a starting point:\n"
-    '  Build a topic corpus?   distill topic create "Microsoft Fabric best practices" --videos 10 --papers 10\n'
+    "  Build a topic corpus?\n"
+    '      distill --cost-mode no-metered topic preview "AI news"\n'
+    "  Change analysis provider/model?\n"
+    "      distill provider set gemini gemini-3.6-flash\n"
+    "      distill --provider gemini --model gemini-3.5-flash-lite <command>\n"
     '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
     "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"
     "  Have one paper URL?    distill paper https://arxiv.org/abs/2602.12670 --topic papers\n"

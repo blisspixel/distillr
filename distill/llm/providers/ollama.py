@@ -12,20 +12,30 @@ import json
 import logging
 import os
 import time
+from dataclasses import replace
+from time import monotonic as _monotonic
 from typing import Any, cast
 
 import httpx
 
 from distill.llm._parsing import parse_ascii_uint
+from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.providers._ollama_registry import (
     TagRegistryLimits,
     bounded_context_window,
+    parse_running_model_names,
     parse_tags_response,
 )
+from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
-from distill.llm.usage import UsageAttemptSink
+from distill.llm.usage import (
+    LLMUsageAttempt,
+    UsageAttemptSink,
+    attach_usage_attempts,
+    emit_usage_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +53,8 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
 _CONTENTION_INITIAL_BACKOFF_SECONDS = 1.0
 _CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
+_RUNNING_MODELS_RESPONSE_BYTES = 1024 * 1024
+_RUNNING_MODELS_MAX_MODELS = 256
 _MAX_CONTEXT_WINDOW = 16_777_216
 _MAX_PARAMETERS_CHARS = 100_000
 _TAGS_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -52,6 +64,7 @@ _TAGS_MAX_DETAILS_FIELDS = 32
 _TAGS_MAX_LIST_ITEMS = 32
 _TAGS_MAX_FIELD_NAME_CHARS = 128
 _TAGS_MAX_MODEL_NAME_CHARS = 512
+_TAGS_TOTAL_SECONDS = 10.0
 _TAGS_MAX_STRING_CHARS = 4_096
 _STRUCTURED_JSON_CALL_TYPES = frozenset(
     {
@@ -101,6 +114,21 @@ def _parse_tags_response(raw: bytes) -> list[dict[str, Any]]:
     )
 
 
+def _parse_running_models_response(raw: bytes) -> tuple[str, ...]:
+    return parse_running_model_names(
+        raw,
+        limits=TagRegistryLimits(
+            models=_RUNNING_MODELS_MAX_MODELS,
+            model_fields=_TAGS_MAX_MODEL_FIELDS,
+            details_fields=_TAGS_MAX_DETAILS_FIELDS,
+            list_items=_TAGS_MAX_LIST_ITEMS,
+            field_name_chars=_TAGS_MAX_FIELD_NAME_CHARS,
+            model_name_chars=_TAGS_MAX_MODEL_NAME_CHARS,
+            string_chars=_TAGS_MAX_STRING_CHARS,
+        ),
+    )
+
+
 def _describe_ollama_error(exc: Exception) -> str:
     """Render an Ollama call error as a diagnosable string.
 
@@ -120,7 +148,17 @@ class OllamaProvider:
     """Ollama local inference provider."""
 
     def __init__(self, base_url: str = "") -> None:
-        self._base_url = base_url or os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_URL)
+        url = base_url or os.environ.get("OLLAMA_BASE_URL", OLLAMA_DEFAULT_URL)
+        if not local_provider_endpoint_is_valid(url):
+            raise ValueError(
+                "Ollama requires a valid HTTP(S) endpoint without credentials, "
+                "query parameters, or fragments."
+            )
+        self._base_url = url
+        self._provider_type = (
+            "local" if classify_provider("ollama", endpoint=url) == "local" else "unknown"
+        )
+        self._trust_env = self._provider_type != "local"
         self._context_window_cache: dict[str, int] = {}
 
     async def call(
@@ -146,6 +184,7 @@ class OllamaProvider:
         await self._wait_for_model_slot(model, timeout)
 
         last_error: Exception | None = None
+        usage_attempts: list[LLMUsageAttempt] = []
         for attempt in range(retries + 1):
             try:
                 # Size the context to prompt + output + headroom so a model's huge
@@ -159,14 +198,53 @@ class OllamaProvider:
                     temperature=temperature,
                     call_type=call_type,
                 )
-                return await self._stream_chat(model, payload, timeout)
+                response = await self._stream_chat(model, payload, timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-                raise ConnectionError(
+                surfaced = ConnectionError(
                     f"Cannot reach Ollama at {self._base_url}. "
                     f"Run `ollama serve` to start the server."
-                ) from exc
+                )
+                failed_input, failed_output = conservative_usage(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=failed_input,
+                        output_tokens=failed_output,
+                        model=model,
+                        provider_name="ollama",
+                        provider_type=self._provider_type,
+                        usage_source="conservative",
+                        outcome="error",
+                        error_type=type(exc).__name__,
+                    ),
+                    usage_sink,
+                )
+                attach_usage_attempts(surfaced, usage_attempts)
+                raise surfaced from exc
             except (httpx.HTTPStatusError, httpx.TimeoutException) as exc:
                 last_error = exc
+                failed_input, failed_output = conservative_usage(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=failed_input,
+                        output_tokens=failed_output,
+                        model=model,
+                        provider_name="ollama",
+                        provider_type=self._provider_type,
+                        usage_source="conservative",
+                        outcome="error",
+                        error_type=type(exc).__name__,
+                    ),
+                    usage_sink,
+                )
+                attach_usage_attempts(exc, usage_attempts)
                 if is_permanent_error(exc):
                     raise
                 if attempt < retries:
@@ -181,6 +259,21 @@ class OllamaProvider:
                     time.sleep(wait)
                 else:
                     raise
+            else:
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=response.input_tokens,
+                        output_tokens=response.output_tokens,
+                        model=response.model or model,
+                        provider_name="ollama",
+                        provider_type=self._provider_type,
+                        usage_source=response.usage_source,
+                        outcome="success",
+                    ),
+                    usage_sink,
+                )
+                return replace(response, usage_attempts=tuple(usage_attempts))
 
         assert last_error is not None  # nosec B101
         raise last_error
@@ -259,33 +352,26 @@ class OllamaProvider:
             0.001,
         )
         try:
-            async with httpx.AsyncClient(timeout=request_timeout) as client:
-                response = await client.get(f"{self._base_url}/api/ps")
+            raw = bytearray()
+            started = _monotonic()
+            async with (
+                httpx.AsyncClient(
+                    timeout=request_timeout,
+                    trust_env=self._trust_env,
+                ) as client,
+                client.stream("GET", f"{self._base_url}/api/ps") as response,
+            ):
                 response.raise_for_status()
-                data = cast(object, response.json())
-            if not isinstance(data, dict):
-                raise ValueError("Ollama /api/ps response is not an object")
-            data_dict = cast(dict[object, object], data)
-            if "models" not in data_dict:
-                raise ValueError("Ollama /api/ps response has no model list")
-            raw_models = data_dict["models"]
-            if not isinstance(raw_models, list):
-                raise ValueError("Ollama /api/ps response has no model list")
-
-            names: set[str] = set()
-            for raw_model in cast(list[object], raw_models):
-                if not isinstance(raw_model, dict):
-                    continue
-                model_data = cast(dict[object, object], raw_model)
-                name: object = None
-                if "name" in model_data:
-                    name = model_data["name"]
-                elif "model" in model_data:
-                    name = model_data["model"]
-                if isinstance(name, str) and name:
-                    names.add(name)
-            return tuple(sorted(names))
-        except (httpx.HTTPError, TypeError, ValueError) as exc:
+                async for chunk in response.aiter_bytes():
+                    if _monotonic() - started > request_timeout:
+                        raise TimeoutError("Ollama running-model probe exceeded its total deadline")
+                    if len(raw) + len(chunk) > _RUNNING_MODELS_RESPONSE_BYTES:
+                        raise ValueError(
+                            "Ollama running-model response exceeds its response byte limit"
+                        )
+                    raw.extend(chunk)
+            return _parse_running_models_response(bytes(raw))
+        except (httpx.HTTPError, TimeoutError, TypeError, ValueError) as exc:
             logger.debug(
                 "Could not inspect Ollama running models through /api/ps: %s. "
                 "Continuing with the normal call path.",
@@ -339,7 +425,10 @@ class OllamaProvider:
         input_tokens = 0
         output_tokens = 0
         async with (
-            httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10.0)) as client,
+            httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout, connect=10.0),
+                trust_env=self._trust_env,
+            ) as client,
             client.stream("POST", f"{self._base_url}/api/chat", json=payload) as response,
         ):
             if response.status_code >= 400:
@@ -410,7 +499,7 @@ class OllamaProvider:
             return self._context_window_cache[model]
 
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
+            async with httpx.AsyncClient(timeout=5, trust_env=self._trust_env) as client:
                 response = await client.post(
                     f"{self._base_url}/api/show",
                     json={"name": model},
@@ -481,12 +570,15 @@ class OllamaProvider:
         """Query Ollama /api/tags for locally available models."""
         try:
             raw = bytearray()
+            started = _monotonic()
             async with (
-                httpx.AsyncClient(timeout=5) as client,
+                httpx.AsyncClient(timeout=5, trust_env=self._trust_env) as client,
                 client.stream("GET", f"{self._base_url}/api/tags") as response,
             ):
                 response.raise_for_status()
                 async for chunk in response.aiter_bytes():
+                    if _monotonic() - started > _TAGS_TOTAL_SECONDS:
+                        raise TimeoutError("Ollama model registry exceeded its total deadline")
                     if len(raw) + len(chunk) > _TAGS_RESPONSE_BYTES:
                         raise ValueError("Ollama model registry exceeds its response byte limit")
                     raw.extend(chunk)

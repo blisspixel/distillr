@@ -291,6 +291,64 @@ feature breadth:
   ownership, model-registry, site-boundary, watch, and MCP controls pass, along
   with the complete local release gate.
 
+**Cycle 14 refinement evidence (2026-07-22).** Onboarding multi-provider clarity
+on the current surface, without a multi-cloud init wizard:
+
+- Root help lists `distill provider list/set` and one-shot `--provider` /
+  `--model` overrides beside the preview-first topic path.
+- Ready `init` prints the resolved analysis route and a non-xAI switch hint;
+  JSON init reports `analysis_provider` and `analysis_model`.
+- `topic --help` lists preview before create so the command table matches the
+  recommended flow.
+- `.env` / init templates treat Gemini as analysis plus Deep Research, and
+  point operators at `distill provider set`.
+- Complements the shipped `distill provider` command and Gemini 3.6 Flash /
+  3.5 Flash-Lite catalog support. Full multi-cloud init key capture remains
+  deferred; provider set is the bounded route.
+
+This is documentation, help, and setup-verdict polish only. It adds no feature
+breadth and creates no freeze signal.
+
+**Cycle 13 refinement evidence (2026-07-18).** This pass tightened billing
+truth, local readiness, preview continuity, and first-run comprehension on the
+current product surface:
+
+- **Security and cost truth:** a local provider label no longer proves local
+  topology. No-metered Ollama and LM Studio routes require strict loopback
+  HTTP(S); remote, deceptive, wildcard, malformed, and unsupported endpoints
+  fail before provider construction and cannot enter the ledger as local work.
+- **Cloud route truth:** doctor validates the exact resolved provider and model,
+  rejects known cross-provider assignments, and cannot turn an unrelated valid
+  key probe into a ready verdict. Remote local-adapter spend is reported as
+  external and unavailable instead of zero.
+- **Setup and recovery:** `init` and doctor now require one explicit model id
+  that exactly matches a bounded successful provider inventory. Missing,
+  unavailable, and mismatched models have specific recovery steps, and the
+  shared config loader reads the documented current-directory `.env`. Forced
+  setup removes stale values loaded from the replaced file, and env updates
+  canonicalize duplicate assignments for deterministic next-run state.
+- **Preview continuity:** mixed topic preview returns one exact topic-owned
+  replay command with the effective cost mode and source settings. Replay
+  persists intent and refresh state, ingests the saved set without another
+  search or rerank, and saves the topic profile. Video-only preview logs its
+  measured cost and labels its refreshed-at-commit selection honestly.
+- **Replay reliability:** preview snapshots use serialized atomic writes,
+  enforce their schema on read, and emit option-safe continuation commands.
+- **Accounting and test safety:** per-attempt provider usage survives retries and
+  fail-closed budget stops with consistent route telemetry. Default local tests
+  cannot inherit billable cloud credentials. Dashboard rows and totals retain
+  known direct spend when external provider cost is unavailable.
+- **Onboarding:** topic help and the empty dashboard now lead with preview.
+  README, usage, cost, security, architecture, and environment examples match
+  the implemented readiness and billing boundaries.
+
+Measured zero-work CLI startup remains the next dedicated refinement theme.
+The current baseline is roughly 3.0 to 3.3 seconds for `--version` at the
+median and materially noisier for help. Lazy command registration needs a
+separate compatibility-focused cycle rather than being folded into these
+security and workflow fixes. This evidence adds no feature breadth and does
+not create a freeze signal.
+
 Lossless history archival, live assistive-technology review, representative
 browser media, a measured performance baseline, broad test-fixture typing, and
 a fresh code graph remain active quality debt. This cycle is another refinement

@@ -8,10 +8,11 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import typer
 from rich.panel import Panel
+from rich.text import Text
 
 from distill.cli_shared import (
     console,
@@ -30,8 +31,11 @@ from distill.commands._helpers import (
     save_command_cost,
 )
 from distill.commands._helpers import invoke_command as _invoke_command
+from distill.commands._helpers import (
+    quote_cli_value as _quote_cli_value,
+)
 from distill.commands._helpers import run_preflight as _preflight
-from distill.commands._json import ExitCode
+from distill.commands._json import ExitCode, emit_json, json_mode_active
 from distill.commands._learning import (
     generate_and_export_topic_brief as _generate_and_export_topic_brief,
 )
@@ -50,6 +54,10 @@ from distill.pipeline.costs import estimate_synthesis_workflow_cost
 from distill.pipeline.dashboard_data import count_paper_corpus as _count_paper_corpus
 from distill.pipeline.dashboard_data import count_site_corpus as _count_site_corpus
 from distill.pipeline.dashboard_data import count_topic_outputs as _count_topic_outputs
+from distill.pipeline.summary import log_preview_cost
+
+if TYPE_CHECKING:
+    from distill.pipeline.preview_cache import PreviewSnapshot
 
 __all__ = [
     "_collect_topic_bundle_files",
@@ -65,7 +73,7 @@ topic_app = typer.Typer(
     help=(
         "Topic-first workflows.\n\n"
         "Recommended flow:\n"
-        '  distill topic create "topic here" --videos 10 --papers 10\n'
+        '  distill topic preview "topic here" --videos 10 --papers 10\n'
         "  distill topic update <topic>\n"
         "  distill topic brief <topic>\n"
         "  distill topic report <topic>\n"
@@ -220,6 +228,122 @@ def _resolve_topic_workflow_config(
     )
 
 
+def _preview_replay_snapshot(
+    config: DistillConfig,
+    supplied_goal: str,
+    preview_id: str,
+) -> PreviewSnapshot:
+    from distill.pipeline.preview_cache import PreviewCacheError, load_preview, preview_cache_dir
+
+    try:
+        snapshot = load_preview(preview_cache_dir(config.library_dir), preview_id)
+    except PreviewCacheError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=ExitCode.NOT_FOUND) from exc
+    normalized_supplied = " ".join(supplied_goal.split()).strip()
+    normalized_saved = " ".join(snapshot.goal.split()).strip()
+    if normalized_supplied and normalized_supplied != normalized_saved:
+        console.print(
+            "[red]The positional goal does not match the saved preview goal. "
+            "Omit it when using --from-preview.[/red]"
+        )
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+    return snapshot
+
+
+def _preview_replay_plan(
+    snapshot: PreviewSnapshot,
+    *,
+    fallback_days: int,
+    fallback_shorts: bool,
+) -> tuple[int, int, int, bool]:
+    """Recover source-plan settings from a preview, including legacy snapshots."""
+
+    def positive_setting(name: str, fallback: int) -> int:
+        value = snapshot.settings.get(name)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+        return fallback
+
+    video_count = sum(item.kind == "video" for item in snapshot.items)
+    paper_count = sum(item.kind == "paper" for item in snapshot.items)
+    videos = positive_setting("video_limit", video_count)
+    papers = positive_setting("paper_limit", paper_count)
+    days = positive_setting("days", fallback_days)
+    if days <= 0:
+        days = fallback_days
+    saved_shorts = snapshot.settings.get("shorts")
+    shorts = saved_shorts if isinstance(saved_shorts, bool) else fallback_shorts
+    return (videos, papers, days, shorts)
+
+
+def _render_topic_preview(
+    config: DistillConfig,
+    resolved: _TopicWorkflowConfig,
+    preview_id: str,
+) -> None:
+    shorts_flag = "--shorts" if resolved.shorts else "--no-shorts"
+    command_error = ""
+    try:
+        common_flags = (
+            f"--topic={_quote_cli_value(resolved.topic)} --videos {resolved.videos} "
+            f"--papers {resolved.papers} --days {resolved.days} {shorts_flag}"
+        )
+        if preview_id:
+            command = (
+                f"distill --cost-mode {config.distill_cost_mode} topic create "
+                f"--from-preview {preview_id} {common_flags}"
+            )
+        else:
+            goal_separator = " --" if resolved.goal.startswith("-") else ""
+            command = (
+                f"distill --cost-mode {config.distill_cost_mode} topic create "
+                f"{common_flags}{goal_separator} {_quote_cli_value(resolved.goal)}"
+            )
+    except ValueError as exc:
+        command = ""
+        command_error = str(exc)
+    if json_mode_active():
+        emit_json(
+            {
+                "preview": True,
+                "preview_id": preview_id or None,
+                "selection_replay": "exact" if preview_id else "refreshed",
+                "topic": resolved.topic,
+                "goal": resolved.goal,
+                "videos": resolved.videos,
+                "papers": resolved.papers,
+                "days": resolved.days,
+                "shorts": resolved.shorts,
+                "cost_mode": config.distill_cost_mode,
+                "continuation_available": bool(command),
+                "command": command or None,
+                "command_error": command_error or None,
+            }
+        )
+        return
+    console.print(
+        "\n[dim]Preview only. This fetched current public candidates and may have "
+        "used the configured model to rank them. No corpus artifacts were written. "
+        "Preview costs are sent to the local ledger when available; run "
+        "`distill costs` to verify.[/dim]"
+    )
+    if not command:
+        console.print(
+            "[yellow]No paste-ready continuation was emitted because a goal or topic "
+            f"{command_error}. Re-enter the literal values with `distill topic create`.[/yellow]"
+        )
+    elif preview_id:
+        console.print("[dim]Ingest exactly this saved set and save its topic profile with:[/dim]")
+    else:
+        console.print(
+            "[dim]No selection snapshot is saved for a video-only preview, so the "
+            "selection is refreshed when you run it:[/dim]"
+        )
+    if command:
+        console.print(Text(f"  {command}", style="cyan"), soft_wrap=True)
+
+
 def _run_topic_workflow(
     *,
     goal: str,
@@ -232,8 +356,21 @@ def _run_topic_workflow(
     brief: bool,
     report_after: bool,
     test: bool,
+    from_preview: str = "",
 ) -> str:
     config = get_config()
+    if from_preview and preview:
+        console.print("[red]--from-preview cannot be combined with --preview.[/red]")
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+    if from_preview:
+        snapshot = _preview_replay_snapshot(config, goal, from_preview)
+        goal = snapshot.goal
+        videos, papers, days, shorts = _preview_replay_plan(
+            snapshot,
+            fallback_days=days,
+            fallback_shorts=shorts,
+        )
+
     resolved = _resolve_topic_workflow_config(
         config,
         topic=topic,
@@ -244,11 +381,25 @@ def _run_topic_workflow(
         shorts=shorts,
     )
     topic_name = resolved.topic
+    preview_id = ""
 
-    if resolved.mixed_sources:
+    if from_preview:
         from distill.commands.discover import discover
 
         _invoke_command(
+            discover,
+            goal="",
+            goal_file=None,
+            topic=topic_name,
+            from_preview=from_preview,
+            preview=False,
+            yes=True,
+            emit_replay_command=False,
+        )
+    elif resolved.mixed_sources:
+        from distill.commands.discover import discover
+
+        result = _invoke_command(
             discover,
             goal=resolved.goal,
             goal_file=None,
@@ -259,11 +410,14 @@ def _run_topic_workflow(
             shorts=resolved.shorts,
             preview=preview,
             yes=True,
+            emit_replay_command=False,
         )
+        if preview and isinstance(result, str):
+            preview_id = result
     elif preview:
         # Videos-only preview must not ingest. _run_learning_command always
         # processes real work, so route to the dry-run preview path instead.
-        _preview_learning_selection(
+        preview_config, preview_tracker, _ = _preview_learning_selection(
             resolved.goal,
             days=resolved.days,
             limit=resolved.videos,
@@ -273,6 +427,12 @@ def _run_topic_workflow(
             rerank=True,
             header="Topic Preview",
             table_title="Topic Preview Learning Set",
+        )
+        log_preview_cost(
+            preview_tracker,
+            preview_config.library_dir,
+            "topic",
+            metadata={"topic": topic_name, "source_type": "video"},
         )
     else:
         _run_learning_command(
@@ -292,9 +452,7 @@ def _run_topic_workflow(
         )
 
     if preview:
-        console.print(
-            f'\n[dim]Preview only. Run `distill topic create "{resolved.goal}" --topic {topic_name}` to ingest.[/dim]'
-        )
+        _render_topic_preview(config, resolved, preview_id)
         return topic_name
 
     profile_path = _save_topic_profile(
@@ -363,42 +521,6 @@ def _render_topic_summary(topic: str) -> None:
     console.print(Panel("\n".join(lines), title="Topic Summary", border_style="cyan"))
 
 
-@topic_app.command("create")
-def topic_create(
-    goal: str = typer.Argument(help="Natural-language topic goal or research prompt"),
-    topic: str = typer.Option("", "--topic", "-t", help="Explicit topic slug/name"),
-    videos: int = typer.Option(10, "--videos", help="How many videos to ingest"),
-    papers: int = typer.Option(10, "--papers", help="How many papers to ingest"),
-    days: int = typer.Option(30, "--days", "-d", help="Video recency window in days"),
-    shorts: bool = typer.Option(
-        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
-    ),
-    preview: bool = typer.Option(
-        False, "--preview", help="Show the plan without ingesting the topic corpus"
-    ),
-    brief: bool = typer.Option(
-        False, "--brief", help="Generate a concise topic brief after ingestion"
-    ),
-    report_after: bool = typer.Option(
-        False, "--report", help="Generate a full topic report after ingestion"
-    ),
-    test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
-) -> None:
-    """Create a topic corpus from a single goal using the configured source mix."""
-    _run_topic_workflow(
-        goal=goal,
-        topic=topic,
-        videos=videos,
-        papers=papers,
-        days=days,
-        shorts=shorts,
-        preview=preview,
-        brief=brief,
-        report_after=report_after,
-        test=test,
-    )
-
-
 @topic_app.command("preview")
 def topic_preview(
     goal: str = typer.Argument(help="Natural-language topic goal or research prompt"),
@@ -422,6 +544,52 @@ def topic_preview(
         brief=False,
         report_after=False,
         test=False,
+        from_preview="",
+    )
+
+
+@topic_app.command("create")
+def topic_create(
+    goal: str = typer.Argument(
+        "",
+        help="Natural-language topic goal. Omit only when replaying --from-preview.",
+    ),
+    topic: str = typer.Option("", "--topic", "-t", help="Explicit topic slug/name"),
+    videos: int = typer.Option(10, "--videos", help="How many videos to ingest"),
+    papers: int = typer.Option(10, "--papers", help="How many papers to ingest"),
+    days: int = typer.Option(30, "--days", "-d", help="Video recency window in days"),
+    shorts: bool = typer.Option(
+        False, "--shorts/--no-shorts", help="Include short-form videos under 3 minutes"
+    ),
+    preview: bool = typer.Option(
+        False, "--preview", help="Show the plan without ingesting the topic corpus"
+    ),
+    brief: bool = typer.Option(
+        False, "--brief", help="Generate a concise topic brief after ingestion"
+    ),
+    report_after: bool = typer.Option(
+        False, "--report", help="Generate a full topic report after ingestion"
+    ),
+    test: bool = typer.Option(False, "--test", help="Cheaper/faster report mode"),
+    from_preview: str = typer.Option(
+        "",
+        "--from-preview",
+        help="Ingest the exact saved set from a prior topic preview and save its profile",
+    ),
+) -> None:
+    """Create a topic corpus from a single goal using the configured source mix."""
+    _run_topic_workflow(
+        goal=goal,
+        topic=topic,
+        videos=videos,
+        papers=papers,
+        days=days,
+        shorts=shorts,
+        preview=preview,
+        brief=brief,
+        report_after=report_after,
+        test=test,
+        from_preview=from_preview,
     )
 
 
@@ -467,6 +635,7 @@ def topic_update(
         brief=brief,
         report_after=report_after,
         test=test,
+        from_preview="",
     )
 
 

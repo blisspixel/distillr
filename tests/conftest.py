@@ -10,6 +10,14 @@ from hypothesis import settings as _hypothesis_settings
 
 from distill.config import DistillConfig
 
+_CLOUD_CREDENTIAL_ENV_VARS = (
+    "XAI_API_KEY",
+    "GEMINI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+)
+_INERT_TEST_CREDENTIAL = "distill-test-credential"
+
 # Hypothesis's default 200ms per-example deadline measures wall clock, which
 # under coverage instrumentation on a loaded machine (OneDrive sync, parallel
 # live runs) fails *random* property tests that pass in isolation -- three
@@ -26,6 +34,18 @@ _hypothesis_settings.register_profile(
     "distill", deadline=None, suppress_health_check=_health_checks
 )
 _hypothesis_settings.load_profile("distill")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cloud_credentials(monkeypatch, request):
+    """Keep local tests deterministic and unable to inherit billable credentials."""
+
+    if request.node.get_closest_marker("live_network") is not None:
+        if os.environ.get("DISTILL_ALLOW_LIVE_TESTS") != "1":
+            pytest.skip("live_network tests require DISTILL_ALLOW_LIVE_TESTS=1")
+        return
+    for name in _CLOUD_CREDENTIAL_ENV_VARS:
+        monkeypatch.setenv(name, _INERT_TEST_CREDENTIAL)
 
 
 def _recent(days_ago: int = 1) -> str:

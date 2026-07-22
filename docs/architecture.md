@@ -309,10 +309,16 @@ Single-pass synthesis stays the default until the 1.0 golden-eval gate validates
   path, and diagnostics retain only the origin. Site ownership hashes the
   complete canonical request identity with a domain separator so query-bearing
   pages remain distinct without persisting URL capabilities.
-- Local provider status checks inspect response status without retaining bodies.
-  Ollama registry discovery and candidate adapter probes enforce byte,
-  structure, time, memory, output, and process-tree limits before their results
-  can influence readiness or routing evidence.
+- Local provider readiness requires a strict loopback endpoint and an exact
+  configured model in a bounded provider inventory. Ollama, LM Studio, and
+  candidate adapter probes enforce byte, structure, time, memory, output, and
+  process-tree limits before their results can influence readiness or routing
+  evidence.
+- Cloud readiness is also route-specific. Doctor probes the exact resolved model
+  for the selected provider and compares that evidence with the route before it
+  reports ready. Known cross-provider model assignments fail validation early.
+- Preview snapshots are schema-checked and atomically replaced under a per-path
+  lock, so concurrent identical previews cannot expose a partial replay file.
 - Concept storage keys retain legacy short slugs, bound long components with a
   stable digest, avoid Windows device names, and key collision history by the
   resolved live filename rather than a shared lossy slug.

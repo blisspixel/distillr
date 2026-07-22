@@ -212,11 +212,18 @@ def costs(  # noqa: C901 -- legacy, will refactor
     # negative) shows nothing rather than every run.
     recent = entries[-last:] if last > 0 else []
     total_cost = sum_recent_cost(recent)
+    external_cost_unavailable = any(
+        entry.get("external_cost_status") == "unavailable" for entry in recent
+    )
 
     from distill.pipeline.costs import estimator_accuracy
 
     accuracy = estimator_accuracy(entries) if cost_scan.complete else None
-    projected = projected_next_run_cost(entries) if cost_scan.complete else None
+    projected = (
+        projected_next_run_cost(entries)
+        if cost_scan.complete and not external_cost_unavailable
+        else None
+    )
     cost_warnings = (
         _cost_warnings_for_config(config, entries)
         if cost_scan.complete and total_cost is not None
@@ -230,6 +237,14 @@ def costs(  # noqa: C901 -- legacy, will refactor
             {
                 "runs": recent,
                 "total_cost": round(total_cost, 4) if total_cost is not None else None,
+                "total_cost_scope": (
+                    "distill-direct-charges"
+                    if external_cost_unavailable
+                    else "known-provider-charges"
+                ),
+                "external_cost_status": (
+                    "unavailable" if external_cost_unavailable else "complete"
+                ),
                 "projected_next_run_cost": round(projected, 4) if projected is not None else None,
                 "runs_shown": len(recent),
                 "cloud_spend_usd": round(total_cost, 4) if total_cost is not None else None,
@@ -280,7 +295,12 @@ def costs(  # noqa: C901 -- legacy, will refactor
         sources_str = " ".join(source_parts) if source_parts else "-"
         # Cost
         actual = _safe_float(e.get("actual_cost", 0))
-        cost_str = f"${actual:.4f}" if actual < 0.01 else f"${actual:.2f}"
+        direct_cost = f"${actual:.4f}" if actual < 0.01 else f"${actual:.2f}"
+        cost_str = (
+            (f"{direct_cost} + unknown" if actual else "external unknown")
+            if e.get("external_cost_status") == "unavailable"
+            else direct_cost
+        )
         tokens = (
             f"{_safe_int(e.get('total_input_tokens', 0)):,} / "
             f"{_safe_int(e.get('total_output_tokens', 0)):,}"
@@ -297,6 +317,13 @@ def costs(  # noqa: C901 -- legacy, will refactor
         console.print(
             f"\n[yellow]Total across {len(recent)} runs: unavailable because the cost "
             "values exceed the supported aggregate range.[/yellow]"
+        )
+    elif external_cost_unavailable:
+        console.print(
+            f"\n[bold]Known direct total across {len(recent)} runs: ${total_cost:.4f}[/bold]"
+        )
+        console.print(
+            "[yellow]External provider cost is unavailable for one or more runs.[/yellow]"
         )
     else:
         console.print(f"\n[bold]Total across {len(recent)} runs: ${total_cost:.4f}[/bold]")

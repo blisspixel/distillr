@@ -25,7 +25,12 @@ def _isolate_local_provider_probes(monkeypatch) -> None:
     """Keep doctor unit tests independent of services running on the host."""
 
     monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
-    monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "unavailable")
+    monkeypatch.setattr(
+        doctor_mod,
+        "_check_lmstudio_models",
+        lambda: ("unavailable", ()),
+        raising=False,
+    )
 
 
 def _config(tmp_path: Path, **kwargs) -> DistillConfig:
@@ -561,7 +566,12 @@ class TestDoctorJsonExtras:
             lambda provider, cfg: ("not_set", ""),
         )
         monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
-        monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "unavailable")
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_lmstudio_models",
+            lambda: ("unavailable", ()),
+            raising=False,
+        )
 
         result = runner.invoke(cli.app, ["doctor", "--json"])
 
@@ -625,6 +635,7 @@ class TestDoctorJsonExtras:
             ollama_status="running",
             ollama_models=("qwen3.5:27b",),
             lmstudio_status="unavailable",
+            lmstudio_models=(),
         )
 
         assert report[0]["signal"]["provider"] == "ollama"
@@ -635,6 +646,159 @@ class TestDoctorJsonExtras:
         assert report[2]["signal"]["model"] == "qwen3.5:27b"
         assert report[2]["decision"]["available"] is True
         assert "account" not in json.dumps(report).lower()
+
+    def test_json_local_readiness_requires_explicit_installed_model(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(
+            doctor_mod,
+            "_doctor_validate_key",
+            lambda provider, cfg: ("not_set", ""),
+        )
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_ollama_status",
+            lambda: ("running", ("qwen3.5:27b",)),
+        )
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.delenv("DISTILL_MODEL", raising=False)
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["ready"] is False
+        assert data["local_inference"]["configured_provider"] == "ollama"
+        assert data["local_inference"]["configured_model"] == "grok-4.3"
+        assert data["local_inference"]["configured_model_ready"] is False
+
+    def test_json_local_readiness_matches_exact_configured_model(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(
+            doctor_mod,
+            "_doctor_validate_key",
+            lambda provider, cfg: ("not_set", ""),
+        )
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_ollama_status",
+            lambda: ("running", ("qwen3.5:27b",)),
+        )
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["ready"] is True
+        assert data["local_inference"]["configured_model"] == "qwen3.5:27b"
+        assert data["local_inference"]["configured_model_ready"] is True
+
+    def test_json_readiness_uses_configured_route_not_unrelated_xai_key(
+        self, tmp_path, monkeypatch
+    ):
+        config = _config(tmp_path, xai_api_key="valid-but-unselected")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(
+            doctor_mod,
+            "_doctor_validate_key",
+            lambda provider, cfg: ("ok", "grok-4.3") if provider == "xai" else ("not_set", ""),
+        )
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_MODEL", "missing-model")
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_ollama_status",
+            lambda: ("running", ("another-model",)),
+        )
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["ready"] is False
+        assert data["configured_route"] == {
+            "provider": "ollama",
+            "model": "missing-model",
+            "ready": False,
+        }
+
+    def test_json_readiness_accepts_valid_configured_gemini_route(self, tmp_path, monkeypatch):
+        config = _config(
+            tmp_path,
+            xai_api_key="",
+            gemini_api_key="gemini-key",
+            distill_cost_mode="paid-ok",
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+
+        def validate(provider, cfg, *, model=""):
+            del cfg
+            if provider == "gemini":
+                assert model == "gemini-2.5-flash"
+                return ("ok", model)
+            return ("missing", "") if provider == "xai" else ("not_set", "")
+
+        monkeypatch.setattr(doctor_mod, "_doctor_validate_key", validate)
+        monkeypatch.setenv("DISTILL_PROVIDER", "gemini")
+        monkeypatch.setenv("DISTILL_MODEL", "gemini-2.5-flash")
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["ready"] is True
+        assert data["configured_route"]["provider"] == "gemini"
+        assert data["configured_route"]["model"] == "gemini-2.5-flash"
+        assert data["configured_route"]["ready"] is True
+
+    def test_json_readiness_rejects_cloud_probe_for_a_different_model(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, distill_cost_mode="paid-ok")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+
+        def validate(provider, cfg, *, model=""):
+            del cfg
+            if provider == "xai":
+                assert model == "grok-unavailable-route"
+                return ("ok", "grok-4.3")
+            return ("not_set", "")
+
+        monkeypatch.setattr(doctor_mod, "_doctor_validate_key", validate)
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        monkeypatch.setenv("DISTILL_MODEL", "grok-unavailable-route")
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert data["ready"] is False
+        assert data["configured_route"] == {
+            "provider": "xai",
+            "model": "grok-unavailable-route",
+            "ready": False,
+        }
+
+    def test_no_metered_json_doctor_blocks_remote_local_probe(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(
+            doctor_mod,
+            "_doctor_validate_key",
+            lambda provider, cfg: ("not_set", ""),
+        )
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_MODEL", "hosted-model")
+        monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+
+        def forbidden_probe():
+            pytest.fail("no-metered doctor must not contact a remote Ollama endpoint")
+
+        monkeypatch.setattr(doctor_mod, "_check_ollama_status", forbidden_probe)
+
+        result = runner.invoke(cli.app, ["doctor", "--json"])
+        data = json.loads(result.output)["data"]
+
+        assert result.exit_code == 0, result.output
+        assert data["ready"] is False
+        assert data["local_inference"]["ollama_status"] == "blocked"
+        assert data["local_inference"]["ollama_models"] == []
 
 
 class TestDoctorAdapterReport:
@@ -693,7 +857,8 @@ class TestDoctorLocalInferenceSection:
         ["nvidia", "apple_silicon", "none"],
     )
     def test_gpu_profiles(self, tmp_path, monkeypatch, gpu_type):
-        config = _config(tmp_path)
+        config = _config(tmp_path, distill_cost_mode="paid-ok")
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
         profile = SimpleNamespace(
             gpu_type=gpu_type,
             gpu_name="Test GPU",
@@ -705,7 +870,12 @@ class TestDoctorLocalInferenceSection:
         monkeypatch.setattr(
             doctor_mod, "_check_ollama_status", lambda: ("running", ["qwen3.5:27b"])
         )
-        monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "running")
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_lmstudio_models",
+            lambda: ("running", ["loaded-model"]),
+            raising=False,
+        )
         monkeypatch.setattr(
             "distill.doctor.recommendations.recommend_models",
             lambda _p: [
@@ -736,7 +906,14 @@ class TestDoctorLocalInferenceSection:
         monkeypatch.setattr(
             doctor_mod, "_check_ollama_status", lambda: ("running", ["qwen3.5:27b"])
         )
-        monkeypatch.setattr(doctor_mod, "_check_lmstudio_status", lambda: "unavailable")
+        monkeypatch.setattr(
+            doctor_mod,
+            "_check_lmstudio_models",
+            lambda: ("unavailable", []),
+            raising=False,
+        )
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
         monkeypatch.setattr(
             "distill.doctor.recommendations.recommend_models",
             lambda _p: [

@@ -397,7 +397,7 @@ def display_summary(  # noqa: C901 - legacy, will refactor
                 preview=preview,
             )
         except Exception:
-            logger.debug("Failed to save run cost log", exc_info=True)
+            logger.warning("Failed to save run cost log", exc_info=True)
 
     # Preview runs skip the visual summary block because the preview already showed
     # the ranked table; only the cost log needed to be written.
@@ -731,4 +731,4 @@ def log_preview_cost(
             preview=True,
         )
     except Exception:
-        logger.debug("Failed to save preview cost log", exc_info=True)
+        logger.warning("Failed to save preview cost log", exc_info=True)

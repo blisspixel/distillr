@@ -15,10 +15,11 @@ just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 | Route class | Implemented today | Cost meaning | Notes |
 |---|---:|---|---|
 | Deterministic fetch, parse, audit, and local extraction | Yes | No model bill | Still uses network for public sources when the command asks for them. |
-| Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill | Uses local hardware, electricity, and time. Quality must clear `distill eval` before a workload should default to it. |
+| Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill only for strict loopback endpoints | Uses local hardware, electricity, and time. Remote or malformed endpoint overrides are classified as unknown, not local. Quality must clear `distill eval` before a workload should default to it. |
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic API route | Yes | Metered API spend | Claude Sonnet 5 is wired for explicit opt-in use, but it is not a calibrated default. |
 | Reserved OpenAI analysis route | No | Metered API spend when implemented | OpenAI is not a live analysis provider yet. OpenAI Whisper transcription is separate. |
+| Remote Ollama or LM Studio adapter | Yes in `auto` or `paid-ok` | External cost unavailable | Distill records attempts but cannot prove host billing or price the external service. Eval refuses these unpriced routes. |
 | Deferred `agent` task-file route plus active host worker | Yes, explicit handoff | Host-managed; external cost unavailable | This writes a structured task, lets an already active agent session claim it into scratch through `distill worker`, and accepts only a validated result plus receipt. Distill does not execute the assistant or inspect its auth, so the route remains blocked in `no-metered`. |
 | Plan-quota CLI routes, such as Codex CLI, Claude Code, Grok Build, Gemini CLI, and Antigravity `agy` | Planned | Included quota only if proven | Not live providers yet. Adapter doctor preflights, structured support-statement details checked against current 2026-06-30 vendor docs, local config auth-marker scanning, strict `adapter-workload.v1` input packages, strict `adapter-result.v1` manifest checks with quota-stop metadata, a scratch-only runner primitive, a checked workload runner, a native result writer, adapter-specific native usage capture, a manifest-to-ledger helper, and blocked read-only command planners exist. No plan-quota support statement is current for no-metered routing yet because paid credits, overages, API-key modes, gateway routes, or unproved session auth remain possible. Routes still need included-plan auth proof, native schema enforcement where the CLI supports it, real installed-session validation, and `distill eval` evidence. |
 | Credit-metered CLI routes, such as GitHub Copilot CLI | Planned | Explicit paid or credit policy | Supportable later, but not a no-metered default because Copilot usage is tied to AI credits and usage limits. |
@@ -43,9 +44,16 @@ does not have to classify the error message.
 - `auto` - the default. Use the configured route behavior and normal budget
   gates.
 - `no-metered` - refuse routes that would bill an API or have ambiguous billing
-  semantics. Today that allows local Ollama and LM Studio routes, and blocks xAI,
+  semantics. Today that allows Ollama and LM Studio only at strict loopback
+  HTTP(S) endpoints, and blocks remote or malformed endpoint overrides, xAI,
   Gemini, OpenAI, Anthropic, `agent`, and unproven adapter routes.
 - `paid-ok` - allow metered provider routes, subject to explicit workflow caps.
+
+When a remote Ollama or LM Studio compatible endpoint is permitted, the local
+ledger reports known direct Distill spend separately and labels external cost as
+unavailable. It does not substitute a zero or an unrelated fallback price.
+Recent-cost projections are withheld while that unknown external spend is in
+the projection window.
 
 This is a route-policy guard, not a quality judgment. Local routes still need
 `distill eval` evidence before becoming a recommended default for a workload.
@@ -331,7 +339,9 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; slug redirects to grok-4.3 and bills at grok-4.3 rates. distillr auto-substitutes it (the $0.20/$0.50 entry in the registry is kept only to price pre-retirement `cost_log.jsonl` rows). |
 | `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Still available; selectable via env override for higher-fidelity passes |
 | `deep-research-preview-04-2026` | pay-as-you-go | ~$2-5/query | N/A | Report Phase 1, `distill research-brief` |
-| `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19) |
+| `gemini-3.6-flash` | $1.50/1M | $7.50/1M | 1M | Preferred optional Gemini-provider chat model (GA 2026-07-21); doctor probe default |
+| `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19); still selectable |
+| `gemini-3.5-flash-lite` | $0.30/1M | $2.50/1M | 1M | High-throughput optional Gemini chat model (GA 2026-07-21) |
 | `claude-sonnet-5` | $2.00/1M through 2026-08-31, then $3.00/1M | $10.00/1M through 2026-08-31, then $15.00/1M | 1M | Optional Anthropic-provider chat model; current intro-rate estimate, not a default route |
 
 Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
@@ -354,9 +364,16 @@ ACCORDION_SECTION_MODEL=
 # openai is a reserved analysis route and is not implemented in this release.
 ANTHROPIC_API_KEY=
 DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | agent | ollama | lmstudio
-DISTILL_MODEL=                          # e.g. claude-sonnet-5 with DISTILL_PROVIDER=anthropic
+DISTILL_MODEL=                          # e.g. gemini-3.6-flash with DISTILL_PROVIDER=gemini
 DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
 DISTILL_SYNTHESIS_PROVIDER=
+```
+
+Prefer the CLI over hand-editing when changing the default route:
+
+```bash
+distill provider set gemini gemini-3.6-flash
+distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 
 Leave the narrow overrides blank to use the broader `XAI_FAST_MODEL` / `XAI_PREMIUM_MODEL` defaults. Both default to `grok-4.3` since 0.3.1.

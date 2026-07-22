@@ -27,6 +27,7 @@ from distill.eval.graduation import (
 )
 from distill.eval.harness import (
     EvalRow,
+    UnpricedEvalRouteError,
     estimate_eval_cost,
     provider_for_model,
     run_model_eval,
@@ -102,6 +103,7 @@ __all__ = [
     "RoutePoolSelection",
     "RouteQuotaStop",
     "RouteQuotaWindow",
+    "UnpricedEvalRouteError",
     "adapter_route_graduation_decision",
     "console_lines",
     "degraded_output",

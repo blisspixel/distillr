@@ -319,6 +319,26 @@ def test_main_emits_provider_busy_error_json(monkeypatch, capsys):
     assert captured.err == ""
 
 
+def test_main_escapes_provider_controlled_rich_markup(monkeypatch):
+    fake_app = _FailingApp(
+        ProviderBusyTimeoutError(
+            provider="Ollama",
+            requested_model="safe:latest",
+            active_models=("[bold red]untrusted[/bold red]",),
+            timeout_seconds=1,
+        )
+    )
+    rendered: list[str] = []
+    monkeypatch.setattr(cli, "app", fake_app)
+    monkeypatch.setattr(cli.console, "print", lambda value: rendered.append(str(value)))
+
+    with pytest.raises(SystemExit) as raised:
+        cli.main()
+
+    assert raised.value.code == int(ExitCode.NETWORK_ERROR)
+    assert "\\[bold red]untrusted\\[/bold red]" in rendered[0]
+
+
 def test_main_reraises_unrecognized_errors(monkeypatch):
     fake_app = _FailingApp(ValueError("unexpected bug"))
     monkeypatch.setattr(cli, "app", fake_app)

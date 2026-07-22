@@ -8,8 +8,8 @@ from typing import Any
 
 from distill.llm.usage import MAX_USAGE_TOKENS, LLMUsageAttempt
 
-NO_METERED_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio"})
 NO_METERED_PROVIDER_TYPES: frozenset[str] = frozenset({"local", "included-plan"})
+EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES: frozenset[str] = frozenset({"host-managed", "unknown"})
 
 
 @dataclass
@@ -77,10 +77,13 @@ class TokenUsage:
     @property
     def no_metered_cost(self) -> bool:
         """True only when topology or proved auth class establishes no metered cost."""
-        return (
-            self.provider_type in NO_METERED_PROVIDER_TYPES
-            or self.provider_name in NO_METERED_PROVIDERS
-        )
+        return self.provider_type in NO_METERED_PROVIDER_TYPES
+
+    @property
+    def external_cost_unavailable(self) -> bool:
+        """True when usage is known but Distill has no trustworthy price contract."""
+
+        return self.provider_type in EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES
 
 
 @dataclass

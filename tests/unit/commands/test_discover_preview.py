@@ -10,8 +10,10 @@ from distill.commands import topic as _topic
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.youtube.discovery import VideoInfo
+from distill.library.intent import load_intent
 from distill.pipeline.costs import ProjectedBudgetExceededError
 from distill.pipeline.discovery import RankedDiscoverItem
+from distill.pipeline.goals import load_topic_goals
 from distill.pipeline.preview_cache import preview_cache_dir, save_preview
 
 runner = CliRunner()
@@ -20,8 +22,10 @@ runner = CliRunner()
 @pytest.fixture
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
     monkeypatch.setattr(_cli_impl, "get_config", lambda: config)
     monkeypatch.setattr(_discover, "get_config", lambda: config)
+    monkeypatch.setattr(_discover, "_require_model", lambda: None)
     monkeypatch.setattr(_topic, "get_config", lambda: config)
     return config
 
@@ -65,6 +69,7 @@ def _seed_preview(config) -> str:
         items=items,
         estimate={"expected": 0.02, "low": 0.01, "high": 0.04, "calibrated": False},
         now_iso="2026-06-01T00:00:00",
+        settings={"video_limit": 4, "paper_limit": 3, "days": 14, "shorts": True},
     )
     return snap.id
 
@@ -90,6 +95,48 @@ def test_from_preview_replays_exact_saved_set(mock_config, monkeypatch):
     assert captured["ranked_papers"][0].paper.paper_id == "2601.1"
     assert captured["ranked_videos"][0].video.video_id == "v1"
     assert captured["summary"].estimated_cost == 0.0
+    intent = load_intent(mock_config.topic_dir("t"))
+    assert intent is not None
+    assert intent.goal == "learn things"
+    assert intent.rigor == "balanced"
+    assert load_topic_goals(mock_config.library_dir)["t"]["goal"] == "learn things"
+
+
+def test_topic_create_replays_saved_set_and_saves_exact_profile(mock_config, monkeypatch):
+    preview_id = _seed_preview(mock_config)
+    captured = {}
+    monkeypatch.setattr(_discover, "_discover_ingest_set", lambda **kwargs: captured.update(kwargs))
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "topic",
+            "create",
+            "--from-preview",
+            preview_id,
+            "--topic",
+            "memory",
+            "--videos",
+            "0",
+            "--papers",
+            "1",
+            "--days",
+            "2",
+            "--no-shorts",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["topic_name"] == "memory"
+    assert len(captured["ranked_papers"]) == 1
+    assert len(captured["ranked_videos"]) == 1
+    profile = _topic._load_topic_profile(mock_config, "memory")
+    assert profile is not None
+    assert profile["goal"] == "learn things"
+    assert profile["videos"] == 4
+    assert profile["papers"] == 3
+    assert profile["days"] == 14
+    assert profile["shorts"] is True
 
 
 def test_from_preview_unknown_id_errors(mock_config):

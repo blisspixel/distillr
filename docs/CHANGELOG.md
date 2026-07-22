@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Security
+
+- Bound no-metered Ollama and LM Studio routing to strict loopback HTTP(S)
+  endpoints. Remote, deceptive, wildcard, malformed, and unsupported endpoint
+  overrides now fail before provider construction and cannot be classified or
+  logged as local zero-dollar work.
+- Reject credentials, query strings, fragments, control characters, and invalid
+  ports in local-provider endpoint configuration. Endpoint-specific provider
+  caches use a digest instead of retaining the endpoint as a visible key.
+- Bound Ollama running-model and registry responses plus LM Studio inventories
+  by bytes, time, count, field shape, and identifier length. Provider-controlled
+  identifiers and errors are escaped before Rich rendering.
+- Hide router credentials from configuration representations and replace cloud
+  credentials with inert sentinels during the default local test run. Live
+  network tests remain separately marked and require an explicit opt-in.
+
+### Fixed
+
+- Made local setup and doctor readiness require an explicit configured model
+  that exactly matches the successful bounded Ollama or LM Studio inventory.
+  Existing model choices are preserved, missing Ollama configuration receives
+  one concrete default, and unavailable or mismatched models get exact recovery
+  guidance.
+- Made cloud doctor readiness prove the exact resolved provider and model. Known
+  cross-provider model assignments fail before provider construction, while
+  custom model identifiers remain eligible for an exact live probe.
+- Made `init --force` discard values loaded from the env file it replaces while
+  preserving shell and global CLI overrides. Env updates now collapse duplicate
+  and `export` assignments so a later stale value cannot win on the next run.
+- Made the shared configuration loader read the `.env` in the current working
+  directory it documents, instead of relying on an implicit module-anchored
+  dotenv search.
+- Made mixed-source topic previews print one fully specified exact replay
+  command. Topic-owned replay now persists intent and refresh goal, ingests the
+  saved set without another search or rerank, and saves the requested profile.
+- Added the missing local cost-ledger row for video-only topic previews and
+  made their continuation state clearly that candidate selection refreshes at
+  commit time.
+- Made saved preview writes atomic and serialized, and reject unsupported
+  snapshot schemas during replay and listing. Replay commands bind option values
+  safely even when a topic begins with a hyphen.
+- Preserved successful provider telemetry when a fail-closed budget or ledger
+  check stops immediately after recording paid usage.
+- Preserved known direct spend in terminal and HTML dashboard rows and totals
+  when a remote local-provider route has unavailable external cost.
+- Disabled hidden OpenAI-compatible SDK retries beneath Distill's explicit
+  retry and per-attempt accounting loop.
+
+### Changed
+
+- Made multi-provider analysis setup visible from first-run surfaces: root help
+  lists `distill provider list/set`, ready `init` prints the resolved analysis
+  route plus a Gemini switch hint, `topic --help` lists preview before create,
+  and `.env` / init templates document Gemini as an analysis route (not only
+  Deep Research).
+- Added `distill provider` (`show` / `list` / `set`) plus global `--provider` /
+  `-p` so analysis routes can be chosen without hand-editing `.env`. Cloud
+  defaults include `gemini-3.6-flash`; `provider set` persists
+  `DISTILL_PROVIDER` and `DISTILL_MODEL`. Known cloud `--model` ids infer their
+  provider for one-shot runs.
+- Added Gemini `gemini-3.6-flash` ($1.50/$7.50 per 1M) and
+  `gemini-3.5-flash-lite` ($0.30/$2.50 per 1M) to the pricing and context-window
+  tables so they are cost-tracked and selectable under
+  `DISTILL_PROVIDER=gemini`. `distill doctor` Gemini connectivity now probes
+  `gemini-3.6-flash`. Sampling parameters are omitted for these models and later
+  Gemini generations that deprecate them. Gemini 3.5 Flash Cyber is intentionally
+  not registered: it is limited-access through CodeMender, not a general Gemini
+  API analysis route.
+- Made first-run topic guidance preview-first and added explicit preview copy
+  about current-source fetches, possible model work, local cost evidence, and
+  the absence of corpus writes.
+- Classify remote Ollama and LM Studio adapters as external-cost-unknown in
+  usage, dashboards, and `distill costs`. Direct Distill spend remains separate,
+  projections are withheld when recent external cost is unavailable, and eval
+  refuses routes it cannot price before work starts.
+
 ## 0.19.40 - 2026-07-19
 
 ### Security

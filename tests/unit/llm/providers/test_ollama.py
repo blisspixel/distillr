@@ -132,6 +132,38 @@ class _FakeStream:
         return None
 
 
+class _FakePSResponse:
+    """Bounded byte-stream response for the Ollama contention probe."""
+
+    def __init__(self, payload: bytes, url: str, *, status_code: int = 200) -> None:
+        self._payload = payload
+        self._url = url
+        self.status_code = status_code
+
+    async def aiter_bytes(self) -> AsyncIterator[bytes]:
+        yield self._payload
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            request = httpx.Request("GET", self._url)
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=request,
+                response=httpx.Response(self.status_code, request=request),
+            )
+
+
+class _FakePSStream:
+    def __init__(self, response: _FakePSResponse) -> None:
+        self._response = response
+
+    async def __aenter__(self) -> _FakePSResponse:
+        return self._response
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
 class _FakeStreamClient:
     """Stand-in for httpx.AsyncClient whose stream() emits NDJSON frames."""
 
@@ -144,6 +176,7 @@ class _FakeStreamClient:
         captured: dict[str, Any] | None = None,
         on_stream: Callable[[], None] | None = None,
         running_models: list[str] | None = None,
+        running_models_payload: bytes | None = None,
         running_models_status_code: int = 200,
         captured_urls: list[str] | None = None,
     ) -> None:
@@ -153,6 +186,12 @@ class _FakeStreamClient:
         self._captured = captured
         self._on_stream = on_stream
         self._running_models = running_models or []
+        models = [{"name": model} for model in self._running_models]
+        self._running_models_payload = (
+            running_models_payload
+            if running_models_payload is not None
+            else json.dumps({"models": models}).encode("utf-8")
+        )
         self._running_models_status_code = running_models_status_code
         self._captured_urls = captured_urls
 
@@ -162,7 +201,19 @@ class _FakeStreamClient:
     async def __aexit__(self, *exc: object) -> None:
         return None
 
-    def stream(self, method: str, url: str, *, json: dict[str, Any] | None = None) -> _FakeStream:
+    def stream(
+        self, method: str, url: str, *, json: dict[str, Any] | None = None
+    ) -> _FakeStream | _FakePSStream:
+        if method == "GET":
+            if self._captured_urls is not None:
+                self._captured_urls.append(url)
+            return _FakePSStream(
+                _FakePSResponse(
+                    self._running_models_payload,
+                    url,
+                    status_code=self._running_models_status_code,
+                )
+            )
         if self._captured is not None and json is not None:
             self._captured.update(json)
         if self._on_stream is not None:
@@ -199,6 +250,7 @@ def _stream_client_factory(
     captured: dict[str, Any] | None = None,
     on_stream: Callable[[], None] | None = None,
     running_models: list[str] | None = None,
+    running_models_payload: bytes | None = None,
     running_models_status_code: int = 200,
     captured_urls: list[str] | None = None,
 ) -> Callable[..., _FakeStreamClient]:
@@ -217,6 +269,7 @@ def _stream_client_factory(
             captured=captured,
             on_stream=on_stream,
             running_models=running_models,
+            running_models_payload=running_models_payload,
             running_models_status_code=running_models_status_code,
             captured_urls=captured_urls,
         )
@@ -465,6 +518,7 @@ class TestOllamaProviderRetry:
             result = asyncio.run(provider.call("llama3:8b", "hello", retries=2))
 
         assert result.text == "ok"
+        assert [attempt.outcome for attempt in result.usage_attempts] == ["error", "success"]
         mock_sleep.assert_called_once_with(2)  # 2^0 * 2 = 2
 
     def test_raise_after_exhausted_retries(self) -> None:
@@ -620,6 +674,51 @@ class TestOllamaContention:
 
         assert result.text == "fallback"
         sleep.assert_not_awaited()
+
+    def test_running_model_probe_rejects_oversized_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        payload = b'{"models":[]}'
+        monkeypatch.setattr(ollama_module, "_RUNNING_MODELS_RESPONSE_BYTES", len(payload) - 1)
+        caplog.set_level(logging.DEBUG, logger="distill.llm.providers.ollama")
+
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(running_models_payload=payload),
+        ):
+            names = asyncio.run(provider._running_model_names(5))
+
+        assert names is None
+        assert "response byte limit" in caplog.text
+
+    def test_running_model_probe_rejects_excessive_model_count(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        monkeypatch.setattr(ollama_module, "_RUNNING_MODELS_MAX_MODELS", 1)
+
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(running_models=["first:latest", "second:latest"]),
+        ):
+            names = asyncio.run(provider._running_model_names(5))
+
+        assert names is None
+
+    def test_running_model_probe_rejects_control_characters(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(running_models=["unsafe\x01model"]),
+        ):
+            names = asyncio.run(provider._running_model_names(5))
+
+        assert names is None
 
 
 class TestChatPayload:
@@ -943,6 +1042,22 @@ class TestOllamaListModels:
             asyncio.run(provider.list_models())
         assert over.closed is True
 
+    def test_list_models_enforces_total_stream_deadline(self, monkeypatch) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        response = self._TagsResponse(b'{"models":[]}')
+        client = self._TagsClient(response)
+        times = iter([0.0, 11.0])
+        monkeypatch.setattr(ollama_module, "_monotonic", lambda: next(times))
+
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            pytest.raises(TimeoutError, match="total deadline"),
+        ):
+            asyncio.run(provider.list_models())
+
+        assert response.closed is True
+        assert client.closed is True
+
     @pytest.mark.parametrize(
         ("payload", "reason"),
         [
@@ -1037,6 +1152,28 @@ class TestOllamaProviderInit:
         with patch.dict("os.environ", {"OLLAMA_BASE_URL": "http://env:8888"}):
             provider = OllamaProvider()
         assert provider._base_url == "http://env:8888"
+
+    def test_proxy_environment_is_disabled_only_for_loopback(self) -> None:
+        local = OllamaProvider(base_url="http://localhost:11434")
+        remote = OllamaProvider(base_url="https://hosted.example/v1")
+
+        assert local._trust_env is False
+        assert remote._trust_env is True
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "http://user:secret@localhost:11434",
+            "http://localhost:11434?token=secret",
+            "http://local\nhost:11434",
+            "http://localhost:11434/\x00path",
+        ],
+    )
+    def test_rejects_unsafe_endpoint(self, endpoint: str) -> None:
+        with pytest.raises(ValueError, match="valid HTTP") as raised:
+            OllamaProvider(base_url=endpoint)
+
+        assert "secret" not in str(raised.value)
 
 
 class TestAdaptiveNumCtx:

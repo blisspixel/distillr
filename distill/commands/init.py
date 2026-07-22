@@ -15,14 +15,18 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import stat
 import tempfile
 from collections.abc import Callable, Generator
 from errno import ELOOP
+from io import StringIO
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict, cast
 
 import typer
+from dotenv import dotenv_values
+from rich.markup import escape
 
 from distill._console import console
 from distill.commands._helpers import tty_confirm, tty_prompt
@@ -43,7 +47,12 @@ class InitState(TypedDict):
     ready: bool
     next: str
     blocking: list[str]
+    analysis_provider: NotRequired[str]
+    analysis_model: NotRequired[str]
     local_reachable: NotRequired[bool]
+    local_model: NotRequired[str]
+    local_model_ready: NotRequired[bool]
+    local_models: NotRequired[list[str]]
 
 
 __all__ = ["init_cmd", "register"]
@@ -56,12 +65,16 @@ _ENV_TEMPLATE = """\
 # Cloud (default): set XAI_API_KEY. Get one at https://console.x.ai/
 XAI_API_KEY=
 
-# Optional: Gemini Deep Research for `distill research-brief` (https://aistudio.google.com/apikey)
+# Optional Gemini analysis route and Deep Research reports
+# (https://aistudio.google.com/apikey). After init defaults to xAI, switch with:
+#   distill provider set gemini gemini-3.6-flash
 GEMINI_API_KEY=
 
-# Local inference instead of cloud (no key needed): uncomment one.
+# Local inference instead of cloud (no key needed): uncomment one, or run
+#   distill provider set ollama qwen3.5:27b
 # DISTILL_PROVIDER=ollama
 # DISTILL_PROVIDER=lmstudio
+# DISTILL_MODEL=qwen3.5:27b
 # OLLAMA_BASE_URL=http://localhost:11434
 
 # Optional: where the corpus lives (default: ~/.distill/library)
@@ -91,6 +104,7 @@ _ENV_FILE_MODE = 0o600
 _POSIX_PERMISSIONS = os.name == "posix"
 _ENV_RACE_RETRIES = 3
 _ENV_LOCK_TIMEOUT_SECONDS = 10.0
+_ENV_KEY_PATTERN = re.compile(r"[A-Z][A-Z0-9_]*")
 
 
 def env_file_path() -> Path:
@@ -266,6 +280,25 @@ def create_env_file(path: Path, *, force: bool = False) -> bool:
         return _create_env_if_absent(path, _ENV_TEMPLATE)
 
 
+def _updated_env_content(existing: str, key: str, value: str) -> str:
+    """Return env content with exactly one active assignment for ``key``."""
+
+    assignment = re.compile(rf"^(?:export[ \t]+)?{re.escape(key)}[ \t]*=")
+    replaced = False
+    updated: list[str] = []
+    for line in existing.splitlines():
+        stripped = line.lstrip()
+        if not stripped.startswith("#") and assignment.match(stripped):
+            if not replaced:
+                updated.append(f"{key}={value}")
+            replaced = True
+            continue
+        updated.append(line)
+    if not replaced:
+        updated.append(f"{key}={value}")
+    return "\n".join(updated) + "\n"
+
+
 def set_env_var(path: Path, key: str, value: str) -> None:
     """Set ``key=value`` in the env file, preserving every other line.
 
@@ -273,6 +306,11 @@ def set_env_var(path: Path, key: str, value: str) -> None:
     ``# key=`` are left untouched); appends the assignment if absent. Creates the
     file from the template first if it does not exist.
     """
+    if not _ENV_KEY_PATTERN.fullmatch(key):
+        raise ValueError("Environment variable name is invalid")
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("Environment variable value contains control characters")
+
     with _env_update_lock(path):
         _validate_env_path(path)
         existing: str | None = None
@@ -285,17 +323,7 @@ def set_env_var(path: Path, key: str, value: str) -> None:
                 break
         if existing is None:
             raise OSError(f"Env path changed repeatedly while it was being opened: {path}")
-        lines = existing.splitlines()
-        prefix = f"{key}="
-        replaced = False
-        for i, line in enumerate(lines):
-            if line.lstrip().startswith(prefix) and not line.lstrip().startswith("#"):
-                lines[i] = f"{key}={value}"
-                replaced = True
-                break
-        if not replaced:
-            lines.append(f"{key}={value}")
-        _write_env_text(path, "\n".join(lines) + "\n")
+        _write_env_text(path, _updated_env_content(existing, key, value))
 
 
 def chromium_status() -> str:
@@ -344,13 +372,16 @@ def _install_chromium() -> bool:
         return False
 
 
-def _validate_xai() -> tuple[str, str]:
+def _validate_xai(model: str = "") -> tuple[str, str]:
     """Live-validate the XAI key via the canonical doctor checker (so init and
     doctor can't drift). Lazy import keeps init load-light."""
     from distill.commands._helpers import get_config
     from distill.doctor.checks import doctor_validate_key
 
-    return doctor_validate_key("xai", get_config())
+    config = get_config()
+    if model:
+        config = config.model_copy(update={"xai_analysis_model": model})
+    return doctor_validate_key("xai", config)
 
 
 _KEY_LABEL = {
@@ -359,6 +390,7 @@ _KEY_LABEL = {
     "missing": "[yellow]not set[/yellow]",
     "unknown": "[yellow]could not verify (offline?)[/yellow]",
     "skipped": "[yellow]live validation skipped by no-metered policy[/yellow]",
+    "not-checked": "[yellow]not checked until routing is resolved[/yellow]",
 }
 
 
@@ -372,14 +404,27 @@ def _emit_verdict(state: InitState) -> None:
     if state["provider"] == "cloud":
         console.print(f"  xAI key: {_KEY_LABEL.get(state['xai_key'], state['xai_key'])}")
     else:
-        console.print(f"  Local provider: {state['provider']}  ({state['local']})")
+        console.print(f"  Local provider: {escape(state['local'])}")
+        if local_model := state.get("local_model", ""):
+            model_status = "loaded" if state.get("local_model_ready", False) else "not loaded"
+            console.print(f"  Local model: {escape(local_model)} ({model_status})")
+    analysis_provider = str(state.get("analysis_provider", "") or "")
+    analysis_model = str(state.get("analysis_model", "") or "")
+    if analysis_provider and analysis_model:
+        console.print(f"  Analysis route: {escape(analysis_provider)} / {escape(analysis_model)}")
     console.print(f"  Browser: {state['browser']}")
     console.print()
     if state["ready"]:
-        console.print(f"  [bold]Try it:[/bold]  {state['next']}", soft_wrap=True)
+        console.print(f"  [bold]Try it:[/bold]  {escape(state['next'])}", soft_wrap=True)
+        if state["provider"] == "cloud":
+            console.print(
+                "  [dim]Other analysis routes:[/dim]  "
+                "distill provider list   |   "
+                "distill provider set gemini gemini-3.6-flash"
+            )
     else:
         for hint in state["blocking"]:
-            console.print(f"  [dim]- {hint}[/dim]")
+            console.print(f"  [dim]- {escape(hint)}[/dim]")
 
 
 def _local_provider() -> str:
@@ -391,30 +436,82 @@ def _local_provider() -> str:
     return name if name in ("ollama", "lmstudio") else ""
 
 
-def _local_reachable(provider: str) -> str:
-    """Lightweight reachability probe for the local provider. Returns
-    'reachable' or 'unreachable'. Reads the same base-URL env vars the
-    providers themselves honor (OLLAMA_BASE_URL / LMSTUDIO_BASE_URL)."""
-    import os
-
-    import httpx
+def _local_model_inventory(provider: str) -> tuple[str, list[str]]:
+    """Return provider status and exact model ids through bounded doctor probes."""
+    from distill.doctor.checks import check_lmstudio_models, check_ollama_status
 
     if provider == "ollama":
-        base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-        probe = base.rstrip("/") + "/api/tags"
-    else:
-        base = os.environ.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-        probe = base.rstrip("/") + "/models"
-    try:
-        with httpx.stream("GET", probe, timeout=2.0) as response:
-            return "reachable" if response.status_code < 500 else "unreachable"
-    except Exception:
-        return "unreachable"
+        return check_ollama_status()
+    return check_lmstudio_models()
+
+
+def _has_any_model_override() -> bool:
+    """Return whether the operator configured any router model field."""
+    from distill.llm.router import RouterConfig
+
+    return any(
+        os.environ.get(f"DISTILL_{field_name.upper()}", "").strip()
+        for field_name in RouterConfig.model_fields
+        if field_name == "model" or field_name.endswith("_model")
+    )
+
+
+def _is_xai_text_model(model: str) -> bool:
+    """Return whether a resolved model belongs to xAI's text-model namespace."""
+
+    from distill.llm.model_policy import is_xai_media_generation_model
+
+    normalized = model.strip().lower()
+    return normalized.startswith("grok-") and not is_xai_media_generation_model(normalized)
+
+
+def _env_file_value(content: str, name: str) -> str:
+    """Read one assignment from validated env-file content."""
+
+    value = dotenv_values(stream=StringIO(content), interpolate=False).get(name)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _env_assignment(content: str, name: str) -> str:
+    """Read one normalized routing assignment from env-file content."""
+
+    return _env_file_value(content, name).lower()
+
+
+def _string_mapping(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    mapping = cast(dict[object, object], value)
+    return {
+        key: item for key, item in mapping.items() if isinstance(key, str) and isinstance(item, str)
+    }
+
+
+def _string_tuple_set(value: object) -> set[str]:
+    if not isinstance(value, tuple):
+        return set()
+    return {item for item in cast(tuple[object, ...], value) if isinstance(item, str)}
+
+
+def _discard_overwritten_dotenv_values(
+    content: str,
+    *,
+    preserved_names: set[str],
+) -> None:
+    """Remove process values loaded only from an env file replaced by ``--force``."""
+
+    assignments = dotenv_values(stream=StringIO(content), interpolate=False)
+    for name in assignments:
+        if name not in preserved_names:
+            os.environ.pop(name, None)
 
 
 def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is flat
+    ctx: typer.Context,
     provider: str | None = typer.Option(
-        None, "--provider", help="cloud | local -- skip the prompt and pick directly"
+        None,
+        "--provider",
+        help="cloud (xAI analysis default) | local -- skip the prompt and pick directly",
     ),
     yes: bool = typer.Option(
         False, "--yes", "-y", help="Non-interactive: accept defaults, don't prompt"
@@ -433,9 +530,39 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
     """
     quiet = json_mode_active()
     env_path = env_file_path()
+    original_env = (
+        _env_file_operation(
+            env_path,
+            lambda: _read_existing_env(env_path),
+        )
+        or ""
+    )
+    root_obj_raw: object = ctx.find_root().obj
+    root_obj = cast(dict[str, object], root_obj_raw) if isinstance(root_obj_raw, dict) else {}
+    initial_provider_environment = _string_mapping(root_obj.get("initial_provider_environment"))
+    external_provider = (
+        str(initial_provider_environment.get("DISTILL_PROVIDER", "")).strip().lower()
+    )
+    external_analysis_provider = (
+        str(initial_provider_environment.get("DISTILL_ANALYSIS_PROVIDER", "")).strip().lower()
+    )
+    initial_xai_key = str(initial_provider_environment.get("XAI_API_KEY", "")).strip()
 
     # 1. Env file -- create if missing, never clobber without --force.
     created = _env_file_operation(env_path, lambda: create_env_file(env_path, force=force))
+    retained_env = original_env
+    if force and created:
+        preserved_names = _string_tuple_set(root_obj.get("pre_dotenv_environment_keys"))
+        _discard_overwritten_dotenv_values(
+            original_env,
+            preserved_names=preserved_names,
+        )
+        retained_env = ""
+    persisted_analysis_provider = _env_assignment(
+        retained_env,
+        "DISTILL_ANALYSIS_PROVIDER",
+    )
+    persisted_xai_key = _env_file_value(retained_env, "XAI_API_KEY")
     if not quiet:
         if created:
             console.print(f"  [green]Created[/green] {env_path}")
@@ -470,11 +597,18 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         "next": "",
         "blocking": [],
     }
+    cloud_route_ready = False
 
     # 3. Provider-specific setup.
     if choice == "cloud":
+        _env_file_operation(
+            env_path,
+            lambda: set_env_var(env_path, "DISTILL_PROVIDER", "xai"),
+        )
+        os.environ["DISTILL_PROVIDER"] = "xai"
         # Offer to capture a key interactively; under --yes / no-TTY we don't
         # prompt, so we leave the template value and tell the user where to set it.
+        entered = ""
         if not yes:
             entered = tty_prompt(
                 "Paste your XAI_API_KEY (blank to skip and set it later)",
@@ -486,42 +620,177 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                     env_path,
                     lambda: set_env_var(env_path, "XAI_API_KEY", entered),
                 )
+                os.environ["XAI_API_KEY"] = entered
                 if not quiet:
                     console.print("  [green]Saved[/green] XAI_API_KEY to .env")
-        if not quiet:
-            console.print("  Validating key against xAI ...")
-        status, _detail = _validate_xai()
-        state["xai_key"] = status
-        if status == "skipped":
-            state["blocking"].append(
-                "Cloud key validation is blocked by DISTILL_COST_MODE=no-metered. "
-                "Choose a local provider, or explicitly use paid-ok before validating a cloud key."
+        from distill.llm.router import RouterConfig
+
+        cloud_provider, cloud_model = RouterConfig(provider="xai").resolve("analysis")
+        shell_route_conflict = bool(
+            (external_analysis_provider and external_analysis_provider != "xai")
+            or (
+                not external_analysis_provider
+                and persisted_analysis_provider != "xai"
+                and external_provider
+                and external_provider != "xai"
             )
-        elif status != "ok":
+        )
+        intended_xai_key = entered or persisted_xai_key
+        shell_key_conflict = bool(
+            initial_xai_key and intended_xai_key and initial_xai_key != intended_xai_key
+        )
+        if shell_key_conflict:
+            state["xai_key"] = "not-checked"
             state["blocking"].append(
-                "Set a valid XAI_API_KEY in .env (get one at https://console.x.ai/), "
-                "then re-run `distill init` or `distill doctor`."
+                "A shell-level XAI_API_KEY overrides the key saved in .env. Unset or "
+                "update the shell variable, then re-run `distill init`."
             )
+        elif shell_route_conflict:
+            state["xai_key"] = "not-checked"
+            state["blocking"].append(
+                "A shell-level DISTILL_PROVIDER or DISTILL_ANALYSIS_PROVIDER overrides "
+                "the xAI route saved in .env. Unset the conflicting shell variable, "
+                "then re-run `distill init`."
+            )
+        elif cloud_provider != "xai":
+            state["xai_key"] = "not-checked"
+            state["blocking"].append(
+                f"Configured analysis route '{cloud_provider}' overrides the selected xAI "
+                "route. Remove DISTILL_ANALYSIS_PROVIDER or set it to xai, then re-run "
+                "`distill init`."
+            )
+        elif not _is_xai_text_model(cloud_model):
+            state["xai_key"] = "not-checked"
+            state["blocking"].append(
+                f"Configured analysis model '{cloud_model}' is not an xAI text model. "
+                "Remove the stale DISTILL_MODEL or DISTILL_ANALYSIS_MODEL override, "
+                "or set it to grok-4.3, then re-run `distill init`."
+            )
+        else:
+            if not quiet:
+                console.print("  Validating key against xAI ...")
+            status, validated_model = _validate_xai(cloud_model)
+            state["xai_key"] = status
+            if status == "skipped":
+                state["blocking"].append(
+                    "Cloud key validation is blocked by DISTILL_COST_MODE=no-metered. "
+                    "Choose a local provider, or explicitly use paid-ok before validating "
+                    "a cloud key."
+                )
+            elif status != "ok":
+                state["blocking"].append(
+                    "Set a valid XAI_API_KEY in .env (get one at https://console.x.ai/), "
+                    "then re-run `distill init` or `distill doctor`."
+                )
+            cloud_route_ready = status == "ok" and validated_model == cloud_model
+            if status == "ok" and validated_model != cloud_model:
+                state["blocking"].append(
+                    "xAI validation did not confirm the exact configured analysis model. "
+                    "Set DISTILL_MODEL or DISTILL_ANALYSIS_MODEL to the validated model, "
+                    "then re-run `distill init`."
+                )
     else:
         from distill.commands._helpers import get_config
+        from distill.llm.cost_policy import blocked_route_message, evaluate_route_cost_policy
 
-        get_config()  # side effect: load_dotenv so DISTILL_PROVIDER is in os.environ
-        prov = _local_provider()
+        runtime_config = get_config()
+        analysis_provider = os.environ.get("DISTILL_ANALYSIS_PROVIDER", "").strip().lower()
+        prov = analysis_provider if analysis_provider in {"ollama", "lmstudio"} else ""
         if not prov:
-            # User asked for local but .env still defaults to cloud -- set it.
+            prov = _local_provider() or "ollama"
+        if persisted_analysis_provider not in {"ollama", "lmstudio"}:
             _env_file_operation(
                 env_path,
-                lambda: set_env_var(env_path, "DISTILL_PROVIDER", "ollama"),
+                lambda: set_env_var(env_path, "DISTILL_PROVIDER", prov),
             )
-            prov = "ollama"
             if not quiet:
-                console.print("  [green]Set[/green] DISTILL_PROVIDER=ollama in .env")
-        reach = _local_reachable(prov)
+                console.print(f"  [green]Set[/green] DISTILL_PROVIDER={prov} in .env")
+
+        from distill.llm.router import RouterConfig
+
+        route_config = RouterConfig(
+            provider=prov,
+            cost_mode=runtime_config.distill_cost_mode,
+            xai_api_key=runtime_config.xai_api_key.get_secret_value(),
+            gemini_api_key=runtime_config.gemini_api_key.get_secret_value(),
+            anthropic_api_key=runtime_config.anthropic_api_key.get_secret_value(),
+            openai_api_key=runtime_config.openai_api_key.get_secret_value(),
+        )
+        route_provider, resolved_model = route_config.resolve("analysis")
+        configured_model = (
+            resolved_model if route_config.has_explicit_local_model("analysis") else ""
+        )
+        route_decision = evaluate_route_cost_policy(
+            cost_mode=runtime_config.distill_cost_mode,
+            provider=route_provider,
+            workload="init",
+        )
+        route_is_local = route_provider in {"ollama", "lmstudio"}
+        persisted_local_analysis = persisted_analysis_provider in {"ollama", "lmstudio"}
+        shell_route_conflict = bool(
+            (external_analysis_provider and external_analysis_provider != prov)
+            or (
+                not external_analysis_provider
+                and not persisted_local_analysis
+                and external_provider
+                and external_provider != prov
+            )
+        )
+        route_allowed = (
+            route_is_local and route_decision.cost_class == "local" and not shell_route_conflict
+        )
         state["provider"] = "local"
-        state["local"] = f"{prov}: {reach}"
-        state["local_reachable"] = reach == "reachable"
-        if reach != "reachable":
-            if prov == "ollama":
+        state["local_model"] = configured_model
+        state["local_model_ready"] = False
+        state["local_models"] = []
+
+        if not route_allowed:
+            state["local"] = f"{route_provider}: blocked"
+            state["local_reachable"] = False
+            if shell_route_conflict:
+                state["blocking"].append(
+                    "A shell-level DISTILL_PROVIDER or DISTILL_ANALYSIS_PROVIDER overrides "
+                    "the local route saved in .env. Unset the conflicting shell variable, "
+                    "then re-run `distill init`."
+                )
+            elif not route_is_local:
+                state["blocking"].append(
+                    f"Configured analysis route '{route_provider}' is not local. Remove "
+                    "DISTILL_ANALYSIS_PROVIDER or set it to ollama or lmstudio, then "
+                    "re-run `distill init`."
+                )
+            elif not route_decision.allowed:
+                state["blocking"].append(blocked_route_message(route_decision))
+            else:
+                state["blocking"].append(
+                    f"Configured {route_provider} endpoint is not proven loopback. "
+                    "Local setup only probes local inference. Restore its loopback endpoint, "
+                    "then re-run `distill init`."
+                )
+        else:
+            if (
+                not configured_model
+                and not _has_any_model_override()
+                and route_provider == "ollama"
+            ):
+                configured_model = "qwen3.5:27b"
+                _env_file_operation(
+                    env_path,
+                    lambda: set_env_var(env_path, "DISTILL_MODEL", configured_model),
+                )
+                state["local_model"] = configured_model
+                if not quiet:
+                    console.print(f"  [green]Set[/green] DISTILL_MODEL={configured_model} in .env")
+
+            local_status, local_models = _local_model_inventory(route_provider)
+            state["local"] = f"{route_provider}: {local_status}"
+            state["local_reachable"] = local_status == "running"
+            state["local_models"] = local_models
+            model_ready = bool(configured_model) and configured_model in local_models
+            state["local_model_ready"] = model_ready
+
+        if route_allowed and not state["local_reachable"]:
+            if route_provider == "ollama":
                 blocker = (
                     "Start Ollama and pull a model, e.g. `ollama pull qwen3.5:27b`, "
                     "then re-run `distill init`."
@@ -529,6 +798,25 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             else:
                 blocker = "Start LM Studio and load a model, then re-run `distill init`."
             state["blocking"].append(blocker)
+        elif route_allowed and not configured_model:
+            available = state["local_models"]
+            example = f", for example '{available[0]}'" if available else ""
+            state["blocking"].append(
+                f"Set DISTILL_MODEL or DISTILL_ANALYSIS_MODEL to an exact loaded "
+                f"{route_provider} model id{example}, "
+                "then re-run `distill init`."
+            )
+        elif route_allowed and not state["local_model_ready"]:
+            if route_provider == "ollama":
+                state["blocking"].append(
+                    f"Configured model '{configured_model}' is not installed in Ollama. "
+                    f"Run `ollama pull {configured_model}`, then re-run `distill init`."
+                )
+            else:
+                state["blocking"].append(
+                    f"Configured model '{configured_model}' is not loaded in LM Studio. "
+                    "Load that exact model, then re-run `distill init`."
+                )
 
     # 4. Browser -- the #1 silent ingest failure if absent.
     browser = chromium_status()
@@ -551,14 +839,27 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
 
     # 5. Readiness verdict + first command.
     if choice == "cloud":
-        state["ready"] = state["xai_key"] == "ok" and state["browser"] == "installed"
+        state["ready"] = cloud_route_ready and state["browser"] == "installed"
     else:
-        state["ready"] = state.get("local_reachable", False) and state["browser"] == "installed"
+        state["ready"] = (
+            state.get("local_reachable", False)
+            and state.get("local_model_ready", False)
+            and state["browser"] == "installed"
+        )
     next_cost_mode = "paid-ok" if choice == "cloud" else "no-metered"
     state["next"] = (
         f'distill --cost-mode {next_cost_mode} papers "agent memory systems" '
         "--topic memory --preview"
     )
+    try:
+        from distill.llm.router import RouterConfig
+
+        route_provider, route_model = RouterConfig().resolve("analysis")
+        state["analysis_provider"] = route_provider
+        state["analysis_model"] = route_model
+    except Exception:
+        # Setup verdict remains useful even if route resolution is incomplete.
+        pass
     _emit_verdict(state)
     if not state["ready"]:
         raise typer.Exit(1)

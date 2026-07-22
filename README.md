@@ -63,7 +63,7 @@ The short version: those are **report and search layers**; distill is the **corp
 
 That matters when you are doing thesis work, competitive analysis, technical due diligence, or building a startup knowledge base: you can verify the receipts, watch how a topic evolves, query the same folder through MCP from Claude Desktop / Cursor / other agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search. Reports and briefs export to Word for stakeholder delivery (`distill export <topic> --what report`), and paper topics export to BibTeX or RIS for Zotero and reference managers (`distill export <topic> --what citations`). Nothing is locked in anything.
 
-One honest scoping note: distill is a terminal tool for people comfortable installing a Python CLI and setting two API keys (or running a local model). If you want a one-click app, this isn't that - and the corpus it builds is plain files precisely so the tools you already use can be the interface.
+One honest scoping note: distill is a terminal tool for people comfortable installing a Python CLI and configuring one permitted model route, either a cloud key or a local provider plus an exact model. If you want a one-click app, this isn't that - and the corpus it builds is plain files precisely so the tools you already use can be the interface.
 
 ## What you get
 
@@ -102,8 +102,9 @@ Chromium when needed, and ends with a ready or not-ready verdict. The
 recommended invocation permits local validation and refuses API-billed or
 ambiguous provider checks. If you choose a cloud API, run `distill --cost-mode
 paid-ok init` only when you intend its minimal live key-validation request. That
-request can be billed and is recorded in the local ledger. Both setup paths are
-no-TTY-safe.
+request can be billed and is recorded in the local ledger. Local readiness
+requires a successful loopback provider probe and an exact configured model in
+the provider inventory. Both setup paths are no-TTY-safe.
 
 The final command is preview-first: it can fetch current public candidates and
 use an allowed model route to rank them, but it does not ingest papers or write
@@ -183,15 +184,24 @@ distill --cost-mode no-metered doctor
 The corpus lands in `~/.distill/library/` by default (`<repo>/library/` when running from a source checkout); override with `DISTILL_OUTPUT_DIR`. Cloud routes read keys from `.env` in your working directory (copy from `.env.example`); set only the providers you intend to use:
 
 ```bash
-XAI_API_KEY=xai-...             # Grok models
-GEMINI_API_KEY=AIza...          # Gemini Deep Research (reports + briefings)
+XAI_API_KEY=xai-...             # Grok models (default analysis)
+GEMINI_API_KEY=AIza...          # Gemini analysis route + Deep Research reports
+```
+
+Pick or change the analysis route with the CLI (writes `.env` only on `set`):
+
+```bash
+distill provider                              # show active provider + model
+distill provider list gemini                  # known models + prices
+distill provider set gemini gemini-3.6-flash  # persist default route
+distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 
 Or run locally with Ollama (no API keys needed for ingestion):
 
 ```bash
 ollama pull qwen3.5:27b         # download recommended model for 24GB GPU
-echo "DISTILL_PROVIDER=ollama" >> .env
+distill provider set ollama qwen3.5:27b
 distill --cost-mode no-metered doctor  # verify local setup without cloud probes
 ```
 
@@ -211,6 +221,7 @@ Then try any of:
 ```bash
 # Goal-aware cross-source discovery (papers + videos + curated sites, reranked against a goal)
 distill discover "help an AI become a great music composer" --topic music --preview
+distill --cost-mode no-metered topic preview "agent memory systems" --topic memory --videos 10 --papers 10
 distill discover --goal-file private/my-goal.md --topic research --yes
 distill discover --goal-file private/agent365-goal.md --topic agent365 --site-seeds private/agent365_sites.json --site-limit 10 --preview
 distill discover --goal-file private/agent365-goal.md --topic agent365 --trusted-site https://learn.microsoft.com/en-us/microsoft-365/agents-sdk/ --site-limit 10 --preview
@@ -498,7 +509,7 @@ surprise-cost warnings that the retained evidence cannot support. Topic-watch
 batches serialize their budget decision and rescan the ledger before each
 entry; `--ignore-budget` is the explicit override for incomplete evidence.
 
-**Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows local Ollama/LM Studio and refuses API-billed or ambiguous routes before any provider call. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio local routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including local zero-dollar runs and host-managed runs whose external cost is unavailable.
+**Cost modes.** `DISTILL_COST_MODE=auto|no-metered|paid-ok` (or `distill --cost-mode <mode> <command>` for one run) gates routes by billing: `no-metered` allows Ollama and LM Studio only when their configured HTTP(S) endpoint is strict loopback, and refuses API-billed, remote, malformed, or ambiguous routes before provider construction. xAI, Gemini, and opt-in Anthropic API routes plus Ollama and LM Studio routes are implemented today; OpenAI analysis remains a reserved route, not a live provider. Anthropic `claude-sonnet-5` is metered and explicit opt-in, not a calibrated default. Active-session worker results are implemented but host-managed and therefore not eligible for `no-metered`. The direct plan-quota CLI adapters (Codex CLI, Claude Code, Grok Build, Gemini/Antigravity) are roadmap, and only graduate once an adapter doctor proves included-plan auth, machine-readable output, scratch-only writes, usage ledgering, and `distill eval` quality. Every logged model-using run records provider and route class, including proven local zero-dollar runs and host-managed runs whose external cost is unavailable.
 
 **Workflow caps.** `DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"` caps direct CLI workflow spend. Estimate-bearing paths such as `distill ask`, `distill eval`, `distill paper`, `distill papers`, `distill site`, `distill site-batch`, `distill video`, `distill channel`, `distill catch-up`, `distill reanalyze`, `distill resynthesize`, `distill corpus`, `distill synthesize`, `distill topic brief`, `distill synthesis`, `distill report`, `distill research-brief`, and saved or freshly ranked `distill discover` ingest plans refuse before the estimated work starts when the projection exceeds the cap. `distill ask` estimates from the retrieved corpus excerpt size after no-coverage checks, so empty coverage stays free. `distill paper` estimates one full-PDF analysis plus the known paper and corpus synthesis tail before model preflight. `distill papers` estimates the requested limit as a preflight upper bound for non-preview runs, then re-checks the selected paper count plus known synthesis tail after search, dedup, rerank, and preview selection but before full-PDF analysis. `distill site` and `distill site-batch` estimate from resolved maximum pages plus the known synthesis and optional report tail before model preflight, while preview and scrape-only stay free. `distill corpus` checks one synthesis-call estimate before model preflight only when the topic has corpus source sections; empty topics and paper-only topics keep their existing no-synthesis path. Other tracked workflows stop when recorded spend crosses the cap; the crossing model call is recorded, then the installed CLI exits with budget code `6`. Global `--json` returns a `budget_exceeded` envelope. These caps complement `no-metered` mode and MCP per-call caps; they do not prove a route is free.
 

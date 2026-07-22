@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 
 from distill.llm.providers.lmstudio import LMStudioProvider
 from distill.llm.router import LLM_Response
+from distill.llm.usage import LLMUsageAttempt
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,12 +39,14 @@ def _make_mock_response(
     return SimpleNamespace(choices=[choice], usage=usage)
 
 
-def _build_provider() -> tuple[LMStudioProvider, MagicMock]:
+def _build_provider(
+    base_url: str = "http://localhost:1234/v1",
+) -> tuple[LMStudioProvider, MagicMock]:
     """Create an LMStudioProvider with a mocked OpenAI client."""
     with patch("distill.llm.providers.lmstudio.OpenAI") as mock_cls:
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
-        provider = LMStudioProvider(base_url="http://localhost:1234/v1")
+        provider = LMStudioProvider(base_url=base_url)
     return provider, mock_client
 
 
@@ -245,6 +248,7 @@ class TestLMStudioProviderRetry:
         assert result.text == "ok"
         assert result.input_tokens == 5
         assert result.output_tokens == 3
+        assert [attempt.outcome for attempt in result.usage_attempts] == ["error", "success"]
         mock_sleep.assert_called_once_with(2)  # 2^0 * 2 = 2
 
     def test_raise_after_exhausted_retries(self) -> None:
@@ -259,6 +263,28 @@ class TestLMStudioProviderRetry:
             asyncio.run(provider.call("local-model", "hello", retries=2))
 
         assert mock_client.chat.completions.create.call_count == 3
+
+    def test_remote_retry_emits_unknown_cost_attempts_before_retrying(self) -> None:
+        provider, mock_client = _build_provider("https://hosted.example/v1")
+        mock_client.chat.completions.create.side_effect = [
+            RuntimeError("transient server error"),
+            _make_mock_response(text="ok", prompt_tokens=5, completion_tokens=3),
+        ]
+        emitted: list[LLMUsageAttempt] = []
+
+        with patch("distill.llm.providers.lmstudio.time.sleep"):
+            result = asyncio.run(
+                provider.call(
+                    "hosted-model",
+                    "hello",
+                    retries=1,
+                    usage_sink=emitted.append,
+                )
+            )
+
+        assert emitted == list(result.usage_attempts)
+        assert [attempt.outcome for attempt in emitted] == ["error", "success"]
+        assert {attempt.provider_type for attempt in emitted} == {"unknown"}
 
 
 class TestLMStudioProviderInit:
@@ -290,3 +316,29 @@ class TestLMStudioProviderInit:
             mock_cls.return_value = MagicMock()
             provider = LMStudioProvider()
         assert provider._base_url == "http://env:8888/v1"
+
+    def test_proxy_environment_is_disabled_only_for_loopback(self) -> None:
+        with (
+            patch("distill.llm.providers.lmstudio.OpenAI") as openai_cls,
+            patch("distill.llm.providers.lmstudio.httpx.Client") as client_cls,
+        ):
+            openai_cls.return_value = MagicMock()
+            LMStudioProvider(base_url="http://localhost:1234/v1")
+            LMStudioProvider(base_url="https://hosted.example/v1")
+
+        assert [call.kwargs["trust_env"] for call in client_cls.call_args_list] == [False, True]
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "http://user:secret@localhost:1234/v1",
+            "http://localhost:1234/v1?token=secret",
+            "http://local\nhost:1234/v1",
+            "http://localhost:1234/v1/\x00path",
+        ],
+    )
+    def test_rejects_unsafe_endpoint(self, endpoint: str) -> None:
+        with pytest.raises(ValueError, match="valid HTTP") as raised:
+            LMStudioProvider(base_url=endpoint)
+
+        assert "secret" not in str(raised.value)

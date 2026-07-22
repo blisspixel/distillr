@@ -7,11 +7,18 @@ import logging
 import os
 from typing import Any
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from distill.llm.call_execution import CallOptions, execute_call
-from distill.llm.cost_policy import CostMode, normalize_cost_mode, require_route_allowed
+from distill.llm.cost_policy import (
+    LOCAL_PROVIDER_NAMES,
+    CostMode,
+    local_provider_endpoint,
+    local_provider_endpoint_is_valid,
+    normalize_cost_mode,
+    require_route_allowed,
+)
 from distill.llm.fallback import fallback_target
 from distill.llm.model_policy import (
     RETIRED_MODELS,
@@ -47,6 +54,21 @@ WORKLOAD_TAGS: frozenset[str] = frozenset(
     "analysis rerank synthesis site accordion brief report qa maintenance concepts".split()  # noqa: SIM905
 )
 
+_KNOWN_CLOUD_MODEL_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("grok-", "xai"),
+    ("gemini-", "gemini"),
+    ("claude-", "anthropic"),
+    ("gpt-", "openai"),
+)
+
+
+def _known_cloud_model_provider(model: str) -> str:
+    normalized = model.casefold()
+    for prefix, provider in _KNOWN_CLOUD_MODEL_PREFIXES:
+        if normalized.startswith(prefix):
+            return provider
+    return ""
+
 
 class RouterConfig(BaseSettings):
     """LLM routing configuration.  Reads directly from environment variables.
@@ -59,10 +81,10 @@ class RouterConfig(BaseSettings):
     model_config = {"env_prefix": "DISTILL_", "env_file": ".env", "extra": "ignore"}
 
     # API keys (populated from non-prefixed env vars via validator)
-    xai_api_key: str = ""
-    gemini_api_key: str = ""
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
+    xai_api_key: str = Field(default="", repr=False)
+    gemini_api_key: str = Field(default="", repr=False)
+    anthropic_api_key: str = Field(default="", repr=False)
+    openai_api_key: str = Field(default="", repr=False)
 
     # Global provider
     provider: str = "xai"
@@ -207,6 +229,23 @@ class RouterConfig(BaseSettings):
             workload=workload_tag,
         )
 
+        if (
+            not model_id.strip()
+            or model_id != model_id.strip()
+            or len(model_id) > 512
+            or any(ord(character) < 32 or ord(character) == 127 for character in model_id)
+        ):
+            raise ConfigurationError("The configured model identifier is invalid.")
+
+        if provider_name in {"ollama", "lmstudio"} and not self.has_explicit_local_model(
+            workload_tag
+        ):
+            raise ConfigurationError(
+                f"Provider '{provider_name}' requires an explicit local model. "
+                "Set DISTILL_MODEL to the exact installed model identifier, or configure "
+                "the matching workload or tier model."
+            )
+
         key_map: dict[str, tuple[str | None, str | None]] = {
             "xai": ("xai_api_key", "XAI_API_KEY"),
             "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
@@ -233,8 +272,34 @@ class RouterConfig(BaseSettings):
                 f"Add it to your .env file."
             )
 
+        expected_provider = _known_cloud_model_provider(model_id)
+        if (
+            provider_name in {"xai", "gemini", "anthropic"}
+            and expected_provider
+            and expected_provider != provider_name
+        ):
+            raise ConfigurationError(
+                f"Model '{model_id}' belongs to provider '{expected_provider}', not "
+                f"configured provider '{provider_name}'."
+            )
+
         if provider_name == "xai" and is_xai_media_generation_model(model_id):
             raise ConfigurationError(xai_media_generation_refusal(model_id))
+
+    def has_explicit_local_model(self, workload_tag: str) -> bool:
+        """Return whether local routing selected a model supplied by the operator."""
+        if self.model.strip():
+            return True
+
+        if workload_tag:
+            workload_field = f"{workload_tag}_model"
+            workload_model = str(getattr(self, workload_field, "")).strip()
+            if workload_model:
+                return True
+
+        tier_field = "premium_model" if workload_tag in self.PREMIUM_WORKLOADS else "fast_model"
+        tier_model = str(getattr(self, tier_field, "")).strip()
+        return tier_field in self.model_fields_set and bool(tier_model)
 
     def with_model_override(self, override: str) -> RouterConfig:
         """Return a new RouterConfig with the model override applied."""
@@ -258,14 +323,36 @@ class RouterConfig(BaseSettings):
 _provider_cache: dict[str, Any] = {}
 
 
+def _validated_local_endpoint(provider_name: str, config: RouterConfig) -> str:
+    """Snapshot and validate one local-provider endpoint before construction."""
+
+    if provider_name not in LOCAL_PROVIDER_NAMES:
+        return ""
+    endpoint = local_provider_endpoint(provider_name)
+    if not local_provider_endpoint_is_valid(endpoint):
+        raise ConfigurationError(
+            f"Provider '{provider_name}' requires a valid HTTP(S) endpoint without "
+            "credentials, query parameters, or fragments."
+        )
+    require_route_allowed(
+        cost_mode=config.cost_mode,
+        provider=provider_name,
+        workload="provider-construction",
+        endpoint=endpoint,
+    )
+    return endpoint
+
+
 def _get_provider(provider_name: str, config: RouterConfig) -> Any:
-    """Map *provider_name* to a Provider instance, caching per name."""
+    """Map *provider_name* to a Provider instance, caching per route identity."""
+    local_endpoint = _validated_local_endpoint(provider_name, config)
     cache_key = provider_cache_key(
         provider_name,
         ops_dir=config.ops_dir,
         xai_api_key=config.xai_api_key,
         gemini_api_key=config.gemini_api_key,
         anthropic_api_key=config.anthropic_api_key,
+        local_endpoint=local_endpoint,
     )
     if cache_key in _provider_cache:
         return _provider_cache[cache_key]
@@ -295,11 +382,11 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
     elif provider_name == "ollama":
         from distill.llm.providers.ollama import OllamaProvider
 
-        provider = OllamaProvider()
+        provider = OllamaProvider(base_url=local_endpoint)
     elif provider_name == "lmstudio":
         from distill.llm.providers.lmstudio import LMStudioProvider
 
-        provider = LMStudioProvider()
+        provider = LMStudioProvider(base_url=local_endpoint)
     else:
         valid = "xai, gemini, anthropic, agent, ollama, lmstudio"
         raise ConfigurationError(f"Unknown provider '{provider_name}'. Valid providers: {valid}")

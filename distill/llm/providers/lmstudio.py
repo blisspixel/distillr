@@ -11,11 +11,19 @@ import logging
 import os
 import time
 
+import httpx
 from openai import OpenAI
 
+from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
+from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
-from distill.llm.usage import UsageAttemptSink
+from distill.llm.usage import (
+    LLMUsageAttempt,
+    UsageAttemptSink,
+    attach_usage_attempts,
+    emit_usage_attempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +35,23 @@ class LMStudioProvider:
 
     def __init__(self, base_url: str = "") -> None:
         url = base_url or os.environ.get("LMSTUDIO_BASE_URL", LMSTUDIO_DEFAULT_URL)
+        if not local_provider_endpoint_is_valid(url):
+            raise ValueError(
+                "LM Studio requires a valid HTTP(S) endpoint without credentials, "
+                "query parameters, or fragments."
+            )
         self._base_url = url
-        self._client = OpenAI(api_key="lm-studio", base_url=url)
+        self._provider_type = (
+            "local" if classify_provider("lmstudio", endpoint=url) == "local" else "unknown"
+        )
+        self._trust_env = self._provider_type != "local"
+        self._http_client = httpx.Client(trust_env=self._trust_env)
+        self._client = OpenAI(
+            api_key="lm-studio",
+            base_url=url,
+            http_client=self._http_client,
+            max_retries=0,
+        )
 
     async def call(
         self,
@@ -48,6 +71,7 @@ class LMStudioProvider:
         Retries on transient errors with exponential backoff (base 2s, factor 2).
         """
         last_error: Exception | None = None
+        usage_attempts: list[LLMUsageAttempt] = []
         for attempt in range(retries + 1):
             try:
                 kwargs: dict[str, object] = {
@@ -63,32 +87,48 @@ class LMStudioProvider:
 
                 choices = response.choices  # type: ignore[reportUnknownMemberType]
                 if not choices:
-                    return LLM_Response(text="", input_tokens=0, output_tokens=0, model=model)
-
-                usage = response.usage  # type: ignore[reportUnknownMemberType]
-                text: str = str(choices[0].message.content or "")  # type: ignore[reportUnknownMemberType]
-                in_tok: int = int(usage.prompt_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
-                out_tok: int = int(usage.completion_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
-
-                return LLM_Response(
-                    text=text,
-                    input_tokens=in_tok,
-                    output_tokens=out_tok,
-                    model=model,
-                )
+                    text = ""
+                    in_tok = 0
+                    out_tok = 0
+                else:
+                    usage = response.usage  # type: ignore[reportUnknownMemberType]
+                    text = str(choices[0].message.content or "")  # type: ignore[reportUnknownMemberType]
+                    in_tok = int(usage.prompt_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
+                    out_tok = int(usage.completion_tokens) if usage else 0  # type: ignore[reportUnknownMemberType]
             except Exception as exc:
+                failed_input, failed_output = conservative_usage(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                )
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=failed_input,
+                        output_tokens=failed_output,
+                        model=model,
+                        provider_name="lmstudio",
+                        provider_type=self._provider_type,
+                        usage_source="conservative",
+                        outcome="error",
+                        error_type=type(exc).__name__,
+                    ),
+                    usage_sink,
+                )
                 # Check for connection errors specifically
                 exc_str = str(exc).lower()
                 is_conn_err = (
                     "connection" in exc_str or "refused" in exc_str or "timeout" in exc_str
                 )
                 if is_conn_err and attempt == 0:
-                    raise ConnectionError(
+                    surfaced = ConnectionError(
                         f"Cannot reach LM Studio at {self._base_url}. "
                         f"Start LM Studio and enable the local server."
-                    ) from exc
+                    )
+                    attach_usage_attempts(surfaced, usage_attempts)
+                    raise surfaced from exc
 
                 last_error = exc
+                attach_usage_attempts(exc, usage_attempts)
                 if is_permanent_error(exc):
                     raise
                 if attempt < retries:
@@ -103,6 +143,27 @@ class LMStudioProvider:
                     time.sleep(wait)
                 else:
                     raise
+            else:
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
+                        model=model,
+                        provider_name="lmstudio",
+                        provider_type=self._provider_type,
+                        usage_source="reported",
+                        outcome="success",
+                    ),
+                    usage_sink,
+                )
+                return LLM_Response(
+                    text=text,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
+                    model=model,
+                    usage_attempts=tuple(usage_attempts),
+                )
 
         assert last_error is not None  # nosec B101
         raise last_error

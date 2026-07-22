@@ -24,11 +24,24 @@ Full command reference. For the short version, see the README.
 - [Concept playbook and recovery](#concept-playbook-and-recovery)
 - [Viewing and exporting](#viewing-and-exporting)
 - [Diagnostics](#diagnostics)
+- [Provider and model route](#provider-and-model-route)
 - [Global output controls](#global-output-controls)
 
 ## Goal-aware discovery (cross-source)
 
 When you have a **research goal** rather than a keyword query, `distill discover` is the front door. It takes a natural-language goal, has the configured model generate candidate search queries for papers and videos, lets you optionally add curated website seed files or trusted website sections, and then does a single unified model rerank of the combined pool *against the goal* (not against keywords). You see one ranked cross-source table and only commit to ingestion after confirming.
+
+For a topic-owned workflow, start with `topic preview`. A mixed paper and video
+preview saves the exact ranked set and prints one complete replay command. The
+replay ingests that saved set without searching or reranking again, then saves
+the topic profile. A video-only preview has no saved selection snapshot, so its
+continuation says that candidates will refresh before ingestion.
+
+```bash
+distill --cost-mode no-metered topic preview "agent memory systems" \
+  --topic memory --videos 10 --papers 10 --days 30 --no-shorts
+# Run the exact topic create --from-preview command printed by the preview.
+```
 
 On a **fresh topic** (no artifacts yet), discover leads with a *size-then-approve* menu instead of auto-ingesting: it shows the ranked candidates and 2-3 sized options - *Excellent / Including good / Everything worthwhile* - each with its source breakdown and its own spend estimate, and ingests the option you pick. `--yes` skips the menu (rigor-filtered auto-ingest); `--size` forces the menu on a topic that already has artifacts.
 
@@ -494,10 +507,10 @@ guidance, which lets an external loop reschedule the command without scraping
 an apparent hang.
 
 Ollama model discovery streams `/api/tags` through a 2 MiB response ceiling and
-accepts only a strict bounded `models` object. Oversized, deeply structured, or
-malformed registries fail visibly instead of being retained in memory. Local
-readiness checks for Ollama and LM Studio inspect status without reading an
-unneeded response body.
+accepts only a strict bounded `models` object. LM Studio model discovery applies
+its own 1 MiB response and model-shape ceilings. Oversized, deeply structured,
+or malformed registries fail closed. Local readiness requires the configured
+exact model id to appear in the successful provider inventory.
 
 ## Websites
 
@@ -741,7 +754,7 @@ Flags:
 
 Every run also appends one row per `(model, fixture)` to `library/.distill/eval/results.jsonl` (scores, win-rate, cost) so you can track quality and cost **drift over time** as models change.
 
-The eval **recommends**; it never switches your configured model. To act on a recommendation, set the model yourself (e.g. `DISTILL_PROVIDER=ollama` + `DISTILL_ANALYSIS_MODEL=<model>` in `.env`). A non-anchor recommendation means the model judges found the candidate faithful and at par with the anchor. A recommendation for the anchor means no cheaper model was certified at par, a cheaper model was unfaithful, or the judge signal was missing. `distill doctor --json` checks local service and model availability; use `distill eval --workload <name> --models <models>` for the quality decision.
+The eval **recommends**; it never switches your configured model. To act on a recommendation, set the route yourself with `distill provider set ollama <model>` (or env vars such as `DISTILL_PROVIDER` / `DISTILL_MODEL`). A non-anchor recommendation means the model judges found the candidate faithful and at par with the anchor. A recommendation for the anchor means no cheaper model was certified at par, a cheaper model was unfaithful, or the judge signal was missing. `distill doctor --json` checks local service and model availability; use `distill eval --workload <name> --models <models>` for the quality decision.
 
 ## Research briefings and deep synthesis
 
@@ -1126,14 +1139,14 @@ distill --cost-mode no-metered init # recommended: setup with fail-closed valida
 distill --cost-mode paid-ok init    # explicitly permit minimal live cloud-key validation
 distill init                       # use the configured/default auto cost policy
 distill init --provider cloud      # skip the provider prompt
-distill init --provider local      # set DISTILL_PROVIDER=ollama, probe reachability
+distill init --provider local      # set Ollama plus an exact model, then verify both
 distill init --yes                 # non-interactive: accept defaults, don't prompt
 distill init --no-browser          # skip the Chromium install step
 distill init --force               # recreate .env from the template (overwrites!)
 distill --json init                # machine-readable readiness verdict
 ```
 
-`distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. The exit code is `0` when the setup is ready to ingest and `1` when something still needs doing (the verdict lists exactly what). `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
+`distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. Ollama setup writes `DISTILL_MODEL=qwen3.5:27b` only when no model is already configured; LM Studio asks for an exact loaded model id. Existing model choices are preserved. `--force` starts from the new template, removes process values that came only from the replaced file, and preserves real shell or global CLI overrides. Env updates leave exactly one active assignment for each key. The exit code is `0` only when the selected local service responds successfully, the exact configured model is present, and the browser is installed. `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
 
 The suggested `distill papers ... --preview` step stops before paper ingest and
 corpus writes. It can still use the configured model for expansion or reranking,
@@ -1148,6 +1161,36 @@ distill --version       # or -V; prints the installed version and exits 0
 
 Eager, so it works before any environment is configured - handy for bug reports and agent preflight.
 
+## Provider and model route
+
+Show, list, or set the analysis provider without hand-editing `.env`:
+
+```bash
+distill provider                              # show active provider + model
+distill provider list                         # routable providers
+distill provider list gemini                  # known Gemini analysis models + prices
+distill provider set gemini gemini-3.6-flash  # persist DISTILL_PROVIDER + DISTILL_MODEL
+distill provider set gemini                   # cloud default model (gemini-3.6-flash)
+distill provider set ollama qwen3.5:27b       # exact local inventory id required
+```
+
+On a TTY, `distill provider set` with no arguments walks an interactive picker.
+Without a TTY, pass explicit provider (and model for local/agent routes). Use
+`--yes` to accept cloud catalog defaults without prompts.
+
+For one run only, use global flags (no `.env` write):
+
+```bash
+distill --provider gemini --model gemini-3.6-flash papers "..." --limit 5
+distill -p gemini -m gemini-3.5-flash-lite papers "..." --limit 20
+# known cloud model ids also infer the provider:
+distill -m gemini-3.6-flash papers "..." --limit 5
+```
+
+Aliases: `google` -> `gemini`, `grok` -> `xai`, `claude` -> `anthropic`.
+Deep Research reports still use `GEMINI_API_KEY` on their own path; the provider
+command configures the analysis/synthesis chat route.
+
 ## Global output controls
 
 Global output flags go before the command:
@@ -1156,7 +1199,16 @@ Global output flags go before the command:
 distill --quiet catch-up              # suppress human console output
 distill --verbose doctor              # enable debug logging
 distill --json library                # machine-readable stdout
+distill --provider gemini --model gemini-3.6-flash papers "..." --limit 5
+distill -p gemini -m gemini-3.5-flash-lite doctor
+distill --cost-mode paid-ok --provider gemini doctor
 ```
+
+`--provider` / `-p` and `--model` / `-m` override the analysis route for one
+invocation by setting `DISTILL_PROVIDER` and `DISTILL_MODEL` in the process
+environment (they do not rewrite `.env`). A known cloud model id with only
+`--model` infers the matching provider. Persist a default with
+`distill provider set`.
 
 `--quiet` / `-q` is for external loops that only need exit codes, artifacts, or
 JSON output. It suppresses the shared human console for that invocation and
@@ -1183,7 +1235,7 @@ distill --json show <topic> 1        # a video's insights (or --what transcript)
 distill --cost-mode no-metered --json doctor  # readiness without API-billed probes
 ```
 
-`distill --json doctor` carries a top-level **`ready`** boolean (true when a cloud key live-validates or a local server is running, so the environment can analyze a source) alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires an available local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
+`distill --json doctor` carries a top-level **`ready`** boolean alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. A cloud route is ready only after the exact resolved model succeeds on its configured provider. Known cross-provider assignments are rejected before a call. A local route is ready only when its configured analysis model is explicit, its endpoint is strict loopback, the service responds successfully, and that exact model appears in the bounded inventory. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires that proven local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
 
 Bare `distill --json` and `distill --json dashboard` return the same
 `dashboard.v2` data object. It includes a `first_run` verdict, primitive count

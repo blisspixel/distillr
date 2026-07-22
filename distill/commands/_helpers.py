@@ -10,6 +10,7 @@ re-exported here so that both old and new import paths work.
 import logging
 import math
 import os
+import re
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -63,6 +64,8 @@ from distill.pipeline.costs import (
     ProjectedBudgetExceededError,
     save_run_log,
 )
+
+
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping
@@ -79,6 +82,26 @@ from distill.youtube_urls import (
 
 if TYPE_CHECKING:
     from distill.ingestors.youtube.discovery import VideoInfo
+
+
+_SAFE_CLI_ARGUMENT = re.compile(r"^[A-Za-z0-9_./:+,=-]+$")
+_PORTABLE_QUOTED_PUNCTUATION = frozenset(" _-./:,+'[]()")
+
+
+def quote_cli_value(value: str) -> str:
+    """Render one literal argument safely across POSIX, PowerShell, and cmd."""
+    if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        raise ValueError("command arguments cannot contain control characters")
+    if value and _SAFE_CLI_ARGUMENT.fullmatch(value):
+        return value
+    if not value or any(
+        not character.isalnum() and character not in _PORTABLE_QUOTED_PUNCTUATION
+        for character in value
+    ):
+        raise ValueError("argument cannot be represented safely in a portable command")
+    return f'"{value}"'
+
+
 __all__ = [
     "SHORTS_THRESHOLD",
     "_apply_cost_mode_override",
@@ -102,6 +125,7 @@ __all__ = [
     "print_markdown_safely",
     "print_text_safely",
     "process_video",
+    "quote_cli_value",
     "record_exception_issue",
     "record_output_or_issue",
     "require_api_key",
@@ -145,7 +169,7 @@ def get_config() -> DistillConfig:
     modules can obtain config without importing `_logic` -- the enabler for
     decomposing `_logic.py` without import cycles (how-we-build.md remediation #1).
     """
-    load_dotenv()
+    load_dotenv(dotenv_path=Path.cwd() / ".env")
     return DistillConfig()
 
 
@@ -300,17 +324,37 @@ def _apply_output_mode(
     debug: bool,
     json_output: bool,
     model: str,
+    provider: str = "",
 ) -> bool:
     """Apply global output options and return the effective debug flag."""
     if quiet and (verbose or debug):
         console.print("[red]--quiet cannot be combined with --verbose or --debug[/red]")
         raise typer.Exit(2)
 
+    provider_override = provider.strip()
+    model_override = model.strip()
+    if provider_override:
+        from distill.llm.provider_catalog import normalize_provider_name
+
+        try:
+            provider_override = normalize_provider_name(provider_override)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(2) from None
+
+    # When only --model is set, route known cloud ids to the matching provider
+    # so ``distill -m gemini-3.6-flash ...`` works without a separate --provider.
+    if model_override and not provider_override:
+        from distill.llm.provider_catalog import infer_cloud_provider_for_model
+
+        provider_override = infer_cloud_provider_for_model(model_override)
+
     ctx.ensure_object(dict)
     ctx.obj.update(
         {
             "json": json_output,
-            "model": model,
+            "model": model_override,
+            "provider": provider_override,
             "quiet": quiet,
             "verbose": verbose,
         }
@@ -322,8 +366,10 @@ def _apply_output_mode(
     set_json_mode(json_output)
     set_verbosity(quiet=quiet)
     set_json_active(json_output)
-    if model:
-        os.environ["DISTILL_MODEL"] = model
+    if model_override:
+        os.environ["DISTILL_MODEL"] = model_override
+    if provider_override:
+        os.environ["DISTILL_PROVIDER"] = provider_override
     return debug or verbose
 
 

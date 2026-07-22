@@ -8,7 +8,7 @@ from distill.eval import harness as harness_mod
 from distill.eval.fixtures import load_fixtures
 from distill.eval.harness import estimate_eval_cost, run_model_eval
 from distill.eval.judge import FaithfulnessVerdict, PairwiseResult
-from distill.pipeline.costs import TokenUsage
+from distill.pipeline.costs import CostTracker, TokenUsage
 
 _OUTPUT = (
     "## Core Contribution\n- ICEWS MRR ChronoR GDELT Semantic Speed Gate.\n"
@@ -329,6 +329,54 @@ def test_estimate_local_only_is_free():
         fixtures, ["qwen3.5:27b"], anchor="qwen3.5:27b", judge_model="qwen3.5:27b"
     )
     assert est == 0.0
+
+
+@pytest.mark.parametrize("remote_role", ["candidate", "judge"])
+def test_estimate_refuses_remote_local_adapter_without_price_contract(
+    monkeypatch,
+    remote_role,
+):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    fixtures = load_fixtures("paper")
+    models = ["qwen3.5:27b"] if remote_role == "candidate" else ["grok-4.3"]
+    judge = "grok-4.3" if remote_role == "candidate" else "qwen3.5:27b"
+
+    with pytest.raises(harness_mod.UnpricedEvalRouteError, match="external price is unknown"):
+        estimate_eval_cost(fixtures, models, anchor=models[0], judge_model=judge)
+
+
+def test_analysis_keeps_remote_local_usage_and_fails_closed_on_unknown_cost(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    fixture = load_fixtures("paper")[0]
+    run_tracker = CostTracker()
+
+    def analyze(_fixture, _config, tracker):
+        tracker.record(
+            TokenUsage(
+                prompt_tokens=1_000_000,
+                completion_tokens=1_000_000,
+                model="qwen3.5:27b",
+                provider_name="ollama",
+                provider_type="unknown",
+            )
+        )
+        return _OUTPUT
+
+    analysis = harness_mod._analyze(
+        "qwen3.5:27b",
+        fixture,
+        analyze,
+        run_tracker,
+        None,
+    )
+
+    assert analysis.error == "external cost unavailable for eval route"
+    assert analysis.output == ""
+    assert analysis.cost == 0
+    assert len(run_tracker.entries) == 1
+    assert run_tracker.entries[0].provider_type == "unknown"
+    assert run_tracker.entries[0].external_cost_unavailable is True
+    assert run_tracker.format_cost() == "$0.0000 direct; external cost unavailable"
 
 
 def test_estimate_adapter_plan_quota_is_free():

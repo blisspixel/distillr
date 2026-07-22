@@ -10,6 +10,7 @@ from time import monotonic as _monotonic
 from typing import Any, NoReturn, Protocol
 
 from distill.llm.async_compat import run_coroutine_sync
+from distill.llm.cost_policy import classify_provider
 from distill.llm.fallback import (
     FallbackConfig,
     fallback_failure_to_surface,
@@ -109,8 +110,15 @@ def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Re
     return response
 
 
-def _provider_type(provider_name: str) -> str:
-    return "local" if provider_name in LOCAL_PROVIDERS else "cloud"
+def _provider_type(provider_name: str, provider: object | None = None) -> str:
+    endpoint_obj = getattr(provider, "_base_url", None) if provider is not None else None
+    endpoint = endpoint_obj if isinstance(endpoint_obj, str) else None
+    cost_class = classify_provider(provider_name, endpoint=endpoint)
+    if cost_class == "local":
+        return "local"
+    if provider_name in LOCAL_PROVIDERS:
+        return "unknown"
+    return "cloud"
 
 
 def _provider_reasoning_effort(
@@ -131,8 +139,8 @@ def _capture_unreported_failure(
     provider_name: str,
     model: str,
     exc: Exception,
+    provider_type: str,
 ) -> None:
-    provider_type = _provider_type(provider_name)
     if provider_type == "cloud":
         input_tokens, output_tokens = conservative_usage(
             prompt=options.prompt,
@@ -165,9 +173,10 @@ def _normalize_success_attempts(
     provider_name: str,
     model: str,
     response: LLM_Response,
+    provider_type: str,
 ) -> tuple[LLMUsageAttempt, ...]:
     attempts = tuple(
-        _normalized_attempt_identity(provider_name, attempt).with_identity()
+        _normalized_attempt_identity(provider_name, provider_type, attempt).with_identity()
         for attempt in response.usage_attempts
     )
     if attempts:
@@ -181,7 +190,7 @@ def _normalize_success_attempts(
             output_tokens=response.output_tokens,
             model=response.model or model,
             provider_name=provider_name,
-            provider_type=_provider_type(provider_name),
+            provider_type=provider_type,
             usage_source=response.usage_source,
             outcome="success",
         ),
@@ -192,6 +201,7 @@ def _normalize_success_attempts(
 
 def _normalized_attempt_identity(
     route_provider: str,
+    route_provider_type: str,
     attempt: LLMUsageAttempt,
 ) -> LLMUsageAttempt:
     if route_provider == "agent" and attempt.provider_type == "host-managed":
@@ -199,7 +209,7 @@ def _normalized_attempt_identity(
     return replace(
         attempt,
         provider_name=route_provider,
-        provider_type=_provider_type(route_provider),
+        provider_type=route_provider_type,
     )
 
 
@@ -234,8 +244,9 @@ def _run_provider_call(
     model: str,
 ) -> LLM_Response:
     provider = options.provider_getter(provider_name)
+    provider_type = _provider_type(provider_name, provider)
     effective_timeout = (
-        local_call_timeout(options.timeout) if provider_name in LOCAL_PROVIDERS else options.timeout
+        local_call_timeout(options.timeout) if provider_type == "local" else options.timeout
     )
     call_kwargs: dict[str, object] = {
         "max_tokens": options.max_tokens,
@@ -250,7 +261,7 @@ def _run_provider_call(
             model,
         ),
     }
-    if provider_name not in LOCAL_PROVIDERS:
+    if provider_type != "local":
         call_kwargs["usage_sink"] = options.usage_sink
     coroutine = provider.call(model, options.prompt, **call_kwargs)
     try:
@@ -260,22 +271,51 @@ def _run_provider_call(
             replace(
                 row,
                 provider_name=provider_name,
-                provider_type=_provider_type(provider_name),
+                provider_type=provider_type,
             ).with_identity()
             for row in usage_attempts_from_exception(exc)
         )
+        successful_attempt = next(
+            (attempt for attempt in reversed(attempts) if attempt.outcome == "success"),
+            None,
+        )
+        if successful_attempt is not None:
+            attach_usage_attempts(exc, attempts)
+            response = LLM_Response(
+                text="",
+                input_tokens=successful_attempt.input_tokens,
+                output_tokens=successful_attempt.output_tokens,
+                model=successful_attempt.model or model,
+                provider_name=provider_name,
+                provider_type=provider_type,
+                usage_source=successful_attempt.usage_source,
+                usage_attempts=attempts,
+            )
+            raise _PostResponseAccountingError(exc, response) from exc
         if not attempts:
-            _capture_unreported_failure(options, provider_name, model, exc)
+            _capture_unreported_failure(
+                options,
+                provider_name,
+                model,
+                exc,
+                provider_type,
+            )
         else:
             attach_usage_attempts(exc, attempts)
             _emit_existing_attempts(options, attempts)
         raise
     try:
-        attempts = _normalize_success_attempts(options, provider_name, model, response)
+        attempts = _normalize_success_attempts(
+            options,
+            provider_name,
+            model,
+            response,
+            provider_type,
+        )
     except Exception as exc:
         raise _PostResponseAccountingError(exc, response) from exc
     response_provider = provider_name
-    response_provider_type = _provider_type(provider_name)
+    response_provider_type = provider_type
     if provider_name == "agent" and response.provider_type == "host-managed":
         response_provider = response.provider_name
         response_provider_type = response.provider_type
@@ -383,6 +423,10 @@ def _record_route(
 ) -> None:
     effective_provider_name = provider_name
     provider_type = _provider_type(provider_name)
+    if attempts:
+        provider_type = attempts[-1].provider_type
+    if response is not None and response.provider_type:
+        provider_type = response.provider_type
     if response is not None and response.provider_type == "host-managed":
         effective_provider_name = response.provider_name
         provider_type = response.provider_type

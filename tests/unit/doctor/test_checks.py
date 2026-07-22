@@ -119,7 +119,14 @@ def test_doctor_validate_xai_key_success_uses_configured_analysis_model(
             )
 
     class _OpenAI:
-        def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+        def __init__(
+            self,
+            *,
+            api_key: str,
+            base_url: str | None = None,
+            max_retries: int,
+        ) -> None:
+            assert max_retries == 0
             self.api_key = api_key
             self.base_url = base_url
             self.chat = types.SimpleNamespace(completions=_Completions())
@@ -313,7 +320,7 @@ def test_doctor_validate_gemini_key_success(monkeypatch, tmp_path: Path) -> None
     class _Models:
         @staticmethod
         def generate_content(*, model: str, contents: str, config: object) -> object:
-            assert model == "gemini-3.5-flash"
+            assert model == "gemini-3.6-flash"
             assert contents == "hi"
             calls.append({"config": config})
             return types.SimpleNamespace(
@@ -337,8 +344,42 @@ def test_doctor_validate_gemini_key_success(monkeypatch, tmp_path: Path) -> None
     assert checks.doctor_validate_key(
         "gemini",
         DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path),
-    ) == ("ok", "Deep Research")
+    ) == ("ok", "gemini-3.6-flash")
     assert calls == [{"config": {"max_output_tokens": 5}}]
+
+
+def test_doctor_validate_gemini_key_uses_exact_requested_model(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    models: list[str] = []
+
+    class _Models:
+        @staticmethod
+        def generate_content(*, model: str, contents: str, config: object) -> object:
+            del contents, config
+            models.append(model)
+            return types.SimpleNamespace(usage_metadata=None)
+
+    class _Client:
+        def __init__(self, *, api_key: str) -> None:
+            del api_key
+            self.models = _Models()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "google",
+        types.SimpleNamespace(genai=types.SimpleNamespace(Client=_Client)),
+    )
+
+    result = checks.doctor_validate_key(
+        "gemini",
+        DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path),
+        model="gemini-custom-route",
+    )
+
+    assert result == ("ok", "gemini-custom-route")
+    assert models == ["gemini-custom-route"]
 
 
 def test_doctor_validate_gemini_key_auth_rejection(monkeypatch, tmp_path: Path) -> None:
@@ -447,7 +488,14 @@ def test_doctor_validate_openai_key_success(monkeypatch, tmp_path: Path) -> None
             )
 
     class _OpenAI:
-        def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
+        def __init__(
+            self,
+            *,
+            api_key: str,
+            base_url: str | None = None,
+            max_retries: int,
+        ) -> None:
+            assert max_retries == 0
             self.api_key = api_key
             self.base_url = base_url
             self.chat = types.SimpleNamespace(completions=_Completions())
@@ -459,7 +507,7 @@ def test_doctor_validate_openai_key_success(monkeypatch, tmp_path: Path) -> None
         DistillConfig(openai_api_key="test-key", distill_output_dir=tmp_path),
     )
 
-    assert (status, detail) == ("ok", "optional")
+    assert (status, detail) == ("ok", "gpt-4.1-mini")
     assert calls[0]["model"] == "gpt-4.1-mini"
     assert calls[0]["max_tokens"] == 5
 
@@ -506,6 +554,24 @@ def test_check_ollama_status_unavailable_on_provider_error(monkeypatch) -> None:
     assert checks.check_ollama_status() == ("unavailable", [])
 
 
+def test_public_local_inventory_refuses_remote_endpoints_before_probe(monkeypatch) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    monkeypatch.setenv("LMSTUDIO_BASE_URL", "https://hosted.example/v1")
+
+    def forbidden_ollama_probe():
+        pytest.fail("remote Ollama endpoint must not be probed as local inventory")
+
+    def forbidden_lmstudio_probe():
+        pytest.fail("remote LM Studio endpoint must not be probed as local inventory")
+
+    monkeypatch.setattr(checks, "_check_ollama_status", forbidden_ollama_probe)
+    monkeypatch.setattr(checks, "_check_lmstudio_status", forbidden_lmstudio_probe)
+
+    assert checks.check_ollama_status() == ("unavailable", [])
+    assert checks.check_lmstudio_status() == "unavailable"
+    assert checks.check_lmstudio_models() == ("unavailable", [])
+
+
 def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
     class _Response:
         status_code = 200
@@ -523,8 +589,9 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
     calls: list[str] = []
 
     class _Client:
-        def __init__(self, *, timeout: int) -> None:
+        def __init__(self, *, timeout: int, trust_env: bool) -> None:
             self.timeout = timeout
+            assert trust_env is False
 
         def __enter__(self) -> _Client:
             return self
@@ -535,10 +602,10 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
         @staticmethod
         def stream(method: str, url: str) -> _Response:
             assert method == "GET"
-            assert url == "http://lmstudio.test/v1/models"
+            assert url == "http://127.0.0.1:1234/v1/models"
             return _Response()
 
-    monkeypatch.setenv("LMSTUDIO_BASE_URL", "http://lmstudio.test/v1")
+    monkeypatch.setenv("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1")
     monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_Client))
 
     assert checks.check_lmstudio_status() == "running"
@@ -565,3 +632,124 @@ def test_check_lmstudio_status_running_and_unavailable(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_FailingClient))
 
     assert checks.check_lmstudio_status() == "unavailable"
+
+
+def test_check_lmstudio_models_reads_bounded_inventory(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class _Response:
+        status_code = 200
+
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            calls.append("response-closed")
+
+        @staticmethod
+        def iter_bytes():
+            yield b'{"data":[{"id":"loaded-model"},'
+            yield b'{"id":""},{"object":"model"}]}'
+
+    class _Client:
+        def __init__(self, *, timeout: int, trust_env: bool) -> None:
+            assert timeout == 3
+            assert trust_env is False
+
+        def __enter__(self) -> _Client:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            calls.append("client-closed")
+
+        @staticmethod
+        def stream(method: str, url: str) -> _Response:
+            assert method == "GET"
+            assert url == "http://127.0.0.1:1234/v1/models"
+            return _Response()
+
+    monkeypatch.setenv("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1/")
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_Client))
+
+    assert checks.check_lmstudio_models() == ("running", ["loaded-model"])
+    assert calls == ["response-closed", "client-closed"]
+
+
+def test_check_lmstudio_models_enforces_total_stream_deadline(monkeypatch) -> None:
+    class _Response:
+        status_code = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        @staticmethod
+        def iter_bytes():
+            yield b'{"data":[]}'
+
+    class _Client:
+        def __init__(self, *, timeout: int, trust_env: bool) -> None:
+            assert timeout == 3
+            assert trust_env is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        @staticmethod
+        def stream(method: str, url: str) -> _Response:
+            return _Response()
+
+    monkeypatch.setenv("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1")
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_Client))
+    times = iter([0.0, 11.0])
+    monkeypatch.setattr(checks, "monotonic", lambda: next(times))
+
+    assert checks.check_lmstudio_models() == ("unavailable", [])
+
+
+@pytest.mark.parametrize("response_kind", ["invalid", "wrong-shape", "nan", "oversized"])
+def test_check_lmstudio_models_rejects_untrusted_inventory(monkeypatch, response_kind: str) -> None:
+    responses = {
+        "invalid": b"not-json",
+        "wrong-shape": b'{"data":"not-a-list"}',
+        "nan": b'{"data":[{"id":"model"}],"extra":NaN}',
+        "oversized": b"x" * (1024 * 1024 + 1),
+    }
+    response = responses[response_kind]
+
+    class _Response:
+        status_code = 200
+
+        def __enter__(self) -> _Response:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        @staticmethod
+        def iter_bytes():
+            yield response
+
+    class _Client:
+        def __init__(self, *, timeout: int, trust_env: bool) -> None:
+            assert timeout == 3
+            assert trust_env is False
+
+        def __enter__(self) -> _Client:
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        @staticmethod
+        def stream(method: str, url: str) -> _Response:
+            return _Response()
+
+    monkeypatch.setitem(sys.modules, "httpx", types.SimpleNamespace(Client=_Client))
+
+    assert checks.check_lmstudio_models() == ("unavailable", [])

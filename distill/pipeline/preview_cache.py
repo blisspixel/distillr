@@ -25,6 +25,7 @@ from typing import Any, cast
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
+from distill.library.paths import atomic_write_text
 from distill.pipeline.discovery import RankedDiscoverItem
 
 __all__ = [
@@ -45,6 +46,10 @@ class PreviewCacheError(Exception):
     """Raised when a requested preview snapshot is missing or unreadable."""
 
 
+def _empty_payload() -> dict[str, Any]:
+    return {}
+
+
 @dataclass(frozen=True)
 class PreviewSnapshot:
     """A previewed shortlist plus the context needed to replay it verbatim."""
@@ -55,6 +60,7 @@ class PreviewSnapshot:
     rigor: str
     created_at: str
     estimate: dict[str, Any]
+    settings: dict[str, Any] = field(default_factory=_empty_payload)
     items: list[RankedDiscoverItem] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] -- default_factory=list reads as list[Unknown] under strict; the annotation is the real element type
 
 
@@ -63,13 +69,24 @@ def preview_cache_dir(library_dir: Path) -> Path:
     return library_dir / PREVIEW_CACHE_DIRNAME
 
 
-def compute_preview_id(goal: str, model: str, rigor: str, identifiers: list[str]) -> str:
+def compute_preview_id(
+    goal: str,
+    model: str,
+    rigor: str,
+    identifiers: list[str],
+    *,
+    settings: dict[str, Any] | None = None,
+) -> str:
     """Content-address a previewed set by its goal, model, rigor, and members.
 
     The same goal + rerank settings over the same candidate set yields the same
     id, so the id is honest that it names *a selection*, not a random handle.
     """
-    payload = "\n".join([goal.strip(), model.strip(), rigor.strip(), *sorted(identifiers)])
+    parts = [goal.strip(), model.strip(), rigor.strip()]
+    if settings:
+        parts.append(json.dumps(settings, sort_keys=True, separators=(",", ":"), allow_nan=False))
+    parts.extend(sorted(identifiers))
+    payload = "\n".join(parts)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:10]
 
 
@@ -256,6 +273,9 @@ def _items_from_payload(payload: dict[str, Any]) -> list[RankedDiscoverItem]:
 
 
 def _snapshot_from_payload(payload: dict[str, Any], expected_id: str) -> PreviewSnapshot:
+    schema_version = _required_int(payload, "schema_version")
+    if schema_version != _SCHEMA_VERSION:
+        raise TypeError(f"schema_version must be {_SCHEMA_VERSION}, got {schema_version}")
     snapshot_id = _required_text(payload, "id")
     if snapshot_id != expected_id:
         raise TypeError("id must match the requested preview id")
@@ -266,6 +286,7 @@ def _snapshot_from_payload(payload: dict[str, Any], expected_id: str) -> Preview
         rigor=_optional_text(payload, "rigor"),
         created_at=_optional_text(payload, "created_at"),
         estimate=_optional_object(payload, "estimate"),
+        settings=_optional_object(payload, "settings"),
         items=_items_from_payload(payload),
     )
 
@@ -279,13 +300,20 @@ def save_preview(
     items: list[RankedDiscoverItem],
     estimate: dict[str, Any],
     now_iso: str,
+    settings: dict[str, Any] | None = None,
 ) -> PreviewSnapshot:
     """Write a previewed shortlist to ``<cache_dir>/<id>.json`` and return it.
 
     ``now_iso`` is supplied by the caller (``datetime.now().isoformat()`` in
     production, a fixed string in tests) so this stays a pure function of inputs.
     """
-    preview_id = compute_preview_id(goal, model, rigor, [it.identifier for it in items])
+    preview_id = compute_preview_id(
+        goal,
+        model,
+        rigor,
+        [it.identifier for it in items],
+        settings=settings,
+    )
     snapshot = PreviewSnapshot(
         id=preview_id,
         goal=goal,
@@ -293,6 +321,7 @@ def save_preview(
         rigor=rigor,
         created_at=now_iso,
         estimate=estimate,
+        settings=dict(settings or {}),
         items=list(items),
     )
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -304,9 +333,10 @@ def save_preview(
         "rigor": snapshot.rigor,
         "created_at": snapshot.created_at,
         "estimate": snapshot.estimate,
+        "settings": snapshot.settings,
         "items": [_item_to_dict(it) for it in snapshot.items],
     }
-    (cache_dir / f"{preview_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_text(cache_dir / f"{preview_id}.json", json.dumps(payload, indent=2))
     return snapshot
 
 
@@ -357,6 +387,9 @@ def list_previews(cache_dir: Path) -> list[dict[str, Any]]:
         if not isinstance(raw_items, list):
             continue
         try:
+            schema_version = _required_int(payload, "schema_version")
+            if schema_version != _SCHEMA_VERSION:
+                continue
             items = _items_from_payload(payload)
             preview_id = _optional_text(payload, "id", path.stem)
             if preview_id != path.stem:

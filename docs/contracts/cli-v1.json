@@ -1184,6 +1184,26 @@
         },
         {
           "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "emit_replay_command",
+          "names": [
+            "--emit-replay-command"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-emit-replay-command"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
           "default": false,
           "flag_value": null,
           "is_flag": true,
@@ -5611,12 +5631,12 @@
     {
       "parameters": [
         {
-          "default": null,
+          "default": "",
           "kind": "argument",
           "name": "goal",
           "nargs": 1,
           "position": 0,
-          "required": true,
+          "required": false,
           "type": {
             "name": "text"
           }
@@ -5653,6 +5673,22 @@
           "required": false,
           "type": {
             "name": "integer"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "from_preview",
+          "names": [
+            "--from-preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
           }
         },
         {

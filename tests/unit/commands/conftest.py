@@ -12,3 +12,4 @@ def _model_available(monkeypatch):
     # this is independent of any ambient .env cloud key). Tests of the no-model
     # path override the provider to an unimplemented route such as openai.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")

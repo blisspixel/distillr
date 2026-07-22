@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+import ipaddress
+import os
 from dataclasses import dataclass
 from typing import Literal, cast
+from urllib.parse import urlsplit
 
 type CostMode = Literal["auto", "no-metered", "paid-ok"]
 type RouteCostClass = Literal[
@@ -22,6 +25,10 @@ CREDIT_METERED_PROVIDER_NAMES: frozenset[str] = frozenset({"copilot"})
 PLAN_QUOTA_PROVIDER_NAMES: frozenset[str] = frozenset(
     {"codex", "claude", "grok", "gemini-cli", "antigravity"}
 )
+_LOCAL_PROVIDER_ENDPOINTS: dict[str, tuple[str, str]] = {
+    "ollama": ("OLLAMA_BASE_URL", "http://localhost:11434"),
+    "lmstudio": ("LMSTUDIO_BASE_URL", "http://localhost:1234/v1"),
+}
 
 
 @dataclass(frozen=True)
@@ -52,12 +59,66 @@ def normalize_cost_mode(value: object) -> CostMode:
     return cast(CostMode, text)
 
 
-def classify_provider(provider: str) -> RouteCostClass:
+def local_provider_endpoint(provider: str) -> str:
+    """Snapshot the configured endpoint for a local-provider label."""
+    endpoint = _LOCAL_PROVIDER_ENDPOINTS.get(provider)
+    if endpoint is None:
+        return ""
+    env_name, default_url = endpoint
+    return os.environ.get(env_name, default_url)
+
+
+def local_provider_endpoint_is_valid(endpoint: str) -> bool:
+    """Return whether a local-provider URL is safe to pass to an HTTP client."""
+
+    if (
+        endpoint != endpoint.strip()
+        or not endpoint
+        or "?" in endpoint
+        or "#" in endpoint
+        or any(ord(character) < 32 or ord(character) == 127 for character in endpoint)
+    ):
+        return False
+    try:
+        parsed = urlsplit(endpoint)
+        host = (parsed.hostname or "").rstrip(".").lower()
+        port = parsed.port
+    except ValueError:
+        return False
+    return bool(
+        parsed.scheme in {"http", "https"}
+        and host
+        and (port is None or port > 0)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def _local_endpoint_is_loopback(provider: str, endpoint: str | None = None) -> bool:
+    raw_url = local_provider_endpoint(provider) if endpoint is None else endpoint
+    if not local_provider_endpoint_is_valid(raw_url):
+        return False
+    try:
+        parsed = urlsplit(raw_url)
+        host = (parsed.hostname or "").rstrip(".").lower()
+    except ValueError:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def classify_provider(provider: str, *, endpoint: str | None = None) -> RouteCostClass:
     """Classify a provider by structural cost policy, not output quality."""
 
     normalized = provider.strip().lower()
     if normalized in LOCAL_PROVIDER_NAMES:
-        return "local"
+        return "local" if _local_endpoint_is_loopback(normalized, endpoint=endpoint) else "unknown"
     if normalized in METERED_API_PROVIDER_NAMES:
         return "metered-api"
     if normalized in CREDIT_METERED_PROVIDER_NAMES:
@@ -67,7 +128,7 @@ def classify_provider(provider: str) -> RouteCostClass:
     return "unknown"
 
 
-def _recovery_hint(cost_class: RouteCostClass) -> str:
+def _recovery_hint(cost_class: RouteCostClass, provider: str) -> str:
     """Return operator guidance for a blocked route class."""
 
     if cost_class == "metered-api":
@@ -82,6 +143,12 @@ def _recovery_hint(cost_class: RouteCostClass) -> str:
         )
     if cost_class == "included-plan":
         return "Add adapter proof before using this provider in no-metered mode."
+    if provider in LOCAL_PROVIDER_NAMES:
+        return (
+            "Use the provider's default loopback endpoint for proven local inference, "
+            "or select `paid-ok` only after verifying the remote endpoint's billing "
+            "and data boundary."
+        )
     return "Use Ollama or LM Studio, or select `paid-ok` after verifying billing."
 
 
@@ -104,11 +171,12 @@ def evaluate_route_cost_policy(
     cost_mode: CostMode,
     provider: str,
     workload: str = "",
+    endpoint: str | None = None,
 ) -> CostPolicyDecision:
     """Return whether a provider route is allowed under ``cost_mode``."""
 
     normalized_provider = provider.strip().lower()
-    cost_class = classify_provider(normalized_provider)
+    cost_class = classify_provider(normalized_provider, endpoint=endpoint)
     label = workload or "default"
     requirements = _requirements(cost_class)
 
@@ -148,6 +216,11 @@ def evaluate_route_cost_policy(
             f"Provider {normalized_provider} for {label} is credit-metered; "
             "select paid-ok or a future credit policy to allow it."
         )
+    elif normalized_provider in LOCAL_PROVIDER_NAMES:
+        reason = (
+            f"Provider {normalized_provider} for {label} uses a non-loopback or invalid "
+            "endpoint, so Distill cannot prove local topology or no-metered billing."
+        )
     else:
         reason = (
             f"Provider {normalized_provider or provider} for {label} has unknown "
@@ -161,7 +234,7 @@ def evaluate_route_cost_policy(
         workload=label,
         cost_class=cost_class,
         reason=reason,
-        recovery_hint=_recovery_hint(cost_class),
+        recovery_hint=_recovery_hint(cost_class, normalized_provider),
         requirements=requirements,
     )
 
@@ -214,6 +287,7 @@ def require_route_allowed(
     cost_mode: CostMode,
     provider: str,
     workload: str = "",
+    endpoint: str | None = None,
 ) -> CostPolicyDecision:
     """Return the decision or raise ``CostPolicyError`` when blocked."""
 
@@ -221,6 +295,7 @@ def require_route_allowed(
         cost_mode=cost_mode,
         provider=provider,
         workload=workload,
+        endpoint=endpoint,
     )
     if not decision.allowed:
         raise CostPolicyError(blocked_route_message(decision))

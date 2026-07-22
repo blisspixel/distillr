@@ -65,8 +65,10 @@ PRICING: dict[str, dict[str, float]] = {
     "grok-code-fast-1": {"input": 0.20, "output": 0.50},
     "grok-3": {"input": 3.00, "output": 9.00},
     "grok-imagine-image-pro": {"per_query": 1.00},
-    # Google Gemini models
+    # Google Gemini models (standard paid tier; GA 2026-07-21 for 3.6 Flash / 3.5 Flash-Lite)
+    "gemini-3.6-flash": {"input": 1.50, "output": 7.50},
     "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
+    "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
     "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
     "gemini-3.1-flash": {"input": 0.25, "output": 1.50},
     # Deep Research is a per-query product; $2.50/query is an approximation across

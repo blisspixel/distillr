@@ -1,6 +1,7 @@
 """Tests for distill.pipeline.preview_cache (commit-by-id discover replay)."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -107,6 +108,7 @@ def test_save_then_load_round_trips_all_source_types(tmp_path):
         items=items,
         estimate=_estimate(),
         now_iso=_NOW,
+        settings={"video_limit": 8, "paper_limit": 5, "days": 21, "shorts": True},
     )
 
     loaded = load_preview(cache, saved.id)
@@ -114,6 +116,12 @@ def test_save_then_load_round_trips_all_source_types(tmp_path):
     assert loaded.goal == "learn X"
     assert loaded.rigor == "balanced"
     assert loaded.created_at == _NOW
+    assert loaded.settings == {
+        "video_limit": 8,
+        "paper_limit": 5,
+        "days": 21,
+        "shorts": True,
+    }
     assert len(loaded.items) == 3
 
     paper = next(it for it in loaded.items if it.kind == "paper")
@@ -160,6 +168,29 @@ def test_save_uses_content_addressed_filename(tmp_path):
     assert (cache / f"{saved.id}.json").exists()
 
 
+def test_concurrent_identical_saves_leave_one_complete_snapshot(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+
+    def save_once(_index: int) -> str:
+        return save_preview(
+            cache,
+            goal="concurrent goal",
+            model="grok-4.3",
+            rigor="balanced",
+            items=[_paper_item(), _video_item()],
+            estimate=_estimate(),
+            now_iso=_NOW,
+            settings={"days": 14},
+        ).id
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        preview_ids = list(pool.map(save_once, range(24)))
+
+    assert len(set(preview_ids)) == 1
+    snapshot = load_preview(cache, preview_ids[0])
+    assert [item.identifier for item in snapshot.items] == ["2601.00001", "vid123"]
+
+
 def test_load_unknown_id_raises(tmp_path):
     with pytest.raises(PreviewCacheError, match="No previewed set"):
         load_preview(preview_cache_dir(tmp_path), "abc123def0")
@@ -198,7 +229,7 @@ def test_load_snapshot_with_non_object_item_raises(tmp_path):
         now_iso=_NOW,
     )
     (cache / f"{snapshot.id}.json").write_text(
-        f'{{"id":"{snapshot.id}","items":["not an object"]}}',
+        f'{{"schema_version":1,"id":"{snapshot.id}","items":["not an object"]}}',
         encoding="utf-8",
     )
     with pytest.raises(PreviewCacheError, match="items must contain objects"):
@@ -217,11 +248,32 @@ def test_load_snapshot_with_id_mismatch_raises(tmp_path):
         now_iso=_NOW,
     )
     (cache / f"{snapshot.id}.json").write_text(
-        '{"id":"000000","items":[]}',
+        '{"schema_version":1,"id":"000000","items":[]}',
         encoding="utf-8",
     )
     with pytest.raises(PreviewCacheError, match="id must match"):
         load_preview(cache, snapshot.id)
+
+
+def test_load_rejects_incompatible_schema_and_listing_skips_it(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="first goal",
+        model="",
+        rigor="loose",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    path = cache / f"{snapshot.id}.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 2
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PreviewCacheError, match="schema_version must be 1"):
+        load_preview(cache, snapshot.id)
+    assert list_previews(cache) == []
 
 
 def test_load_snapshot_with_non_string_metadata_raises(tmp_path):
