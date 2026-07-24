@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.41 - 2026-07-24
 
 ### Security
 
@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Hide router credentials from configuration representations and replace cloud
   credentials with inert sentinels during the default local test run. Live
   network tests remain separately marked and require an explicit opt-in.
+- Bumped `pypdf` (6.13.3 -> 6.14.2) and `pyasn1` (0.6.3 -> 0.6.4) to clear seven
+  advisories flagged by `pip-audit` (`CVE-2026-59935/59936/59937/59938`,
+  `PYSEC-2026-3455/3456/3457`).
 
 ### Fixed
 
@@ -75,6 +78,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Gemini generations that deprecate them. Gemini 3.5 Flash Cyber is intentionally
   not registered: it is limited-access through CodeMender, not a general Gemini
   API analysis route.
+- Added the current Anthropic Opus tier -- `claude-opus-4-8` (the newest Opus;
+  there is no "Opus 5"), `claude-opus-4-7`, and `claude-opus-4-6` -- to the
+  pricing table ($5/$25 per 1M) so paid Anthropic routes can select and
+  cost-track Opus, not only `claude-sonnet-5`. Sampling parameters are omitted
+  for Opus 4.7/4.8 and the Fable/Mythos 5 tier, which reject them like Sonnet 5.
 - Made first-run topic guidance preview-first and added explicit preview copy
   about current-source fetches, possible model work, local cost evidence, and
   the absence of corpus writes.
@@ -82,6 +90,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   usage, dashboards, and `distill costs`. Direct Distill spend remains separate,
   projections are withheld when recent external cost is unavailable, and eval
   refuses routes it cannot price before work starts.
+
+### Validation
+
+- Passed 6,302 local tests with 4 skipped, 8 deselected, and 95.06 percent
+  branch coverage. Ruff lint and formatting, package-scoped Pyright, all four
+  import contracts, generated public contracts, Agent Skill distribution drift,
+  and CLI help passed.
+- Bandit reported no medium or high findings, and pip-audit reported no known
+  dependency vulnerabilities after the pypdf and pyasn1 bumps.
+- Split six modules back under their line caps (`call_execution`, `ollama`,
+  `_helpers`, `discover`, `doctor`, `maintain`) into focused sibling modules
+  with unchanged public surfaces, and covered the new `distill provider` command
+  and the local HTML worker that had shipped under-tested.
 
 ## 0.19.40 - 2026-07-19
 

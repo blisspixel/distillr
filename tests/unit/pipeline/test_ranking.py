@@ -38,7 +38,11 @@ def _model_available(monkeypatch):
     # availability helper returns True and the LLM-path tests exercise the model
     # judge -- env-isolated (ollama needs no key, so this is independent of any
     # ambient .env cloud key). No-model tests override the provider.
+    # ollama now requires an explicit configured model at validation time, so pin
+    # one or model_available() fails closed and the LLM-path tests silently take
+    # the no-model deterministic fallback instead of exercising the model judge.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
 
 
 def _recent(days_ago: int = 1) -> str:

@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.19.40"
+version = "0.19.41"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = "Apache-2.0"
@@ -46,7 +46,7 @@ dependencies = [
     "jinja2>=3.1.0",
     "markdown>=3.5.0",
     "nh3>=0.2.0",
-    "pypdf>=6.13.3",
+    "pypdf>=6.14.2",
     "requests>=2.32.0",
     "idna>=3.7",
     "psutil>=6.1",

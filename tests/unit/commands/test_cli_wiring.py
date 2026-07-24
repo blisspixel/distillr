@@ -18,6 +18,7 @@ from distill.commands import discover as _discover
 from distill.commands import doctor as _doctor
 from distill.commands import learn as _learn
 from distill.commands import maintain as _maintain
+from distill.commands import monitor as _monitor
 from distill.commands import papers as _papers
 from distill.commands import process as _process
 from distill.commands import profile as _profile
@@ -86,6 +87,7 @@ def mock_config(tmp_path, monkeypatch):
     original_profile = _profile.get_config  # profile sub-app moved to commands/profile.py
     original_process = _process.get_config  # video/channel/run moved to commands/process.py
     original_discover = _discover.get_config  # discover-panel cmds moved to commands/discover.py
+    original_monitor = _monitor.get_config  # monitor moved to commands/monitor.py
     original_learn = (
         _learn.get_config
     )  # search/explore/learn/brief/latest moved to commands/learn.py
@@ -107,6 +109,7 @@ def mock_config(tmp_path, monkeypatch):
     _profile.get_config = lambda: config
     _process.get_config = lambda: config
     _discover.get_config = lambda: config
+    _monitor.get_config = lambda: config
     _learn.get_config = lambda: config
     monkeypatch.setattr(_learning_support, "get_config", lambda: config)
     _watch.get_config = lambda: config
@@ -131,6 +134,7 @@ def mock_config(tmp_path, monkeypatch):
     _profile.get_config = original_profile
     _process.get_config = original_process
     _discover.get_config = original_discover
+    _monitor.get_config = original_monitor
     _learn.get_config = original_learn
     _watch.get_config = original_watch
     _topic.get_config = original_topic

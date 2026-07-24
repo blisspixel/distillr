@@ -221,7 +221,7 @@ def test_fresh_topic_defaults_to_sizing_menu(mock_config, monkeypatch):
     captured = {}
     monkeypatch.setattr(_discover_flow, "_discover_ingest_set", lambda **k: captured.update(k))
     # The sizing menu is interactive; force the TTY path so CliRunner's input is read.
-    monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
+    monkeypatch.setattr("distill.commands._helpers.isatty", lambda: True)
 
     # Fresh topic (no artifacts) -> menu; pick option 1 (the excellent/cliff cut).
     result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh"], input="1\n")
@@ -242,7 +242,7 @@ def test_fresh_topic_cancel_aborts(mock_config, monkeypatch):
         lambda **k: called.__setitem__("ingest", True),
     )
     # Interactive cancel: force the TTY path so the typed "n" is read.
-    monkeypatch.setattr("distill.commands._helpers._isatty", lambda: True)
+    monkeypatch.setattr("distill.commands._helpers.isatty", lambda: True)
 
     result = runner.invoke(cli.app, ["discover", "compose music", "--topic", "fresh"], input="n\n")
     assert result.exit_code == 0

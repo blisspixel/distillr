@@ -55,7 +55,7 @@ from distill.commands._video_files import (
     write_video_metadata,
 )
 from distill.library import Library
-from distill.library.intent import CorpusIntent, load_intent, make_intent, save_intent
+from distill.library.intent import load_intent, make_intent, save_intent
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.pipeline.costs import (
@@ -158,7 +158,6 @@ logger = logging.getLogger(__name__)
 # ``cli_shared.console`` / ``_helpers.console`` import paths and monkeypatch
 # targets.
 from distill._console import console, err_console  # noqa: E402
-from distill.preflight import preflight_ytdlp  # noqa: E402
 
 
 def get_config() -> DistillConfig:
@@ -456,7 +455,7 @@ def _host_matches(host: str, domain: str) -> bool:
     return host == domain or host.endswith(f".{domain}")
 
 
-def _isatty() -> bool:
+def isatty() -> bool:
     """Whether stdin is an interactive terminal. Indirected so it can be
     forced in tests (CliRunner swaps ``sys.stdin`` for a non-TTY stream)."""
     try:
@@ -474,7 +473,7 @@ def tty_confirm(message: str, *, default: bool = False) -> bool:
     prints the flag to pass), so unattended runs fail predictably rather than
     hanging or crashing. Pass ``--yes`` upstream to skip the gate entirely.
     """
-    if not _isatty():
+    if not isatty():
         if not default:
             console.print("[dim]Non-interactive (no TTY): pass --yes to proceed.[/dim]")
         return default
@@ -490,7 +489,7 @@ def tty_prompt(message: str, *, default: str, non_tty_default: str | None = None
     given, is what to return with no TTY -- use it where the interactive default
     would *act* (e.g. spend) but the safe unattended choice is to cancel.
     """
-    if not _isatty():
+    if not isatty():
         return non_tty_default if non_tty_default is not None else default
     return typer.prompt(message, default=default)
 
@@ -944,67 +943,15 @@ def process_video(  # noqa: C901 — legacy, will refactor
         return False
 
 
-# ── Cross-command dispatch + startup helpers (moved from _logic, decomposition Phase 2) ──
-
-
-def _preflight() -> None:
-    """Non-blocking startup nudges: a stale-yt-dlp warning and a distillr
-    update-available notice. Both cached daily and individually opt-out-able
-    (DISTILL_NO_PREFLIGHT / DISTILL_NO_UPDATE_CHECK)."""
-    try:
-        library_dir = get_config().library_dir
-    except Exception:
-        library_dir = None
-    preflight_ytdlp(console, library_dir)
-    try:
-        from distill.update import check_for_update
-
-        check_for_update(console, library_dir)
-    except Exception:
-        # An update check must never break a command.
-        return
-
-
-def run_preflight() -> None:
-    """Public command startup hook for shared non-blocking preflight checks."""
-    _preflight()
-
-
-def _invoke_command(fn: Callable[..., object], **overrides: object) -> object:
-    """Call a Typer command internally after resolving omitted defaults."""
-    import inspect
-
-    kwargs: dict[str, object] = dict(overrides)  # always honor the caller's explicit values
-    for name, param in inspect.signature(fn).parameters.items():
-        if name in kwargs or param.kind in (
-            inspect.Parameter.VAR_KEYWORD,
-            inspect.Parameter.VAR_POSITIONAL,
-        ):
-            continue
-        default = param.default
-        if isinstance(default, (typer.models.OptionInfo, typer.models.ArgumentInfo)):
-            kwargs[name] = default.default
-        elif default is not inspect.Parameter.empty:
-            kwargs[name] = default
-        # A required param with no default is left out; fn raises if truly missing.
-    return fn(**kwargs)
-
-
-invoke_command = _invoke_command
-
-
-def resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
-    """Public intent-loading seam for command helpers."""
-    return _resolve_intent(config, topic)
-
-
-def _resolve_intent(config: DistillConfig, topic: str) -> CorpusIntent | None:
-    """Load the persisted CorpusIntent for a topic, if any.
-
-    Returns ``None`` when the topic has no saved intent so analysis falls back to
-    the neutral default lens. A topic created via ``discover`` saves its intent,
-    so subsequent ingests into that topic inherit the same lens automatically.
-    """
-    if not topic:
-        return None
-    return load_intent(config.topic_dir(topic))
+# Cross-command dispatch + startup helpers live in a sibling leaf module so this
+# file stays under the module-size cap. Re-exported here so every legacy import
+# path (`_helpers._preflight`, `_helpers.resolve_intent`, `_helpers.run_preflight`,
+# ...) keeps resolving.
+from distill.commands._dispatch import (  # noqa: E402
+    _invoke_command,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
+    _preflight,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
+    _resolve_intent,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
+    invoke_command,
+    resolve_intent,
+    run_preflight,
+)

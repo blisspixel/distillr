@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -12,9 +13,21 @@ from typer.testing import CliRunner
 
 from distill import cli
 from distill.commands import _helpers as helpers
+from distill.commands import provider as _provider
 from distill.commands import root as _root
 
 runner = CliRunner()
+
+
+def _scripted_prompt(answers: list[str]) -> Callable[..., str]:
+    """Return a ``tty_prompt`` stand-in that yields *answers* in call order."""
+    responses = iter(answers)
+
+    def _prompt(message: str, *, default: str, non_tty_default: str | None = None) -> str:
+        del message, default, non_tty_default
+        return next(responses)
+
+    return _prompt
 
 
 @pytest.fixture
@@ -189,3 +202,202 @@ def test_get_provider_override_reads_context() -> None:
     assert _root.get_provider_override(Ctx({"provider": "gemini"})) == "gemini"  # type: ignore[arg-type]
     assert _root.get_provider_override(Ctx({})) == ""  # type: ignore[arg-type]
     assert _root.get_provider_override(None) == ""
+
+
+def test_provider_root_no_subcommand_shows_human_route(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider"])
+    assert result.exit_code == 0, result.output
+    assert "grok-4.3" in result.output
+    assert "Provider" in result.output
+    assert "Pricing" in result.output
+    assert "Change default" in result.output
+
+
+def test_provider_list_unknown_provider_json(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["--json", "provider", "list", "bogus"])
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "usage_error"
+    assert "Unknown provider" in payload["error"]
+
+
+def test_provider_list_unknown_provider_human(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list", "zzz"])
+    assert result.exit_code == 2
+    assert "Unknown provider" in result.output
+
+
+def test_provider_list_gemini_human_table(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list", "gemini"])
+    assert result.exit_code == 0, result.output
+    assert "gemini-3.6-flash" in result.output
+    assert "recommended" in result.output
+
+
+def test_provider_list_ollama_human_shows_note(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list", "ollama"])
+    assert result.exit_code == 0, result.output
+    assert "local inventory" in result.output
+
+
+def test_provider_list_agent_human_shows_note(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list", "agent"])
+    assert result.exit_code == 0, result.output
+    assert "Host-managed deferred work" in result.output
+
+
+def test_provider_list_all_human_table(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list"])
+    assert result.exit_code == 0, result.output
+    assert "gemini" in result.output
+    assert "xai" in result.output
+    assert "Set default route" in result.output
+
+
+def test_provider_list_all_json(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["--json", "provider", "list"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    provider_ids = [row["id"] for row in payload["data"]["providers"]]
+    assert "xai" in provider_ids
+    assert "ollama" in provider_ids
+
+
+def test_provider_set_human_output_with_price(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "set", "gemini", "gemini-3.6-flash"])
+    assert result.exit_code == 0, result.output
+    assert "Set" in result.output
+    assert "DISTILL_PROVIDER=gemini" in result.output
+    assert "Pricing" in result.output
+    assert "One-run override" in result.output
+
+
+def test_provider_set_local_model_has_no_price(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "set", "ollama", "qwen3.5:27b"])
+    assert result.exit_code == 0, result.output
+    assert "DISTILL_PROVIDER=ollama" in result.output
+    assert "DISTILL_MODEL=qwen3.5:27b" in result.output
+    # No catalog price for a local model id -> the pricing line is omitted.
+    assert "Pricing" not in result.output
+
+
+def test_provider_set_requires_model_for_local_without_tty(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "set", "ollama"])
+    assert result.exit_code == 2
+    assert "Model is required for provider 'ollama'" in result.output
+
+
+def test_provider_set_env_file_error_human(
+    isolated_cwd: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_provider, "set_env_var", _boom)
+    result = runner.invoke(cli.app, ["provider", "set", "gemini", "gemini-3.6-flash"])
+    assert result.exit_code == 1
+    assert "Could not update" in result.output
+
+
+def test_provider_set_env_file_error_json(
+    isolated_cwd: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(_provider, "set_env_var", _boom)
+    result = runner.invoke(cli.app, ["--json", "provider", "set", "gemini", "gemini-3.6-flash"])
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "env_file_error"
+
+
+def test_resolve_set_selection_prompts_provider_and_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_provider, "isatty", lambda: True)
+    # First prompt picks provider #2 (gemini); second picks model #1 (default).
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["2", "1"]))
+    provider, model = _provider._resolve_set_selection(  # pyright: ignore[reportPrivateUsage]
+        provider=None, model=None, yes=False
+    )
+    assert provider == "gemini"
+    assert model == "gemini-3.6-flash"
+
+
+def test_resolve_set_selection_empty_model_after_prompt_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_provider, "isatty", lambda: True)
+
+    def _empty_model(_provider_name: str, *, default: str) -> str:
+        del _provider_name, default
+        return ""
+
+    monkeypatch.setattr(_provider, "_prompt_model", _empty_model)
+    with pytest.raises(ValueError, match="Model is required"):
+        _provider._resolve_set_selection(  # pyright: ignore[reportPrivateUsage]
+            provider="gemini", model=None, yes=False
+        )
+
+
+def test_prompt_provider_accepts_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["anthropic"]))
+    assert _provider._prompt_provider() == "anthropic"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_prompt_provider_out_of_range_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["99"]))
+    with pytest.raises(ValueError, match="out of range"):
+        _provider._prompt_provider()  # pyright: ignore[reportPrivateUsage]
+
+
+def test_prompt_provider_empty_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt([""]))
+    with pytest.raises(ValueError, match="No provider selected"):
+        _provider._prompt_provider()  # pyright: ignore[reportPrivateUsage]
+
+
+def test_prompt_model_digit_selects_from_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["1"]))
+    assert (
+        _provider._prompt_model("gemini", default="gemini-3.6-flash")  # pyright: ignore[reportPrivateUsage]
+        == "gemini-3.6-flash"
+    )
+
+
+def test_prompt_model_empty_returns_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt([""]))
+    assert (
+        _provider._prompt_model("gemini", default="gemini-3.6-flash")  # pyright: ignore[reportPrivateUsage]
+        == "gemini-3.6-flash"
+    )
+
+
+def test_prompt_model_out_of_range_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["99"]))
+    with pytest.raises(ValueError, match="out of range"):
+        _provider._prompt_model("gemini", default="gemini-3.6-flash")  # pyright: ignore[reportPrivateUsage]
+
+
+def test_prompt_model_freeform_id_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["gemini-custom-id"]))
+    assert (
+        _provider._prompt_model("gemini", default="gemini-3.6-flash")  # pyright: ignore[reportPrivateUsage]
+        == "gemini-custom-id"
+    )
+
+
+def test_prompt_model_no_catalog_returns_typed_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    # ollama has no catalog models -> the free-form exact-id branch is used.
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["qwen3.5:27b"]))
+    assert _provider._prompt_model("ollama", default="") == "qwen3.5:27b"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_prompt_model_no_catalog_empty_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt([""]))
+    with pytest.raises(ValueError, match="Model is required"):
+        _provider._prompt_model("ollama", default="")  # pyright: ignore[reportPrivateUsage]

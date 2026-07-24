@@ -14,16 +14,27 @@ import os
 import time
 from dataclasses import replace
 from time import monotonic as _monotonic
-from typing import Any, cast
+from typing import Any
 
 import httpx
 
 from distill.llm._parsing import parse_ascii_uint
 from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
 from distill.llm.errors import ProviderBusyTimeoutError
+
+# Re-exported for callers/tests that import it from this module; the redundant
+# alias marks the intentional re-export (the transport code does not use it).
+from distill.llm.providers._ollama_metadata import (
+    _STRUCTURED_JSON_CALL_TYPES as _STRUCTURED_JSON_CALL_TYPES,  # pyright: ignore[reportPrivateUsage]  -- compatibility re-export
+)
+from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPrivateUsage]  -- private helpers shared with the transport module
+    _canonical_model_name,
+    _describe_ollama_error,
+    build_chat_payload,
+    parse_context_window,
+)
 from distill.llm.providers._ollama_registry import (
     TagRegistryLimits,
-    bounded_context_window,
     parse_running_model_names,
     parse_tags_response,
 )
@@ -41,22 +52,11 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
-# Models that support thinking mode (reasoning trace)
-_THINKING_MODEL_PREFIXES: tuple[str, ...] = (
-    "qwen3",
-    "deepseek-r1",
-    "deepseek-v3",
-    "gpt-oss",
-    "gemma4",
-)
-
 _CONTENTION_INITIAL_BACKOFF_SECONDS = 1.0
 _CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
 _RUNNING_MODELS_RESPONSE_BYTES = 1024 * 1024
 _RUNNING_MODELS_MAX_MODELS = 256
-_MAX_CONTEXT_WINDOW = 16_777_216
-_MAX_PARAMETERS_CHARS = 100_000
 _TAGS_RESPONSE_BYTES = 2 * 1024 * 1024
 _TAGS_MAX_MODELS = 1_024
 _TAGS_MAX_MODEL_FIELDS = 32
@@ -66,82 +66,28 @@ _TAGS_MAX_FIELD_NAME_CHARS = 128
 _TAGS_MAX_MODEL_NAME_CHARS = 512
 _TAGS_TOTAL_SECONDS = 10.0
 _TAGS_MAX_STRING_CHARS = 4_096
-_STRUCTURED_JSON_CALL_TYPES = frozenset(
-    {
-        "discover_plan",
-        "discover_rerank",
-        "paper_expand",
-        "paper_rerank",
-        "search_expand",
-        "search_rerank",
-    }
-)
 
 
-def _is_thinking_model(model: str) -> bool:
-    """Check if a model supports thinking mode."""
-    model_lower = model.lower()
-    return any(model_lower.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
-
-
-def _canonical_model_name(model: str) -> str:
-    """Normalize an Ollama model reference for running-model comparisons."""
-    normalized = model.strip().casefold()
-    final_component = normalized.rsplit("/", 1)[-1]
-    if ":" not in final_component and "@" not in final_component:
-        return f"{normalized}:latest"
-    return normalized
-
-
-def _uses_structured_json(call_type: str) -> bool:
-    """Select JSON mode only from trusted first-party workload metadata."""
-
-    return call_type in _STRUCTURED_JSON_CALL_TYPES
+def _tag_limits(models: int) -> TagRegistryLimits:
+    # Read the module-level bounds per call (not at import) so a test can tune a
+    # single limit via monkeypatch.setattr and have it affect the parse path.
+    return TagRegistryLimits(
+        models=models,
+        model_fields=_TAGS_MAX_MODEL_FIELDS,
+        details_fields=_TAGS_MAX_DETAILS_FIELDS,
+        list_items=_TAGS_MAX_LIST_ITEMS,
+        field_name_chars=_TAGS_MAX_FIELD_NAME_CHARS,
+        model_name_chars=_TAGS_MAX_MODEL_NAME_CHARS,
+        string_chars=_TAGS_MAX_STRING_CHARS,
+    )
 
 
 def _parse_tags_response(raw: bytes) -> list[dict[str, Any]]:
-    return parse_tags_response(
-        raw,
-        limits=TagRegistryLimits(
-            models=_TAGS_MAX_MODELS,
-            model_fields=_TAGS_MAX_MODEL_FIELDS,
-            details_fields=_TAGS_MAX_DETAILS_FIELDS,
-            list_items=_TAGS_MAX_LIST_ITEMS,
-            field_name_chars=_TAGS_MAX_FIELD_NAME_CHARS,
-            model_name_chars=_TAGS_MAX_MODEL_NAME_CHARS,
-            string_chars=_TAGS_MAX_STRING_CHARS,
-        ),
-    )
+    return parse_tags_response(raw, limits=_tag_limits(_TAGS_MAX_MODELS))
 
 
 def _parse_running_models_response(raw: bytes) -> tuple[str, ...]:
-    return parse_running_model_names(
-        raw,
-        limits=TagRegistryLimits(
-            models=_RUNNING_MODELS_MAX_MODELS,
-            model_fields=_TAGS_MAX_MODEL_FIELDS,
-            details_fields=_TAGS_MAX_DETAILS_FIELDS,
-            list_items=_TAGS_MAX_LIST_ITEMS,
-            field_name_chars=_TAGS_MAX_FIELD_NAME_CHARS,
-            model_name_chars=_TAGS_MAX_MODEL_NAME_CHARS,
-            string_chars=_TAGS_MAX_STRING_CHARS,
-        ),
-    )
-
-
-def _describe_ollama_error(exc: Exception) -> str:
-    """Render an Ollama call error as a diagnosable string.
-
-    ``str(exc)`` is empty for httpx timeout exceptions (e.g. ``ReadTimeout``) and
-    hides the server's body for an ``HTTPStatusError``, so a bare ``%s`` in a log
-    line can read as an empty message. Always return something actionable: the
-    HTTP status and response body when present, else the message, else the type.
-    """
-    if isinstance(exc, httpx.HTTPStatusError):
-        body = exc.response.text.strip()
-        status = exc.response.status_code
-        return f"HTTP {status}: {body}" if body else f"HTTP {status}"
-    return str(exc).strip() or type(exc).__name__
+    return parse_running_model_names(raw, limits=_tag_limits(_RUNNING_MODELS_MAX_MODELS))
 
 
 class OllamaProvider:
@@ -379,37 +325,8 @@ class OllamaProvider:
             )
             return None
 
-    @staticmethod
-    def _build_chat_payload(
-        model: str,
-        prompt: str,
-        *,
-        max_tokens: int,
-        num_ctx: int,
-        temperature: float | None,
-        call_type: str = "",
-    ) -> dict[str, Any]:
-        """Assemble the /api/chat request body.
-
-        Streams (see :meth:`_stream_chat`) so the read timeout is an idle timeout.
-        Trusted structured workloads force ``format=json`` without thinking
-        because thinking conflicts with the JSON constraint on most models.
-        Prompt text never controls transport options.
-        """
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": True,
-            "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
-        }
-        if _uses_structured_json(call_type):
-            payload["format"] = "json"
-            payload["think"] = False
-        elif _is_thinking_model(model):
-            payload["think"] = True
-        if temperature is not None:
-            payload["options"]["temperature"] = temperature
-        return payload
+    # Bound from ``_ollama_metadata`` so these stay callable as class methods.
+    _build_chat_payload = staticmethod(build_chat_payload)
 
     async def _stream_chat(self, model: str, payload: dict[str, Any], timeout: int) -> LLM_Response:
         """POST /api/chat and assemble the streamed NDJSON frames into a response.
@@ -538,33 +455,7 @@ class OllamaProvider:
             self._context_window_cache[model] = 4096
             return 4096
 
-    @staticmethod
-    def _parse_context_window(data: object) -> int:
-        """Extract context window from Ollama /api/show response data."""
-        if not isinstance(data, dict):
-            return 0
-        payload = cast(dict[object, object], data)
-        raw_model_info = payload.get("model_info")
-        model_info = (
-            cast(dict[object, object], raw_model_info) if isinstance(raw_model_info, dict) else {}
-        )
-
-        # Try model_info first (more reliable)
-        for key, value in model_info.items():
-            if isinstance(key, str) and "context_length" in key.casefold():
-                context_window = bounded_context_window(value, maximum=_MAX_CONTEXT_WINDOW)
-                if context_window:
-                    return context_window
-
-        # Fallback: parse from parameters string
-        params = payload.get("parameters")
-        if isinstance(params, str) and len(params) <= _MAX_PARAMETERS_CHARS:
-            for line in params.splitlines():
-                parts = line.split()
-                if len(parts) >= 2 and parts[0] == "num_ctx":
-                    return bounded_context_window(parts[-1], maximum=_MAX_CONTEXT_WINDOW) or 0
-
-        return 0
+    _parse_context_window = staticmethod(parse_context_window)
 
     async def list_models(self) -> list[dict[str, Any]]:
         """Query Ollama /api/tags for locally available models."""

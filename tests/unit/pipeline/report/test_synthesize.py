@@ -16,7 +16,11 @@ def _model_available(monkeypatch):
     # config.xai_api_key. Configure a keyless local provider so the real helper
     # returns True -- env-isolated (ollama needs no key). The no-model test
     # overrides the provider.
+    # ollama now requires an explicit configured model at validation time, so pin
+    # one or model_available() fails closed and the synthesis path takes the
+    # no-model branch instead of the model path these tests exercise.
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
 
 
 def _fake_llm_call(text: str = "body", model: str = "grok-4.3"):

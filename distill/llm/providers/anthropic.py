@@ -24,7 +24,17 @@ logger = logging.getLogger(__name__)
 
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_API_VERSION = "2023-06-01"
-_SONNET_5_PREFIX = "claude-sonnet-5"
+
+# Models that reject custom sampling params (temperature/top_p/top_k -> HTTP 400):
+# Sonnet 5, Opus 4.7/4.8, and the Fable/Mythos 5 tier all removed them. Opus 4.6
+# and older still accept sampling, so a plain prefix list keeps the boundary exact.
+_NO_CUSTOM_SAMPLING_PREFIXES = (
+    "claude-sonnet-5",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-fable-5",
+    "claude-mythos-5",
+)
 
 
 class AnthropicProvider:
@@ -186,4 +196,4 @@ def _content_block_text(block: object) -> str:
 
 
 def _supports_custom_sampling(model: str) -> bool:
-    return not model.startswith(_SONNET_5_PREFIX)
+    return not model.startswith(_NO_CUSTOM_SAMPLING_PREFIXES)

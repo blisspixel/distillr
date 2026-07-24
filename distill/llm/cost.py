@@ -82,7 +82,12 @@ PRICING: dict[str, dict[str, float]] = {
     "deep-research-max": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
-    # Anthropic reserved route pricing estimates
+    # Anthropic reserved route pricing estimates. Opus 4.6/4.7/4.8 are the
+    # current 1M-context Opus tier at a flat $5/$25 per 1M tokens (4.8 is the
+    # newest Opus; there is no "Opus 5" -- the 5 generation is Fable/Sonnet).
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00},
+    "claude-opus-4-7": {"input": 5.00, "output": 25.00},
+    "claude-opus-4-6": {"input": 5.00, "output": 25.00},
     "claude-sonnet-5": _SONNET_5_INTRO_PRICING,
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},

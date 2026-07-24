@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import cli
+from distill.commands import _doctor_report as doctor_report_mod
 from distill.commands import doctor as doctor_mod
 from distill.config import DistillConfig
 from distill.doctor.adapters import AdapterDoctorReport, AdapterProbe
@@ -883,11 +884,11 @@ class TestDoctorLocalInferenceSection:
             ],
         )
         monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
-        monkeypatch.setattr(doctor_mod, "console", MagicMock())
+        monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
 
         doctor_mod._doctor_local_inference_section(config, "cyan")
 
-        joined = " ".join(str(call) for call in doctor_mod.console.print.call_args_list)
+        joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
         assert "Local Inference" in joined
         assert "Recommended Models" in joined
         assert "Next step" in joined
@@ -921,11 +922,11 @@ class TestDoctorLocalInferenceSection:
             ],
         )
         monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
-        monkeypatch.setattr(doctor_mod, "console", MagicMock())
+        monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
 
         doctor_mod._doctor_local_inference_section(config, "cyan")
 
-        joined = " ".join(str(call) for call in doctor_mod.console.print.call_args_list)
+        joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
         assert "Local ready, no API key" in joined
 
 

@@ -257,6 +257,138 @@ def test_eval_rejects_unknown_workload(mock_config):
     assert "Unknown --workload" in result.output
 
 
+def test_eval_auto_models_defaults_to_cloud(mock_config, monkeypatch):
+    # No --models: with an XAI key the default resolves to grok-4.3.
+    _patch_eval(monkeypatch)
+    captured = {}
+    import distill.eval as eval_pkg
+
+    def fake_run(workload, models, **k):
+        captured["models"] = list(models)
+        return _rows()
+
+    monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
+    result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert "grok-4.3" in captured["models"]
+
+
+def test_eval_no_models_available_errors(tmp_path, monkeypatch):
+    # No XAI key and no installed local model -> nothing to eval.
+    config = DistillConfig(xai_api_key="", distill_output_dir=tmp_path / "library")
+    monkeypatch.setattr(_eval, "get_config", lambda: config)
+    monkeypatch.setattr(_eval, "_best_local_model", lambda: None)
+    result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--yes"])
+    assert result.exit_code == 1
+    assert "No models to eval" in result.output
+
+
+def test_eval_auto_judge_picks_cross_family_cloud(mock_config, monkeypatch):
+    # Anchor is a gemini model; the neutral auto-judge is the cross-family grok.
+    import distill.eval as eval_pkg
+
+    captured = {}
+
+    def fake_run(workload, models, *, anchor, judge_model, **k):
+        captured.update(anchor=anchor, judge=judge_model)
+        return _rows()
+
+    monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
+    result = runner.invoke(
+        cli.app,
+        [
+            "eval",
+            "--workload",
+            "paper",
+            "--models",
+            "gemini-3.6-flash",
+            "--anchor",
+            "gemini-3.6-flash",
+            "--yes",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["judge"] == "grok-4.3"
+
+
+def test_eval_errors_when_no_fixtures(mock_config, monkeypatch):
+    import distill.eval as eval_pkg
+
+    monkeypatch.setattr(eval_pkg, "load_fixtures", lambda _w: [])
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+    )
+    assert result.exit_code == 1
+    assert "No fixtures" in result.output
+
+
+def test_eval_unpriced_route_human(mock_config, monkeypatch):
+    import distill.eval as eval_pkg
+    from distill.eval import UnpricedEvalRouteError
+
+    def _raise(*_a, **_k):
+        raise UnpricedEvalRouteError("no price for route")
+
+    monkeypatch.setattr(eval_pkg, "estimate_eval_cost", _raise)
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+    )
+    assert result.exit_code == 3
+    assert "no price for route" in result.output
+
+
+def test_eval_unpriced_route_json(mock_config, monkeypatch):
+    import json
+
+    import distill.eval as eval_pkg
+    from distill.eval import UnpricedEvalRouteError
+
+    def _raise(*_a, **_k):
+        raise UnpricedEvalRouteError("no price for route")
+
+    monkeypatch.setattr(eval_pkg, "estimate_eval_cost", _raise)
+    result = runner.invoke(
+        cli.app, ["--json", "eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+    )
+    assert result.exit_code == 3
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "external_cost_unavailable"
+
+
+def test_eval_aborts_when_confirm_declined(mock_config, monkeypatch):
+    _patch_eval(monkeypatch)
+    monkeypatch.setattr(_eval, "_tty_confirm", lambda *_a, **_k: False)
+    result = runner.invoke(
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3"]
+    )
+    assert result.exit_code == 0
+    assert "Aborted" in result.output
+
+
+def test_best_local_model_none_when_no_sizes(monkeypatch):
+    monkeypatch.setattr(_eval, "_ollama_model_sizes", lambda: {})
+    assert _eval._best_local_model() is None
+
+
+def test_ollama_model_sizes_reads_local_inventory(monkeypatch):
+    class _FakeOllama:
+        async def list_models(self):
+            return [{"name": "qwen3.5:27b", "size": 2e9}, {"name": "", "size": 1}]
+
+    monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", lambda: _FakeOllama())
+    sizes = _eval._ollama_model_sizes()
+    assert sizes == {"qwen3.5:27b": 2.0}  # blank-name entry filtered out
+
+
+def test_ollama_model_sizes_swallows_probe_failure(monkeypatch):
+    def _raise():
+        raise ConnectionError("ollama down")
+
+    monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", _raise)
+    assert _eval._ollama_model_sizes() == {}
+
+
 def test_eval_refuses_projected_spend_before_model_run(mock_config, monkeypatch):
     import distill.eval as eval_pkg
     from distill.pipeline.costs import ProjectedBudgetExceededError

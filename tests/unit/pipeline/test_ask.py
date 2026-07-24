@@ -408,7 +408,10 @@ def test_ask_command_wiring(config, monkeypatch):
     monkeypatch.setattr("distill.commands.ask.get_config", lambda: config)
     # The ask gate asks the router for a model (cloud key OR local provider), not
     # config.xai_api_key; a keyless local provider keeps this offline + deterministic.
+    # ollama now requires an explicit configured model, so pin one or the gate
+    # fails closed with "No model configured".
     monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+    monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
     saved_run = {}
     monkeypatch.setattr(
         "distill.commands.ask.save_run_log",

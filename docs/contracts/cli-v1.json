@@ -89,6 +89,23 @@
         },
         {
           "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "provider",
+          "names": [
+            "--provider",
+            "-p"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
           "default": false,
           "flag_value": null,
           "is_flag": true,
@@ -3809,6 +3826,76 @@
         }
       ],
       "path": "distill profile run"
+    },
+    {
+      "invoke_without_command": true,
+      "parameters": [],
+      "path": "distill provider"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "provider",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill provider list"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "provider",
+          "nargs": 1,
+          "position": 0,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "model",
+          "nargs": 1,
+          "position": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes",
+            "-y"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill provider set"
+    },
+    {
+      "parameters": [],
+      "path": "distill provider show"
     },
     {
       "parameters": [

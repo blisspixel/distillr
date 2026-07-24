@@ -11,7 +11,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from distill._console import console
-from distill.commands._helpers import _isatty, tty_prompt
+from distill.commands._helpers import isatty, tty_prompt
 from distill.commands._json import ExitCode, emit_json, json_mode_active
 from distill.commands.init import env_file_path, set_env_var
 from distill.llm.provider_catalog import (
@@ -268,7 +268,7 @@ def _resolve_set_selection(
     model: str | None,
     yes: bool,
 ) -> tuple[str, str]:
-    interactive = _isatty() and not yes
+    interactive = isatty() and not yes
     chosen_provider = (provider or "").strip()
     chosen_model = (model or "").strip()
 

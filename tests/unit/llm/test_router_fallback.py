@@ -258,6 +258,7 @@ def test_no_metered_blocks_cloud_fallback_before_provider_construction(tmp_path,
     cfg = _config(
         tmp_path,
         provider="ollama",
+        model="qwen3.5:27b",  # ollama now requires an explicit local model to validate
         cost_mode="no-metered",
         fallback_provider="xai",
         fallback_model="grok-4.3",
@@ -283,6 +284,7 @@ def test_paid_ok_allows_configured_cloud_fallback(tmp_path, monkeypatch):
     cfg = _config(
         tmp_path,
         provider="ollama",
+        model="qwen3.5:27b",  # ollama now requires an explicit local model to validate
         cost_mode="paid-ok",
         fallback_provider="xai",
         fallback_model="grok-4.3",
