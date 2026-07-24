@@ -25,9 +25,7 @@ def _set_argv(
     destination: Path,
     max_chars: str,
 ) -> None:
-    monkeypatch.setattr(
-        sys, "argv", ["_html_worker", str(source), str(destination), max_chars]
-    )
+    monkeypatch.setattr(sys, "argv", ["_html_worker", str(source), str(destination), max_chars])
 
 
 def test_main_success_writes_extracted_text(
@@ -61,9 +59,7 @@ def test_main_non_positive_max_chars_returns_2(
     assert not destination.exists()
 
 
-def test_main_missing_stdin_gate_returns_3(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_missing_stdin_gate_returns_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source = tmp_path / "page.html"
     source.write_text("<p>hi</p>", encoding="utf-8")
     destination = tmp_path / "out.txt"
@@ -74,9 +70,7 @@ def test_main_missing_stdin_gate_returns_3(
     assert not destination.exists()
 
 
-def test_main_oversized_input_returns_1(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_oversized_input_returns_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source = tmp_path / "page.html"
     source.write_text("<p>" + "x" * 100 + "</p>", encoding="utf-8")
     destination = tmp_path / "out.txt"

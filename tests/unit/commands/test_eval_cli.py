@@ -359,9 +359,7 @@ def test_eval_unpriced_route_json(mock_config, monkeypatch):
 def test_eval_aborts_when_confirm_declined(mock_config, monkeypatch):
     _patch_eval(monkeypatch)
     monkeypatch.setattr(_eval, "_tty_confirm", lambda *_a, **_k: False)
-    result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3"]
-    )
+    result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3"])
     assert result.exit_code == 0
     assert "Aborted" in result.output
 
