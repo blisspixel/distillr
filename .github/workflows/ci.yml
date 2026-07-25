@@ -84,6 +84,8 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
+      - name: Verify lockfile is current
+        run: uv lock --check
       - name: Sync (frozen)
         run: uv sync --frozen
       - name: Ruff check

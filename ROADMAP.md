@@ -543,7 +543,12 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
   - **Live-output quality is judged by `distill eval`'s model judges** (faithfulness + coverage against the source), run on-demand against a real model. That is the only place a quality judgment belongs, and it is model-judged, not a deterministic score. It is not, and cannot be, an offline CI gate.
   - Still ahead: a structural golden for the concept-playbook pipeline (threshold/polarity discrimination, same shape), the ~20-fixture scale-up, an `eval_models` MCP tool. (Correction 2026-06-14: an earlier draft of this line wrongly called for a "model-judged offline gate" - impossible without keys in CI, and unnecessary since the gate is structural and live quality is `distill eval`'s job.)
 - **Metamorphic robustness pass - CUT as fake-rigor (do not build).** The previous plan here (METAL templates; `SynonymReplacement` / `L33TChanging` perturbations; a Universal-Sentence-Encoder cosine ≥ 0.6 acceptance gate; kappa floors; ~30 variants) is **removed.** It perturbed surface tokens and asserted concept-set stability against cosine-similarity thresholds - measuring surface-token stability and calling it semantic robustness. That is a pile of deterministic thresholds dressed as science, the exact brittle-proxy pattern the charter ([`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)) forbids, and as a CI gate it would block legitimate prompt changes on cosine numbers. If robustness-to-rephrasing ever genuinely needs testing, it is a **model judgment** ("do these equivalent inputs yield the same substantive concepts?"), not a cosine gate - and it earns its place only by `distill eval` showing it catches real regressions, not by citing a framework. Do not build the cosine/perturbation machinery.
-- **Pre-commit hooks identical to CI checks** - no contributor surprises between local and remote.
+- **Pre-commit mirrors the local subset of CI.** Commit hooks run Ruff,
+  Bandit, import-linter, and Pyright with the same locked tool versions and
+  project configuration, and the pre-push hook runs the full coverage suite.
+  CI additionally owns the dependency audit, build, Python-version matrix, and
+  OS smoke jobs. The contributor guide lists both sets so local success is
+  never presented as a complete remote gate.
 
 **Verification depth (where it matters, not everywhere).** Phased implementation
 plan and tool selection: [`docs/design/verification-depth.md`](docs/design/verification-depth.md).
@@ -773,7 +778,12 @@ The 0.8.3 and 1.0 quality posture above was pressure-tested against two general 
 **Adopted** (genuinely new, high-value, in scope at 0.8.3 / 1.0):
 
 - `uv` as the sole toolchain, a committed `uv.lock`, and `uv sync --frozen` in CI - reproducible environments, and the direct fix for the dependency-float break that motivated 0.8.3.
-- `import-linter` and `pip-audit` promoted into blocking CI; `pre-commit` made identical to CI; `xfail_strict`; branch coverage; SBOM on release. (Automated dependency update bots were trialed in 0.8.3 and deliberately dropped - dependency bumps are reviewed manually.)
+- `import-linter` and `pip-audit` promoted into blocking CI; `pre-commit` wired
+  to the same locked tool versions and project configuration for its documented
+  local subset; `xfail_strict`; branch coverage; SBOM on release. CI retains
+  the dependency, build, Python-matrix, and OS-matrix checks that do not belong
+  in every local commit. (Automated dependency update bots were trialed in
+  0.8.3 and deliberately dropped - dependency bumps are reviewed manually.)
 - The full Pyright-strict ratchet and "parse, don't validate" strict domain types at every boundary (1.0).
 - **PEP 740 build-provenance attestations** over the existing OIDC trusted-publishing channel (secretless), so the path from a reviewed `main` commit to the installed wheel is cryptographically verifiable. The cheap, high-value slice of the advanced brief's Sigstore/SLSA section.
 - **Verification depth on the deterministic core** (1.0): Design by Contract (`deal`) on the merge/normalize/recovery invariants, mutation testing of the core packages, Hypothesis stateful testing of the playbook lifecycle, and fault-injection at the external-service boundaries. "Formally contracted where it matters" - scoped to the pure-Python core, not blanket.
@@ -792,7 +802,15 @@ The 0.8.3 and 1.0 quality posture above was pressure-tested against two general 
 **Declined** (wrong for this project):
 
 - **3.14-only baseline** - breaks installs for the entire current downstream base; covered above.
-- **Language-driven rewrites and blanket purity rules.** Distill currently publishes an approximately 825 KB purelib `py3-none-any` wheel, while its dependency graph legitimately includes native wheels and external runtimes such as Rust-backed `pydantic-core` and `nh3`, Playwright, CTranslate2, PyTorch, and local model servers. New first-party native code is neither banned nor presumed valuable. It must pass the measured admission, fallback, differential-correctness, cross-platform artifact, audit, SBOM, and rollback gates in [`docs/design/performance-and-language-admission.md`](docs/design/performance-and-language-admission.md).
+- **Language-driven rewrites and blanket purity rules.** Distill 0.19.45
+  publishes an approximately 1.03 MiB purelib `py3-none-any` wheel, while its
+  dependency graph legitimately includes native wheels and external runtimes
+  such as Rust-backed `pydantic-core` and `nh3`, Playwright, CTranslate2,
+  PyTorch, and local model servers. New first-party native code is neither
+  banned nor presumed valuable. It must pass the measured admission, fallback,
+  differential-correctness, cross-platform artifact, audit, SBOM, and rollback
+  gates in
+  [`docs/design/performance-and-language-admission.md`](docs/design/performance-and-language-admission.md).
 - **Free-threading or shared-memory concurrency as the default architecture.** Current evidence does not justify changing the supported runtime or concurrency model. The adapted benchmark lane above may reopen the decision; runtime availability alone does not.
 - **Container / image scanning (trivy), full SLSA L3 generators.** The published artifacts are a PyPI source distribution and universal wheel. The repository supports source-built containers through its Dockerfile but does not publish an image, so `pip-audit`, SBOM generation, and PEP 740 attestations cover the release surface that exists today. Revisit image scanning if a container image becomes a published artifact.
 - **Auto `uv lock --upgrade` in CI.** A manually reviewed upgrade PR (running full CI against the new lock before merge) is strictly safer than CI silently re-resolving - the un-reviewed auto-upgrade is the same dependency-float failure mode 0.8.3 exists to kill, just relocated. (Automated bump bots are also declined; bumps are reviewed by hand.)

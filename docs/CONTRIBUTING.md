@@ -42,6 +42,7 @@ CI enforces the following on every push to `main` and every pull request targeti
 `main`. Before opening a PR, at least run:
 
 ```bash
+uv lock --check                                             # project and dependency metadata match uv.lock
 uv run pytest -q                                              # unit + contract tests pass
 uv run pytest --cov=distill --cov-fail-under=95               # branch coverage stays above the floor
 uv run ruff check .                                           # lint clean
@@ -72,12 +73,12 @@ landed back on the startup path, not that the test is wrong.
 ### Pre-commit hooks
 
 The fastest way to catch the commit-stage gates is to install the hooks once.
-The lint, type, security, import-contract, and generated-skill hooks run through
-`uv run --frozen`, so they use the exact locked tool versions CI runs for those
-checks. `pre-commit run --all-files` does not cover the dependency audit,
-generated public contracts, archive build, installed-wheel smoke, Python
-matrix, or operating-system matrix. The coverage suite remains a separate
-pre-push hook.
+Lock freshness runs first. The lint, type, security, import-contract, and
+generated-skill hooks then run through `uv run --frozen`, so they use the exact
+locked tool versions CI runs for those checks. `pre-commit run --all-files`
+does not cover the dependency audit, generated public contracts, archive
+build, installed-wheel smoke, Python matrix, or operating-system matrix. The
+coverage suite remains a separate pre-push hook.
 
 ```bash
 uv run pre-commit install --install-hooks       # ruff / bandit / import-linter / pyright on every commit
@@ -91,7 +92,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 
 | Tool | Purpose | Runs in CI? |
 |---|---|---|
-| **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv sync --frozen` everywhere |
+| **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv lock --check` plus `uv sync --frozen` |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
 | **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted branch-coverage floor | Yes, blocking; only remote-service tests are gated behind `-m live_network` |
 | **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
@@ -243,6 +244,7 @@ Before pushing to main or tagging a release, run the full gate locally. CI catch
 
 ```bash
 # 1. Reproducible environment and generated contracts
+uv lock --check
 uv sync --frozen
 uv run --frozen python scripts/public_contracts.py --check
 uv run --frozen python scripts/agent_skill_distributions.py --check

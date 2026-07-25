@@ -72,6 +72,30 @@ def test_full_package_pyright_is_blocking_and_matches_local_hook() -> None:
         assert "pre-commit" in {str(stage) for stage in _sequence(effective_stages)}
 
 
+def test_lockfile_freshness_is_blocking_in_ci_and_local_hook() -> None:
+    """Frozen sync must not hide stale project or dependency metadata."""
+    ci = _load_yaml(ROOT / ".github" / "workflows" / "ci.yml")
+    jobs = _mapping(ci["jobs"])
+    lint_job = _mapping(jobs["lint"])
+    lint_steps = [_mapping(step) for step in _sequence(lint_job["steps"])]
+    lock_steps = [step for step in lint_steps if step.get("run") == "uv lock --check"]
+
+    assert len(lock_steps) == 1
+    assert lock_steps[0].get("continue-on-error", False) is False
+    assert "if" not in lock_steps[0]
+
+    pre_commit = _load_yaml(ROOT / ".pre-commit-config.yaml")
+    repositories = [_mapping(repo) for repo in _sequence(pre_commit["repos"])]
+    local_repository = next(repo for repo in repositories if repo.get("repo") == "local")
+    hooks = [_mapping(hook) for hook in _sequence(local_repository["hooks"])]
+    lock_hooks = [hook for hook in hooks if hook.get("id") == "uv-lock-check"]
+
+    assert len(lock_hooks) == 1
+    assert lock_hooks[0]["entry"] == "uv lock --check"
+    assert lock_hooks[0].get("pass_filenames") is False
+    assert lock_hooks[0].get("always_run") is True
+
+
 def test_default_test_selection_excludes_only_live_network_tests() -> None:
     """Offline integration stays default while remote-service checks opt in."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))

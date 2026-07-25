@@ -540,7 +540,7 @@ wheels = [
 
 [[package]]
 name = "distillr"
-version = "0.19.42"
+version = "0.19.45"
 source = { editable = "." }
 dependencies = [
     { name = "deal" },
@@ -623,7 +623,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.9.0" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2025.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-    { name = "yt-dlp", specifier = ">=2026.6.9" },
+    { name = "yt-dlp", specifier = ">=2026.7.4" },
 ]
 provides-extras = ["entailment"]
 

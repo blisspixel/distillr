@@ -29,6 +29,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: uv-lock-check
+        name: uv lock is current
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: ruff-check
         name: ruff check
         entry: uv run --frozen ruff check --fix --force-exclude --exit-non-zero-on-fix
