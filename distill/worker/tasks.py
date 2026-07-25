@@ -199,7 +199,9 @@ class AgentTaskQueue:
         )
         del prompt_text, staged_task
 
-        result_bytes = _normalized_result_bytes(result_text)
+        result_bytes = _normalized_result_bytes(
+            result_text, task_max_result_bytes=task.max_result_bytes
+        )
         existing_result = self._read_result(task, root)
         if (
             existing_result is not None

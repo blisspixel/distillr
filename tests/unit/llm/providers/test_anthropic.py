@@ -13,6 +13,7 @@ from distill.llm.providers.anthropic import (
     ANTHROPIC_API_VERSION,
     ANTHROPIC_MESSAGES_URL,
     AnthropicProvider,
+    _supports_custom_sampling,  # pyright: ignore[reportPrivateUsage]
 )
 from distill.llm.router import LLM_Response
 from distill.llm.usage import usage_attempts_from_exception
@@ -223,3 +224,40 @@ def test_permanent_http_error_does_not_retry(monkeypatch: pytest.MonkeyPatch) ->
         asyncio.run(provider.call("claude-sonnet-5", "hello", retries=2))
 
     assert len(_FakeAsyncClient.posts) == 1
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-sonnet-5",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-fable-5",
+        "claude-mythos-5",
+        # Case variants must match too: the router accepts a model id in any
+        # case, so a literal startswith would forward a rejected parameter.
+        "Claude-Opus-4-8",
+        "CLAUDE-SONNET-5",
+        "  claude-opus-4-8  ",
+    ],
+)
+def test_sampling_omitted_for_models_that_reject_it(model: str) -> None:
+    assert _supports_custom_sampling(model) is False
+
+
+@pytest.mark.parametrize("model", ["claude-opus-4-6", "claude-sonnet-4", "claude-haiku-4"])
+def test_sampling_kept_for_models_that_still_accept_it(model: str) -> None:
+    assert _supports_custom_sampling(model) is True
+
+
+def test_temperature_not_sent_to_model_that_rejects_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mixed-case Opus 4.8 id must not forward ``temperature`` (HTTP 400)."""
+    _install_client(monkeypatch)
+    _FakeAsyncClient.responses.append(
+        _FakeResponse(payload={"content": [{"type": "text", "text": "ok"}]})
+    )
+    provider = AnthropicProvider("test-key")
+
+    asyncio.run(provider.call("Claude-Opus-4-8", "hello", temperature=0.7))
+
+    assert "temperature" not in _FakeAsyncClient.posts[0]["json"]

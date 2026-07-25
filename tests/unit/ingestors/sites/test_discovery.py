@@ -291,3 +291,34 @@ def test_dedupe_promotes_reverse_toc_duplicates_in_linear_mapping_order():
         "toc-1",
         "toc-0",
     ]
+
+
+def test_sitemap_regex_fallback_is_not_quadratic_on_hostile_input():
+    r"""A hostile non-XML body must not wedge discovery inside ``re``.
+
+    The old ``<loc>\s*([^<]+?)\s*</loc>`` pattern backtracked cubically, so a
+    body of ``<loc>`` plus a long whitespace run (well under the fetch byte cap)
+    never returned. The network deadline could not help: the hang happens after
+    the body is read.
+    """
+    import time
+
+    from distill.ingestors.sites.discovery import _parse_sitemap
+
+    hostile = "<html><loc>" + " " * 2_000_000
+    started = time.perf_counter()
+    _parse_sitemap(hostile, max_entries=50)
+    assert time.perf_counter() - started < 5.0
+
+
+def test_sitemap_regex_fallback_still_extracts_locs():
+    """The bounded pattern keeps working on real non-XML sitemap bodies."""
+    from distill.ingestors.sites.discovery import _parse_sitemap
+
+    body = "<html><loc> https://a.test/one </loc><loc>https://a.test/two</loc>"
+    _, candidates = _parse_sitemap(body, max_entries=10)
+
+    assert [candidate.url for candidate in candidates] == [
+        "https://a.test/one",
+        "https://a.test/two",
+    ]

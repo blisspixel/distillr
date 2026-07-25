@@ -292,11 +292,25 @@ def _staged_prompt_bytes(prompt: str) -> bytes:
     return normalized.encode("utf-8")
 
 
-def _normalized_result_bytes(result: str) -> bytes:
+def _normalized_result_bytes(result: str, *, task_max_result_bytes: int | None = None) -> bytes:
+    """Normalize a worker result to published bytes, enforcing both size limits.
+
+    A trailing newline is appended here, *after* the workspace read gate has
+    already admitted a file of exactly ``task.max_result_bytes``. Checking only
+    the global ceiling therefore let a result publish at
+    ``task.max_result_bytes + 1``: the submission succeeded and was hashed into a
+    receipt, but every later read (``_read_result``, the provider's result match)
+    re-applies the task limit and rejected the file it had just written. That
+    wedged the task permanently -- it could not be completed, released, or
+    abandoned, and its pending slot was consumed for good. Enforce the task limit
+    against the *normalized* length so an oversized result is refused up front.
+    """
     normalized = result.replace("\r\n", "\n").replace("\r", "\n")
     if not normalized.endswith("\n"):
         normalized += "\n"
     content = normalized.encode("utf-8")
     if len(content) > MAX_AGENT_RESULT_BYTES:
         raise WorkerTaskInvalid("worker result exceeds the global result size limit")
+    if task_max_result_bytes is not None and len(content) > task_max_result_bytes:
+        raise WorkerTaskInvalid("worker result exceeds the result size limit for this task")
     return content

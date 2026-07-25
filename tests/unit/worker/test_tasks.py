@@ -818,3 +818,27 @@ def test_worker_clock_requires_timezone(tmp_path: Path) -> None:
     )
     with pytest.raises(WorkerTaskInvalid, match="timezone-aware"):
         queue.claim(host="codex")
+
+
+def test_result_at_exactly_the_task_limit_is_refused_not_wedged() -> None:
+    """A result of exactly ``task.max_result_bytes`` must not publish oversized.
+
+    The workspace read gate admits a file of exactly the task limit, then the
+    trailing newline is appended, pushing published bytes to ``limit + 1``. Only
+    the global ceiling was re-checked, so the submission succeeded and was hashed
+    into a receipt while every later read re-applied the task limit and rejected
+    it -- wedging the task permanently (it could not be completed, released, or
+    abandoned) and consuming its pending slot for good.
+    """
+    limit = 4096
+
+    with pytest.raises(worker_contracts.WorkerTaskInvalid, match="result size limit for this task"):
+        worker_contracts._normalized_result_bytes(  # pyright: ignore[reportPrivateUsage]
+            "a" * limit, task_max_result_bytes=limit
+        )
+
+    published = worker_contracts._normalized_result_bytes(  # pyright: ignore[reportPrivateUsage]
+        "a" * (limit - 1), task_max_result_bytes=limit
+    )
+    assert len(published) == limit
+    assert published.endswith(b"\n")

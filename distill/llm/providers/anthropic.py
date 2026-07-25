@@ -28,7 +28,7 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 # Models that reject custom sampling params (temperature/top_p/top_k -> HTTP 400):
 # Sonnet 5, Opus 4.7/4.8, and the Fable/Mythos 5 tier all removed them. Opus 4.6
 # and older still accept sampling, so a plain prefix list keeps the boundary exact.
-_NO_CUSTOM_SAMPLING_PREFIXES = (
+_NO_CUSTOM_SAMPLING_PREFIXES: tuple[str, ...] = (
     "claude-sonnet-5",
     "claude-opus-4-7",
     "claude-opus-4-8",
@@ -196,4 +196,8 @@ def _content_block_text(block: object) -> str:
 
 
 def _supports_custom_sampling(model: str) -> bool:
-    return not model.startswith(_NO_CUSTOM_SAMPLING_PREFIXES)
+    # Normalize before matching: the router accepts a model id in any case (and
+    # ``infer_cloud_provider_for_model`` case-folds when routing), so a literal
+    # ``startswith`` would let "Claude-Opus-4-8" skip the guard and forward a
+    # sampling parameter the API rejects with HTTP 400.
+    return not model.strip().lower().startswith(_NO_CUSTOM_SAMPLING_PREFIXES)

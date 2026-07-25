@@ -5,6 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.42 - 2026-07-24
+
+Targeted bug-hunt pass over the routing, cost, persistence, ingestion, and MCP
+boundaries. Every fix below is covered by a regression test.
+
+### Security
+
+- Removed catastrophic backtracking from the sitemap `<loc>` fallback parser. A
+  trusted-site host serving a non-XML body of `<loc>` plus a long whitespace run
+  (well under the fetch byte cap) made `distill discover` hang indefinitely
+  inside `re`, after the network deadline had already been satisfied and with no
+  way to interrupt or degrade. The pattern is now length-bounded with no
+  ambiguous adjacent whitespace groups; a 2 MB hostile body parses in
+  milliseconds.
+- Stopped inline URL credentials reaching the rerank prompt and the corpus
+  directory tree. `canonicalize_url` deliberately preserves userinfo and query,
+  so a seed such as `https://user:key@host//guide?token=...` sent the secret to
+  the configured model (and prompt telemetry). `site_name_from_url` additionally
+  derived the site identity from `netloc`, baking the credential into an on-disk
+  directory name. Site candidate rows now render through the same sanitizer every
+  other seed boundary uses, and site identity is derived from host and port only.
+  The site-analysis and site-ingest boundaries previously recognized an
+  auto-derived name by comparing it against that leaky derivation; they now scrub
+  any stored site name containing userinfo, so a name persisted by an earlier
+  version is cleaned on read instead of flowing into prompts and console output.
+
+- Bumped `yt-dlp` (2026.6.9 -> 2026.7.4) to clear `CVE-2026-55404`.
+
+### Fixed
+
+- Made an explicit `--provider` win over a configured per-workload provider.
+  `RouterConfig.resolve` prefers `<workload>_provider`, so setting only
+  `DISTILL_PROVIDER` left `DISTILL_ANALYSIS_PROVIDER` in charge and silently
+  discarded the flag. Because `--model` is checked first and did apply, the pair
+  resolved incoherently: `distill --provider ollama --model qwen3.5:27b` ran a
+  local model id against a *cloud* provider, turning an explicit "stay local"
+  request into a billed API call. The credit-error `fallback_provider` is
+  deliberately left untouched.
+- Made model pricing and context-window lookup case- and whitespace-insensitive.
+  Routing case-folds when resolving a provider, so a model id could reach the
+  catalogs in any case and miss every key: `Claude-Opus-4-8` fell back to the
+  default model's rate and under-reported spend by 8x, which also let a budget
+  cap overshoot by the same factor before it fired.
+- Added the Anthropic Opus tier to the context-window catalog (`claude-opus-4-8`,
+  `4-7`, `4-6` are 1M-context). Without it an Opus route resolved to the 4096
+  default and over-chunked every long input.
+- Added a `claude-opus-4` family pricing entry so a routable but unlisted Opus
+  point release prices at the Opus tier instead of falling through to the much
+  cheaper default rate. Longest-prefix-wins keeps the exact entries authoritative.
+- Made cloud context-window prefix matching longest-key-first, mirroring pricing.
+  A broad alias could otherwise shadow a more specific one and size chunks to a
+  window the model does not have.
+- Made the Anthropic sampling guard case-insensitive so a differently-cased id
+  cannot forward a `temperature` that Opus 4.7/4.8, Sonnet 5, and the Fable and
+  Mythos 5 tier reject with HTTP 400.
+- Made frontmatter round-tripping a fixed point. Values were written with
+  `json.dumps` but read back with a bare `strip('"')` that never unescaped, and
+  because artifact rewrites carry un-resupplied keys forward through that reader,
+  every rewrite re-escaped already-escaped text and doubled the backslashes. That
+  progressively destroyed persisted title, URL, and author provenance, including
+  anything derived from it such as exported OKF bundles.
+- Stopped a worker result of exactly `max_result_bytes` from wedging its task.
+  The trailing newline is appended after the workspace read gate, so the result
+  published at one byte over the task limit: the submission succeeded and was
+  hashed into a receipt, while every later read re-applied the limit and rejected
+  the file it had just written. The task could then never be completed, released,
+  or abandoned, and its pending slot was consumed permanently.
+
+### Validation
+
+- Ruff lint and formatting, package-scoped Pyright, all four import contracts,
+  Bandit, pip-audit, generated public contracts, and Agent Skill distribution
+  drift all pass.
+
 ## 0.19.41 - 2026-07-24
 
 ### Security

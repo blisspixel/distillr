@@ -200,3 +200,28 @@ def test_local_call_timeout_clamps_unbounded_default(
     monkeypatch.delenv("DISTILL_LOCAL_TIMEOUT", raising=False)
 
     assert local_call_timeout(10**4000) == LOCAL_CALL_TIMEOUT_MAX
+
+
+@pytest.mark.parametrize("model", ["claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6"])
+def test_anthropic_opus_context_window_lookup(model: str) -> None:
+    """The Opus tier is 1M-context; a missing entry silently over-chunked input."""
+    metadata = asyncio.run(resolve_metadata("anthropic", model))
+    assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
+@pytest.mark.parametrize(
+    ("provider", "model"),
+    [
+        ("anthropic", "Claude-Opus-4-8"),
+        ("anthropic", "  claude-sonnet-5  "),
+        ("xai", "GROK-4.3"),
+    ],
+)
+def test_context_window_lookup_is_case_and_whitespace_insensitive(
+    provider: str, model: str
+) -> None:
+    """A differently-cased id must not fall back to the small default window."""
+    metadata = asyncio.run(resolve_metadata(provider, model))
+    assert metadata.context_window != DEFAULT_CONTEXT_WINDOW
+    assert metadata.context_window == 1_000_000

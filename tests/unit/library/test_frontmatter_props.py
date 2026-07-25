@@ -367,3 +367,35 @@ class TestFrontmatterRoundTrip:
             assert extracted[key] == expected, (
                 f"Value mismatch for {key!r}: expected {expected!r}, got {extracted[key]!r}"
             )
+
+
+def test_frontmatter_round_trip_is_a_fixed_point_for_quoted_values():
+    """``dump(extract(x)) == x`` must hold for values containing quotes.
+
+    ``dump_frontmatter`` writes scalars with ``json.dumps`` but ``extract_frontmatter``
+    used a bare ``strip('"')`` that never unescaped. Because ``apply_frontmatter``
+    carries un-resupplied keys forward through that reader, every artifact rewrite
+    re-escaped already-escaped text and doubled the backslashes, progressively
+    destroying persisted title/URL/author provenance.
+    """
+    from distill.library.paths import dump_frontmatter, extract_frontmatter
+
+    original = dump_frontmatter({"title": 'He said "hi" to me', "url": "https://a.test/x"})
+
+    once = dump_frontmatter(extract_frontmatter(original))
+    assert once == original
+
+    repeated = original
+    for _ in range(5):
+        repeated = dump_frontmatter(extract_frontmatter(repeated))
+    assert repeated == original
+    assert extract_frontmatter(repeated)["title"] == 'He said "hi" to me'
+
+
+def test_frontmatter_extract_decodes_escaped_values():
+    """Escaped quotes and backslashes decode back to their original text."""
+    from distill.library.paths import dump_frontmatter, extract_frontmatter
+
+    for value in ['quote " inside', "back\\slash", "plain", "colon: inside"]:
+        text = dump_frontmatter({"title": value})
+        assert extract_frontmatter(text)["title"] == value

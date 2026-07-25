@@ -380,8 +380,16 @@ def sanitize_topic(value: object) -> str:
 
 
 def site_name_from_url(url: str) -> str:
-    """Derive a readable site identifier from a URL host."""
+    """Derive a readable site identifier from a URL host.
+
+    ``netloc`` retains any ``user:pass@`` prefix, so a seed URL carrying inline
+    credentials used to bake them into the derived site name -- which becomes a
+    corpus *directory name* on disk and is also sent to the rerank model. Drop
+    everything before the last ``@`` so only host (and any explicit port, which
+    callers rely on for identity) survives.
+    """
     host = urlparse(url).netloc.lower()
+    host = host.rpartition("@")[2]
     host = host.removeprefix("www.")
     return sanitize_path_component(host or "site")
 
@@ -760,10 +768,31 @@ def extract_frontmatter(content: str) -> dict[str, str]:
             continue
         key, value = line.split(":", 1)
         key = key.strip()
-        value = value.strip().strip('"')
+        value = _unquote_frontmatter_value(value.strip())
         if key:
             data[key] = value
     return data
+
+
+def _unquote_frontmatter_value(value: str) -> str:
+    """Invert ``_yaml_value``'s JSON quoting for a scalar frontmatter value.
+
+    ``dump_frontmatter`` writes scalars with ``json.dumps``, so a value containing
+    a quote or backslash is escaped. Unquoting with a bare ``strip('"')`` left the
+    escapes in place, and because ``apply_frontmatter`` carries un-resupplied keys
+    forward through this reader, every rewrite re-escaped already-escaped text and
+    doubled the backslashes. That silently corrupted persisted title, URL, and
+    author provenance (and anything derived from it, such as exported OKF
+    bundles). Decoding properly keeps ``dump(extract(x)) == x`` a fixed point.
+    """
+    if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            return value.strip('"')
+        if isinstance(decoded, str):
+            return decoded
+    return value.strip('"')
 
 
 def strip_frontmatter(content: str) -> str:

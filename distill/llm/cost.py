@@ -88,6 +88,12 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4-8": {"input": 5.00, "output": 25.00},
     "claude-opus-4-7": {"input": 5.00, "output": 25.00},
     "claude-opus-4-6": {"input": 5.00, "output": 25.00},
+    # Family fallback so an unlisted but routable Opus point release (e.g.
+    # claude-opus-4-5) prices at the Opus tier instead of falling through to
+    # DEFAULT_MODEL's much cheaper Grok rate, which under-reported spend and let
+    # a budget cap overshoot by the same factor. Longest-prefix-wins keeps the
+    # exact entries above authoritative.
+    "claude-opus-4": {"input": 5.00, "output": 25.00},
     "claude-sonnet-5": _SONNET_5_INTRO_PRICING,
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
@@ -168,16 +174,23 @@ def get_pricing(model: str) -> dict[str, float]:
     3. Prefix match, e.g. ``"grok-4.3-beta"`` matches ``"grok-4.3"``.
     4. Fall back to ``DEFAULT_MODEL`` and log a warning.
     """
-    if _is_sonnet_5_model(model):
+    # Normalize first: catalog keys are lowercase, but a model id reaches here
+    # in whatever case the operator configured (routing case-folds, so
+    # "Claude-Opus-4-8" resolves to a provider and then used to miss every
+    # pricing key and silently fall back to DEFAULT_MODEL -- an 8x under-report
+    # for Opus. Under-reporting spend is the dangerous direction for the ledger,
+    # budget caps, and projections, so match case-insensitively.
+    normalized = model.strip().lower()
+    if _is_sonnet_5_model(normalized):
         return _sonnet_5_pricing()
-    if model in PRICING:
-        return PRICING[model]
+    if normalized in PRICING:
+        return PRICING[normalized]
     # Prefix matching for versioned model names. Longest key first so the most
     # specific prefix wins -- otherwise a broad alias like "deep-research" would
     # shadow "deep-research-max-..." ($5) and silently price it at the standard
     # $2.50 rate.
     for key in sorted(PRICING, key=len, reverse=True):
-        if model.startswith(key):
+        if normalized.startswith(key):
             return PRICING[key]
     logger.warning(
         "No pricing found for model '%s'; falling back to '%s'",
@@ -188,7 +201,7 @@ def get_pricing(model: str) -> dict[str, float]:
 
 
 def _is_sonnet_5_model(model: str) -> bool:
-    return model.startswith("claude-sonnet-5")
+    return model.strip().lower().startswith("claude-sonnet-5")
 
 
 def _sonnet_5_pricing() -> dict[str, float]:

@@ -451,3 +451,34 @@ def test_rigor_threshold():
     assert rigor_threshold("balanced") == 0.5
     assert rigor_threshold("loose") == 0.3
     assert rigor_threshold("unknown") == 0.5  # default balanced
+
+
+def test_site_candidate_rows_do_not_leak_credentials_to_the_prompt() -> None:
+    """Candidate rows go verbatim to the rerank model, so they must be sanitized.
+
+    ``canonicalize_url`` deliberately preserves userinfo and query, so the raw
+    seed URL used to carry ``user:pass@`` and ``?token=`` into the provider
+    prompt and prompt telemetry.
+    """
+    from distill.ingestors.sites.scraper import SiteSeed
+    from distill.pipeline.discovery import (  # pyright: ignore[reportPrivateUsage]
+        _site_candidate_description,
+        _site_candidate_subtitle,
+        _site_candidate_title,
+    )
+
+    seed = SiteSeed(
+        url="https://svc:APIKEY123@docs.example.com/guide?token=SECRET&page=2#frag",
+        topic="t",
+    )
+    rendered = " ".join(
+        (
+            _site_candidate_title(seed),
+            _site_candidate_subtitle(seed),
+            _site_candidate_description(seed),
+        )
+    ).lower()
+
+    assert "apikey123" not in rendered
+    assert "secret" not in rendered
+    assert "docs.example.com" in rendered

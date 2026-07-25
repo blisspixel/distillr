@@ -16,6 +16,7 @@ from rich.table import Table
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
+from distill.ingestors.sites._site_urls import site_url_for_persistence
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.llm import call as llm_call
@@ -209,10 +210,23 @@ def _site_candidate_title(seed: SiteSeed) -> str:
     label = seed.label.strip()
     if label:
         return label
-    parsed = urlparse(seed.url)
-    host = parsed.netloc.removeprefix("www.") or seed.resolved_site_name()
+    parsed = urlparse(_prompt_safe_seed_url(seed))
+    # ``hostname`` rather than ``netloc``: netloc retains any ``user:pass@``.
+    host = (parsed.hostname or "").removeprefix("www.") or seed.resolved_site_name()
     path = (parsed.path or "/").rstrip("/") or "/"
     return f"{host}{path}"
+
+
+def _prompt_safe_seed_url(seed: SiteSeed) -> str:
+    """Return the seed URL with credentials, query, and fragment removed.
+
+    Site candidate rows are sent verbatim to the rerank model, so the raw seed URL
+    reached the provider (and prompt telemetry) with any embedded ``user:pass@``
+    or ``?token=`` intact. ``canonicalize_url`` deliberately preserves those, and
+    every other seed boundary sanitizes before persisting or logging -- this path
+    was the gap.
+    """
+    return site_url_for_persistence(seed.url) or seed.url
 
 
 def _site_candidate_subtitle(seed: SiteSeed) -> str:
@@ -221,12 +235,12 @@ def _site_candidate_subtitle(seed: SiteSeed) -> str:
         parts.append(f"section: {seed.section_label}")
     if seed.source_hint:
         parts.append(seed.source_hint)
-    parts.append(seed.url)
+    parts.append(_prompt_safe_seed_url(seed))
     return " | ".join(part for part in parts if part)
 
 
 def _site_candidate_description(seed: SiteSeed) -> str:
-    parts = [f"URL: {seed.url}"]
+    parts = [f"URL: {_prompt_safe_seed_url(seed)}"]
     if seed.section_label:
         parts.append(f"section: {seed.section_label}")
     if seed.source_hint:

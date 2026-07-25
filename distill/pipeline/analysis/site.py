@@ -39,14 +39,28 @@ __all__ = [
 ]
 
 
+def _safe_site_name(stored: str, safe_derived: str) -> str:
+    """Return a site name that cannot carry inline URL credentials.
+
+    This used to detect an auto-derived name by comparing it against the
+    *unsanitized* derivation, on the assumption that ``site_name_from_url``
+    leaked userinfo. That derivation is now sanitized at the source, so the
+    equality no longer identifies legacy names -- and a stored name written by
+    an earlier version still contains the credential. Any ``@`` in a stored site
+    name is userinfo residue (a bare host never contains one), so scrub it
+    regardless of how it was produced, while still preserving a deliberate
+    operator-supplied label.
+    """
+    if not stored or stored == safe_derived or "@" in stored:
+        return safe_derived
+    return stored
+
+
 def _page_for_model(page: SitePage) -> SitePage:
-    raw_derived_site_name = site_name_from_url(page.url)
     safe_derived_site_name = site_name_from_url(site_url_for_persistence(page.url))
     return replace(
         page,
-        site_name=(
-            safe_derived_site_name if page.site_name == raw_derived_site_name else page.site_name
-        ),
+        site_name=_safe_site_name(page.site_name, safe_derived_site_name),
         url=site_url_for_persistence(page.url),
         final_url=site_url_for_persistence(page.final_url),
         canonical_url=site_url_for_persistence(page.canonical_url),

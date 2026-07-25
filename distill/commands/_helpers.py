@@ -368,8 +368,31 @@ def _apply_output_mode(
     if model_override:
         os.environ["DISTILL_MODEL"] = model_override
     if provider_override:
-        os.environ["DISTILL_PROVIDER"] = provider_override
+        _apply_provider_override(provider_override)
     return debug or verbose
+
+
+def _apply_provider_override(provider_override: str) -> None:
+    """Make ``--provider`` win over any configured per-workload provider.
+
+    ``RouterConfig.resolve`` prefers ``<workload>_provider`` over the bare
+    ``provider``, so setting ``DISTILL_PROVIDER`` alone left an operator's
+    ``DISTILL_ANALYSIS_PROVIDER`` in charge and silently discarded the flag. With
+    ``--model`` still winning (it is checked first), that produced an incoherent
+    route: ``distill --provider ollama --model qwen3.5:27b`` resolved to a *cloud*
+    provider running a local model id, turning an explicit "stay local" request
+    into a billed API call. Blank the per-workload keys for this process so the
+    flag is authoritative, mirroring ``with_model_override``'s handling of models.
+
+    ``fallback_provider`` is deliberately untouched: it is the opt-in credit-error
+    fallback, not part of route resolution.
+    """
+    from distill.llm.router import RouterConfig
+
+    os.environ["DISTILL_PROVIDER"] = provider_override
+    for field_name in RouterConfig.model_fields:
+        if field_name.endswith("_provider") and field_name != "fallback_provider":
+            os.environ[f"DISTILL_{field_name.upper()}"] = ""
 
 
 def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:

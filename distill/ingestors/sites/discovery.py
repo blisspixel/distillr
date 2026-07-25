@@ -46,6 +46,14 @@ _MAX_LANDING_ATTRIBUTES = 256
 _MAX_LANDING_HREF_CHARS = 8_192
 _MAX_SITEMAP_FETCH_ATTEMPTS = 16
 _MAX_SITEMAP_URLS_PER_DOCUMENT = 2_000
+# Fallback <loc> scanner for sitemap bodies that fail XML parsing. The capture is
+# length-bounded and carries no adjacent ``\s*`` groups: the earlier
+# ``<loc>\s*([^<]+?)\s*</loc>`` backtracked cubically, so a hostile body of
+# "<loc>" followed by a long whitespace run (well under the fetch byte cap) hung
+# the discover run indefinitely inside ``re`` -- after the network deadline had
+# already been satisfied, so nothing could interrupt it. Surrounding whitespace
+# is stripped in Python instead.
+_SITEMAP_LOC_FALLBACK_RE = re.compile(r"<loc>([^<]{1,2048})</loc>", re.IGNORECASE)
 _TRUSTED_SITE_DISCOVERY_TIMEOUT_SECONDS = 120.0
 
 
@@ -456,13 +464,13 @@ def _parse_sitemap(
         root = xml_fromstring(text.encode("utf-8"))
     except Exception:
         locs = [
-            match.group(1)
+            match.group(1).strip()
             for match in islice(
-                re.finditer(r"<loc>\s*([^<]+?)\s*</loc>", text, flags=re.IGNORECASE),
+                _SITEMAP_LOC_FALLBACK_RE.finditer(text),
                 max_entries,
             )
         ]
-        return [], [_SitemapPageCandidate(url=loc) for loc in locs]
+        return [], [_SitemapPageCandidate(url=loc) for loc in locs if loc]
     root_name = _strip_namespace(root.tag).lower()
     if root_name == "sitemapindex":
         return _sitemap_locs(root, max_entries=max_entries), []

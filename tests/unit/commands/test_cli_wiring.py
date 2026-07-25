@@ -4092,3 +4092,41 @@ def test_cli_misc_helpers_and_baseline_resolution(mock_config):
     assert query == "AI daily"
     assert cadence == "daily"
     assert baseline is not None
+
+
+def test_provider_flag_overrides_per_workload_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--provider`` must beat a configured per-workload provider.
+
+    ``RouterConfig.resolve`` prefers ``<workload>_provider``, so setting only
+    ``DISTILL_PROVIDER`` let ``DISTILL_ANALYSIS_PROVIDER`` win. Combined with
+    ``--model`` (which is checked first) that routed an explicit "stay local"
+    request to a billed cloud provider running a local model id.
+    """
+    from distill.commands._helpers import (
+        _apply_provider_override,  # pyright: ignore[reportPrivateUsage]
+    )
+    from distill.llm.router import RouterConfig
+
+    monkeypatch.setenv("DISTILL_ANALYSIS_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    monkeypatch.setenv("DISTILL_MODEL", "qwen3.5:27b")
+    assert RouterConfig().resolve("analysis")[0] == "gemini"
+
+    _apply_provider_override("ollama")
+
+    assert RouterConfig().resolve("analysis") == ("ollama", "qwen3.5:27b")
+
+
+def test_provider_flag_override_preserves_credit_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``fallback_provider`` is the credit-error fallback, not route resolution."""
+    from distill.commands._helpers import (
+        _apply_provider_override,  # pyright: ignore[reportPrivateUsage]
+    )
+    from distill.llm.router import RouterConfig
+
+    monkeypatch.setenv("DISTILL_FALLBACK_PROVIDER", "xai")
+    _apply_provider_override("ollama")
+
+    assert RouterConfig().fallback_provider == "xai"

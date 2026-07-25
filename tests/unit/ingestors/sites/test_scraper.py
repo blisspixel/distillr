@@ -38,6 +38,23 @@ def test_site_name_from_url_strips_www():
     assert site_name_from_url("https://www.example.com/path") == "example.com"
 
 
+def test_site_name_from_url_strips_inline_credentials():
+    """Inline credentials must not reach the derived site name.
+
+    The site name becomes a corpus directory on disk and is also sent to the
+    rerank model, so a ``user:pass@`` seed URL previously persisted the secret
+    in both places.
+    """
+    assert site_name_from_url("https://svc:APIKEY123@docs.example.com/g") == "docs.example.com"
+    assert site_name_from_url("https://user@a.test/x") == "a.test"
+
+
+def test_site_name_from_url_preserves_host_and_port():
+    """Normal URLs are unchanged: an explicit port still distinguishes a site."""
+    assert site_name_from_url("https://a.test:8443/x") == "a.test-8443"
+    assert site_name_from_url("https://docs.example.com/g") == "docs.example.com"
+
+
 def test_load_site_batch_from_text(tmp_path):
     path = tmp_path / "sites.txt"
     path.write_text("https://example.com\n# ignore\nhttps://vendor.example.com\n", encoding="utf-8")

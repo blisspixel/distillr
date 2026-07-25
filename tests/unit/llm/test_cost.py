@@ -176,3 +176,35 @@ def test_transcription_cost() -> None:
 def test_transcription_cost_rejects_invalid_duration(duration: object) -> None:
     with pytest.raises(ValueError, match="transcription duration"):
         transcription_cost("whisper-1", duration)
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_input", "expected_output"),
+    [
+        ("claude-opus-4-8", 5.00, 25.00),
+        ("claude-opus-4-7", 5.00, 25.00),
+        ("claude-opus-4-6", 5.00, 25.00),
+    ],
+)
+def test_opus_tier_is_priced(model: str, expected_input: float, expected_output: float) -> None:
+    """Opus must price at its own rate, not fall back to the default model."""
+    rates = get_pricing(model)
+    assert rates["input"] == expected_input
+    assert rates["output"] == expected_output
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["Claude-Opus-4-8", "CLAUDE-OPUS-4-8", "  claude-opus-4-8  ", "Gemini-3.6-Flash"],
+)
+def test_pricing_lookup_is_case_and_whitespace_insensitive(model: str) -> None:
+    """A differently-cased model id must not silently fall back to DEFAULT_MODEL.
+
+    Routing case-folds when resolving a provider, so a model id can reach pricing
+    in any case. Falling through to the default under-reported Opus spend by 8x,
+    which is the dangerous direction for the ledger, budget caps, and projections.
+    """
+    assert get_pricing(model) == get_pricing(model.strip().lower())
+    assert get_pricing(model) != get_pricing(DEFAULT_MODEL) or model.strip().lower().startswith(
+        DEFAULT_MODEL
+    )

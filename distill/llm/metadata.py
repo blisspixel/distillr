@@ -33,6 +33,11 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "gemini-3.5-flash-lite": 1_000_000,
     "gemini-3.1-pro": 1_000_000,
     "gemini-3.1-flash": 1_000_000,
+    # Opus 4.6/4.7/4.8 are 1M-context. Without these entries an Opus route fell
+    # back to DEFAULT_CONTEXT_WINDOW (4096) and over-chunked every long input.
+    "claude-opus-4-8": 1_000_000,
+    "claude-opus-4-7": 1_000_000,
+    "claude-opus-4-6": 1_000_000,
     "claude-sonnet-5": 1_000_000,
     "claude-sonnet-4": 200_000,
     "claude-haiku-4": 200_000,
@@ -169,10 +174,16 @@ async def resolve_metadata(
 
 def _resolve_cloud_context_window(model: str) -> int:
     """Look up context window for a cloud model. Supports prefix matching."""
-    if model in CLOUD_CONTEXT_WINDOWS:
-        return CLOUD_CONTEXT_WINDOWS[model]
-    # Prefix match
-    for key, window in CLOUD_CONTEXT_WINDOWS.items():
-        if model.startswith(key):
-            return window
+    # Catalog keys are lowercase; normalize so a differently-cased model id does
+    # not silently fall back to the smaller default window and over-chunk input.
+    normalized = model.strip().lower()
+    if normalized in CLOUD_CONTEXT_WINDOWS:
+        return CLOUD_CONTEXT_WINDOWS[normalized]
+    # Prefix match, longest key first so a broad alias cannot shadow a more
+    # specific one (``gpt-4.1`` at 1M would otherwise swallow ``gpt-4.1-mini``
+    # at 128k and size chunks to a window the model does not have). This mirrors
+    # the ordering ``get_pricing`` already relies on.
+    for key in sorted(CLOUD_CONTEXT_WINDOWS, key=len, reverse=True):
+        if normalized.startswith(key):
+            return CLOUD_CONTEXT_WINDOWS[key]
     return DEFAULT_CONTEXT_WINDOW

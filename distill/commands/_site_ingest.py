@@ -208,11 +208,15 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
     scrape_only: bool = False,
     ingest_attachments: bool = False,
 ) -> SiteIngestResult:
-    raw_derived_site_name = site_name_from_url(seed.url)
     safe_derived_site_name = site_name_from_url(url_for_diagnostic(seed.url))
+    # ``site_name_from_url`` is sanitized at the source now, so comparing against
+    # an unsanitized derivation no longer identifies a legacy auto-derived name.
+    # Any "@" in a stored name is userinfo residue from an earlier version (a bare
+    # host never contains one), so scrub it however it was produced while still
+    # honoring a deliberate operator-supplied label.
     site_name = (
         safe_derived_site_name
-        if not seed.site_name or seed.site_name == raw_derived_site_name
+        if not seed.site_name or seed.site_name == safe_derived_site_name or "@" in seed.site_name
         else seed.site_name
     )
     mode_label = "scrape-only" if scrape_only else "full"
