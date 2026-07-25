@@ -190,6 +190,16 @@ def provider_set_cmd(
     try:
         set_env_var(env_path, "DISTILL_PROVIDER", chosen_provider)
         set_env_var(env_path, "DISTILL_MODEL", chosen_model)
+        # A per-workload key (DISTILL_ANALYSIS_PROVIDER and friends) outranks
+        # DISTILL_PROVIDER in RouterConfig.resolve, so writing only the bare key
+        # reported success while leaving the effective route unchanged: `provider
+        # set` and `provider show` disagreed about the same command group. Clear
+        # the per-workload overrides so the persisted default is authoritative.
+        # fallback_provider is left alone; it is the credit-error fallback, not
+        # part of route resolution.
+        for field_name in RouterConfig.model_fields:
+            if field_name.endswith("_provider") and field_name != "fallback_provider":
+                set_env_var(env_path, f"DISTILL_{field_name.upper()}", "")
     except (OSError, ValueError) as exc:
         message = f"Could not update {env_path}: {exc}"
         if json_mode_active():
@@ -268,7 +278,12 @@ def _resolve_set_selection(
     model: str | None,
     yes: bool,
 ) -> tuple[str, str]:
-    interactive = isatty() and not yes
+    # Never prompt in --json mode: click writes the prompt string to *stdout*
+    # (only ``console`` is redirected to stderr), so an interactive run corrupted
+    # the JSON channel and blocked waiting for input, then aborted with exit 1
+    # instead of the reserved usage code. Falling through to the non-interactive
+    # branch produces the correct error envelope and exit 2.
+    interactive = isatty() and not yes and not json_mode_active()
     chosen_provider = (provider or "").strip()
     chosen_model = (model or "").strip()
 

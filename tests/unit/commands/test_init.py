@@ -1085,3 +1085,36 @@ def test_yes_installs_missing_browser(in_tmp, monkeypatch, install_succeeds, exp
     assert "Installing Chromium" in result.output
     expected_status = "installed" if install_succeeds else "missing"
     assert f"Browser: {expected_status}" in result.output
+
+
+class TestEnvValueRoundTrip:
+    """A written env value must read back byte-identical."""
+
+    @pytest.mark.parametrize(
+        "value",
+        ["a b # c", "  spaced  ", 'has"dq', "has'q", "back\\slash", "qwen3.5:27b", "xai-abc123"],
+    )
+    def test_set_env_var_round_trips(self, tmp_path: Path, value: str) -> None:
+        """Values were written bare, so dotenv reinterpreted them on read: a ``#``
+        started a comment (truncating the value) and whitespace was stripped."""
+        from dotenv import dotenv_values
+
+        env_path = tmp_path / ".env"
+        init_mod.set_env_var(env_path, "DISTILL_MODEL", value)
+
+        assert dotenv_values(env_path).get("DISTILL_MODEL") == value
+
+    def test_plain_values_keep_the_unquoted_form(self, tmp_path: Path) -> None:
+        """Only ambiguous values gain quotes, so .env stays human-editable."""
+        env_path = tmp_path / ".env"
+        init_mod.set_env_var(env_path, "DISTILL_MODEL", "qwen3.5:27b")
+
+        assert "DISTILL_MODEL=qwen3.5:27b" in env_path.read_text(encoding="utf-8")
+
+    def test_interpolating_value_is_refused(self, tmp_path: Path) -> None:
+        """``${...}`` cannot round-trip: dotenv substitutes it even inside quotes,
+        and a backslash does not escape it. Refusing beats corrupting a secret."""
+        env_path = tmp_path / ".env"
+
+        with pytest.raises(ValueError, match=r"\$\{"):
+            init_mod.set_env_var(env_path, "XAI_API_KEY", "xai-${HOME}-key")

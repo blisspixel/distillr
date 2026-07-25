@@ -308,10 +308,20 @@ def _apply_cost_mode_override(cost_mode: str) -> None:
     try:
         value = normalize_cost_mode(cost_mode)
     except ValueError:
-        console.print(
-            f"[red]Unknown --cost-mode '{cost_mode}'.[/red] Choose: auto, no-metered, paid-ok."
-        )
-        raise typer.Exit(1) from None
+        # An unparseable global flag is a usage error. This exited 1 (the generic
+        # runtime class), so a --json consumer saw an empty stdout and a code
+        # indistinguishable from a crash, and could not tell its own argv was
+        # wrong. The sibling validations in this module already exit 2.
+        from distill.commands._json import ExitCode, emit_json, json_mode_active
+
+        message = f"Unknown --cost-mode '{cost_mode}'. Choose: auto, no-metered, paid-ok."
+        if json_mode_active():
+            emit_json({"reason": "usage_error"}, error=message)
+        else:
+            console.print(
+                f"[red]Unknown --cost-mode '{cost_mode}'.[/red] Choose: auto, no-metered, paid-ok."
+            )
+        raise typer.Exit(int(ExitCode.USAGE_ERROR)) from None
     os.environ["DISTILL_COST_MODE"] = value
 
 
@@ -326,8 +336,26 @@ def _apply_output_mode(
     provider: str = "",
 ) -> bool:
     """Apply global output options and return the effective debug flag."""
+    from distill._console import set_json_mode, set_verbosity
+    from distill.commands._json import set_json_active
+
+    # Route the console to stderr before validating anything: these calls used to
+    # run after the --quiet/--verbose and --provider checks, so in --json mode a
+    # rejection was printed as human prose on *stdout* (the JSON channel) and the
+    # consumer got unparseable output instead of an error envelope. Verbosity is
+    # deliberately applied further down -- silencing the console here would
+    # swallow the very validation errors below.
+    set_json_mode(json_output)
+    set_json_active(json_output)
+
+    from distill.commands._json import emit_json, json_mode_active
+
     if quiet and (verbose or debug):
-        console.print("[red]--quiet cannot be combined with --verbose or --debug[/red]")
+        message = "--quiet cannot be combined with --verbose or --debug"
+        if json_mode_active():
+            emit_json({"reason": "usage_error"}, error=message)
+        else:
+            console.print(f"[red]{message}[/red]")
         raise typer.Exit(2)
 
     provider_override = provider.strip()
@@ -338,7 +366,10 @@ def _apply_output_mode(
         try:
             provider_override = normalize_provider_name(provider_override)
         except ValueError as exc:
-            console.print(f"[red]{exc}[/red]")
+            if json_mode_active():
+                emit_json({"reason": "usage_error"}, error=str(exc))
+            else:
+                console.print(f"[red]{exc}[/red]")
             raise typer.Exit(2) from None
 
     # When only --model is set, route known cloud ids to the matching provider
@@ -359,40 +390,12 @@ def _apply_output_mode(
         }
     )
 
-    from distill._console import set_json_mode, set_verbosity
-    from distill.commands._json import set_json_active
-
-    set_json_mode(json_output)
     set_verbosity(quiet=quiet)
-    set_json_active(json_output)
     if model_override:
         os.environ["DISTILL_MODEL"] = model_override
     if provider_override:
         _apply_provider_override(provider_override)
     return debug or verbose
-
-
-def _apply_provider_override(provider_override: str) -> None:
-    """Make ``--provider`` win over any configured per-workload provider.
-
-    ``RouterConfig.resolve`` prefers ``<workload>_provider`` over the bare
-    ``provider``, so setting ``DISTILL_PROVIDER`` alone left an operator's
-    ``DISTILL_ANALYSIS_PROVIDER`` in charge and silently discarded the flag. With
-    ``--model`` still winning (it is checked first), that produced an incoherent
-    route: ``distill --provider ollama --model qwen3.5:27b`` resolved to a *cloud*
-    provider running a local model id, turning an explicit "stay local" request
-    into a billed API call. Blank the per-workload keys for this process so the
-    flag is authoritative, mirroring ``with_model_override``'s handling of models.
-
-    ``fallback_provider`` is deliberately untouched: it is the opt-in credit-error
-    fallback, not part of route resolution.
-    """
-    from distill.llm.router import RouterConfig
-
-    os.environ["DISTILL_PROVIDER"] = provider_override
-    for field_name in RouterConfig.model_fields:
-        if field_name.endswith("_provider") and field_name != "fallback_provider":
-            os.environ[f"DISTILL_{field_name.upper()}"] = ""
 
 
 def _persist_lens(config: DistillConfig, topic_name: str, fallback_goal: str, lens: str) -> None:
@@ -971,6 +974,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
 # path (`_helpers._preflight`, `_helpers.resolve_intent`, `_helpers.run_preflight`,
 # ...) keeps resolving.
 from distill.commands._dispatch import (  # noqa: E402
+    _apply_provider_override,  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
     _invoke_command,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
     _preflight,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export
     _resolve_intent,  # noqa: F401  # pyright: ignore[reportUnusedImport, reportPrivateUsage]  -- compatibility re-export

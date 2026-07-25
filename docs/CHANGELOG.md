@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.44 - 2026-07-25
+
+Third bug-hunt pass, closing the remaining verified findings. Every fix carries a
+regression test.
+
+### Security
+
+- Bounded and confined the `research_gaps` thin-insight scan. It was the one MCP
+  read outside the confinement model: a plain `read_text` with no byte ceiling
+  and no symlink or inode validation, reachable from an ungated tool, so a single
+  oversized, escaping, or non-UTF-8 artifact could exhaust memory or raise out of
+  the tool. It now uses the same bounded `read_confined_text` as its siblings.
+
+### Fixed
+
+- Made `distill provider set` actually change the effective route. It persisted
+  only `DISTILL_PROVIDER`, which a per-workload key such as
+  `DISTILL_ANALYSIS_PROVIDER` outranks, so the command reported success while
+  `provider show` kept reporting the old provider. The per-workload overrides are
+  now cleared alongside the write; the credit-error `fallback_provider` is left
+  untouched.
+- Routed global-flag rejections to the correct channel and exit code. `--json`
+  errors for `--cost-mode`, `--provider`, and `--quiet`/`--verbose` printed human
+  prose to stdout (the JSON channel) because the console was redirected only
+  after validation, and an invalid `--cost-mode` exited 1 rather than the
+  reserved usage code. All three now emit an error envelope and exit 2, while
+  human mode still prints to stderr.
+- Stopped `--json provider set` prompting interactively. The prompt string goes
+  to stdout, so an interactive run corrupted the JSON channel, blocked waiting
+  for input, and aborted with exit 1 instead of the reserved usage code. JSON
+  mode now takes the non-interactive path and returns a proper envelope.
+- Made env-file values round-trip. Values were written bare, so python-dotenv
+  reinterpreted them on read: a `#` started a comment and silently truncated the
+  value, and surrounding whitespace was stripped. Ambiguous values are now
+  quoted and escaped while plain keys and model ids keep the unquoted,
+  human-editable form. A value containing `${` is refused outright, because
+  dotenv substitutes it even inside quotes and no escaping suppresses that, so
+  writing one would silently corrupt a pasted secret.
+- Made `distill init --provider local` report the route it just wrote. The local
+  branch persisted to `.env` without mirroring into the process environment as
+  the cloud branch does, and process env outranks the env file, so the readiness
+  verdict re-read the stale provider and printed an impossible pair such as
+  `xai / qwen3.5:27b` alongside `ready: true`.
+
+### Changed
+
+- Moved the provider-override startup helper into `_dispatch`, keeping
+  `_helpers` under the 1000-line module cap.
+
 ## 0.19.43 - 2026-07-24
 
 Second bug-hunt pass, continuing from 0.19.42. Every fix carries a regression

@@ -4130,3 +4130,33 @@ def test_provider_flag_override_preserves_credit_fallback(
     _apply_provider_override("ollama")
 
     assert RouterConfig().fallback_provider == "xai"
+
+
+class TestGlobalFlagErrorContract:
+    """Global-flag rejections must honor the JSON channel and the exit taxonomy."""
+
+    def test_invalid_cost_mode_is_a_usage_error_with_envelope(self):
+        """An unparseable global flag is a usage error (2), not a generic failure.
+
+        This exited 1 with an empty stdout, so a --json consumer could not tell
+        its own argv was wrong from a crash.
+        """
+        result = runner.invoke(cli.app, ["--json", "--cost-mode", "bogus", "provider", "show"])
+        assert result.exit_code == 2
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "error"
+        assert payload["data"]["reason"] == "usage_error"
+
+    def test_unknown_provider_emits_envelope_not_prose_on_stdout(self):
+        """The rejection used to print rich prose to stdout, corrupting the JSON."""
+        result = runner.invoke(cli.app, ["--json", "--provider", "bogus", "provider", "show"])
+        assert result.exit_code == 2
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "error"
+        assert "Unknown provider" in payload["error"]
+
+    def test_quiet_verbose_conflict_still_reports_in_human_mode(self):
+        """Verbosity must not be applied before validation, or this is silent."""
+        result = runner.invoke(cli.app, ["--quiet", "--verbose", "alerts"])
+        assert result.exit_code == 2
+        assert "--quiet cannot be combined with --verbose" in result.output

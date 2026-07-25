@@ -280,22 +280,41 @@ def create_env_file(path: Path, *, force: bool = False) -> bool:
         return _create_env_if_absent(path, _ENV_TEMPLATE)
 
 
+def _render_env_assignment(key: str, value: str) -> str:
+    """Render one ``key=value`` line that reads back byte-identical.
+
+    Values were written bare, so python-dotenv reinterpreted them on read: a
+    ``#`` started a comment (silently truncating the value) and surrounding
+    whitespace was stripped. Quote only the values that need it, so ordinary keys
+    and model ids keep the plain, human-editable ``KEY=value`` form and only the
+    ambiguous cases gain quotes. ``${...}`` is rejected in ``set_env_var``
+    because no quoting or escaping suppresses dotenv's interpolation.
+    """
+    if value and value == value.strip() and not any(c in value for c in "#\"\\'"):
+        return f"{key}={value}"
+    if not value:
+        return f"{key}="
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{key}="{escaped}"'
+
+
 def _updated_env_content(existing: str, key: str, value: str) -> str:
     """Return env content with exactly one active assignment for ``key``."""
 
     assignment = re.compile(rf"^(?:export[ \t]+)?{re.escape(key)}[ \t]*=")
     replaced = False
     updated: list[str] = []
+    rendered = _render_env_assignment(key, value)
     for line in existing.splitlines():
         stripped = line.lstrip()
         if not stripped.startswith("#") and assignment.match(stripped):
             if not replaced:
-                updated.append(f"{key}={value}")
+                updated.append(rendered)
             replaced = True
             continue
         updated.append(line)
     if not replaced:
-        updated.append(f"{key}={value}")
+        updated.append(rendered)
     return "\n".join(updated) + "\n"
 
 
@@ -310,6 +329,16 @@ def set_env_var(path: Path, key: str, value: str) -> None:
         raise ValueError("Environment variable name is invalid")
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ValueError("Environment variable value contains control characters")
+    # python-dotenv interpolates ``${...}`` on read even inside quotes, and a
+    # backslash does not escape it, so such a value cannot round-trip: a pasted
+    # secret containing "${" came back with an environment value spliced into it.
+    # Refusing is the only safe option -- silently corrupting a key is worse than
+    # a clear error.
+    if "${" in value:
+        raise ValueError(
+            "Environment variable value cannot contain '${': it would be substituted "
+            "when the env file is read back"
+        )
 
     with _env_update_lock(path):
         _validate_env_path(path)
@@ -703,6 +732,12 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                 env_path,
                 lambda: set_env_var(env_path, "DISTILL_PROVIDER", prov),
             )
+            # Mirror into the process env like the cloud branch does. get_config()
+            # already loaded the pre-existing .env into os.environ, and process env
+            # outranks env_file, so without this the readiness verdict re-read the
+            # stale provider and reported an impossible pair (e.g. "xai /
+            # qwen3.5:27b") alongside ready: true.
+            os.environ["DISTILL_PROVIDER"] = prov
             if not quiet:
                 console.print(f"  [green]Set[/green] DISTILL_PROVIDER={prov} in .env")
 
@@ -778,6 +813,9 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                     env_path,
                     lambda: set_env_var(env_path, "DISTILL_MODEL", configured_model),
                 )
+                # Mirror so the readiness verdict below resolves the model that was
+                # just written rather than a stale process-env value.
+                os.environ["DISTILL_MODEL"] = configured_model
                 state["local_model"] = configured_model
                 if not quiet:
                     console.print(f"  [green]Set[/green] DISTILL_MODEL={configured_model} in .env")

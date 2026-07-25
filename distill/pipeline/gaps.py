@@ -17,7 +17,11 @@ from typing import NotRequired, TypedDict, cast
 
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.confined import read_confined_text
 from distill.library.paths import artifact_exists, find_artifact, strip_frontmatter
+
+# Ceiling for the thin-insight scan; matches the sibling MCP readers.
+_MAX_INSIGHTS_SCAN_BYTES = 1024 * 1024
 
 __all__ = [
     "gap_discovery_goal",
@@ -255,10 +259,17 @@ def topic_gap_summary(config: DistillConfig, topic: str) -> TopicGapSummary:  # 
             if not video.get("has_transcript", False):
                 missing_transcripts.append(f"{channel_name}: {_video_title(video)}")
             insights_path = find_artifact(Path(video.get("_dir", "")), "insights")
-            if (
-                insights_path.exists()
-                and len(strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()) < 800
-            ):
+            # Bounded, confined read like every sibling MCP reader. This was a
+            # plain ``read_text`` with no byte ceiling and no symlink/inode
+            # validation, reached from the ungated ``research_gaps`` tool, so a
+            # single oversized, escaping, or non-UTF-8 artifact could exhaust
+            # memory or raise out of the tool. Unreadable counts as not-thin.
+            insights_text = read_confined_text(
+                insights_path,
+                config.library_dir,
+                max_bytes=_MAX_INSIGHTS_SCAN_BYTES,
+            )
+            if insights_text is not None and len(strip_frontmatter(insights_text).strip()) < 800:
                 thin_insights.append(f"{channel_name}: {_video_title(video)}")
 
     missing_artifacts = [name for name, present in inventory["artifacts"].items() if not present]

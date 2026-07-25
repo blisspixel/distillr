@@ -319,6 +319,10 @@ def test_resolve_set_selection_prompts_provider_and_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(_provider, "isatty", lambda: True)
+    # Interactive prompting is also gated on JSON mode being off. A real CLI run
+    # sets that per invocation; calling the helper directly can otherwise inherit
+    # a previous test's global.
+    monkeypatch.setattr(_provider, "json_mode_active", lambda: False)
     # First prompt picks provider #2 (gemini); second picks model #1 (default).
     monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["2", "1"]))
     provider, model = _provider._resolve_set_selection(  # pyright: ignore[reportPrivateUsage]
@@ -332,6 +336,7 @@ def test_resolve_set_selection_empty_model_after_prompt_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(_provider, "isatty", lambda: True)
+    monkeypatch.setattr(_provider, "json_mode_active", lambda: False)
 
     def _empty_model(_provider_name: str, *, default: str) -> str:
         del _provider_name, default
