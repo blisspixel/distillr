@@ -153,6 +153,19 @@ Track clean-install time, wheel and source-distribution size, CLI cold start,
 The current single universal wheel and compiler-free installation are product
 advantages, not incidental build details.
 
+Status 2026-07-25 (0.19.45): the first measured cold-start fix followed this
+document's optimization order, staying in Python and removing work rather than
+reaching for a native path. `-X importtime` attributed most of a 2.4-second
+`import distill.cli` to third-party libraries imported at module scope, led by
+the google-genai SDK and its transitive `mcp` dependency at roughly 1.1
+seconds, then python-docx, yt-dlp, requests, and httpx. Each now loads at
+first real use. On the development machine (Windows, Python 3.12) the import
+fell to about 0.8 seconds and `distill --version` from roughly 3.0-3.3 seconds
+to about 0.95 seconds at the median, with `--help` about 1.0 second. A
+subprocess regression test keeps those libraries off the import path. The
+numbers above are single-machine evidence, not the cross-platform published
+baseline this section still owes.
+
 ## Telemetry contract
 
 A non-empty `run_id` must join command, phase, provider-call, and cost rows.

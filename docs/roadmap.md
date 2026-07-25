@@ -399,6 +399,18 @@ per unit of time and cost, not language-level throughput in isolation.
   it reduced 499,500 possible pairs to 150 candidates and kept the result
   digest stable. Repeated scans, file reads, connection setup, and subprocess
   startup remain Python optimization work before any native spike.
+- [x] **Zero-work CLI startup, first pass.** Shipped 0.19.45: `-X importtime`
+  attributed most of a 2.4-second `import distill.cli` to third-party
+  libraries imported at module scope, led by the google-genai SDK and its
+  transitive `mcp` dependency at roughly 1.1 seconds, then python-docx,
+  yt-dlp, requests, and httpx. Each now loads at first real use behind a
+  patch-compatible module `__getattr__`, a lazy bind that never overwrites an
+  existing attribute, or a call-time module import. Measured on the
+  development machine: import about 0.8 seconds, `distill --version` about
+  0.95 seconds median from roughly 3.0-3.3 seconds, `--help` about 1.0
+  second. A subprocess regression test keeps those libraries off the import
+  path. Remaining cold-start cost is config-model construction and
+  CLI-framework import; a cross-platform published number is still owed.
 - [ ] **Bounded concurrency where safe.** Parallelize only after URL pinning,
   cancellation, provider limits, local-model contention, cost accounting,
   write scopes, and external serialization are explicit and tested. Record

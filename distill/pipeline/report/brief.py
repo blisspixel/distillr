@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-
-from google import genai
+from typing import TYPE_CHECKING
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -39,6 +38,9 @@ from distill.pipeline.report._interactions import (
 )
 from distill.pipeline.report.file_search import cleanup_created_store, delete_store
 
+if TYPE_CHECKING:
+    from google import genai
+
 __all__ = [
     "compose_prompt",
     "gather_topic_files",
@@ -47,6 +49,21 @@ __all__ = [
 
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 MAX_DOC_CHARS = 500_000
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose ``genai`` so importing this module stays cheap.
+
+    The google-genai SDK costs roughly a second of import time, so it is
+    imported only when a research brief actually runs. Tests that patch
+    ``distill.pipeline.report.brief.genai.Client`` keep working: this hook
+    resolves ``genai`` to the real module on first attribute access.
+    """
+    if name == "genai":
+        from google import genai
+
+        return genai
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def gather_topic_files(  # noqa: C901 - legacy orchestration kept intact
@@ -200,6 +217,8 @@ def run_research_brief(
         workload="research-brief",
     )
     tracker = require_cost_tracker(tracker)
+
+    from google import genai
 
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 

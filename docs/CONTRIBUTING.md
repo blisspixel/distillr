@@ -57,6 +57,18 @@ uv build                                                      # source and wheel
 
 Coverage is **branch** coverage (every conditional must exercise both arms). The 1.0 target of 95% is now the blocking floor and only rises. `pip-audit --skip-editable` runs in CI against the locked dependency tree and catches known CVEs (it skips the editable distillr install itself).
 
+### Startup import hygiene
+
+`tests/unit/test_lazy_imports.py` asserts that importing `distill.cli` loads
+none of google-genai, `mcp`, python-docx, yt-dlp, requests, or httpx. Those
+libraries cost seconds of cold start and only a few code paths need them, so
+they load at first real use rather than at module import. If you add a slow
+third-party dependency to a module the CLI reaches, import it inside the
+function that uses it, or expose it through a module `__getattr__` when tests
+patch it by string path (`monkeypatch.setattr("distill.x.y.httpx.Client", ...)`
+keeps working through that hook). A failure in that test means a heavy import
+landed back on the startup path, not that the test is wrong.
+
 ### Pre-commit hooks
 
 The fastest way to catch the commit-stage gates is to install the hooks once.

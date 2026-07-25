@@ -10,6 +10,7 @@ distill.cli.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
@@ -33,7 +34,6 @@ from distill.commands.topic import (
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.citations import collect_paper_citations, render_citations
-from distill.library.export import markdown_to_docx
 from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
 from distill.llm.cost_policy import require_route_allowed
@@ -41,7 +41,34 @@ from distill.pipeline.costs import BudgetExceededError, report_deep_research_est
 from distill.pipeline.report.deep_research import run_deep_research
 from distill.pipeline.summary import RunSummary, display_summary
 
+if TYPE_CHECKING:
+    from distill.library.export import markdown_to_docx
+
 __all__ = ["export", "register", "report"]
+
+
+def _bind_markdown_to_docx() -> None:
+    """Bind the docx exporter on first use, not at module import.
+
+    Importing python-docx costs a noticeable slice of CLI startup, so this
+    module stays cheap to import and pays for the exporter only when an
+    export actually runs. Tests that patch ``markdown_to_docx`` on this
+    module keep working: an existing module attribute is never overwritten.
+    """
+    global markdown_to_docx
+    if "markdown_to_docx" in globals():
+        return
+    from distill.library import export
+
+    markdown_to_docx = export.markdown_to_docx
+
+
+def __getattr__(name: str) -> object:
+    """Resolve the lazily bound exporter on first module-attribute access."""
+    if name == "markdown_to_docx":
+        _bind_markdown_to_docx()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _export_okf_bundle_cli(config: DistillConfig, topic: str) -> None:
@@ -296,6 +323,7 @@ def report(  # noqa: C901 - legacy, will refactor
                 summary.add_output(docx_path)
             except Exception:
                 try:
+                    _bind_markdown_to_docx()
                     docx_path = _output_path(config, f"report-{base_name}.docx")
                     markdown_to_docx(
                         md_source,
@@ -387,6 +415,7 @@ def export(
     out_name = f"{what}-{topic}-{channel}.docx" if channel else f"{what}-{topic}.docx"
     docx_path = _output_path(config, out_name)
 
+    _bind_markdown_to_docx()
     markdown_to_docx(md_path, docx_path=docx_path, title=title)
     console.print(f"[green]Exported: {docx_path}[/green]")
     console.print(f"[dim]{docx_path.stat().st_size / 1024:.1f} KB[/dim]")

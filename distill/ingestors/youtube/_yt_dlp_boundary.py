@@ -6,8 +6,6 @@ import math
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
-from yt_dlp.utils import DateRange
-
 from distill.parsing import parse_ascii_uint
 
 YtDlpInfo = Mapping[str, object]
@@ -21,6 +19,8 @@ def ydl_params(params: Mapping[str, object]) -> Any:
 
 def date_range(start: str) -> object:
     """Create a yt-dlp date range without reaching through the package module."""
+    from yt_dlp.utils import DateRange
+
     return DateRange(cast(Any, start))
 
 

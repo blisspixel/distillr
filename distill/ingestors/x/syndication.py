@@ -12,9 +12,23 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-import httpx
-
 from distill.parsing import parse_ascii_uint, parse_bounded_json_int
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose ``httpx`` so importing this module stays cheap.
+
+    Only the live fetch path needs ``httpx``; deferring it keeps the library
+    off the CLI startup path. Tests that patch
+    ``distill.ingestors.x.syndication.httpx.Client`` keep working: this hook
+    resolves ``httpx`` to the real module on first attribute access.
+    """
+    if name == "httpx":
+        import httpx
+
+        return httpx
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # Cap the (httpx auto-decompressed) syndication body so a gzip/br bomb from a
 # hostile or compromised endpoint can't exhaust memory at JSON-parse time.
@@ -210,6 +224,8 @@ def fetch_tweet(url_or_id: str, *, timeout: float = 20.0) -> TweetRecord:
     :class:`httpx.HTTPError` on transport failure and ``ValueError`` if
     the URL is unrecognized or the response is empty.
     """
+    import httpx
+
     tweet_id = _parse_tweet_id(url_or_id) or parse_tweet_url(url_or_id)
     if not tweet_id:
         raise ValueError(f"Not a recognizable tweet URL or id: {url_or_id!r}")

@@ -23,7 +23,7 @@ import tempfile
 import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from rich.markup import escape
 
@@ -33,11 +33,6 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
     first_text,
     info_mapping,
     int_field,
-)
-from distill.ingestors.youtube.safe_ytdlp import (
-    YTDLP_METADATA_RESPONSE_BYTES,
-    YTDLP_METADATA_TOTAL_BYTES,
-    SafeYoutubeDL,
 )
 from distill.library.confined import list_confined_files, read_confined_text
 from distill.library.locking import exclusive_file_lock, open_lock_file
@@ -57,10 +52,50 @@ from distill.youtube_urls import (
     youtube_video_id_from_url,
 )
 
+if TYPE_CHECKING:
+    from distill.ingestors.youtube.safe_ytdlp import (
+        YTDLP_METADATA_RESPONSE_BYTES,
+        YTDLP_METADATA_TOTAL_BYTES,
+        SafeYoutubeDL,
+    )
+
 __all__ = [
     "MAX_TRANSCRIPT_BYTES",
     "get_transcript",
 ]
+
+_SAFE_YTDLP_NAMES = (
+    "SafeYoutubeDL",
+    "YTDLP_METADATA_RESPONSE_BYTES",
+    "YTDLP_METADATA_TOTAL_BYTES",
+)
+
+
+def _bind_safe_ytdlp() -> None:
+    """Bind the yt-dlp-backed transport on first use, not at module import.
+
+    Importing yt-dlp costs a noticeable slice of CLI startup, so this module
+    stays cheap to import and pays for the transport only when a transcript
+    fetch actually runs. Tests that patch ``SafeYoutubeDL`` on this module
+    keep working: an existing module attribute is never overwritten.
+    """
+    global SafeYoutubeDL, YTDLP_METADATA_RESPONSE_BYTES, YTDLP_METADATA_TOTAL_BYTES
+    if "SafeYoutubeDL" in globals():
+        return
+    from distill.ingestors.youtube import safe_ytdlp
+
+    SafeYoutubeDL = safe_ytdlp.SafeYoutubeDL
+    YTDLP_METADATA_RESPONSE_BYTES = safe_ytdlp.YTDLP_METADATA_RESPONSE_BYTES
+    YTDLP_METADATA_TOTAL_BYTES = safe_ytdlp.YTDLP_METADATA_TOTAL_BYTES
+
+
+def __getattr__(name: str) -> object:
+    """Resolve lazily bound transport names on first module-attribute access."""
+    if name in _SAFE_YTDLP_NAMES:
+        _bind_safe_ytdlp()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 _SCRIBE_LOCK_TIMEOUT_SECONDS = 610.0
 
@@ -198,6 +233,7 @@ def _try_youtube_captions(video_url: str, video_id: str) -> str | None:
 
 def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
     """One caption attempt: text on success, ``""`` if captionless, ``None`` on error."""
+    _bind_safe_ytdlp()
     with tempfile.TemporaryDirectory() as tmpdir:
         output_template = str(Path(tmpdir) / video_id)
 
@@ -292,6 +328,7 @@ def _try_whisper_ladder(
 
 def _download_audio(video_url: str, video_id: str, tmpdir: Path) -> tuple[Path | None, str, float]:
     """Fetch bestaudio and return its path, vocabulary hint, and duration."""
+    _bind_safe_ytdlp()
     ydl_opts: dict[str, object] = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": str(tmpdir / f"{video_id}.%(ext)s"),

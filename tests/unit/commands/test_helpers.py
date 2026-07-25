@@ -552,7 +552,7 @@ class TestResolveVideoChannelName:
     def test_fallback_to_standalone(self, monkeypatch):
         """When video_info has no channel and yt_dlp fails, returns 'standalone'."""
         monkeypatch.setattr(
-            "distill.commands._helpers.SafeYoutubeDL",
+            "distill.ingestors.youtube.safe_ytdlp.SafeYoutubeDL",
             MagicMock(side_effect=RuntimeError("yt-dlp unavailable")),
         )
 
@@ -578,7 +578,7 @@ class TestResolveVideoChannelName:
                 assert download is False
                 return {"channel": None, "uploader": 123}
 
-        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", FakeYDL)
+        monkeypatch.setattr("distill.ingestors.youtube.safe_ytdlp.SafeYoutubeDL", FakeYDL)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/watch?v=abc",
@@ -609,7 +609,7 @@ class TestResolveVideoChannelName:
                 seen_urls.append(url)
                 return {"uploader": "UploaderChannel"}
 
-        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", FakeYDL)
+        monkeypatch.setattr("distill.ingestors.youtube.safe_ytdlp.SafeYoutubeDL", FakeYDL)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/watch?v=abc",
@@ -622,7 +622,7 @@ class TestResolveVideoChannelName:
 
     def test_yt_dlp_metadata_rejects_open_redirect_without_fetching(self, monkeypatch):
         youtube_dl = MagicMock()
-        monkeypatch.setattr("distill.commands._helpers.SafeYoutubeDL", youtube_dl)
+        monkeypatch.setattr("distill.ingestors.youtube.safe_ytdlp.SafeYoutubeDL", youtube_dl)
 
         result = resolve_video_channel_name(
             "https://www.youtube.com/redirect?q=http://169.254.169.254/",

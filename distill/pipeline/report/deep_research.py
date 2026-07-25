@@ -3,8 +3,6 @@
 
 from pathlib import Path
 
-from google import genai
-
 from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
@@ -36,6 +34,22 @@ __all__ = [
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
 
 
+def __getattr__(name: str) -> object:
+    """Lazily expose ``genai`` so importing this module stays cheap.
+
+    The google-genai SDK costs roughly a second of import time, so it is
+    imported only when a report actually runs. Tests that patch
+    ``distill.pipeline.report.deep_research.genai.Client`` keep working:
+    this hook resolves ``genai`` to the real module on first attribute
+    access.
+    """
+    if name == "genai":
+        from google import genai
+
+        return genai
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def run_deep_research(
     topic: str,
     config: DistillConfig,
@@ -52,6 +66,8 @@ def run_deep_research(
         workload="report",
     )
     tracker = require_cost_tracker(tracker)
+    from google import genai
+
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
     console.print("[cyan]Preparing research corpus...[/cyan]")

@@ -10,8 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
-from google import genai
-
 from distill._console import console
 from distill.config import DistillConfig
 from distill.library.paths import (
@@ -66,6 +64,22 @@ from distill.prompts.report import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose ``genai`` so importing this module stays cheap.
+
+    The google-genai SDK costs roughly a second of import time, so it is
+    imported only when a report actually runs. Tests that patch
+    ``distill.pipeline.report.accordion.genai.Client`` keep working: this
+    hook resolves ``genai`` to the real module on first attribute access.
+    """
+    if name == "genai":
+        from google import genai
+
+        return genai
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "run_accordion_research",
@@ -283,6 +297,8 @@ def _run_dossier_phase(
         workload="report",
     )
     tracker = require_cost_tracker(tracker)
+    from google import genai
+
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())
 
     console.print("[cyan]Preparing research corpus...[/cyan]")

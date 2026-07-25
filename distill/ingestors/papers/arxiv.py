@@ -18,7 +18,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import requests
 from defusedxml.ElementTree import fromstring as xml_fromstring
 
 from distill.ingestors.local.extract import extract_pdf_text_bounded
@@ -26,6 +25,22 @@ from distill.ingestors.net import NetworkError, safe_urlopen
 from distill.parsing import parse_ascii_uint
 
 logger = logging.getLogger(__name__)
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose ``requests`` so importing this module stays cheap.
+
+    Only the PDF download path needs ``requests``; deferring it keeps the
+    library off the CLI startup path. Tests that patch
+    ``distill.ingestors.papers.arxiv.requests.get`` keep working: this hook
+    resolves ``requests`` to the real module on first attribute access.
+    """
+    if name == "requests":
+        import requests
+
+        return requests
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ARXIV_API",
@@ -296,6 +311,8 @@ def _https_arxiv_url(url: str) -> str:
 
 
 def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
+    import requests
+
     current_url = pdf_url
     for _ in range(_PDF_MAX_REDIRECTS + 1):
         if not _is_arxiv_pdf_url(current_url):

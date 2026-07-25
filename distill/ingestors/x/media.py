@@ -6,11 +6,25 @@ import urllib.parse
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-import httpx
-
 from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
 
 __all__ = ["download_video", "is_reusable_video"]
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose ``httpx`` so importing this module stays cheap.
+
+    Only the live download path needs ``httpx``; deferring it keeps the
+    library off the CLI startup path. Tests that patch
+    ``distill.ingestors.x.media.httpx.stream`` keep working: this hook
+    resolves ``httpx`` to the real module on first attribute access.
+    """
+    if name == "httpx":
+        import httpx
+
+        return httpx
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # X serves amplify_video assets from video.twimg.com. The video URL comes from
 # the attacker-influenced syndication JSON, so it is pinned to *.twimg.com AND
@@ -56,6 +70,8 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
     re-validated per hop, and the body is size-capped. These controls prevent
     SSRF and cleartext transport downgrade from hostile response metadata.
     """
+    import httpx
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     current = url
     for _ in range(_MAX_REDIRECTS + 1):

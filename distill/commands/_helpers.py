@@ -69,11 +69,6 @@ from distill.pipeline.costs import (
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping
-from distill.ingestors.youtube.safe_ytdlp import (
-    YTDLP_METADATA_RESPONSE_BYTES,
-    YTDLP_METADATA_TOTAL_BYTES,
-    SafeYoutubeDL,
-)
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.youtube_urls import (
     normalize_youtube_channel_url,
@@ -631,11 +626,16 @@ def resolve_video_channel_name(
     canonical_url = normalize_youtube_video_url(url)
     if not canonical_url:
         return "standalone"
+    # Imported at call time, through the module rather than by name: yt-dlp is
+    # slow to import and only this path needs it, and going through the module
+    # keeps the canonical patch target working for callers and tests.
+    from distill.ingestors.youtube import safe_ytdlp
+
     try:
-        with SafeYoutubeDL(
+        with safe_ytdlp.SafeYoutubeDL(
             {"quiet": True, "no_warnings": True},
-            metadata_byte_limit=YTDLP_METADATA_RESPONSE_BYTES,
-            total_byte_limit=YTDLP_METADATA_TOTAL_BYTES,
+            metadata_byte_limit=safe_ytdlp.YTDLP_METADATA_RESPONSE_BYTES,
+            total_byte_limit=safe_ytdlp.YTDLP_METADATA_TOTAL_BYTES,
         ) as ydl:
             full_info = info_mapping(ydl.extract_info(canonical_url, download=False))
             return (

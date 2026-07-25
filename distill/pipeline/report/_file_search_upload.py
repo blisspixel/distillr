@@ -8,11 +8,13 @@ import tempfile
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-
-from google import genai
-from google.genai import types
+from typing import TYPE_CHECKING
 
 from distill._console import console
+
+if TYPE_CHECKING:
+    from google import genai
+    from google.genai import types
 
 Document = tuple[str, str]
 

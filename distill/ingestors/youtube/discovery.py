@@ -4,6 +4,7 @@ import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from rich.markup import escape
 
@@ -18,11 +19,6 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
     int_field,
     text_field,
 )
-from distill.ingestors.youtube.safe_ytdlp import (
-    YTDLP_METADATA_RESPONSE_BYTES,
-    YTDLP_METADATA_TOTAL_BYTES,
-    SafeYoutubeDL,
-)
 from distill.parsing import MAX_LOOKBACK_DAYS, MAX_LOOKBACK_HOURS
 from distill.youtube_urls import (
     normalize_video_id,
@@ -31,6 +27,46 @@ from distill.youtube_urls import (
     youtube_channel_url,
     youtube_watch_url,
 )
+
+if TYPE_CHECKING:
+    from distill.ingestors.youtube.safe_ytdlp import (
+        YTDLP_METADATA_RESPONSE_BYTES,
+        YTDLP_METADATA_TOTAL_BYTES,
+        SafeYoutubeDL,
+    )
+
+_SAFE_YTDLP_NAMES = (
+    "SafeYoutubeDL",
+    "YTDLP_METADATA_RESPONSE_BYTES",
+    "YTDLP_METADATA_TOTAL_BYTES",
+)
+
+
+def _bind_safe_ytdlp() -> None:
+    """Bind the yt-dlp-backed transport on first use, not at module import.
+
+    Importing yt-dlp costs a noticeable slice of CLI startup, so this module
+    stays cheap to import and pays for the transport only when a discovery
+    call actually runs. Tests that patch ``SafeYoutubeDL`` on this module
+    keep working: an existing module attribute is never overwritten.
+    """
+    global SafeYoutubeDL, YTDLP_METADATA_RESPONSE_BYTES, YTDLP_METADATA_TOTAL_BYTES
+    if "SafeYoutubeDL" in globals():
+        return
+    from distill.ingestors.youtube import safe_ytdlp
+
+    SafeYoutubeDL = safe_ytdlp.SafeYoutubeDL
+    YTDLP_METADATA_RESPONSE_BYTES = safe_ytdlp.YTDLP_METADATA_RESPONSE_BYTES
+    YTDLP_METADATA_TOTAL_BYTES = safe_ytdlp.YTDLP_METADATA_TOTAL_BYTES
+
+
+def __getattr__(name: str) -> object:
+    """Resolve lazily bound transport names on first module-attribute access."""
+    if name in _SAFE_YTDLP_NAMES:
+        _bind_safe_ytdlp()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "VideoInfo",
@@ -119,6 +155,7 @@ def discover_videos(  # noqa: C901 — legacy, will refactor
     for meaningful 2-pass analysis. Set include_shorts=True to also scan
     the /shorts tab.
     """
+    _bind_safe_ytdlp()
     normalized_channel_url = normalize_youtube_channel_url(channel_url)
     if not normalized_channel_url:
         displayed_url = escape(url_for_diagnostic(channel_url))
@@ -236,6 +273,7 @@ def is_youtube_url(url: str) -> bool:
 
 def get_video_info(video_url: str) -> VideoInfo | None:
     """Get metadata for a single video URL."""
+    _bind_safe_ytdlp()
     canonical_url = normalize_youtube_video_url(video_url)
     if not canonical_url:
         displayed_url = escape(url_for_diagnostic(video_url))
@@ -289,6 +327,7 @@ def search_videos(
     enrich: bool = False,
 ) -> list[VideoInfo]:
     """Search YouTube for recent videos on a topic."""
+    _bind_safe_ytdlp()
     if not _bounded_positive_int(
         limit, MAX_YOUTUBE_SEARCH_RESULTS
     ) or not is_valid_youtube_lookback(days):
@@ -348,6 +387,7 @@ def search_videos(
 
 def resolve_channel_name(channel_url: str) -> str:
     """Extract channel name from URL or metadata."""
+    _bind_safe_ytdlp()
     normalized_channel_url = normalize_youtube_channel_url(channel_url)
     if not normalized_channel_url:
         return "unknown"

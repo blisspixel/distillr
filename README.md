@@ -519,7 +519,7 @@ Full cost model, the route-class table, and per-stage costs: [`docs/cost.md`](do
 
 ## Reliability and trust boundaries
 
-**What's enforced** (every release clears the same CI gate): more than 6,100 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
+**What's enforced** (every release clears the same CI gate): more than 6,300 tests at 95% **branch** coverage, ruff + import-linter dependency-direction contracts + pyright + bandit + pip-audit, pinned dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI publish action, and PEP 740 build provenance on every PyPI release. Default tests mock all LLM and network boundaries; contributors never burn API spend, and live integration tests are marked and opt-in.
 
 Mutable library and channel indexes use bounded strict-JSON reads and one
 locked read-modify-write transaction. A writer reloads current disk state
@@ -594,6 +594,10 @@ Python-first while repeated scans and algorithms can still deliver the larger
 gain. The first measured scale fix uses an ephemeral exact-Jaccard candidate
 index, and the repository benchmark runs each sample in a fresh child process
 before any Rust, Go, Mojo, or free-threaded Python spike is considered. The
+same order applied to cold start: profiling showed most of it was heavy
+third-party libraries imported at module scope rather than anything Distill
+computes, so those now load at first real use and `distill --version` dropped
+from roughly 3 seconds to about 1 on the development machine. The
 decision record and admission budgets are in
 [`docs/design/performance-and-language-admission.md`](docs/design/performance-and-language-admission.md).
 

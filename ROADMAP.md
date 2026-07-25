@@ -107,7 +107,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.39, 2026-07-18). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.45, 2026-07-25). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -291,6 +291,31 @@ feature breadth:
   ownership, model-registry, site-boundary, watch, and MCP controls pass, along
   with the complete local release gate.
 
+**Cycle 15 refinement evidence (2026-07-25).** The dedicated zero-work CLI
+startup cycle named after Cycle 13, evidence-gated per the performance
+admission policy:
+
+- `-X importtime` profiling attributed most of the 2.4-second
+  `import distill.cli` baseline to third-party libraries imported at module
+  scope: the google-genai SDK plus its transitive `mcp` dependency (about
+  1.1 seconds), python-docx, yt-dlp, requests, and httpx.
+- Each is now deferred to first real use behind a patch-compatible module
+  `__getattr__`, an explicit lazy bind that never overwrites an existing
+  module attribute, or a call-time module import, so string-path
+  monkeypatching and the hardened `safe_ytdlp` transport are unchanged.
+- Measured result on the development machine: `import distill.cli` about 0.8
+  seconds, end-to-end `distill --version` about 0.95 seconds median (from
+  roughly 3.0-3.3 seconds), `--help` about 1.0 second. A subprocess
+  regression test keeps the heavy libraries off the import path.
+- Full lazy command registration was evaluated and rejected for this cycle:
+  Typer needs every command signature for `--help`, and the compatibility
+  shim on `distill.cli` re-exports names tests patch. The remaining startup
+  cost (config-model construction, CLI-framework import) stays open
+  refinement debt.
+
+This is performance refinement on the current surface. It adds no feature
+breadth, changes no contracts, and creates no freeze signal.
+
 **Cycle 14 refinement evidence (2026-07-22).** Onboarding multi-provider clarity
 on the current surface, without a multi-cloud init wizard:
 
@@ -342,12 +367,10 @@ current product surface:
   README, usage, cost, security, architecture, and environment examples match
   the implemented readiness and billing boundaries.
 
-Measured zero-work CLI startup remains the next dedicated refinement theme.
-The current baseline is roughly 3.0 to 3.3 seconds for `--version` at the
-median and materially noisier for help. Lazy command registration needs a
-separate compatibility-focused cycle rather than being folded into these
-security and workflow fixes. This evidence adds no feature breadth and does
-not create a freeze signal.
+Measured zero-work CLI startup was named here as the next dedicated
+refinement theme (baseline roughly 3.0 to 3.3 seconds for `--version` at the
+median) and shipped as Cycle 15 above. This evidence adds no feature breadth
+and does not create a freeze signal.
 
 Lossless history archival, live assistive-technology review, representative
 browser media, a measured performance baseline, broad test-fixture typing, and
@@ -388,7 +411,7 @@ findings, evidence, fixes, and prioritized product implications are recorded in
 
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.40. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.45. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 The bounded active-session handoff now ships: provider-neutral tasks can be
 atomically claimed through `distill worker`, completed only in an isolated
@@ -493,6 +516,12 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
     branch coverage. The release adds the bounded active-session worker,
     generated multi-client Agent Skill distributions, and the verified
     preview-first direct-install fallback described above.
+  - Status 2026-07-25: the 0.19.45 local release gate passes 6,373 tests with
+    four platform skips and eight live-network tests deselected at 95.06
+    percent branch coverage, alongside ruff, pyright, import-linter, bandit,
+    and both generated-contract checks. The generated CLI and MCP contract
+    snapshots are unchanged by the startup work, which is the evidence that
+    the cycle moved no public surface.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.
 - **Pyright blocking across the full package surface, with strict-mode promotion still open.** CI runs `pyright --warnings distill/` and fails on any diagnostic. `distill/llm/` is centrally strict, and promoted modules elsewhere carry file-level strict directives; remaining packages continue through the strict ratchet before 1.0. No `# type: ignore` without an inline reason comment.
 - **Parse, don't validate - strict domain types at every boundary.** Every external input (MCP tool arguments, frontmatter parsing, local-file/adapter ingest, LLM structured outputs) is *parsed once* at the system boundary into a rich domain type (a Pydantic v2 model with `strict=True, extra='forbid'`, a `NewType`, or a frozen dataclass), not re-validated ad hoc deeper in. Core logic never receives raw primitives that could be invalid - illegal states are made unrepresentable, so malformed input fails at the boundary with a precise error instead of propagating. The audit health surface now parses verify sidecars into typed flag rows and stale prompt records before rendering or action planning. The shared dashboard data surface parses cost logs, latest-run payloads, topic-change history, and site manifests into typed records before CLI or web renderers read them. Shared command helpers now preserve typed metadata-writing and duration-formatting contracts before artifact writes. Topic diff, trend, watch-alert, and change-history command paths now use typed topic-change rows and typed count records before writing artifacts or rendering command output. Reinforces the verifiable-corpus thesis: the corpus is only as trustworthy as the parsing on what enters it.

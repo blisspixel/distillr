@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.45 - 2026-07-25
+
+Zero-work CLI startup cycle: the dedicated refinement theme named in the
+roadmap after Cycle 13. Median `distill --version` drops from roughly 3.0-3.3
+seconds to about 1 second by removing heavy third-party libraries from the
+import path; no command behavior, flag, schema, or contract changes.
+
+### Changed
+
+- Deferred the google-genai SDK (which transitively imports `mcp`) out of the
+  five report modules to first real use. Measured with `-X importtime`, that
+  chain alone cost about 1.1 seconds of the 2.4-second `import distill.cli`
+  baseline. Modules whose only remaining references were annotations import it
+  under `TYPE_CHECKING`; modules with runtime use import it inside the function
+  that builds the client, and a module `__getattr__` keeps the
+  `<module>.genai.Client` monkeypatch paths used by the test suite resolving.
+- Deferred python-docx (about 0.17 seconds) behind a lazy bind in the reports
+  command: the exporter binds on first export and tests that patch
+  `markdown_to_docx` on the command module keep working because an existing
+  module attribute is never overwritten.
+- Deferred yt-dlp (about 0.14 seconds) by lazily binding the SSRF-safe
+  `SafeYoutubeDL` transport in the two YouTube ingestors that use it heavily
+  (discovery and transcripts) and by importing it through its module at call
+  time in the shared command helpers, which have one use site. The
+  `DateRange` import moved inside the one boundary helper that needs it. The
+  hardened `safe_ytdlp` module itself is unchanged, and it stays the single
+  canonical patch target for the command-helper path.
+- Deferred `requests` (arXiv PDF download) and `httpx` (X syndication and
+  media download) to their fetch functions with the same patch-compatible
+  module `__getattr__` shape.
+- Added a startup-hygiene regression suite: a subprocess test asserts
+  `import distill.cli` loads none of google-genai, mcp, docx, yt-dlp,
+  requests, or httpx, and unit tests pin the lazy hooks' resolution,
+  stability, and unknown-attribute behavior.
+
+Measured on the development machine (Windows, Python 3.12): `import
+distill.cli` fell from about 2.4 seconds to about 0.8 seconds, and end-to-end
+`distill --version` from roughly 3.0-3.3 seconds to about 0.95 seconds, with
+`--help` at about 1.0 second. The remaining startup cost is config-model
+construction and CLI-framework import, tracked as future refinement.
+
 ## 0.19.44 - 2026-07-25
 
 Third bug-hunt pass, closing the remaining verified findings. Every fix carries a

@@ -7,9 +7,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypedDict
-
-from google import genai
+from typing import TYPE_CHECKING, TypedDict
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -17,6 +15,9 @@ from distill.library.confined import list_confined_directories, read_confined_te
 from distill.library.paths import find_artifact
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
 from distill.pipeline.report._file_search_upload import upload_documents
+
+if TYPE_CHECKING:
+    from google import genai
 
 __all__ = [
     "cleanup_created_store",
