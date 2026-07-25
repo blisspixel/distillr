@@ -58,6 +58,14 @@ _PUBLIC_COST_FIELDS = (
     "by_provider",
     "by_route_class",
     "usage_ledger",
+    # Scope markers the writer stamps precisely to disqualify a confident total.
+    # Omitting them stripped them from every projected row, so MCP consumers
+    # summed ``actual_cost`` and published a clean "$0.00" for runs whose
+    # external cost is explicitly unknown (host-managed or remote-local routes).
+    # The CLI reads raw rows and reports the scope correctly; the projection has
+    # to carry them so the MCP surfaces can do the same.
+    "external_cost_status",
+    "actual_cost_scope",
 )
 
 

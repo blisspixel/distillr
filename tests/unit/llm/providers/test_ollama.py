@@ -1237,3 +1237,116 @@ class TestDescribeOllamaError:
 
     def test_ordinary_exception_uses_its_message(self) -> None:
         assert _describe_ollama_error(ValueError("boom")) == "boom"
+
+
+def test_transient_show_error_does_not_pin_the_context_window() -> None:
+    """A retryable /api/show failure must not cache the degraded 4096 window.
+
+    Caching any HTTP error pinned the window to 4096 for the process lifetime, so
+    after one 503 every later call silently truncated long prompts to ~4k tokens
+    while still reporting success -- the run "worked" but analyzed a fraction of
+    the input.
+    """
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    responses = [
+        _mock_httpx_response({}, status_code=503),
+        _mock_httpx_response({"model_info": {"llama.context_length": 262144}}),
+    ]
+
+    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        return responses.pop(0)
+
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post = mock_post
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_cls.return_value = mock_client
+
+        degraded = asyncio.run(provider.get_context_window("qwen3.5:27b"))
+        recovered = asyncio.run(provider.get_context_window("qwen3.5:27b"))
+
+    assert degraded == 4096
+    assert recovered == 262144
+
+
+def test_terminal_show_error_is_cached_and_not_reprobed() -> None:
+    """An unpulled model (404) stays cached, preserving the original intent."""
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    calls: list[int] = []
+
+    async def mock_post(*args: Any, **kwargs: Any) -> httpx.Response:
+        calls.append(1)
+        return _mock_httpx_response({}, status_code=404)
+
+    with patch("httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.post = mock_post
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_cls.return_value = mock_client
+
+        first = asyncio.run(provider.get_context_window("model-not-pulled"))
+        second = asyncio.run(provider.get_context_window("model-not-pulled"))
+
+    assert (first, second) == (4096, 4096)
+    assert len(calls) == 1
+
+
+class _RawLineStreamResponse(_FakeStreamResponse):
+    """Stream response that emits raw, possibly-malformed NDJSON lines."""
+
+    def __init__(self, lines: list[str]) -> None:
+        super().__init__([])
+        self._lines = lines
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        for line in self._lines:
+            yield line
+
+
+class _RawLineStreamClient:
+    """httpx.AsyncClient stand-in that streams raw lines verbatim."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    def __call__(self, **kwargs: Any) -> _RawLineStreamClient:
+        del kwargs
+        return self
+
+    async def __aenter__(self) -> _RawLineStreamClient:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    def stream(self, *args: Any, **kwargs: Any) -> _FakeStream:
+        del args, kwargs
+        return _FakeStream(_RawLineStreamResponse(self._lines))
+
+
+def test_malformed_chat_frames_are_skipped_not_crashed() -> None:
+    """A hostile or malformed NDJSON frame must not escape as a raw exception.
+
+    ``json.loads(line)`` followed by ``frame.get(...)`` raised JSONDecodeError or
+    AttributeError straight out of the provider, bypassing the retry loop, the
+    conservative-usage accounting, and the Ollama error diagnostics -- the run
+    aborted with an undiagnosable traceback and a 0-token ledger row.
+    """
+    done = json.dumps(
+        {
+            "message": {"content": "hello"},
+            "done": True,
+            "prompt_eval_count": 5,
+            "eval_count": 2,
+        }
+    )
+    hostile = ["[1,2,3]", "{not json", json.dumps({"message": "a string"}), done]
+    client = _RawLineStreamClient(hostile)
+
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    with patch("distill.llm.providers.ollama.httpx.AsyncClient", client):
+        response = asyncio.run(provider._stream_chat("m", {}, 5))  # pyright: ignore[reportPrivateUsage]
+
+    assert response.text == "hello"

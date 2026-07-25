@@ -63,13 +63,32 @@ def _cost_result(recent: list[dict[str, object]], cost_scan: CostLogScan, log_fi
             "The returned cost total is unavailable because valid cost values exceed "
             "the supported aggregate range."
         )
+    # A run whose external cost is unavailable (host-managed or remote-local
+    # route) contributes 0 to ``actual_cost``. Reporting that sum as a complete
+    # figure would state a confident total the retained evidence cannot support,
+    # so name the narrower scope and warn, exactly as ``distill costs`` does.
+    external_cost_unavailable = any(
+        entry.get("external_cost_status") == "unavailable" for entry in recent
+    )
+    if external_cost_unavailable:
+        messages.append(
+            "The returned total covers direct Distill charges only: at least one run "
+            "used a route whose external cost is unavailable."
+        )
     return json.dumps(
         {
-            "status": "ok" if cost_scan.complete and total is not None else "warning",
+            "status": (
+                "ok"
+                if cost_scan.complete and total is not None and not external_cost_unavailable
+                else "warning"
+            ),
             "runs": recent,
             "total_cost": round(total, 4) if total is not None else None,
             "runs_shown": len(recent),
-            "total_scope": "returned_valid_runs",
+            "total_scope": (
+                "distill-direct-charges" if external_cost_unavailable else "returned_valid_runs"
+            ),
+            "external_cost_status": "unavailable" if external_cost_unavailable else "complete",
             "cost_history": cost_scan.coverage(),
             **({"message": " ".join(messages)} if messages else {}),
         },

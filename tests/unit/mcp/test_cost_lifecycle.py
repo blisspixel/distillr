@@ -411,3 +411,56 @@ def test_catch_up_provider_failure_persists_usage_before_propagating(tmp_path: P
     assert len(rows) == 1
     assert rows[0]["command"] == "catch-up"
     assert rows[0]["grok_calls"] == 1
+
+
+def test_mcp_cost_total_is_scoped_when_external_cost_is_unavailable() -> None:
+    """MCP must not publish a confident total for runs with unknown external cost.
+
+    ``project_cost_log_row`` dropped the writer's ``external_cost_status`` and
+    ``actual_cost_scope`` markers, so a host-managed or remote-local run (which
+    records 0 direct spend) was summed and reported as a clean, complete total --
+    while ``distill costs`` correctly reported the narrower scope.
+    """
+    import json
+    from pathlib import Path
+
+    from distill.mcp.tools.costs import _cost_result  # pyright: ignore[reportPrivateUsage]
+    from distill.pipeline.cost_history import CostLogScan, project_cost_log_row
+
+    row = project_cost_log_row(
+        {
+            "timestamp": "2026-07-24T00:00:00Z",
+            "command": "corpus",
+            "actual_cost": 0.0,
+            "external_cost_status": "unavailable",
+            "actual_cost_scope": "distill-direct-charges",
+        }
+    )
+    assert row["external_cost_status"] == "unavailable"
+    assert row["actual_cost_scope"] == "distill-direct-charges"
+
+    payload = json.loads(_cost_result([row], CostLogScan(), Path("cost_log.jsonl")))
+
+    assert payload["status"] == "warning"
+    assert payload["total_scope"] == "distill-direct-charges"
+    assert payload["external_cost_status"] == "unavailable"
+    assert "external cost is unavailable" in payload["message"]
+
+
+def test_mcp_cost_total_stays_complete_for_fully_known_runs() -> None:
+    """A run with fully known cost keeps the unqualified scope and ok status."""
+    import json
+    from pathlib import Path
+
+    from distill.mcp.tools.costs import _cost_result  # pyright: ignore[reportPrivateUsage]
+    from distill.pipeline.cost_history import CostLogScan, project_cost_log_row
+
+    row = project_cost_log_row(
+        {"timestamp": "2026-07-24T00:00:00Z", "command": "papers", "actual_cost": 1.25}
+    )
+    payload = json.loads(_cost_result([row], CostLogScan(), Path("cost_log.jsonl")))
+
+    assert payload["status"] == "ok"
+    assert payload["total_scope"] == "returned_valid_runs"
+    assert payload["external_cost_status"] == "complete"
+    assert payload["total_cost"] == 1.25

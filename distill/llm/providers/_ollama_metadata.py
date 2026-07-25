@@ -11,6 +11,7 @@ here, so the provider's public surface is unchanged.
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 import httpx
@@ -27,6 +28,8 @@ __all__ = [
     "_is_thinking_model",
     "_uses_structured_json",
     "build_chat_payload",
+    "is_terminal_show_status",
+    "parse_chat_frame",
     "parse_context_window",
 ]
 
@@ -147,3 +150,42 @@ def parse_context_window(data: object) -> int:
                 return bounded_context_window(parts[-1], maximum=_MAX_CONTEXT_WINDOW) or 0
 
     return 0
+
+
+def parse_chat_frame(line: str) -> tuple[dict[str, Any], str, str] | None:
+    """Parse one NDJSON chat frame into ``(frame, content, thinking)``.
+
+    Frames are provider-controlled input. ``json.loads`` followed by
+    ``frame.get(...)`` raised ``JSONDecodeError``/``AttributeError`` straight out
+    of the provider, bypassing the retry loop, the conservative-usage accounting,
+    and the Ollama error diagnostics. Return ``None`` for anything unreadable so
+    the caller can skip it, matching the bounded ``/api/tags`` and ``/api/ps``
+    parsers.
+    """
+    try:
+        frame = json.loads(line)
+    except ValueError:
+        return None
+    if not isinstance(frame, dict):
+        return None
+    frame = cast("dict[str, Any]", frame)
+    message = frame.get("message")
+    message = cast("dict[str, Any]", message) if isinstance(message, dict) else {}
+    content = message.get("content")
+    thinking = message.get("thinking")
+    return (
+        frame,
+        content if isinstance(content, str) else "",
+        thinking if isinstance(thinking, str) else "",
+    )
+
+
+# ``/api/show`` statuses that describe the model itself rather than a passing
+# server condition. Only these justify caching the degraded default window; a 5xx
+# or 429 is retryable and must not pin the window for the process lifetime.
+_TERMINAL_SHOW_STATUSES = frozenset({400, 401, 403, 404, 410, 422})
+
+
+def is_terminal_show_status(status: int) -> bool:
+    """Whether an ``/api/show`` status describes the model, not a transient fault."""
+    return status in _TERMINAL_SHOW_STATUSES

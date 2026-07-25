@@ -300,18 +300,31 @@ def get_costs() -> str:
     cost_scan = scan_confined_cost_log(log_file, config.library_dir)
     recent = [project_cost_log_row(entry) for entry in cost_scan.rows[-20:]]
     total = sum(_cost_value(e) for e in recent)
+    # Runs on a host-managed or remote-local route record 0 direct spend with
+    # their external cost explicitly unavailable. Summing those into a total
+    # presented as complete would overstate what the evidence supports.
+    external_cost_unavailable = any(
+        entry.get("external_cost_status") == "unavailable" for entry in recent
+    )
+    messages: list[str] = []
+    if not cost_scan.complete:
+        messages.append(cost_history_integrity_message(log_file, cost_scan))
+    if external_cost_unavailable:
+        messages.append(
+            "The returned total covers direct Distill charges only: at least one run "
+            "used a route whose external cost is unavailable."
+        )
     return json.dumps(
         {
             "recent_runs": recent,
             "total_cost": round(total, 4),
             "runs_shown": len(recent),
-            "total_scope": "returned_valid_runs",
-            "cost_history": cost_scan.coverage(),
-            **(
-                {"message": cost_history_integrity_message(log_file, cost_scan)}
-                if not cost_scan.complete
-                else {}
+            "total_scope": (
+                "distill-direct-charges" if external_cost_unavailable else "returned_valid_runs"
             ),
+            "external_cost_status": "unavailable" if external_cost_unavailable else "complete",
+            "cost_history": cost_scan.coverage(),
+            **({"message": " ".join(messages)} if messages else {}),
         },
         indent=2,
     )

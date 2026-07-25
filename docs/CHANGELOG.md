@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.43 - 2026-07-24
+
+Second bug-hunt pass, continuing from 0.19.42. Every fix carries a regression
+test.
+
+### Fixed
+
+- Stopped the MCP cost surfaces publishing a confident total for runs whose
+  external cost is explicitly unknown. The row projection dropped the writer's
+  `external_cost_status` and `actual_cost_scope` markers, so a host-managed or
+  remote-local run (which records zero direct spend) was summed and reported as a
+  clean, complete `$0.00` while `distill costs` correctly reported the narrower
+  scope. Both the `costs` tool and the cost resource now carry the markers,
+  report `distill-direct-charges` scope, and warn.
+- Stopped a transient Ollama `/api/show` failure pinning the context window to
+  4096 for the process lifetime. Any HTTP error was negative-cached, so after one
+  503 or 429 every later call silently truncated long prompts to roughly 4k
+  tokens while still reporting success. Only a terminal status (the unpulled-model
+  404 the behavior was written for) is cached now; a retryable status re-probes.
+- Made Ollama chat-stream parsing tolerate malformed frames. A non-object or
+  unparseable NDJSON frame raised `AttributeError` or `JSONDecodeError` straight
+  out of the provider, bypassing the retry loop, the conservative-usage
+  accounting, and the Ollama error diagnostics, so the run aborted with an
+  undiagnosable traceback and a zero-token ledger row. Unreadable frames are now
+  skipped, matching the bounded parsers used for `/api/tags` and `/api/ps`.
+
+### Changed
+
+- Moved NDJSON chat-frame parsing and the `/api/show` terminal-status predicate
+  into `_ollama_metadata`, keeping `ollama.py` transport-focused and back under
+  the 500-line module cap.
+
 ## 0.19.42 - 2026-07-24
 
 Targeted bug-hunt pass over the routing, cost, persistence, ingestion, and MCP

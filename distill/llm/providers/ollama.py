@@ -8,7 +8,6 @@ Override with OLLAMA_BASE_URL environment variable.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import time
@@ -31,6 +30,8 @@ from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPr
     _canonical_model_name,
     _describe_ollama_error,
     build_chat_payload,
+    is_terminal_show_status,
+    parse_chat_frame,
     parse_context_window,
 )
 from distill.llm.providers._ollama_registry import (
@@ -356,12 +357,17 @@ class OllamaProvider:
             async for line in response.aiter_lines():
                 if not line.strip():
                     continue
-                frame = json.loads(line)
-                frame_message = frame.get("message", {})
-                if frame_message.get("content"):
-                    content_parts.append(frame_message["content"])
-                if frame_message.get("thinking"):
-                    thinking_parts.append(frame_message["thinking"])
+                # Provider-controlled input: skip frames we cannot read rather
+                # than raising past the retry loop and usage accounting.
+                parsed_frame = parse_chat_frame(line)
+                if parsed_frame is None:
+                    logger.debug("Skipping malformed Ollama chat frame")
+                    continue
+                frame, content_value, thinking_value = parsed_frame
+                if content_value:
+                    content_parts.append(content_value)
+                if thinking_value:
+                    thinking_parts.append(thinking_value)
                 if frame.get("done"):
                     input_tokens = frame.get("prompt_eval_count", 0) or 0
                     output_tokens = frame.get("eval_count", 0) or 0
@@ -447,12 +453,20 @@ class OllamaProvider:
             # window rather than failing the run. Connection and timeout errors
             # are deliberately not caught here, so retry/backoff behavior and the
             # "start Ollama" hint above are unchanged.
+            status = exc.response.status_code
             logger.warning(
                 "Ollama /api/show returned %s for '%s'; defaulting context window to 4096",
-                exc.response.status_code,
+                status,
                 model,
             )
-            self._context_window_cache[model] = 4096
+            # Only a terminal status means "this model has no window to discover"
+            # (an unpulled model 404s). Caching a transient 5xx/429 pinned the
+            # window to 4096 for the whole process, so every later call silently
+            # truncated long prompts to ~4k tokens while still reporting success.
+            # Leave the cache untouched for retryable statuses so the next call
+            # re-probes.
+            if is_terminal_show_status(status):
+                self._context_window_cache[model] = 4096
             return 4096
 
     _parse_context_window = staticmethod(parse_context_window)
