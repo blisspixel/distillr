@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.46 - 2026-07-26
+
+Local-validation hardening release. A no-metered graph-agentic dogfood run
+exposed direct-ingest visibility, brief-generation, and optional entailment
+verification defects. This release fixes them without changing provider
+eligibility or public contracts.
+
+The maintainer waived a new native Claude plugin evaluation for this release
+under the stated $2 total-spend ceiling. The canonical skill payload is
+unchanged. Substitute validation consists of the no-metered local dogfood run,
+generated-distribution drift and schema checks, deterministic archive builds,
+and isolated installed-wheel smoke tests.
 
 ### Fixed
 

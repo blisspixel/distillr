@@ -107,7 +107,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.45, 2026-07-25). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.46, 2026-07-26). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -411,7 +411,7 @@ findings, evidence, fixes, and prioritized product implications are recorded in
 
 ### 0.18 and 0.19 shipped -> the changelog
 
-0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.45. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+0.18 (batch-run visibility) and 0.19 (recurring research profiles + no-metered-cost routing) shipped through 0.19.46. Per the convention above, per-release detail lives in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); the design rationale is in [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/cli-adapter-runbook.md`](docs/design/cli-adapter-runbook.md), and [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
 The bounded active-session handoff now ships: provider-neutral tasks can be
 atomically claimed through `distill worker`, completed only in an isolated
@@ -522,6 +522,11 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
     and both generated-contract checks. The generated CLI and MCP contract
     snapshots are unchanged by the startup work, which is the evidence that
     the cycle moved no public surface.
+  - Status 2026-07-26: the 0.19.46 local release gate passes 6,383 tests with
+    four platform skips and eight live-network tests deselected at 95.05
+    percent branch coverage. The release hardens direct-ingest visibility,
+    local brief generation, and optional prose verification while preserving
+    provider eligibility and the generated public contracts.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.
 - **Pyright blocking across the full package surface, with strict-mode promotion still open.** CI runs `pyright --warnings distill/` and fails on any diagnostic. `distill/llm/` is centrally strict, and promoted modules elsewhere carry file-level strict directives; remaining packages continue through the strict ratchet before 1.0. No `# type: ignore` without an inline reason comment.
 - **Parse, don't validate - strict domain types at every boundary.** Every external input (MCP tool arguments, frontmatter parsing, local-file/adapter ingest, LLM structured outputs) is *parsed once* at the system boundary into a rich domain type (a Pydantic v2 model with `strict=True, extra='forbid'`, a `NewType`, or a frozen dataclass), not re-validated ad hoc deeper in. Core logic never receives raw primitives that could be invalid - illegal states are made unrepresentable, so malformed input fails at the boundary with a precise error instead of propagating. The audit health surface now parses verify sidecars into typed flag rows and stale prompt records before rendering or action planning. The shared dashboard data surface parses cost logs, latest-run payloads, topic-change history, and site manifests into typed records before CLI or web renderers read them. Shared command helpers now preserve typed metadata-writing and duration-formatting contracts before artifact writes. Topic diff, trend, watch-alert, and change-history command paths now use typed topic-change rows and typed count records before writing artifacts or rendering command output. Reinforces the verifiable-corpus thesis: the corpus is only as trustworthy as the parsing on what enters it.
