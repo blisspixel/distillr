@@ -57,6 +57,8 @@ _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s")
 _BULLET_PREFIX_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
+_STRONG_EMPHASIS_RE = re.compile(r"(?P<marker>\*\*|__)(?P<text>.+?)(?P=marker)")
+_INLINE_CODE_RE = re.compile(r"`+(?P<text>[^`]+?)`+")
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
@@ -129,8 +131,14 @@ def extract_entailment_claims(insight_text: str) -> list[EntailmentClaim]:
         if in_fence or _HEADING_RE.match(raw_line):
             continue
         line = _URL_RE.sub(" ", raw_line)
-        line = _BULLET_PREFIX_RE.sub("", line).strip().strip("*_").strip()
-        if len(line) >= _MIN_CLAIM_CHARS:
+        line = _BULLET_PREFIX_RE.sub("", line).strip()
+        line = _STRONG_EMPHASIS_RE.sub(r"\g<text>", line)
+        line = _INLINE_CODE_RE.sub(r"\g<text>", line)
+        line = line.strip().strip("*_").strip()
+        # A question asks for evidence; it does not assert a proposition that
+        # can be entailed by the receipt. Open-question sections commonly use
+        # full-length bullets, so exclude their structural marker explicitly.
+        if len(line) >= _MIN_CLAIM_CHARS and not line.endswith("?"):
             claims.append(EntailmentClaim(text=line))
     return claims
 

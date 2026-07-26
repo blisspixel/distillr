@@ -324,7 +324,7 @@ def ask_corpus(
         source_name="(retrieved corpus excerpts)",
         require_entailment=save,
     )
-    if outcome is not None and not outcome.report.ok:
+    if outcome is not None and outcome.has_flags:
         style = "red" if save else "yellow"
         console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
 

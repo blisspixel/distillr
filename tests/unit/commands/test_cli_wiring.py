@@ -620,6 +620,21 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "TestCh" in result.output
 
+    def test_status_includes_direct_ingest_topic(self, mock_config):
+        insight = mock_config.topic_dir("direct") / "local" / "source" / "source_Insights.md"
+        insight.parent.mkdir(parents=True)
+        insight.write_text(
+            '---\nsource: "local"\nsource_id: "source.md"\n---\n\n# Insight\n',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["status"])
+
+        assert result.exit_code == 0
+        assert "Library is empty" not in result.output
+        assert "direct" in result.output
+        assert "1 source insight" in result.output
+
 
 class TestFormatHelpers:
     """Test the CLI helper functions directly."""
@@ -1302,6 +1317,19 @@ class TestTopicCommands:
         assert "Topic Summary" in result.output
         assert "Microsoft Fabric best practices" in result.output
         assert "videos=10 papers=10 days=30" in result.output
+
+    def test_topic_show_summary_counts_direct_source_insights(self, mock_config):
+        insight = mock_config.topic_dir("direct") / "local" / "source" / "source_Insights.md"
+        insight.parent.mkdir(parents=True)
+        insight.write_text(
+            '---\nsource: "local"\nsource_id: "source.md"\n---\n\n# Insight\n',
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cli.app, ["topic", "show", "direct"])
+
+        assert result.exit_code == 0
+        assert "1 source insight(s)" in result.output
 
     def test_topic_watch_uses_saved_profile(self, mock_config, monkeypatch):
         topic_dir = mock_config.topic_dir("fabric")

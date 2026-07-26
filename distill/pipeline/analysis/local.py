@@ -99,7 +99,7 @@ def ingest_local_file(
             insight_name=artifact_path(local_dir, "insights", identity=slug).name,
             source_name=document_path.name,
         )
-        if outcome is not None and not outcome.report.ok:
+        if outcome is not None and outcome.has_flags:
             style = "red" if outcome.refused else "yellow"
             console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
         if outcome is None or not outcome.refused:

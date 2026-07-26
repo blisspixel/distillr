@@ -322,6 +322,47 @@ def test_local_ingest_strict_refuses_insight(tmp_path, monkeypatch):
     assert list(local_dirs[0].glob("*_Content.md"))  # receipt kept
 
 
+def test_local_ingest_reports_prose_only_refusal(tmp_path, monkeypatch, capsys):
+    """A semantic-only strict refusal must be visible to CLI callers."""
+    from distill.config import DistillConfig
+    from distill.llm.router import LLM_Response
+    from distill.pipeline import verify as verify_mod
+    from distill.pipeline.analysis import local as local_mod
+
+    class FlaggingChecker:
+        model_name = "flagging-checker"
+
+        def score(self, evidence: str, claim: str) -> float:
+            return 0.1
+
+    monkeypatch.setattr(verify_mod, "_checker", FlaggingChecker())
+    monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+    monkeypatch.setattr(
+        local_mod,
+        "llm_call",
+        lambda rc, **kwargs: LLM_Response(
+            text=(
+                "- The external scheduler always guarantees perfect delivery for every agent task."
+            ),
+            input_tokens=1,
+            output_tokens=1,
+            model="grok-4.3",
+        ),
+    )
+    config = DistillConfig(
+        xai_api_key="t", distill_output_dir=tmp_path / "library", distill_verify="strict"
+    )
+    doc = tmp_path / "notes.md"
+    doc.write_text("External schedulers coordinate task delivery.", encoding="utf-8")
+
+    result = local_mod.ingest_local_file(doc, topic="tkg", config=config)
+
+    assert result.insights_path is None
+    output = capsys.readouterr().out
+    assert "verify strict: refused" in output
+    assert "1 prose claim(s)" in output
+
+
 def test_apply_verify_override_sets_env_and_rejects_typos(monkeypatch):
     import typer
 

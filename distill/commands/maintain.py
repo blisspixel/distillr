@@ -80,6 +80,7 @@ from distill.commands.dashboard import (
 )
 from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
+from distill.library.insights import discover_insights
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelInfo, ChannelState
 from distill.llm.cost_policy import require_route_allowed
@@ -633,7 +634,7 @@ def status(  # noqa: C901 — legacy, will refactor
     lib = Library(config)
     _ACCENT = "rgb(100,149,237)"
 
-    topics = lib.get_topics()
+    topics = lib.get_corpus_topics()
     if not topics:
         console.print("[dim]Library is empty.[/dim]")
         console.print("[dim]Setup:[/dim]")
@@ -647,6 +648,7 @@ def status(  # noqa: C901 — legacy, will refactor
 
     total_videos = 0
     total_channels = 0
+    total_source_insights = 0
 
     # ── Show everything instantly (local data only) ───────────
     # Collect channel info for potential online check later
@@ -655,6 +657,9 @@ def status(  # noqa: C901 — legacy, will refactor
     for topic in topics:
         channels = lib.get_channels(topic)
         total_channels += len(channels)
+        topic_dir = config.topic_dir(topic)
+        source_insight_count = len(discover_insights(topic_dir))
+        total_source_insights += source_insight_count
 
         topic_videos = 0
         for ch in channels:
@@ -667,11 +672,14 @@ def status(  # noqa: C901 — legacy, will refactor
         # Topic header
         ch_count = len(channels)
         ch_label = f"{ch_count} channel{'s' if ch_count != 1 else ''}"
+        insight_label = (
+            f"{source_insight_count} source insight{'s' if source_insight_count != 1 else ''}"
+        )
         console.print(
             f"\n  [bold]{topic}[/bold]"
             f"    [dim]{ch_label},"
             f" [{_ACCENT}]{topic_videos}[/{_ACCENT}]"
-            f" analyzed[/dim]"
+            f" analyzed, {insight_label}[/dim]"
         )
 
         # Per-channel details
@@ -717,10 +725,13 @@ def status(  # noqa: C901 — legacy, will refactor
             )
 
         # Topic-level outputs with dates
-        topic_dir = config.topic_dir(topic)
         topic_outs: list[str] = []
         for label, path in [
             ("synthesis", find_artifact(topic_dir, "topic_synthesis", identity=topic)),
+            (
+                "corpus synthesis",
+                find_artifact(topic_dir, "corpus_synthesis", identity=topic),
+            ),
             ("brief", find_artifact(topic_dir, "brief", identity=topic)),
             ("report", find_artifact(topic_dir, "report", identity=topic)),
         ]:
@@ -739,7 +750,9 @@ def status(  # noqa: C901 — legacy, will refactor
     # Footer
     console.print(
         f"\n  {total_channels} channel{'s' if total_channels != 1 else ''},"
-        f" {total_videos} videos analyzed"
+        f" {total_videos} videos analyzed,"
+        f" {total_source_insights} source "
+        f"insight{'s' if total_source_insights != 1 else ''}"
     )
 
     # ── Optional online check ─────────────────────────────────

@@ -356,6 +356,11 @@ class VerifyOutcome:
         return len(self.entailment.flagged) if self.entailment else 0
 
     @property
+    def has_flags(self) -> bool:
+        """Whether either verification tier found unsupported claims."""
+        return not self.report.ok or self._entailment_flags > 0
+
+    @property
     def refused(self) -> bool:
         if self.report.mode != "strict":
             return False
@@ -524,7 +529,7 @@ def run_synthesis_verify(
         summary = outcome.summary_line.rsplit("; see ", 1)[0]
         notify(f"{summary}; previous artifact and verification sidecar retained")
         return True
-    if not outcome.report.ok:
+    if outcome.has_flags:
         notify(outcome.summary_line)
     try:
         write_verify_sidecar(

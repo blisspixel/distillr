@@ -62,7 +62,10 @@ dependencies = [
 # absent means the deterministic tier stands alone, exactly as before.
 [project.optional-dependencies]
 entailment = [
-    "transformers>=4.44",
+    # HHEM-2.1-Open's pinned remote model class uses the Transformers 4 API.
+    # Transformers 5 removes that compatibility surface and the checker cannot
+    # load, so keep this optional tier on the supported major line.
+    "transformers>=4.44,<5",
     "torch>=2.3",
 ]
 

@@ -72,6 +72,45 @@ def test_generate_topic_brief_uses_video_metadata_in_source_link(tmp_path):
     assert "Great Talk" in captured["prompt"]
 
 
+def test_generate_topic_brief_uses_corpus_synthesis_fallback(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic_dir = config.topic_dir("fabric")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "corpus_synthesis.md").write_text("# Corpus synthesis", encoding="utf-8")
+    captured: dict[str, str] = {}
+
+    def _call(config, workload_tag, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return LLM_Response(text="# Brief", input_tokens=120, output_tokens=80, model="grok-4.3")
+
+    with patch("distill.pipeline.report.briefing.llm_call", _call):
+        result = generate_topic_brief("fabric", config)
+
+    assert result is not None
+    assert "Corpus synthesis" in captured["prompt"]
+
+
+def test_generate_topic_brief_uses_direct_local_insight(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    insight = config.topic_dir("fabric") / "local" / "source" / "source_Insights.md"
+    insight.parent.mkdir(parents=True, exist_ok=True)
+    insight.write_text(
+        '---\nsource: "local"\nsource_id: "source.md"\n---\n\n# Local insight',
+        encoding="utf-8",
+    )
+    captured: dict[str, str] = {}
+
+    def _call(config, workload_tag, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return LLM_Response(text="# Brief", input_tokens=120, output_tokens=80, model="grok-4.3")
+
+    with patch("distill.pipeline.report.briefing.llm_call", _call):
+        result = generate_topic_brief("fabric", config)
+
+    assert result is not None
+    assert "Local insight" in captured["prompt"]
+
+
 def test_generate_topic_brief_returns_none_when_llm_returns_empty(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic_dir = config.topic_dir("fabric")

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 from distill.config import DistillConfig
+from distill.library.insights import discover_insights, read_discovered_insight
 from distill.library.paths import (
     ProvenanceFields,
     base_frontmatter,
@@ -57,10 +58,15 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
     topic_dir = config.topic_dir(topic)
     topic_dir.mkdir(parents=True, exist_ok=True)
 
-    synth_file = find_artifact(topic_dir, "topic_synthesis", identity=topic)
-    topic_synthesis = synth_file.read_text(encoding="utf-8") if synth_file.exists() else ""
+    synthesis_context = ""
+    for artifact_type in ("topic_synthesis", "corpus_synthesis", "paper_synthesis"):
+        synth_file = find_artifact(topic_dir, artifact_type, identity=topic)
+        if synth_file.exists():
+            synthesis_context = synth_file.read_text(encoding="utf-8")
+            break
 
     insight_parts: list[str] = []
+    included_insights: set[Path] = set()
     channels_dir = topic_dir / "channels"
     if channels_dir.exists():
         for channel_dir in sorted(channels_dir.iterdir()):
@@ -83,16 +89,29 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
                         f"## {channel_dir.name} / {video_dir.name}\nSource: {link}\n"
                         + insight_file.read_text(encoding="utf-8")
                     )
+                    included_insights.add(insight_file)
                 if len(insight_parts) >= 6:
                     break
             if len(insight_parts) >= 6:
                 break
 
-    if not topic_synthesis and not insight_parts:
+    for ref in discover_insights(topic_dir, confinement_root=config.library_dir):
+        if len(insight_parts) >= 6:
+            break
+        if ref.path in included_insights:
+            continue
+        content = read_discovered_insight(ref, config.library_dir)
+        if content is None:
+            continue
+        title = ref.path.parent.name
+        link = emit_wiki_link(title, ref.source_id, "insights")
+        insight_parts.append(f"## {ref.artifact_path}\nSource: {link}\n" + content)
+
+    if not synthesis_context and not insight_parts:
         return None
 
     rc = RouterConfig()
-    prompt = topic_brief_prompt(topic, topic_synthesis, "\n\n---\n\n".join(insight_parts))
+    prompt = topic_brief_prompt(topic, synthesis_context, "\n\n---\n\n".join(insight_parts))
     response = llm_call(
         rc,
         workload_tag="brief",

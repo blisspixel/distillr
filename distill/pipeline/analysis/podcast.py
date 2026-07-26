@@ -228,7 +228,7 @@ def ingest_podcast(
             insight_name=artifact_path(ep_dir, "insights", identity=ep_slug).name,
             source_name=episode_path.name,
         )
-        if outcome is not None and not outcome.report.ok:
+        if outcome is not None and outcome.has_flags:
             style = "red" if outcome.refused else "yellow"
             console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:

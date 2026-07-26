@@ -27,3 +27,10 @@ def test_mcp_runtime_dependency_stays_on_supported_v1_line() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert "mcp>=1.27.2,<2" in pyproject["project"]["dependencies"]
+
+
+def test_entailment_extra_stays_on_transformers_v4() -> None:
+    """HHEM's pinned remote model class is incompatible with Transformers 5."""
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert "transformers>=4.44,<5" in pyproject["project"]["optional-dependencies"]["entailment"]

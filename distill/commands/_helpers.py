@@ -879,7 +879,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 f"metadata.json + {transcript_file.name} (upload date normalized for verification)"
             ),
         )
-        if outcome is not None and not outcome.report.ok:
+        if outcome is not None and outcome.has_flags:
             style = "red" if outcome.refused else "yellow"
             console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:

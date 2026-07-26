@@ -117,6 +117,31 @@ class TestClaimExtraction:
         assert len(claims) == 1
         assert claims[0].text.startswith("A real claim")
 
+    def test_open_questions_are_not_treated_as_claims(self):
+        body = (
+            "## Open Questions\n"
+            "- Which orchestration service should own retries and backpressure?\n"
+            "- The external harness owns retries and backpressure in production.\n"
+        )
+
+        claims = extract_entailment_claims(body)
+
+        assert [claim.text for claim in claims] == [
+            "The external harness owns retries and backpressure in production."
+        ]
+
+    def test_markdown_markers_do_not_distort_claim_text(self):
+        body = (
+            "- **Installations**: Run `pip install langgraph` or "
+            "`uv add langgraph` for the local package.\n"
+        )
+
+        claims = extract_entailment_claims(body)
+
+        assert [claim.text for claim in claims] == [
+            "Installations: Run pip install langgraph or uv add langgraph for the local package."
+        ]
+
 
 class TestChunking:
     def test_short_source_is_one_chunk(self):
@@ -199,6 +224,7 @@ class TestHookIntegration:
         assert outcome is not None
         assert outcome.entailment is not None
         assert outcome.entailment.checked == 2
+        assert outcome.has_flags
         assert "prose claim(s)" in outcome.summary_line
         data = json.loads(outcome.sidecar.read_text(encoding="utf-8"))
         assert data["entailment"]["model"] == "fake-checker"
@@ -214,6 +240,7 @@ class TestHookIntegration:
 
         assert outcome is not None
         assert outcome.report.ok  # no numeric flags
+        assert outcome.has_flags
         assert outcome.refused  # but prose flags refuse in strict mode
 
     def test_hook_unchanged_when_checker_absent(self, tmp_path, monkeypatch):

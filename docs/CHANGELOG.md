@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- `distill status` now includes filesystem-backed topics created by direct
+  ingestion, reports their per-source insight count, and lists corpus
+  synthesis artifacts instead of incorrectly calling the library empty.
+- `distill topic show` now reports the total discovered source insights, so
+  local files, repositories, feeds, X posts, and other direct-ingest sources
+  remain visible alongside video, paper, and site counts.
+- `distill topic brief` now falls back to corpus or paper synthesis when a
+  video topic synthesis is absent and includes canonical per-source insights
+  recursively. Briefs therefore work for local-file and other direct-ingest
+  corpora instead of returning success without producing content.
+- The optional entailment extra now keeps Transformers on its compatible 4.x
+  line. Transformers 5 cannot load HHEM-2.1-Open's pinned remote model class
+  and previously caused prose verification to fall back silently to the
+  deterministic numeric tier.
+- Prose verification no longer treats question-mark-terminated open questions
+  as factual claims requiring support from the source receipt.
+- Entailment claim extraction removes paired bold and inline-code markers
+  before scoring. This prevents Markdown residue from turning directly
+  supported statements, such as installation commands, into false flags.
+- Every analysis and synthesis emit path now reports prose-only verification
+  flags. Strict direct-file ingestion previously refused the insight correctly
+  but printed no refusal when its numeric tier was otherwise clean.
+
 ## 0.19.45 - 2026-07-25
 
 Zero-work CLI startup cycle: the dedicated refinement theme named in the

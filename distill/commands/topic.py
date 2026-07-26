@@ -47,6 +47,7 @@ from distill.commands._learning import (
 )
 from distill.config import DistillConfig
 from distill.library import Library
+from distill.library.insights import discover_insights
 from distill.library.paths import artifact_exists, find_artifact
 from distill.library.state import ChannelState
 from distill.llm.router import RouterConfig
@@ -503,11 +504,14 @@ def _render_topic_summary(topic: str) -> None:
     profile = _load_topic_profile(config, topic)
     paper_count = _count_paper_corpus(config, [topic])
     site_count, page_count = _count_site_corpus(config, [topic])
+    source_insight_count = len(discover_insights(topic_dir))
     lines = [f"[bold]{topic}[/bold]"]
     if profile and _profile_str(profile, "goal"):
         lines.append(f"[dim]Goal:[/dim] {_profile_str(profile, 'goal')}")
     lines.append(
-        f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), {paper_count} paper(s), {site_count} site(s) / {page_count} page(s)"
+        f"[dim]Corpus:[/dim] {len(channels)} channel(s), {video_count} processed video(s), "
+        f"{paper_count} paper(s), {site_count} site(s) / {page_count} page(s), "
+        f"{source_insight_count} source insight(s)"
     )
     if profile:
         lines.append(
