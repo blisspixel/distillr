@@ -10,7 +10,7 @@ from pydantic import Field
 
 from distill.library.confined import read_confined_text
 from distill.library.paths import strip_frontmatter
-from distill.mcp.server import load_config, mcp, resolve_within_library
+from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp, resolve_within_library
 from distill.pipeline.search import (
     MAX_SEARCH_QUERY_CHARS,
     MAX_SEARCH_RESULTS,
@@ -33,7 +33,7 @@ def _bounded_content(content: str) -> tuple[str, bool]:
     return content[:_MAX_READ_INSIGHT_RESPONSE_CHARS], True
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def find_insights(
     topic: str,
     query: Annotated[str, Field(min_length=1, max_length=MAX_SEARCH_QUERY_CHARS)],
@@ -94,7 +94,7 @@ def find_insights(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def read_insight(
     path: Annotated[str, Field(min_length=1, max_length=_MAX_READ_INSIGHT_PATH_CHARS)],
     section: Annotated[

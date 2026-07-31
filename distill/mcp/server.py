@@ -20,13 +20,21 @@ from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, ParamSpec, TypeVar, cast
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ContentBlock
+from mcp.types import (
+    ContentBlock,
+    Prompt,
+    Resource,
+    ResourceTemplate,
+    Tool,
+    ToolAnnotations,
+)
 
 from distill.config import DistillConfig
 from distill.library import Library
@@ -45,6 +53,7 @@ from distill.pipeline.gaps import (
 )
 
 __all__ = [
+    "READ_TOOL_ANNOTATIONS",
     "capped_tracker",
     "cost_summary",
     "library",
@@ -59,6 +68,8 @@ __all__ = [
     "topic_source_inventory",
     "video_list",
     "write_tool",
+    "write_tool_annotations",
+    "write_tool_names",
 ]
 
 P = ParamSpec("P")
@@ -89,8 +100,24 @@ def _telemetry_tool_name(name: str) -> str:
     return "unknown-tool"
 
 
+def _distillr_version() -> str | None:
+    try:
+        return version("distillr")
+    except PackageNotFoundError:
+        return None
+
+
 class DistillFastMCP(FastMCP):
     """FastMCP server that correlates every tool call with local telemetry."""
+
+    def __init__(self, name: str, *, instructions: str | None = None) -> None:
+        super().__init__(name, instructions=instructions)
+        # FastMCP v1 does not forward a server version, so initialize results
+        # would advertise the SDK's version as this server's identity. The
+        # protected attribute is the only v1 seam; revisited at the SDK v2 port.
+        server_version = _distillr_version()
+        if server_version is not None:
+            self._mcp_server.version = server_version
 
     async def call_tool(
         self,
@@ -105,6 +132,26 @@ class DistillFastMCP(FastMCP):
                 update_current_run(ops_dir=_config().library_dir / ".distill")
             return await super().call_tool(name, arguments)
 
+    # Listings sort on stable keys so the wire order is deterministic (a
+    # client-caching SHOULD in MCP 2026-07-28) regardless of module import
+    # order; registration order shifts when a tool module is imported before
+    # this one resolves its circular import back through the registry.
+
+    async def list_tools(self) -> list[Tool]:
+        return sorted(await super().list_tools(), key=lambda tool: tool.name)
+
+    async def list_resources(self) -> list[Resource]:
+        return sorted(await super().list_resources(), key=lambda resource: str(resource.uri))
+
+    async def list_resource_templates(self) -> list[ResourceTemplate]:
+        return sorted(
+            await super().list_resource_templates(),
+            key=lambda template: template.uriTemplate,
+        )
+
+    async def list_prompts(self) -> list[Prompt]:
+        return sorted(await super().list_prompts(), key=lambda prompt: prompt.name)
+
 
 mcp = DistillFastMCP(
     "Distill",
@@ -116,6 +163,47 @@ mcp = DistillFastMCP(
 
 
 # ── Shared helpers (used by tools, resources, prompts) ───────────────
+
+#: Tool behavior hints for the local read surface: no corpus mutation, no
+#: model spend, no network, and repeat calls have no additional effect.
+READ_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
+
+_WRITE_TOOL_NAMES: set[str] = set()
+
+
+def write_tool_names() -> frozenset[str]:
+    """Names of every ``@write_tool``-decorated function.
+
+    A superset of the registered write-side MCP tools: tests may decorate
+    throwaway probes, so consumers should intersect with the live tool
+    listing rather than assume every name here is a registered tool.
+    """
+    return frozenset(_WRITE_TOOL_NAMES)
+
+
+def write_tool_annotations(
+    *,
+    destructive: bool,
+    idempotent: bool,
+    open_world: bool,
+) -> ToolAnnotations:
+    """Tool behavior hints for a write-side (spend, ingest, or mutation) tool.
+
+    ``readOnlyHint`` is always false here so client-visible hints match the
+    ``DISTILL_MCP_READ_ONLY`` refusal boundary: every ``@write_tool`` refuses
+    in read-only deployments, so none may advertise itself as read-only.
+    """
+    return ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=destructive,
+        idempotentHint=idempotent,
+        openWorldHint=open_world,
+    )
 
 
 def _config() -> DistillConfig:
@@ -266,6 +354,9 @@ def write_tool(
 
     def deco(fn: Callable[P, R]) -> Callable[P, R]:
         command = ledger_command or action
+        # Registrations use the function name as the MCP tool name, so this
+        # registry lets tests hold tool annotations to the write/read split.
+        _WRITE_TOOL_NAMES.add(fn.__name__)
         if inspect.iscoroutinefunction(fn):
             async_fn = cast("Callable[P, Awaitable[str]]", fn)
 

@@ -32,6 +32,23 @@ Then ask Claude things like:
 
 27 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). For deployments that *do* expose the write tools, two narrower guardrails: `DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` caps each tool call's recorded spend (the call that crosses completes -- its spend already happened and stays on the ledger -- then the run stops with a structured `budget_exceeded` response; artifacts written before the stop are durable and re-runs converge), and `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines the URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to the listed hosts and their subdomains. (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
 
+Every tool declares the standard MCP behavior hints (`readOnlyHint`,
+`destructiveHint`, `idempotentHint`, `openWorldHint`), and a regression test
+holds them to the actual guardrail boundary: a tool advertises
+`readOnlyHint: true` exactly when it sits outside the read-only gate (the
+one nuance is `site_batch`, a write tool whose `preview=true` calls still
+answer in read-only mode). `openWorldHint` marks the tools that fetch public
+web sources, and `destructiveHint` marks the ones whose purpose includes
+replacing or removing existing artifacts or state: `synthesize`,
+`resynthesize_topic`, and `generate_report` regenerate their artifact in
+place, `okf_export` replaces the previous bundle and rotates its backup
+away, and `watch_remove` deletes watch state. Additive convergent ingestion
+is not flagged destructive. Hints are advisory in the MCP spec, so the
+read-only, spend-cap, and allowlist refusals above remain the enforcement.
+`tools/list` returns tools in a fixed order so clients can cache the
+listing, and the server identifies itself with the installed `distillr`
+version.
+
 **Discover & ingest**
 
 | Tool | What it does |

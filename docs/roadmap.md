@@ -115,21 +115,48 @@ be moved to `CHANGELOG.md` on next release).
   configuration path helpers, artifact-specific frontmatter schemas and value
   semantics, caller-specific reader and writer extension integration, and full
   legacy migration remain separate contract slices.
-- [ ] **MCP 2026-07-28 compatibility spike.** After the final spec publishes on
-  July 28, 2026 and the Python SDK support path is clear, validate Distill's MCP
-  surface while the public contracts remain candidates. This is a near-term
-  compatibility checkpoint, not a product pivot: stdio/local deployments stay
-  supported while
-  remote HTTP compatibility catches up to the new stateless protocol. Acceptance:
-  inventory whether Distill depends on removed handshake or session behavior,
-  check `server/discover` and cache metadata implications for tool/resource
-  discovery, validate tool schemas against JSON Schema 2020-12 without unsafe
-  external `$ref` dereferencing, map roots/sampling/logging deprecations to
-  Distill's current surface, decide whether long-running ingest, report, profile,
-  audit, and synthesis commands should expose the redesigned Tasks extension,
-  classify MCP Apps as dashboard/review-flow exploration rather than 1.0 scope
-  unless a concrete host need appears, and add compatibility tests or a tracked
-  blocked note for any SDK feature that is not available yet.
+- [x] **MCP 2026-07-28 compatibility spike (inventory + phase 1).** Completed
+  against the final published spec; the decision record is
+  [`design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md).
+  Findings: Distill uses no removed or deprecated protocol feature (no
+  handshake or session dependence, no roots/sampling/logging/elicitation),
+  `server/discover` and cache metadata are SDK-owned and arrive with the v2
+  port, tool schemas are already Draft 2020-12 without external `$ref`
+  dereferencing, MCP Apps is classified as dashboard/review-flow exploration
+  rather than 1.0 scope, and the Tasks extension is the right shape for the
+  long-running ingest and report tools once the stable SDK exposes it.
+  Shipped alongside the inventory: complete tool behavior hints held to the
+  `write_tool` registry by regression tests, a frozen deterministic
+  `tools/list` order, distillr-version server identity, a docs tool-count
+  drift guard, and tests moved off private SDK internals onto the public
+  listing API.
+- [ ] **SDK v2 graduation (phase 2).** `mcp 2.0.0` is stable on PyPI and
+  `google-genai` no longer pins `mcp`, so graduation is unblocked upstream.
+  Port `distill/mcp/server.py` to `mcp.server.mcpserver.MCPServer` (the
+  `mcp.server.fastmcp` module is removed in v2), re-prove the telemetry
+  seam, guardrails, and dual-era operation, verify no-analytics behavior of
+  the SDK's OpenTelemetry middleware and the startup budget, and regenerate
+  the MCP contract snapshot as one reviewed change. Waits for early v2 patch
+  hardening; acceptance criteria in the design doc.
+- [ ] **Tasks extension for long-running tools (phase 3).** After the v2
+  port: advertise `io.modelcontextprotocol/tasks`, return durable task
+  handles only to clients that declare the capability, persist the task
+  registry under `library/.distill/`, and surface budget and read-only
+  refusals as structured task failures. Blocked on stable SDK support for
+  the extension; tracked in the design doc.
+- [ ] **MCP surface refinement debt (0.19.47 bug-hunt pass).** Two verified
+  pre-existing boundaries to tighten on their own evidence, not silently:
+  several tool results return absolute local paths (`okf_export` output
+  paths, `doctor` library and executable paths, the `costs` ledger-path
+  integrity warning), which hands a connected agent the machine's directory
+  layout and contradicts the library-relative discipline of the find/read
+  surface; and `DISTILL_MCP_INGEST_ALLOWLIST` gates only the URL-taking
+  tools (`process_video_url`, `watch_add`, `site_batch`) as documented,
+  while query-taking ingest tools (`learn_topic`, `search_videos`,
+  `discover`, `papers`) and stored-watchlist refreshes (`catch_up`) reach
+  the open web without an allowlist check, so the guard confines URL entry
+  points rather than all ingestion. Either extend the guard or narrow its
+  description at the next MCP surface change.
 
 ### 0.19 Recurring research profiles and no-metered-cost routing
 

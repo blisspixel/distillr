@@ -19,7 +19,15 @@ from distill.library.claude_md import count_topic_sources, topic_summary_line
 from distill.library.confined import read_confined_text_prefix, validate_confined_path
 from distill.library.paths import strip_frontmatter
 from distill.llm.availability import model_available
-from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
+from distill.mcp.server import (
+    READ_TOOL_ANNOTATIONS,
+    capped_tracker,
+    cost_summary,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 
 __all__: list[str] = []
 
@@ -86,7 +94,7 @@ def _has_synthesis(topic_dir: Path) -> bool:
     return any(any(topic_dir.glob(pattern)) for pattern in _SYNTHESIS_PATTERNS)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def list_topics(limit: int = 50) -> str:
     """List available corpus topics (free, no model call).
 
@@ -139,7 +147,7 @@ def list_topics(limit: int = 50) -> str:
     return json.dumps(response, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=True, open_world=False))
 @write_tool("find_insights_summary", ledger_command="summary-query")
 def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str:
     """Summarize a topic's best-matching insights, focused on a query, within a token budget.
@@ -201,7 +209,7 @@ def find_insights_summary(topic: str, query: str, max_tokens: int = 4000) -> str
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def list_topic_summary(topic: str) -> str:  # noqa: C901 - bounded candidate fallback states
     """One-paragraph orientation for a topic (free, no model call).
 

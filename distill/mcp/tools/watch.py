@@ -17,6 +17,7 @@ from distill.mcp.server import (
     mcp,
     refuse_if_host_not_allowed,
     write_tool,
+    write_tool_annotations,
 )
 from distill.pipeline.costs import BudgetExceededError
 
@@ -57,7 +58,7 @@ def _suggest_watch_instructions(
         return "", f"Auto-instructions skipped: {exc}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("catch_up", ledger_command="catch-up")
 def catch_up(  # noqa: C901 - legacy, will refactor
     channel: str | None = None,
@@ -170,7 +171,7 @@ def catch_up(  # noqa: C901 - legacy, will refactor
     return json.dumps({"results": results, "cost": cost_summary(tracker)}, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=True, open_world=True))
 @write_tool("watch_add", ledger_command="watch-add")
 def watch_add(
     url: str,
@@ -232,7 +233,7 @@ def watch_add(
     return json.dumps({"status": "already_watching", "name": name})
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=True, open_world=False))
 @write_tool("watch_remove")
 def watch_remove(name: str) -> str:
     """Remove a channel from the watch list.

@@ -84,9 +84,12 @@ def test_read_insight_round_trip_preserves_body(tmp_path, body):
 
 class TestFindInsights:
     def test_schema_advertises_search_security_bounds(self):
+        import asyncio
+
         from distill.mcp.server import mcp
 
-        schema = mcp._tool_manager._tools["find_insights"].parameters
+        tools = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+        schema = tools["find_insights"].inputSchema
         properties = schema["properties"]
 
         assert properties["query"]["minLength"] == 1

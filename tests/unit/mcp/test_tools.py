@@ -18,6 +18,13 @@ import pytest
 from distill.config import DistillConfig
 
 
+def _registered_tools():
+    """Snapshot the public tool listing as a name-keyed mapping."""
+    from distill.mcp.server import mcp
+
+    return {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+
+
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a test DistillConfig."""
@@ -128,9 +135,7 @@ class TestToolRegistration:
 
     def test_all_tools_registered(self):
         """All expected tools are registered on the MCP server."""
-        from distill.mcp.server import mcp
-
-        tools = mcp._tool_manager._tools
+        tools = _registered_tools()
         expected = {
             # Existing tools
             "learn_topic",
@@ -160,11 +165,9 @@ class TestToolRegistration:
 
     def test_tool_schemas_are_introspectable(self):
         """All tool schemas can be introspected and serialized."""
-        from distill.mcp.server import mcp
-
-        tools = mcp._tool_manager._tools
+        tools = _registered_tools()
         for name, tool in tools.items():
-            schema = tool.parameters
+            schema = tool.inputSchema
             assert isinstance(schema, dict), f"{name}: schema is not a dict"
             # Must be JSON-serializable
             serialized = json.dumps(schema)

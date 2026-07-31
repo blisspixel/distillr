@@ -8,7 +8,15 @@ from typing import Protocol
 
 from distill.config import DistillConfig
 from distill.llm.availability import model_available
-from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    library,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 __all__: list[str] = []
@@ -25,7 +33,7 @@ class TopicSynthesizer(Protocol):
     ) -> str: ...
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=False, open_world=True))
 @write_tool("generate_report", ledger_command="report")
 def generate_report(topic: str, channel: str | None = None) -> str:
     """Generate a deep research report for a topic (long-running).
@@ -70,7 +78,7 @@ def generate_report(topic: str, channel: str | None = None) -> str:
     return json.dumps({"status": "failed", "cost": cost_summary(tracker)})
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=False, open_world=False))
 @write_tool("resynthesize_topic", ledger_command="resynthesize-topic")
 def resynthesize_topic(topic: str, channel: str | None = None) -> str:
     """Regenerate synthesis from existing insights without re-analysis.

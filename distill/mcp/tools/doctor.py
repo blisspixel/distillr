@@ -9,7 +9,7 @@ from importlib.util import find_spec
 from typing import Literal, NotRequired, TypedDict
 
 from distill.doctor.checks import doctor_validate_key
-from distill.mcp.server import load_config, mcp
+from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp
 
 type DoctorCheckStatus = Literal[
     "ok",
@@ -37,7 +37,7 @@ class DoctorCheck(TypedDict):
 __all__: list[str] = []
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def doctor() -> str:
     """Check environment health: API keys, yt-dlp, dependencies."""
     config = load_config()

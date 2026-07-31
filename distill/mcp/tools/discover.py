@@ -25,6 +25,7 @@ from distill.mcp.server import (
     mcp,
     set_tracker_estimated_cost,
     write_tool,
+    write_tool_annotations,
 )
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.ranking import RankedVideo
@@ -173,7 +174,7 @@ def _learn_one_channel(
     return rows
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("learn_topic", ledger_command="learn")
 def learn_topic(
     query: str,
@@ -250,7 +251,7 @@ def learn_topic(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("search_videos", ledger_command="search-videos")
 def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
     """Search YouTube for a topic; return ranked videos without processing.
@@ -286,7 +287,7 @@ def search_videos(query: str, days: int = 60, limit: int = 5) -> str:
     return json.dumps(payload, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("discover")
 async def discover(  # noqa: C901 - legacy discovery workflow
     goal: str,

@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.47 - 2026-07-31
+
+MCP 2026-07-28 checkpoint release. The final Model Context Protocol
+specification published on 2026-07-28; this release completes the roadmap's
+compatibility inventory against it and ships the spec-aligned improvements
+that are safe on the stable v1 SDK. The decision record is
+[`docs/design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md).
+
+Inventory outcome: Distill's MCP surface depends on none of the removed or
+deprecated protocol features (no handshake or session dependence, no roots,
+sampling, logging, or elicitation usage), so the era migration concentrates
+entirely in the SDK boundary. The SDK v2 line (protocol 2026-07-28) is now
+stable on PyPI and no longer blocked by any transitive constraint; its port
+is staged as a dedicated later release, and the `mcp>=1.27.2,<2` production
+bound remains in force until that graduation.
+
+### Added
+
+- Every MCP tool now declares the standard behavior hints (`readOnlyHint`,
+  `destructiveHint`, `idempotentHint`, `openWorldHint`). Hints are derived
+  from the write-tool registry, so a tool advertises `readOnlyHint: true`
+  exactly when it keeps working under `DISTILL_MCP_READ_ONLY=1`. Open-world
+  marks the tools that fetch public web sources; destructive marks the ones
+  whose purpose includes replacing or removing existing artifacts or watch
+  state. Regression tests enforce completeness and the alignment policy, and
+  the MCP contract snapshot records the hints as a reviewed additive change.
+- The MCP server identifies itself with the installed `distillr` version in
+  initialize results instead of inheriting the SDK's own version.
+- `tools/list` order is frozen by a regression test. Registration order was
+  already deterministic; the new spec asks for deterministic listings so
+  clients can cache them, and the test makes reordering a reviewed decision.
+- A documentation drift guard cross-checks the tool count stated in
+  `docs/mcp.md` against the runtime registry.
+
+### Changed
+
+- MCP test suites now introspect tools through the public listing API
+  instead of private SDK internals, removing a known breakage point for the
+  SDK v2 port.
+- `ROADMAP.md` and `docs/roadmap.md` record the completed compatibility
+  checkpoint and stage the remaining work: the SDK v2 graduation and the
+  Tasks extension for long-running ingest and report tools.
+- An adversarial review pass over the annotation truth table corrected two
+  hints before release (`generate_report` regenerates its report in place
+  and `okf_export` replaces the previous bundle, so both are destructive)
+  and recorded two verified pre-existing boundaries as tracked refinement
+  debt: absolute local paths in some tool results, and the ingest allowlist
+  confining URL-taking tools but not query-taking ingest.
+
 ## 0.19.46 - 2026-07-26
 
 Local-validation hardening release. A no-metered graph-agentic dogfood run

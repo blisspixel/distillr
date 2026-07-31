@@ -18,7 +18,7 @@ from distill.concepts import recovery
 from distill.concepts.exports import concepts_jsonl_path, entities_jsonl_path
 from distill.library.confined import list_confined_files, read_confined_text, validate_confined_path
 from distill.library.paths import extract_frontmatter, strip_frontmatter
-from distill.mcp.server import load_config, mcp, resolve_within_library
+from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp, resolve_within_library
 from distill.parsing import strict_json_loads
 
 __all__: list[str] = []
@@ -232,7 +232,7 @@ def _unsafe_note_response() -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def find_concepts(
     topic: str,
     query: str = "",
@@ -298,7 +298,7 @@ def find_concepts(
     return json.dumps({"results": results, "count": len(results), "topic": topic}, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def read_concept(path: str) -> str:
     """Read concept playbook markdown by relative library path.
 
@@ -358,7 +358,7 @@ def read_concept(path: str) -> str:
 # bought nothing.
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def concept_history(topic: str, slug: str) -> str:
     """List history snapshots for a concept/entity note, newest first.
 
@@ -479,7 +479,7 @@ def _read_diff(
     return recovery.diff_notes(old_text, new_text, old_label=old_label, new_label=new_label)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def concept_diff(topic: str, slug: str, ts_a: str = "", ts_b: str = "") -> str:
     """Diff a concept note across versions; return a structured delta.
 

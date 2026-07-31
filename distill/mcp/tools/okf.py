@@ -8,7 +8,13 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.okf import OkfValidationLimits, export_okf_bundle, validate_okf_bundle
-from distill.mcp.server import load_config, mcp, write_tool
+from distill.mcp.server import (
+    READ_TOOL_ANNOTATIONS,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 
 __all__: list[str] = []
 
@@ -75,7 +81,7 @@ def _bundle_preview(output_dir: Path) -> str:
     return ""
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=True, open_world=False))
 @write_tool("okf_export")
 def okf_export(topic: str) -> str:
     """Export a topic (or ``all``) into an OKF v0.1 bundle under output/.
@@ -104,7 +110,7 @@ def okf_export(topic: str) -> str:
     return json.dumps(payload, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def okf_validate(path: str) -> str:
     """Validate an OKF bundle directory (read-only structural check).
 

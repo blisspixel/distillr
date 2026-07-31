@@ -16,12 +16,13 @@ from distill.mcp.server import (
     refuse_if_host_not_allowed,
     strip_frontmatter,
     write_tool,
+    write_tool_annotations,
 )
 
 __all__: list[str] = []
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("process_video_url", ledger_command="video")
 def process_video_url(url: str, topic: str = "ai") -> str:
     """Transcribe and analyze a single YouTube video.

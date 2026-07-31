@@ -22,6 +22,7 @@ from distill.mcp.server import (
     mcp,
     refuse_if_host_not_allowed,
     write_tool,
+    write_tool_annotations,
 )
 from distill.pipeline.costs import BudgetExceededError
 
@@ -108,7 +109,7 @@ def _site_result_parts(
     return site_name, page_count, None, None
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("site_batch", allow_preview=True, ledger_command="site-batch")
 async def site_batch(  # noqa: C901 - legacy site workflow
     topic: str,

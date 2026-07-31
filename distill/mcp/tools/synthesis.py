@@ -10,7 +10,15 @@ from mcp.server.fastmcp import Context
 from pydantic import StrictBool
 
 from distill.llm.availability import model_available
-from distill.mcp.server import capped_tracker, cost_summary, library, load_config, mcp, write_tool
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    library,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 from distill.pipeline.costs import BudgetExceededError
 
 __all__: list[str] = []
@@ -18,7 +26,7 @@ __all__: list[str] = []
 type SynthesisRow = dict[str, str | bool]
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=False, open_world=False))
 @write_tool("synthesize")
 async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     topic: str,

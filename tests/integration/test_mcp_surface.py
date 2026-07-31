@@ -25,6 +25,15 @@ def _write(path: Path, content: str):
     path.write_text(content, encoding="utf-8")
 
 
+def _registered_tools():
+    """Snapshot the public tool listing as a name-keyed mapping."""
+    import asyncio
+
+    from distill.mcp.server import mcp
+
+    return {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
+
+
 # ── Fixtures ─────────────────────────────────────────────────────────
 
 
@@ -318,9 +327,7 @@ class TestBackwardCompatibility:
 
     def test_all_existing_tools_registered(self):
         """All 8+ existing tools are still registered."""
-        from distill.mcp.server import mcp
-
-        tools = mcp._tool_manager._tools
+        tools = _registered_tools()
         existing = {
             "learn_topic",
             "search_videos",
@@ -338,19 +345,17 @@ class TestBackwardCompatibility:
 
     def test_existing_tool_schemas_preserved(self):
         """Existing tool input schemas have not changed."""
-        from distill.mcp.server import mcp
-
-        tools = mcp._tool_manager._tools
+        tools = _registered_tools()
 
         # learn_topic must still accept query, topic, days, limit
-        lt = tools["learn_topic"].parameters["properties"]
+        lt = tools["learn_topic"].inputSchema["properties"]
         assert "query" in lt
         assert "topic" in lt
         assert "days" in lt
         assert "limit" in lt
 
         # catch_up must still accept channel, topic, days
-        cu = tools["catch_up"].parameters["properties"]
+        cu = tools["catch_up"].inputSchema["properties"]
         assert "channel" in cu
         assert "topic" in cu
         assert "days" in cu
@@ -436,9 +441,7 @@ class TestBackwardCompatibility:
 
     def test_new_tools_do_not_break_existing(self):
         """New tools are registered alongside existing ones without conflicts."""
-        from distill.mcp.server import mcp
-
-        tools = mcp._tool_manager._tools
+        tools = _registered_tools()
         new_tools = {
             "find_insights",
             "read_insight",

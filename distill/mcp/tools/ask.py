@@ -16,13 +16,20 @@ from typing import Annotated
 from pydantic import Field
 
 from distill.llm.availability import model_available
-from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 from distill.pipeline.ask import MAX_ASK_ANSWER_CHARS, MAX_ASK_QUESTION_CHARS
 
 __all__: list[str] = []
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=False))
 @write_tool("ask")
 def ask(
     topic: Annotated[str, Field(min_length=1, max_length=128)],

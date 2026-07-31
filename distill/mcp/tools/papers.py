@@ -14,7 +14,14 @@ from distill.ingestors.papers.arxiv import PaperRecord
 from distill.library.intent import CorpusIntent
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
-from distill.mcp.server import capped_tracker, cost_summary, load_config, mcp, write_tool
+from distill.mcp.server import (
+    capped_tracker,
+    cost_summary,
+    load_config,
+    mcp,
+    write_tool,
+    write_tool_annotations,
+)
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 
 logger = logging.getLogger(__name__)
@@ -63,7 +70,7 @@ def _analyze_one(
         return {"title": paper.title, "status": "error", "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
 @write_tool("papers")
 async def papers(
     topic: str,

@@ -8,7 +8,7 @@ import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from distill.mcp.server import load_config, mcp
+from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp
 from distill.pipeline.cost_history import (
     CostLogScan,
     cost_history_integrity_message,
@@ -97,7 +97,7 @@ def _cost_result(recent: list[dict[str, object]], cost_scan: CostLogScan, log_fi
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_TOOL_ANNOTATIONS)
 def costs(days: int = 30, limit: int = 20) -> str:
     """Show recent LLM cost history and per-run spend breakdown.
 
