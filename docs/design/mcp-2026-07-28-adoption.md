@@ -1,6 +1,7 @@
 # MCP 2026-07-28 adoption
 
-Status: phase 1 shipped (0.19.47). Phase 2 gated on SDK v2 hardening evidence.
+Status: phase 1 shipped (0.19.47); phase 2, the SDK v2 port, shipped
+(0.19.48) with the evidence below. Phase 3 (Tasks extension) is staged.
 Owner: MCP surface. Companion backlog: `docs/roadmap.md`, section
 "MCP 2026-07-28 compatibility spike".
 
@@ -111,29 +112,39 @@ Spec-aligned improvements that are era-independent:
 - `docs/mcp.md`'s tool count is cross-checked against the runtime registry
   by a test.
 
-### Phase 2: SDK v2 port (dedicated release; the graduation gate)
+### Phase 2: SDK v2 port (shipped in 0.19.48)
 
-The `mcp>=1.27.2,<2` bound and its package-metadata regression test exist so
-the breaking SDK line cannot drift in. Graduation is a deliberate release:
+The `mcp>=1.27.2,<2` bound and its package-metadata regression test existed
+so the breaking SDK line could not drift in; this release is the deliberate
+graduation. What shipped, with the acceptance evidence gathered on the
+development machine (Windows, 2026-07-31):
 
-1. Lift the bound to `mcp>=2,<3`; update the lock and the metadata test.
-2. Port `distill/mcp/server.py`: `MCPServer` construction, the telemetry
-   interception seam that today overrides `FastMCP.call_tool`, progress
-   context, and the guardrail decorators (all transport-independent, all
-   re-proven under the existing test files).
-3. Verify `server/discover` output: capabilities, identity, `ttlMs` and
-   `cacheScope` (long TTL, `private` scope; the listing is static per
-   process and the corpus is single-user).
-4. Regenerate `docs/contracts/mcp-v1.json` as one reviewed contract change;
-   record negotiated protocol versions in the snapshot metadata.
-5. Prove the no-analytics stance (no OTel egress without an exporter),
-   startup budget, Windows stdio behavior, and dual-era operation against a
-   modern and a legacy client.
-
-Trigger discipline: v2.0.0 shipped three days after the spec. The port waits
-for at least one v2 patch cycle of ecosystem hardening unless a host
-regression forces it earlier; the contract snapshots stay candidates until
-this phase completes (the 1.0 readiness dependency).
+1. Dependency lifted to `mcp>=2.0.0,<3` (2.0.0 in the lock); the metadata
+   regression test now guards the v2 line and reserves the same review for
+   a future v3.
+2. `distill/mcp/server.py` ported: `DistillMCPServer(MCPServer)` replaces
+   the FastMCP subclass, the telemetry seam overrides the v2 `call_tool`
+   (the dispatcher routes protocol calls through the public method, same as
+   v1), the server version is a first-class constructor argument (the v1
+   private-attribute seam is gone), and deliberate cache hints mark the
+   static listings and `server/discover` fresh for one hour at `private`
+   scope while `resources/read` deliberately stays uncached so corpus reads
+   are always fresh. All guardrails (read-only, spend cap, allowlist) and
+   the write-tool registry re-proven under the existing test files.
+3. Dual-era operation proven over real Windows stdio against the installed
+   `distill-mcp` binary: a modern v2 client negotiates protocol 2026-07-28
+   through `server/discover` (serverInfo, capabilities, `ttlMs` 3600000 /
+   `cacheScope` private on `tools/list`), and a genuine v1.28.1 client
+   completes the legacy `initialize` handshake at 2025-11-25. Same 27
+   tools, same behavior, both eras.
+4. `docs/contracts/mcp-v1.json` is byte-identical across the SDK swap: the
+   snake_case v2 Python API serializes to the same camelCase wire shapes,
+   so the public contract provably did not move.
+5. No-analytics stance verified structurally: the v2 dependency is
+   `opentelemetry-api` only; no OTel SDK or exporter is installed, so the
+   tracer is a no-op and nothing can leave the machine. CLI startup is
+   unaffected (the CLI never imports the SDK; same-machine comparison
+   against the released 0.19.47 wheel showed no regression).
 
 ### Phase 3: Tasks extension (after the port)
 
@@ -146,9 +157,13 @@ only to clients that declared the capability (spec-required graceful
 degradation keeps today's blocking behavior for everyone else), persist the
 task registry under `library/.distill/` so handles survive a stdio restart,
 and surface `budget_exceeded` and `read_only` refusals as structured task
-failures on the existing ledger path. If the SDK does not expose the
-extension, this phase holds as a tracked blocked note rather than
-hand-rolled protocol methods.
+failures on the existing ledger path. Status after the v2 port: the core
+SDK ships the general `Extension` seam (identifier plus contributed tools,
+resources, and methods) but not the official tasks extension itself. Adopt
+the official implementation when it publishes; implementing
+`io.modelcontextprotocol/tasks` on the Extension seam directly is the
+fallback once the extension spec stabilizes, and bare protocol methods
+outside that seam remain off the table.
 
 ## Decisions
 
@@ -169,8 +184,8 @@ hand-rolled protocol methods.
 
 | Risk | Mitigation |
 |---|---|
-| SDK v2 churn in early patch releases | Phase 2 waits for hardening evidence; spike venv pins exact versions |
-| OTel dependency vs no-analytics invariant | Explicit egress verification is a phase 2 acceptance criterion |
-| Contract snapshot churn misread as drift | One reviewed change with a changelog entry, per `docs/contracts/README.md` |
-| Import-time cost regression from v2 dependencies | Measured against the startup baseline before graduation |
-| Host ecosystems moving to 2026-07-28-only | Not credible inside the twelve-month deprecation window; dual-era clients keep v1 servers reachable |
+| SDK v2 churn in early patch releases | The lock pins 2.0.0; upgrades land as reviewed PRs through the full gate, and the dual-era test evidence reruns on every release |
+| OTel dependency vs no-analytics invariant | Verified at the port: api-only dependency, no SDK or exporter installed, no-op tracer. Re-verify if any dependency ever pulls in the OTel SDK |
+| Contract snapshot churn misread as drift | Resolved: the snapshot was byte-identical across the SDK swap; any future change stays one reviewed decision per `docs/contracts/README.md` |
+| Import-time cost regression from v2 dependencies | Measured at the port: CLI unaffected (never imports the SDK); server import cost is paid once by the long-running process |
+| Legacy hosts on v1 client SDKs | Proven working: a real 1.28.1 client completes initialize against the ported binary over stdio |

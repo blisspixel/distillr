@@ -44,7 +44,7 @@ def test_param_descriptions_within_50_chars():
     violations = []
     for name, tool in tools.items():
         # Get the tool's parameters from its schema
-        schema = tool.inputSchema
+        schema = tool.input_schema
         if not schema:
             continue
         properties = schema.get("properties", {})
@@ -67,7 +67,7 @@ def test_tool_schemas_are_valid_json_schema_draft7():
     assert len(tools) > 0, "No tools registered"
 
     for name, tool in tools.items():
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert isinstance(schema, dict), f"{name}: schema is not a dict"
 
         # Verify it's valid JSON (serializable)
@@ -90,7 +90,7 @@ def test_tool_schemas_have_required_structure():
     assert len(tools) > 0, "No tools registered"
 
     for name, tool in tools.items():
-        schema = tool.inputSchema
+        schema = tool.input_schema
         assert isinstance(schema, dict), f"{name}: schema is not a dict"
         # All tool schemas should be object type with properties
         assert schema.get("type") == "object", f"{name}: schema type is not 'object'"
@@ -143,50 +143,50 @@ def test_existing_tool_schemas_unchanged():
 
     # Verify key parameters still exist for existing tools
     # learn_topic should still accept query, topic, days, limit
-    lt_params = tools["learn_topic"].inputSchema.get("properties", {})
+    lt_params = tools["learn_topic"].input_schema.get("properties", {})
     assert "query" in lt_params
     assert "topic" in lt_params
     assert "days" in lt_params
     assert "limit" in lt_params
 
     # catch_up should still accept channel, topic, days
-    cu_params = tools["catch_up"].inputSchema.get("properties", {})
+    cu_params = tools["catch_up"].input_schema.get("properties", {})
     assert "channel" in cu_params
     assert "topic" in cu_params
     assert "days" in cu_params
 
     # watch_add should still accept url, topic, days, instructions
-    wa_params = tools["watch_add"].inputSchema.get("properties", {})
+    wa_params = tools["watch_add"].input_schema.get("properties", {})
     assert "url" in wa_params
     assert "topic" in wa_params
     assert "days" in wa_params
     assert "instructions" in wa_params
 
     # process_video_url should accept url, topic
-    pv_params = tools["process_video_url"].inputSchema.get("properties", {})
+    pv_params = tools["process_video_url"].input_schema.get("properties", {})
     assert "url" in pv_params
     assert "topic" in pv_params
 
     # watch_remove should accept name
-    wr_params = tools["watch_remove"].inputSchema.get("properties", {})
+    wr_params = tools["watch_remove"].input_schema.get("properties", {})
     assert "name" in wr_params
 
     # generate_report should accept topic, channel
-    gr_params = tools["generate_report"].inputSchema.get("properties", {})
+    gr_params = tools["generate_report"].input_schema.get("properties", {})
     assert "topic" in gr_params
     assert "channel" in gr_params
 
     # resynthesize_topic should accept topic, channel
-    rt_params = tools["resynthesize_topic"].inputSchema.get("properties", {})
+    rt_params = tools["resynthesize_topic"].input_schema.get("properties", {})
     assert "topic" in rt_params
     assert "channel" in rt_params
 
     # research_gaps should accept topic
-    rg_params = tools["research_gaps"].inputSchema.get("properties", {})
+    rg_params = tools["research_gaps"].input_schema.get("properties", {})
     assert "topic" in rg_params
 
     # search_videos should accept query, days, limit
-    sv_params = tools["search_videos"].inputSchema.get("properties", {})
+    sv_params = tools["search_videos"].input_schema.get("properties", {})
     assert "query" in sv_params
     assert "days" in sv_params
     assert "limit" in sv_params
@@ -206,17 +206,17 @@ def test_existing_tool_parameter_types_unchanged():
     tools = _get_all_tools()
 
     # learn_topic parameter types
-    lt_props = tools["learn_topic"].inputSchema.get("properties", {})
+    lt_props = tools["learn_topic"].input_schema.get("properties", {})
     assert _has_type(lt_props["query"], "string")
     assert _has_type(lt_props["days"], "integer")
     assert _has_type(lt_props["limit"], "integer")
 
     # catch_up parameter types (days is int | None)
-    cu_props = tools["catch_up"].inputSchema.get("properties", {})
+    cu_props = tools["catch_up"].input_schema.get("properties", {})
     assert _has_type(cu_props["days"], "integer")
 
     # watch_add parameter types
-    wa_props = tools["watch_add"].inputSchema.get("properties", {})
+    wa_props = tools["watch_add"].input_schema.get("properties", {})
     assert _has_type(wa_props["url"], "string")
     assert _has_type(wa_props["topic"], "string")
     assert _has_type(wa_props["days"], "integer")
@@ -228,17 +228,17 @@ def test_existing_tool_required_fields_unchanged():
     tools = _get_all_tools()
 
     # learn_topic requires query
-    lt_required = tools["learn_topic"].inputSchema.get("required", [])
+    lt_required = tools["learn_topic"].input_schema.get("required", [])
     assert "query" in lt_required
 
     # watch_add requires url
-    wa_required = tools["watch_add"].inputSchema.get("required", [])
+    wa_required = tools["watch_add"].input_schema.get("required", [])
     assert "url" in wa_required
 
     # process_video_url requires url
-    pv_required = tools["process_video_url"].inputSchema.get("required", [])
+    pv_required = tools["process_video_url"].input_schema.get("required", [])
     assert "url" in pv_required
 
     # research_gaps requires topic
-    rg_required = tools["research_gaps"].inputSchema.get("required", [])
+    rg_required = tools["research_gaps"].input_schema.get("required", [])
     assert "topic" in rg_required

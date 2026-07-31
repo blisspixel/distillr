@@ -12,6 +12,7 @@ from distill.llm.availability import model_available
 from distill.mcp.server import (
     capped_tracker,
     cost_summary,
+    host_not_on_ingest_allowlist,
     library,
     load_config,
     mcp,
@@ -67,6 +68,10 @@ def catch_up(  # noqa: C901 - legacy, will refactor
 ) -> str:
     """Refresh watched channels; scan, transcribe, and analyze new videos.
 
+    Stored watch URLs pass through DISTILL_MCP_INGEST_ALLOWLIST when that
+    allowlist is set (same host gate as watch_add). Query-shaped discovery
+    tools are out of this gate's scope.
+
     Args:
         channel: Single channel to refresh
         topic: Filter to this topic
@@ -101,6 +106,17 @@ def catch_up(  # noqa: C901 - legacy, will refactor
     topics_touched: set[str] = set()
 
     for entry in watchlist:
+        # Per-item skip: do not mark the whole run refused (mixed lists).
+        allowlist_error = host_not_on_ingest_allowlist(entry.url)
+        if allowlist_error is not None:
+            results.append(
+                {
+                    "channel": entry.name,
+                    "status": "domain_not_allowed",
+                    "error": allowlist_error,
+                }
+            )
+            continue
         ch_days = days if days is not None else entry.days
         try:
             videos = discover_videos(entry.url, days=ch_days, include_shorts=True, quiet=True)

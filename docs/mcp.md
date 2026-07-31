@@ -30,7 +30,17 @@ Then ask Claude things like:
 
 ## Tools
 
-27 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). For deployments that *do* expose the write tools, two narrower guardrails: `DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` caps each tool call's recorded spend (the call that crosses completes -- its spend already happened and stays on the ledger -- then the run stops with a structured `budget_exceeded` response; artifacts written before the stop are durable and re-runs converge), and `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines the URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to the listed hosts and their subdomains. (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
+27 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). For deployments that *do* expose the write tools, two narrower guardrails: `DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` caps each tool call's recorded spend (the call that crosses completes -- its spend already happened and stays on the ledger -- then the run stops with a structured `budget_exceeded` response; artifacts written before the stop are durable and re-runs converge), and `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines **URL entry points and stored-URL refresh** (`process_video_url`, `watch_add`, `site_batch`, and `catch_up` against each stored watch URL) to the listed hosts and their subdomains. Query-shaped discovery tools (`discover`, `papers`, `learn_topic`, `search_videos`) remain open-world when write tools are enabled; they advertise `openWorldHint` and do not pass through the host allowlist. Prefer `DISTILL_MCP_READ_ONLY=1` when a deployment must not reach the public web at all. Remediated path-bearing results (`okf_export`, `doctor`, cost-history integrity messages) use library- or workspace-relative paths and never host absolute paths. (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
+
+The server speaks both protocol eras from the one stdio binary: modern
+clients negotiate MCP 2026-07-28 through `server/discover`, and legacy
+clients still complete the classic `initialize` handshake, with identical
+tools and behavior in both. On the 2026-07-28 era, listings and the
+discover result carry cache metadata (`ttlMs` one hour,
+`cacheScope: private`) because the registries are static for the process
+lifetime, while `resources/read` responses carry no freshness window, so
+corpus reads always reflect the files on disk; the legacy era predates
+cache metadata and carries none.
 
 Every tool declares the standard MCP behavior hints (`readOnlyHint`,
 `destructiveHint`, `idempotentHint`, `openWorldHint`), and a regression test

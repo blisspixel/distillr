@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import StrictBool
 
 from distill.llm.availability import model_available
@@ -33,7 +33,7 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     force: StrictBool = False,
     style: str = "",
     two_pass: bool = False,
-    ctx: Context[Any, Any, Any] | None = None,
+    ctx: Context[Any, Any] | None = None,
 ) -> str:
     """Run or regenerate synthesis for a topic across all sources.
 

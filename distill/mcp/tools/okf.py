@@ -10,6 +10,7 @@ from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.okf import OkfValidationLimits, export_okf_bundle, validate_okf_bundle
 from distill.mcp.server import (
     READ_TOOL_ANNOTATIONS,
+    agent_visible_path,
     load_config,
     mcp,
     write_tool,
@@ -93,18 +94,37 @@ def okf_export(topic: str) -> str:
     normalized = topic.strip() or "all"
     try:
         result = export_okf_bundle(config, normalized)
-    except FileNotFoundError as exc:
-        return json.dumps({"status": "error", "error": str(exc)}, indent=2)
+    except FileNotFoundError:
+        # Never surface host absolute paths from the library exception text.
+        return json.dumps(
+            {
+                "status": "error",
+                "error": f"Topic '{normalized}' was not found under the library.",
+            },
+            indent=2,
+        )
+    except ValueError:
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "OKF export refused an unsafe topic or workspace layout.",
+            },
+            indent=2,
+        )
 
+    # Workspace root (parent of library/) is the agent-visible path base for
+    # OKF bundles under output/; never hand the host absolute layout to MCP.
+    workspace = config.library_dir.parent
+    output_dir = agent_visible_path(workspace, result.output_dir)
     payload = {
         "status": "ok" if result.validation.ok else "invalid",
         "topic": result.topic,
-        "output_dir": str(result.output_dir),
+        "output_dir": output_dir,
         "files_written": result.files_written,
         "validation": result.validation.to_dict(),
-        "index_path": str(result.output_dir / "index.md"),
-        "log_path": str(result.output_dir / "log.md"),
-        "llms_txt_path": str(result.output_dir / "llms.txt"),
+        "index_path": agent_visible_path(workspace, result.output_dir / "index.md"),
+        "log_path": agent_visible_path(workspace, result.output_dir / "log.md"),
+        "llms_txt_path": agent_visible_path(workspace, result.output_dir / "llms.txt"),
         "preview": _bundle_preview(result.output_dir),
     }
     return json.dumps(payload, indent=2)

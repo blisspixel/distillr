@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Any, Protocol
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
@@ -76,7 +76,7 @@ async def papers(
     topic: str,
     query: str,
     limit: int = 5,
-    ctx: Context[Any, Any, Any] | None = None,
+    ctx: Context[Any, Any] | None = None,
 ) -> str:
     """Search arXiv, download, and analyze papers for a topic.
 

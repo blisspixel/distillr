@@ -12,6 +12,7 @@ from distill.library.confined import read_confined_text
 from distill.library.paths import find_artifact
 from distill.library.state import ChannelState
 from distill.mcp.server import (
+    agent_visible_path,
     library,
     load_config,
     mcp,
@@ -308,7 +309,8 @@ def get_costs() -> str:
     )
     messages: list[str] = []
     if not cost_scan.complete:
-        messages.append(cost_history_integrity_message(log_file, cost_scan))
+        ledger_label = agent_visible_path(config.library_dir, log_file)
+        messages.append(cost_history_integrity_message(ledger_label, cost_scan))
     if external_cost_unavailable:
         messages.append(
             "The returned total covers direct Distill charges only: at least one run "

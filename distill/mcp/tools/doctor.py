@@ -11,6 +11,8 @@ from typing import Literal, NotRequired, TypedDict
 from distill.doctor.checks import doctor_validate_key
 from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp
 
+_YT_DLP_BASENAME = "yt-dlp"
+
 type DoctorCheckStatus = Literal[
     "ok",
     "optional",
@@ -59,23 +61,24 @@ def doctor() -> str:
             entry["detail"] = detail[:120]
         checks.append(entry)
 
-    # yt-dlp
-    yt_dlp_path = shutil.which("yt-dlp")
+    # yt-dlp: report basename only so MCP does not leak install layout.
+    yt_dlp_path = shutil.which(_YT_DLP_BASENAME)
     checks.append(
         {
             "check": "yt-dlp",
             "status": "ok" if yt_dlp_path else "missing",
-            "path": yt_dlp_path or "",
+            "path": _YT_DLP_BASENAME if yt_dlp_path else "",
         }
     )
 
-    # Library directory
+    # Library directory: the confided corpus root is presented as "." so the
+    # host absolute path never appears in agent-visible tool results.
     lib_exists = config.library_dir.exists()
     checks.append(
         {
             "check": "library_dir",
             "status": "ok" if lib_exists else "missing",
-            "path": str(config.library_dir),
+            "path": ".",
         }
     )
 

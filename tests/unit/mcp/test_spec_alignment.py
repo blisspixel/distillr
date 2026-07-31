@@ -97,10 +97,10 @@ def test_every_tool_has_complete_annotations() -> None:
     for tool in _tools():
         annotations = tool.annotations
         assert annotations is not None, tool.name
-        assert annotations.readOnlyHint is not None, tool.name
-        assert annotations.destructiveHint is not None, tool.name
-        assert annotations.idempotentHint is not None, tool.name
-        assert annotations.openWorldHint is not None, tool.name
+        assert annotations.read_only_hint is not None, tool.name
+        assert annotations.destructive_hint is not None, tool.name
+        assert annotations.idempotent_hint is not None, tool.name
+        assert annotations.open_world_hint is not None, tool.name
 
 
 def test_read_only_hint_matches_write_tool_registry() -> None:
@@ -110,7 +110,7 @@ def test_read_only_hint_matches_write_tool_registry() -> None:
         annotations = tool.annotations
         assert annotations is not None, tool.name
         is_write_tool = tool.name in registered_write_tools
-        assert annotations.readOnlyHint is (not is_write_tool), tool.name
+        assert annotations.read_only_hint is (not is_write_tool), tool.name
 
 
 def test_read_tools_share_the_read_annotation_profile() -> None:
@@ -130,8 +130,8 @@ def test_write_tool_hints_follow_the_documented_policy() -> None:
             continue
         annotations = tool.annotations
         assert annotations is not None, tool.name
-        assert annotations.openWorldHint is (tool.name in _OPEN_WORLD_TOOLS), tool.name
-        assert annotations.destructiveHint is (tool.name in _DESTRUCTIVE_TOOLS), tool.name
+        assert annotations.open_world_hint is (tool.name in _OPEN_WORLD_TOOLS), tool.name
+        assert annotations.destructive_hint is (tool.name in _DESTRUCTIVE_TOOLS), tool.name
 
 
 def test_tool_listing_order_is_deterministic() -> None:
@@ -154,10 +154,9 @@ def test_write_tool_registry_matches_runtime_surface() -> None:
 
 
 def test_server_reports_distillr_version() -> None:
-    """initialize results identify this server, not the SDK, as the version."""
-    options = mcp._mcp_server.create_initialization_options()  # pyright: ignore[reportPrivateUsage]
-    assert options.server_name == "Distill"
-    assert options.server_version == version("distillr")
+    """The server identifies itself with the installed distillr version."""
+    assert mcp.name == "Distill"
+    assert mcp.version == version("distillr")
 
 
 def test_docs_tool_count_matches_runtime() -> None:

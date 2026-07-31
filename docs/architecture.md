@@ -419,7 +419,7 @@ distill/                           # Python package
 ├── worker/                        # Deferred-task claim and scratch protocol
 ├── doctor/                        # Local and candidate-adapter readiness
 ├── eval/                          # Frozen fixtures, judges, and route admission
-├── mcp/                           # FastMCP tools, resources, and prompts
+├── mcp/                           # MCP server tools, resources, and prompts
 └── web/                           # Loopback dashboard server and templates
 
 library/                           # Per-user data (git-ignored)

@@ -167,7 +167,7 @@ class TestToolRegistration:
         """All tool schemas can be introspected and serialized."""
         tools = _registered_tools()
         for name, tool in tools.items():
-            schema = tool.inputSchema
+            schema = tool.input_schema
             assert isinstance(schema, dict), f"{name}: schema is not a dict"
             # Must be JSON-serializable
             serialized = json.dumps(schema)

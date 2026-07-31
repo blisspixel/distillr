@@ -8,7 +8,7 @@ import math
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp
+from distill.mcp.server import READ_TOOL_ANNOTATIONS, agent_visible_path, load_config, mcp
 from distill.pipeline.cost_history import (
     CostLogScan,
     cost_history_integrity_message,
@@ -53,11 +53,18 @@ def _invalid_range(name: str, minimum: int, maximum: int) -> str:
     )
 
 
-def _cost_result(recent: list[dict[str, object]], cost_scan: CostLogScan, log_file: Path) -> str:
+def _cost_result(
+    recent: list[dict[str, object]],
+    cost_scan: CostLogScan,
+    log_file: Path,
+    *,
+    library_dir: Path,
+) -> str:
     total = _finite_total(recent)
     messages: list[str] = []
     if not cost_scan.complete:
-        messages.append(cost_history_integrity_message(log_file, cost_scan))
+        ledger_label = agent_visible_path(library_dir, log_file)
+        messages.append(cost_history_integrity_message(ledger_label, cost_scan))
     if total is None:
         messages.append(
             "The returned cost total is unavailable because valid cost values exceed "
@@ -146,4 +153,4 @@ def costs(days: int = 30, limit: int = 20) -> str:
         entries.append(entry)
 
     recent = entries[-limit:] if limit else []
-    return _cost_result(recent, cost_scan, log_file)
+    return _cost_result(recent, cost_scan, log_file, library_dir=config.library_dir)

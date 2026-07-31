@@ -184,6 +184,36 @@ class TestToolWiring:
         result = json.loads(watch_add("https://youtube.com/@chan"))
         assert result["status"] == "domain_not_allowed"
 
+    def test_catch_up_skips_off_list_stored_watch_urls(self, tmp_path, monkeypatch):
+        """Stored watch URLs must re-check the allowlist on catch_up."""
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        from distill.library import Library
+        from distill.mcp.tools.watch import catch_up
+
+        config = DistillConfig(
+            xai_api_key="t",
+            distill_output_dir=tmp_path / "lib",
+            distill_mcp_ingest_allowlist="learn.microsoft.com",
+        )
+        config.library_dir.mkdir(parents=True, exist_ok=True)
+        lib = Library(config)
+        lib.add_to_watchlist(
+            "https://www.youtube.com/@blocked",
+            "blocked",
+            topic="watch",
+            days=7,
+        )
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        monkeypatch.setattr(
+            "distill.mcp.tools.watch.model_available",
+            lambda: True,
+        )
+
+        result = json.loads(catch_up())
+        assert result["results"]
+        assert result["results"][0]["status"] == "domain_not_allowed"
+        assert "learn.microsoft.com" in result["results"][0]["error"]
+
     def test_site_batch_refuses_when_any_url_off_list(self, monkeypatch):
         import asyncio
 

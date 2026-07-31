@@ -130,33 +130,33 @@ be moved to `CHANGELOG.md` on next release).
   `tools/list` order, distillr-version server identity, a docs tool-count
   drift guard, and tests moved off private SDK internals onto the public
   listing API.
-- [ ] **SDK v2 graduation (phase 2).** `mcp 2.0.0` is stable on PyPI and
-  `google-genai` no longer pins `mcp`, so graduation is unblocked upstream.
-  Port `distill/mcp/server.py` to `mcp.server.mcpserver.MCPServer` (the
-  `mcp.server.fastmcp` module is removed in v2), re-prove the telemetry
-  seam, guardrails, and dual-era operation, verify no-analytics behavior of
-  the SDK's OpenTelemetry middleware and the startup budget, and regenerate
-  the MCP contract snapshot as one reviewed change. Waits for early v2 patch
-  hardening; acceptance criteria in the design doc.
+- [x] **SDK v2 graduation (phase 2).** Shipped in 0.19.48: the dependency
+  is `mcp>=2.0.0,<3`, `distill/mcp/server.py` runs on
+  `mcp.server.mcpserver.MCPServer` with the telemetry seam, guardrails,
+  sorted listings, first-class server version, and deliberate cache hints
+  (static listings and `server/discover` fresh one hour at private scope;
+  `resources/read` uncached so corpus reads stay fresh). Dual-era operation
+  proven over real Windows stdio: a modern client negotiates 2026-07-28
+  through `server/discover` with cache metadata, and a genuine v1.28.1
+  client completes the legacy initialize handshake. The MCP contract
+  snapshot was byte-identical across the SDK swap, the OpenTelemetry
+  dependency is api-only with no exporter (no-op, no egress), and the CLI
+  startup path never imports the SDK. Evidence in the design doc.
 - [ ] **Tasks extension for long-running tools (phase 3).** After the v2
   port: advertise `io.modelcontextprotocol/tasks`, return durable task
   handles only to clients that declare the capability, persist the task
   registry under `library/.distill/`, and surface budget and read-only
   refusals as structured task failures. Blocked on stable SDK support for
   the extension; tracked in the design doc.
-- [ ] **MCP surface refinement debt (0.19.47 bug-hunt pass).** Two verified
-  pre-existing boundaries to tighten on their own evidence, not silently:
-  several tool results return absolute local paths (`okf_export` output
-  paths, `doctor` library and executable paths, the `costs` ledger-path
-  integrity warning), which hands a connected agent the machine's directory
-  layout and contradicts the library-relative discipline of the find/read
-  surface; and `DISTILL_MCP_INGEST_ALLOWLIST` gates only the URL-taking
-  tools (`process_video_url`, `watch_add`, `site_batch`) as documented,
-  while query-taking ingest tools (`learn_topic`, `search_videos`,
-  `discover`, `papers`) and stored-watchlist refreshes (`catch_up`) reach
-  the open web without an allowlist check, so the guard confines URL entry
-  points rather than all ingestion. Either extend the guard or narrow its
-  description at the next MCP surface change.
+- [x] **MCP surface refinement debt (0.19.47 bug-hunt pass; closed in 0.19.48).**
+  Absolute host paths no longer leave the MCP surface: `okf_export` returns
+  workspace-relative `output/okf-*` paths, `doctor` reports the library root
+  as `.` and `yt-dlp` by basename only, and incomplete cost-history messages
+  use library-relative ledger labels (tools and `distill://costs`).
+  `DISTILL_MCP_INGEST_ALLOWLIST` now also re-checks stored watch URLs on
+  `catch_up`, while docs and the gate docstring state the intentional scope:
+  URL entry points plus stored-URL refresh, not query-shaped open-world
+  discovery (`discover`, `papers`, `learn_topic`, `search_videos`).
 
 ### 0.19 Recurring research profiles and no-metered-cost routing
 

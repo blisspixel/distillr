@@ -8,7 +8,7 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
@@ -295,7 +295,7 @@ async def discover(  # noqa: C901 - legacy discovery workflow
     limit: int = 5,
     papers_only: bool = False,
     videos_only: bool = False,
-    ctx: Context[Any, Any, Any] | None = None,
+    ctx: Context[Any, Any] | None = None,
 ) -> str:
     """Goal-aware cross-source discovery: papers + videos, ranked.
 

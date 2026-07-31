@@ -89,7 +89,7 @@ class TestFindInsights:
         from distill.mcp.server import mcp
 
         tools = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
-        schema = tools["find_insights"].inputSchema
+        schema = tools["find_insights"].input_schema
         properties = schema["properties"]
 
         assert properties["query"]["minLength"] == 1

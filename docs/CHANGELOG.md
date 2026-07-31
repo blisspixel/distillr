@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.48 - 2026-07-31
+
+MCP SDK v2 graduation release: the server now runs on the stable `mcp 2.0.0`
+SDK and speaks protocol 2026-07-28 to modern clients while still answering
+legacy `initialize` clients from the same stdio binary. This is phase 2 of
+[`docs/design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md),
+and the phase the 0.19.47 checkpoint staged.
+
+The public contract provably did not move: `docs/contracts/mcp-v1.json` is
+byte-identical across the SDK major-version swap, and both client
+generations were driven against the installed `distill-mcp` binary over real
+Windows stdio as release evidence (a modern client negotiating 2026-07-28
+through `server/discover` with cache metadata, and a genuine v1.28.1 client
+completing the legacy handshake).
+
+### Changed
+
+- The runtime dependency is now `mcp>=2.0.0,<3` (2.0.0 in the lock). The
+  package-metadata regression test guards the graduated v2 line and
+  reserves the same compatibility review for a future v3.
+- `distill/mcp/server.py` runs on `mcp.server.mcpserver.MCPServer`. The
+  telemetry seam overrides the v2 `call_tool`, the server version is a
+  first-class constructor argument (the v1 private-attribute seam is gone),
+  and all three guardrails plus the write-tool registry are re-proven under
+  the existing test files.
+- Listings and the `server/discover` result carry deliberate cache
+  metadata: one hour at `private` scope, because the tool, prompt,
+  resource, and template registries are static for the process lifetime.
+  `resources/read` deliberately carries no freshness window so corpus reads
+  always reflect the files on disk.
+- MCP test suites use the v2 API (snake_case fields, `CallToolResult`
+  returns); no test weakened, and the two v1-era transport assertions were
+  ported rather than deleted.
+- MCP path hygiene: `okf_export` returns workspace-relative paths;
+  `doctor` reports library as `.` and executables by basename; cost-history
+  integrity messages use library-relative ledger labels.
+- `DISTILL_MCP_INGEST_ALLOWLIST` re-checks stored watch URLs on `catch_up`;
+  docs state the intentional URL-entry (plus stored-URL refresh) scope versus
+  open-world query tools.
+
+### Verified
+
+- No outbound analytics: the SDK's OpenTelemetry dependency is api-only; no
+  OTel SDK or exporter is installed, so the tracer is a no-op and nothing
+  leaves the machine.
+- CLI startup is unaffected: the CLI never imports the MCP SDK, and a
+  same-machine comparison against the released 0.19.47 wheel showed no
+  regression.
+
 ## 0.19.47 - 2026-07-31
 
 MCP 2026-07-28 checkpoint release. The final Model Context Protocol

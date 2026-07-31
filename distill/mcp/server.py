@@ -3,7 +3,7 @@
 
 Run with:  distill-mcp          (stdio transport, for Claude Desktop / IDE integrations)
 
-This module creates the FastMCP instance and wires all tools, resources,
+This module creates the MCPServer instance and wires all tools, resources,
 and prompts from their respective submodules.  No business logic lives here.
 """
 
@@ -15,7 +15,7 @@ import json
 import logging
 import math
 import string
-from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Generator, Mapping
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -26,9 +26,11 @@ from typing import Any, ParamSpec, TypeVar, cast
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from mcp.server.caching import CacheableMethod, CacheHint
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import (
-    ContentBlock,
+    CallToolResult,
+    InputRequiredResult,
     Prompt,
     Resource,
     ResourceTemplate,
@@ -54,8 +56,10 @@ from distill.pipeline.gaps import (
 
 __all__ = [
     "READ_TOOL_ANNOTATIONS",
+    "agent_visible_path",
     "capped_tracker",
     "cost_summary",
+    "host_not_on_ingest_allowlist",
     "library",
     "load_config",
     "main",
@@ -107,30 +111,48 @@ def _distillr_version() -> str | None:
         return None
 
 
-class DistillFastMCP(FastMCP):
-    """FastMCP server that correlates every tool call with local telemetry."""
+#: The tool, prompt, resource, and template registries are static after
+#: import-time registration, so listings (and the discover result) stay fresh
+#: for the process lifetime; one hour bounds a stale cache after an upgrade.
+#: ``resources/read`` is deliberately absent: corpus reads must stay fresh.
+#: Scope is private because the corpus is single-user local state.
+_STATIC_LISTING_CACHE_HINT = CacheHint(ttl_ms=3_600_000, scope="private")
+_CACHE_HINTS: dict[CacheableMethod, CacheHint] = {
+    "tools/list": _STATIC_LISTING_CACHE_HINT,
+    "prompts/list": _STATIC_LISTING_CACHE_HINT,
+    "resources/list": _STATIC_LISTING_CACHE_HINT,
+    "resources/templates/list": _STATIC_LISTING_CACHE_HINT,
+    "server/discover": _STATIC_LISTING_CACHE_HINT,
+}
+
+
+class DistillMCPServer(MCPServer):
+    """MCP server that correlates every tool call with local telemetry."""
 
     def __init__(self, name: str, *, instructions: str | None = None) -> None:
-        super().__init__(name, instructions=instructions)
-        # FastMCP v1 does not forward a server version, so initialize results
-        # would advertise the SDK's version as this server's identity. The
-        # protected attribute is the only v1 seam; revisited at the SDK v2 port.
-        server_version = _distillr_version()
-        if server_version is not None:
-            self._mcp_server.version = server_version
+        super().__init__(
+            name,
+            instructions=instructions,
+            # Without installed distillr metadata the server deliberately
+            # advertises an empty version (the SDK default) rather than
+            # impersonating the SDK's own version as v1 did.
+            version=_distillr_version() or "",
+            cache_hints=_CACHE_HINTS,
+        )
 
     async def call_tool(
         self,
         name: str,
         arguments: dict[str, Any],
-    ) -> Sequence[ContentBlock] | dict[str, Any]:
+        context: Context[Any, Any] | None = None,
+    ) -> CallToolResult | InputRequiredResult:
         with run_scope(
             invocation_type="mcp",
             command=_telemetry_tool_name(name),
         ):
             with suppress(Exception):
                 update_current_run(ops_dir=_config().library_dir / ".distill")
-            return await super().call_tool(name, arguments)
+            return await super().call_tool(name, arguments, context)
 
     # Listings sort on stable keys so the wire order is deterministic (a
     # client-caching SHOULD in MCP 2026-07-28) regardless of module import
@@ -146,14 +168,14 @@ class DistillFastMCP(FastMCP):
     async def list_resource_templates(self) -> list[ResourceTemplate]:
         return sorted(
             await super().list_resource_templates(),
-            key=lambda template: template.uriTemplate,
+            key=lambda template: template.uri_template,
         )
 
     async def list_prompts(self) -> list[Prompt]:
         return sorted(await super().list_prompts(), key=lambda prompt: prompt.name)
 
 
-mcp = DistillFastMCP(
+mcp = DistillMCPServer(
     "Distill",
     instructions=(
         "Source-to-intelligence platform for local Markdown corpora. "
@@ -167,10 +189,10 @@ mcp = DistillFastMCP(
 #: Tool behavior hints for the local read surface: no corpus mutation, no
 #: model spend, no network, and repeat calls have no additional effect.
 READ_TOOL_ANNOTATIONS = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
 )
 
 _WRITE_TOOL_NAMES: set[str] = set()
@@ -199,10 +221,10 @@ def write_tool_annotations(
     in read-only deployments, so none may advertise itself as read-only.
     """
     return ToolAnnotations(
-        readOnlyHint=False,
-        destructiveHint=destructive,
-        idempotentHint=idempotent,
-        openWorldHint=open_world,
+        read_only_hint=False,
+        destructive_hint=destructive,
+        idempotent_hint=idempotent,
+        open_world_hint=open_world,
     )
 
 
@@ -348,8 +370,13 @@ def write_tool(
     ledger owner and is persisted before success, failure, cancellation, or a
     structured budget response crosses the MCP boundary. Tools can opt into
     read-only preview calls when ``preview=True`` is structurally
-    non-mutating. ``functools.wraps`` preserves the signature FastMCP
+    non-mutating. ``functools.wraps`` preserves the signature the SDK
     introspects for the schema.
+
+    SDK v2 runs synchronous tools on a worker thread. That is safe here
+    because run-outcome marking mutates the shared run-context object and
+    the cost scope lives entirely inside this wrapper, but sync tool code
+    must not set a contextvar and expect the calling thread to observe it.
     """
 
     def deco(fn: Callable[P, R]) -> Callable[P, R]:
@@ -403,13 +430,27 @@ def write_tool(
     return deco
 
 
-def refuse_if_host_not_allowed(url: str) -> str | None:
-    """Gate for URL-taking ingest tools: the ingest-domain allowlist.
+def agent_visible_path(root: Path, path: Path) -> str:
+    """Return a root-relative POSIX path for MCP clients, never a host absolute path.
 
-    With ``DISTILL_MCP_INGEST_ALLOWLIST`` set (comma-separated hostnames), a
-    URL whose host is not one of the entries or a subdomain of one is refused
-    -- the corpus-poisoning guard for deployments that expose write tools.
-    Returns the refusal JSON, or ``None`` to proceed.
+    Prefer confinement under ``root``. When the path is outside that root
+    (for example an OKF bundle sibling under the workspace parent), callers
+    must pass the correct root. As a last resort only the basename is
+    returned so responses never leak the operator's directory layout.
+    """
+    try:
+        relative = path.resolve(strict=False).relative_to(root.resolve(strict=False))
+    except (OSError, ValueError):
+        return path.name
+    return relative.as_posix()
+
+
+def host_not_on_ingest_allowlist(url: str) -> str | None:
+    """Return a domain_not_allowed error string when the URL host is blocked.
+
+    Returns ``None`` when the allowlist is empty or the host is permitted.
+    Does not mark run telemetry; callers that short-circuit the whole tool
+    should use :func:`refuse_if_host_not_allowed` instead.
     """
     allowlist = [
         h.strip().lower() for h in _config().distill_mcp_ingest_allowlist.split(",") if h.strip()
@@ -421,13 +462,42 @@ def refuse_if_host_not_allowed(url: str) -> str | None:
     if host and any(host == entry or host.endswith("." + entry) for entry in allowlist):
         return None
 
+    return (
+        f"Host '{host or url}' is not on DISTILL_MCP_INGEST_ALLOWLIST; "
+        "this server only accepts URL entry points from: " + ", ".join(allowlist) + ". "
+        "Ask the operator to extend the allowlist or ingest via the distill CLI."
+    )
+
+
+def refuse_if_host_not_allowed(url: str) -> str | None:
+    """Gate for URL-taking and stored-URL ingest tools: the host allowlist.
+
+    With ``DISTILL_MCP_INGEST_ALLOWLIST`` set (comma-separated hostnames), a
+    URL whose host is not one of the entries or a subdomain of one is refused
+    -- the corpus-poisoning guard for deployments that expose write tools.
+
+    Scope is intentional: this gate applies to tools that accept or replay
+    concrete URLs (``process_video_url``, ``watch_add``, ``site_batch``, and
+    ``catch_up`` against stored watch URLs). Query-shaped discovery tools
+    (``discover``, ``papers``, ``learn_topic``, ``search_videos``) stay
+    open-world under ``openWorldHint``; they do not pass through this gate.
+
+    Whole-tool refusals mark the run outcome ``refused``. Per-item skips
+    inside multi-entry tools (for example ``catch_up``) must use
+    :func:`host_not_on_ingest_allowlist` so one blocked URL cannot clobber a
+    successful multi-channel outcome.
+
+    Returns the refusal JSON, or ``None`` to proceed.
+    """
+    error = host_not_on_ingest_allowlist(url)
+    if error is None:
+        return None
+
     mark_current_run_outcome("refused")
     return json.dumps(
         {
             "status": "domain_not_allowed",
-            "error": f"Host '{host or url}' is not on DISTILL_MCP_INGEST_ALLOWLIST; "
-            "this server only ingests from: " + ", ".join(allowlist) + ". "
-            "Ask the operator to extend the allowlist or ingest via the distill CLI.",
+            "error": error,
         },
         indent=2,
     )

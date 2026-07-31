@@ -113,8 +113,13 @@ class CostLogScan:
         }
 
 
-def cost_history_integrity_message(path: Path, scan: CostLogScan) -> str:
-    """Describe incomplete ledger evidence without claiming partial totals."""
+def cost_history_integrity_message(path: Path | str, scan: CostLogScan) -> str:
+    """Describe incomplete ledger evidence without claiming partial totals.
+
+    ``path`` may be a filesystem path or an already agent-safe display label
+    (for example a library-relative POSIX string). Callers that surface this
+    message to untrusted MCP clients should pass a confined display label.
+    """
 
     reasons: list[str] = []
     if scan.unreadable:

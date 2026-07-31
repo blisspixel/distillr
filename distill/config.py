@@ -195,9 +195,10 @@ class DistillConfig(BaseSettings):
     # then the run stops cleanly; overshoot is bounded by one model call).
     # 0 or unset = no cap.
     distill_mcp_max_spend_per_call: float = 0.0
-    # DISTILL_MCP_INGEST_ALLOWLIST: comma-separated hostnames; URL-taking
-    # ingest tools refuse any URL whose host is not on (or under) the list.
-    # Empty = no restriction.
+    # DISTILL_MCP_INGEST_ALLOWLIST: comma-separated hostnames; URL entry points
+    # and stored-URL refresh (process_video_url, watch_add, site_batch,
+    # catch_up) refuse hosts not on (or under) the list. Query-shaped open-world
+    # tools are out of scope. Empty = no restriction.
     distill_mcp_ingest_allowlist: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

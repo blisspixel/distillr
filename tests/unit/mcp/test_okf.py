@@ -30,9 +30,14 @@ def test_okf_export_writes_bundle_and_returns_paths(tmp_path: Path) -> None:
 
     assert result["status"] == "ok"
     assert result["topic"] == "ai"
-    assert Path(result["output_dir"]).exists()
+    assert result["output_dir"] == "output/okf-ai"
+    assert not Path(result["output_dir"]).is_absolute()
+    assert (tmp_path / result["output_dir"]).exists()
     assert result["files_written"] >= 3
-    assert "index.md" in result["index_path"]
+    assert result["index_path"] == "output/okf-ai/index.md"
+    assert result["log_path"] == "output/okf-ai/log.md"
+    assert result["llms_txt_path"] == "output/okf-ai/llms.txt"
+    assert ":" not in result["output_dir"]  # no Windows drive or absolute leak
     assert result["preview"]
 
 
@@ -41,9 +46,13 @@ def test_okf_export_missing_topic_returns_error(tmp_path: Path) -> None:
     with patch("distill.mcp.server._config", return_value=config):
         from distill.mcp.tools.okf import okf_export
 
-        result = json.loads(okf_export("missing"))
+        raw = okf_export("missing")
+        result = json.loads(raw)
 
     assert result["status"] == "error"
+    assert "missing" in result["error"]
+    assert str(config.library_dir) not in raw
+    assert str(tmp_path) not in raw
 
 
 def test_okf_validate_accepts_workspace_relative_bundle(tmp_path: Path) -> None:

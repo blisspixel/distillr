@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import TextContent
 
 from distill.config import DistillConfig
@@ -291,6 +291,23 @@ class TestCostsTool:
         assert "supported aggregate range" in result["message"]
         assert "Infinity" not in raw
 
+    def test_incomplete_cost_history_uses_library_relative_ledger_path(self, mock_config):
+        """Integrity warnings must not hand the host absolute ledger path to MCP."""
+        log_file = mock_config.library_dir / "cost_log.jsonl"
+        log_file.write_text("{not-json\n", encoding="utf-8")
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.costs import costs
+
+            result = json.loads(costs())
+
+        assert result["status"] == "warning"
+        message = result["message"]
+        assert "Cost history is incomplete at" in message
+        assert "cost_log.jsonl" in message
+        assert str(mock_config.library_dir) not in message
+        assert "\\" not in message.split("at ", 1)[1].split(":", 1)[0]
+
 
 class TestDoctorTool:
     def test_returns_checks(self, mock_config):
@@ -308,6 +325,12 @@ class TestDoctorTool:
         check_names = [c["check"] for c in result["checks"]]
         assert "xai_api_key" in check_names
         assert "library_dir" in check_names
+        library_check = next(c for c in result["checks"] if c["check"] == "library_dir")
+        assert library_check["path"] == "."
+        yt_check = next(c for c in result["checks"] if c["check"] == "yt-dlp")
+        assert yt_check["path"] in ("", "yt-dlp")
+        assert "\\" not in yt_check["path"]
+        assert "/" not in yt_check["path"]
 
     def test_configured_key_is_truthfully_reported_as_not_live_validated(self, mock_config):
         with (
@@ -1126,7 +1149,7 @@ class TestSynthesizeTool:
 
         tool = next(tool for tool in asyncio.run(mcp.list_tools()) if tool.name == "synthesize")
 
-        assert tool.inputSchema["properties"]["force"] == {
+        assert tool.input_schema["properties"]["force"] == {
             "default": False,
             "title": "Force",
             "type": "boolean",
@@ -1158,10 +1181,8 @@ class TestSynthesizeTool:
             patch("distill.mcp.tools.synthesis.model_available") as mock_model,
             patch("distill.mcp.tools.synthesis.capped_tracker") as mock_tracker,
         ):
-            content, _ = cast(
-                tuple[list[TextContent], dict[str, object]],
-                asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": False})),
-            )
+            result = asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": False}))
+            content = cast(list[TextContent], result.content)
 
         assert json.loads(content[0].text)["status"] == "authorization_required"
         mock_load.assert_not_called()

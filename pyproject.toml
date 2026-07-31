@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.19.47"
+version = "0.19.48"
 description = "Source-to-intelligence platform: turn YouTube, websites, and arXiv papers into a structured, reusable corpus with per-source insights, cross-source synthesis, and Deep Research reports."
 readme = "README.md"
 license = "Apache-2.0"
@@ -38,9 +38,10 @@ dependencies = [
     "pyyaml>=6.0.0",
     "python-docx>=1.0.0",
     "playwright>=1.52.0",
-    # MCP SDK v2 is a breaking line. Keep production installs on stable v1
-    # until the roadmap compatibility spike explicitly graduates v2.
-    "mcp>=1.27.2,<2",
+    # MCP SDK v2 speaks protocol 2026-07-28 and answers legacy initialize
+    # clients from the same server. Graduated per the adoption design doc;
+    # the v3 line must clear its own compatibility review before entering.
+    "mcp>=2.0.0,<3",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "jinja2>=3.1.0",

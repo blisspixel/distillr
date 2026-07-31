@@ -21,9 +21,13 @@ Current snapshots:
   `library.json` and per-channel `state.json` documents plus representative
   accepted empty, legacy, and explicit-field inputs and their normalized forms.
 
-The snapshots are marked `candidate` because the MCP compatibility checkpoint
-scheduled after the 2026-07-28 protocol release must finish before the 1.0
-surface can be declared stable. Router and provider configuration plus direct
+The snapshots are marked `candidate` pending the broader 1.0 readiness
+conditions. The MCP 2026-07-28 compatibility checkpoint that previously gated
+them is complete: the inventory, the spec-alignment work, and the SDK v2 port
+shipped in 0.19.47 and 0.19.48 with the MCP snapshot byte-identical across
+the SDK swap
+([`docs/design/mcp-2026-07-28-adoption.md`](../design/mcp-2026-07-28-adoption.md)).
+Router and provider configuration plus direct
 runtime environment controls, additional stored-state documents and file
 locations not owned by the configuration path helpers,
 artifact-specific frontmatter schemas and value semantics, caller-specific
@@ -75,8 +79,10 @@ which requires a declared public API and reserves incompatible API changes for
 major releases. JSON schemas follow the
 [JSON Schema Draft 2020-12 reference](https://json-schema.org/draft/2020-12),
 and MCP schemas follow the current
-[MCP server schema reference](https://modelcontextprotocol.io/specification/2025-11-25/schema).
-These sources were checked on 2026-07-10.
+[MCP server schema reference](https://modelcontextprotocol.io/specification/2026-07-28/schema);
+the server answers both the 2026-07-28 era and legacy initialize clients, and
+the recorded wire shapes are identical in both. These sources were checked on
+2026-07-31.
 
 ## Review workflow
 

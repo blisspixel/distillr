@@ -439,7 +439,14 @@ def test_mcp_cost_total_is_scoped_when_external_cost_is_unavailable() -> None:
     assert row["external_cost_status"] == "unavailable"
     assert row["actual_cost_scope"] == "distill-direct-charges"
 
-    payload = json.loads(_cost_result([row], CostLogScan(), Path("cost_log.jsonl")))
+    payload = json.loads(
+        _cost_result(
+            [row],
+            CostLogScan(),
+            Path("cost_log.jsonl"),
+            library_dir=Path("library"),
+        )
+    )
 
     assert payload["status"] == "warning"
     assert payload["total_scope"] == "distill-direct-charges"
@@ -458,7 +465,14 @@ def test_mcp_cost_total_stays_complete_for_fully_known_runs() -> None:
     row = project_cost_log_row(
         {"timestamp": "2026-07-24T00:00:00Z", "command": "papers", "actual_cost": 1.25}
     )
-    payload = json.loads(_cost_result([row], CostLogScan(), Path("cost_log.jsonl")))
+    payload = json.loads(
+        _cost_result(
+            [row],
+            CostLogScan(),
+            Path("cost_log.jsonl"),
+            library_dir=Path("library"),
+        )
+    )
 
     assert payload["status"] == "ok"
     assert payload["total_scope"] == "returned_valid_runs"

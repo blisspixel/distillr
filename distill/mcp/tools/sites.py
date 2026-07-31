@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import idna
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from distill.commands._site_ingest import SiteIngestResult
 from distill.library.confined import read_confined_text, validate_confined_path
@@ -118,7 +118,7 @@ async def site_batch(  # noqa: C901 - legacy site workflow
     seed_only: bool = False,
     same_section_only: bool = False,
     preview: bool = False,
-    ctx: Context[Any, Any, Any] | None = None,
+    ctx: Context[Any, Any] | None = None,
 ) -> str:
     """Scrape and analyze pages from a site seed file or URL list.
 

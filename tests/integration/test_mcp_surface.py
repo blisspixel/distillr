@@ -348,14 +348,14 @@ class TestBackwardCompatibility:
         tools = _registered_tools()
 
         # learn_topic must still accept query, topic, days, limit
-        lt = tools["learn_topic"].inputSchema["properties"]
+        lt = tools["learn_topic"].input_schema["properties"]
         assert "query" in lt
         assert "topic" in lt
         assert "days" in lt
         assert "limit" in lt
 
         # catch_up must still accept channel, topic, days
-        cu = tools["catch_up"].inputSchema["properties"]
+        cu = tools["catch_up"].input_schema["properties"]
         assert "channel" in cu
         assert "topic" in cu
         assert "days" in cu

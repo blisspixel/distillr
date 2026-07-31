@@ -1027,10 +1027,14 @@ For deployments that do expose the write tools, two narrower guardrails:
   ledger -- no off-ledger spend, ever), then the run stops with a structured
   `budget_exceeded` response. Artifacts written before the stop are durable
   and verify-gated, and a re-run converges (already-ingested sources skip).
-- `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines the
-  URL-taking ingest tools (`process_video_url`, `watch_add`, `site_batch`) to
-  the listed hosts and their subdomains -- the corpus-poisoning guard.
-  MCP `site_batch` accepts direct URL arrays or bounded JSON manifests under
+- `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines URL
+  entry points and stored-URL refresh (`process_video_url`, `watch_add`,
+  `site_batch`, and `catch_up` against each stored watch URL) to the listed
+  hosts and their subdomains -- the corpus-poisoning guard for concrete URLs.
+  Query-shaped tools (`discover`, `papers`, `learn_topic`, `search_videos`)
+  stay open-world when write tools are enabled; use `DISTILL_MCP_READ_ONLY=1`
+  when the server must not reach the public web at all. MCP `site_batch`
+  accepts direct URL arrays or bounded JSON manifests under
   `library/site-seeds/`; it does not read TXT or ordinary library files. The
   allowlist applies after expanding mixed exact-page and shallow-crawl JSON
   seeds. Hosts match exactly

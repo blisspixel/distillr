@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +32,7 @@ from distill.mcp.resources import (
     get_watchlist,
 )
 from distill.mcp.server import (
-    DistillFastMCP,
+    DistillMCPServer,
     _config,
     _lib,
     _read_markdown_resource,
@@ -40,6 +41,7 @@ from distill.mcp.server import (
     _topic_gap_summary,
     _topic_source_inventory,
     _video_list,
+    agent_visible_path,
     load_config,
     main,
     refuse_if_host_not_allowed,
@@ -1464,7 +1466,7 @@ class TestEntryPoint:
 
 
 def test_every_mcp_tool_call_gets_a_distinct_correlated_run(mock_config):
-    server = DistillFastMCP("telemetry-test")
+    server = DistillMCPServer("telemetry-test")
 
     @server.tool()
     def ping() -> str:
@@ -1490,12 +1492,22 @@ def test_mcp_telemetry_tool_name_rejects_unvalidated_content():
     assert _telemetry_tool_name("") == "unknown-tool"
 
 
+def test_agent_visible_path_is_root_relative_posix(tmp_path: Path) -> None:
+    root = tmp_path / "library"
+    nested = root / ".distill" / "cost_log.jsonl"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("", encoding="utf-8")
+
+    assert agent_visible_path(root, nested) == ".distill/cost_log.jsonl"
+    assert agent_visible_path(root, tmp_path / "outside.txt") == "outside.txt"
+
+
 def test_mcp_host_allowlist_refusal_marks_correlated_run(tmp_path):
     config = DistillConfig(
         distill_output_dir=tmp_path / "library",
         distill_mcp_ingest_allowlist="allowed.test",
     )
-    server = DistillFastMCP("allowlist-telemetry-test")
+    server = DistillMCPServer("allowlist-telemetry-test")
 
     @server.tool()
     def gated_ingest(url: str) -> str:
