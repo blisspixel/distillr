@@ -307,11 +307,16 @@ def _apply_cost_mode_override(cost_mode: str) -> None:
         # runtime class), so a --json consumer saw an empty stdout and a code
         # indistinguishable from a crash, and could not tell its own argv was
         # wrong. The sibling validations in this module already exit 2.
-        from distill.commands._json import ExitCode, emit_json, json_mode_active
+        from distill.commands._json import ExitCode, emit_json_refusal, json_mode_active
 
         message = f"Unknown --cost-mode '{cost_mode}'. Choose: auto, no-metered, paid-ok."
         if json_mode_active():
-            emit_json({"reason": "usage_error"}, error=message)
+            emit_json_refusal(
+                reason="usage_error",
+                error=message,
+                phase="gate.usage",
+                limit={"kind": "cost_mode_flag"},
+            )
         else:
             console.print(
                 f"[red]Unknown --cost-mode '{cost_mode}'.[/red] Choose: auto, no-metered, paid-ok."
@@ -343,12 +348,17 @@ def _apply_output_mode(
     set_json_mode(json_output)
     set_json_active(json_output)
 
-    from distill.commands._json import emit_json, json_mode_active
+    from distill.commands._json import emit_json_refusal, json_mode_active
 
     if quiet and (verbose or debug):
         message = "--quiet cannot be combined with --verbose or --debug"
         if json_mode_active():
-            emit_json({"reason": "usage_error"}, error=message)
+            emit_json_refusal(
+                reason="usage_error",
+                error=message,
+                phase="gate.usage",
+                limit={"kind": "verbosity_flags"},
+            )
         else:
             console.print(f"[red]{message}[/red]")
         raise typer.Exit(2)
@@ -362,7 +372,12 @@ def _apply_output_mode(
             provider_override = normalize_provider_name(provider_override)
         except ValueError as exc:
             if json_mode_active():
-                emit_json({"reason": "usage_error"}, error=str(exc))
+                emit_json_refusal(
+                    reason="usage_error",
+                    error=str(exc),
+                    phase="gate.usage",
+                    limit={"kind": "provider_flag"},
+                )
             else:
                 console.print(f"[red]{exc}[/red]")
             raise typer.Exit(2) from None

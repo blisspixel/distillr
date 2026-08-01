@@ -76,7 +76,7 @@ class TestConceptsCommand:
     def test_rejects_missing_topic_dir(self, fixture_config: DistillConfig) -> None:
         result = runner.invoke(cli.app, ["concepts", "build", "ghost-topic"])
         assert result.exit_code == ExitCode.NOT_FOUND
-        assert "does not exist" in result.output.lower()
+        assert "topic not found: ghost-topic" in result.output.lower()
 
     def test_build_reports_when_no_new_insights(
         self, fixture_config: DistillConfig, monkeypatch: pytest.MonkeyPatch
@@ -352,7 +352,7 @@ class TestConceptsRecoveryCommands:
     def test_recovery_rejects_missing_topic(self, fixture_config: DistillConfig) -> None:
         result = runner.invoke(cli.app, ["concepts", "log", "ghost", "missing"])
         assert result.exit_code == ExitCode.NOT_FOUND
-        assert "topic directory does not exist" in result.output.lower()
+        assert "topic not found: ghost" in result.output.lower()
 
     def test_log_lists_snapshots(self, fixture_config: DistillConfig) -> None:
         _build_history(fixture_config.topic_dir("tkg"))

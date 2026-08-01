@@ -24,7 +24,7 @@ from distill.commands._helpers import (
     save_command_cost,
     tty_confirm,
 )
-from distill.commands._json import ExitCode, emit_json, json_mode_active
+from distill.commands._json import ExitCode, emit_json, exit_with_refusal, json_mode_active
 from distill.concepts import recovery
 from distill.concepts.records import utcnow_iso
 
@@ -89,8 +89,13 @@ def concepts_build(
     config = get_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
-        console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
-        raise typer.Exit(ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"Topic not found: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="concepts",
+            limit={"kind": "topic", "topic": topic},
+        )
 
     rc = RouterConfig()
     tracker = budgeted_cost_tracker(config, "concepts")
@@ -141,8 +146,13 @@ def _resolve_topic_dir(topic: str) -> Path:
     config = get_config()
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
-        console.print(f"[red]Topic directory does not exist: {topic_dir}[/red]")
-        raise typer.Exit(ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"Topic not found: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="concepts",
+            limit={"kind": "topic", "topic": topic},
+        )
     return topic_dir
 
 
@@ -155,10 +165,13 @@ def concept_log_cmd(
     if recovery.note_path_for_slug(topic_dir, slug) is None and not recovery.list_snapshots(
         topic_dir, slug
     ):
-        console.print(
-            f"[red]No concept or entity note found for slug '{slug}' in topic '{topic}'.[/red]"
+        exit_with_refusal(
+            f"No concept or entity note found for slug '{slug}' in topic '{topic}'.",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="concepts",
+            limit={"kind": "concept_slug", "topic": topic, "slug": slug},
         )
-        raise typer.Exit(ExitCode.NOT_FOUND)
 
     snapshots = recovery.list_snapshots(topic_dir, slug)
     live_path = recovery.note_path_for_slug(topic_dir, slug)
@@ -261,19 +274,25 @@ def concept_diff_cmd(
     snapshots = recovery.list_snapshots(topic_dir, slug)
 
     if live_path is None and not snapshots:
-        console.print(
-            f"[red]No concept or entity note found for slug '{slug}' in topic '{topic}'.[/red]"
+        exit_with_refusal(
+            f"No concept or entity note found for slug '{slug}' in topic '{topic}'.",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="concepts",
+            limit={"kind": "concept_slug", "topic": topic, "slug": slug},
         )
-        raise typer.Exit(ExitCode.NOT_FOUND)
 
     def _snapshot_or_exit(ts: str) -> recovery.Snapshot:
         snap = recovery.resolve_snapshot(topic_dir, slug, ts)
         if snap is None:
-            console.print(
-                f"[red]No snapshot for '{slug}' matching '{ts}'.[/red] "
-                f"Run: distill concepts log {topic} {slug}"
+            exit_with_refusal(
+                f"No snapshot for '{slug}' matching '{ts}'. "
+                f"Run: distill concepts log {topic} {slug}",
+                code=ExitCode.NOT_FOUND,
+                reason="not_found",
+                action="concepts",
+                limit={"kind": "concept_snapshot", "topic": topic, "slug": slug},
             )
-            raise typer.Exit(ExitCode.NOT_FOUND)
         return snap
 
     console.print()
@@ -289,8 +308,13 @@ def concept_diff_cmd(
         )
     else:
         if live_path is None:
-            console.print("[red]No live note to diff against; pass two timestamps.[/red]")
-            raise typer.Exit(ExitCode.NOT_FOUND)
+            exit_with_refusal(
+                "No live note to diff against; pass two timestamps.",
+                code=ExitCode.NOT_FOUND,
+                reason="not_found",
+                action="concepts",
+                limit={"kind": "concept_live_note", "topic": topic, "slug": slug},
+            )
         if ts_a:
             old = _snapshot_or_exit(ts_a)
         elif snapshots:
@@ -324,11 +348,14 @@ def concept_rollback_cmd(
 
     snap = recovery.resolve_snapshot(topic_dir, slug, timestamp)
     if snap is None:
-        console.print(
-            f"[red]No snapshot for '{slug}' matching '{timestamp}'.[/red] "
-            f"Run: distill concepts log {topic} {slug}"
+        exit_with_refusal(
+            f"No snapshot for '{slug}' matching '{timestamp}'. "
+            f"Run: distill concepts log {topic} {slug}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="concepts",
+            limit={"kind": "concept_snapshot", "topic": topic, "slug": slug},
         )
-        raise typer.Exit(ExitCode.NOT_FOUND)
 
     if not yes and not tty_confirm(
         f"Restore '{slug}' to its {snap.iso} snapshot? The current version is backed up first."

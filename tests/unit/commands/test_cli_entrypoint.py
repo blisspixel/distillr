@@ -315,15 +315,17 @@ def test_main_emits_provider_busy_error_json(monkeypatch, capsys):
     assert raised.value.code == int(ExitCode.NETWORK_ERROR)
     payload = json.loads(captured.out)
     assert payload["status"] == "error"
-    assert payload["data"] == {
-        "code": "provider_busy",
-        "retryable": True,
-        "terminal": False,
-        "provider": "Ollama",
-        "requested_model": "qwen2.5:14b",
-        "active_models": ["qwen2.5-coder:32b"],
-        "waited_seconds": 120,
-    }
+    data = payload["data"]
+    assert data["code"] == "provider_busy"
+    assert data["retryable"] is True
+    assert data["terminal"] is False
+    assert data["provider"] == "Ollama"
+    assert data["requested_model"] == "qwen2.5:14b"
+    assert data["active_models"] == ["qwen2.5-coder:32b"]
+    assert data["waited_seconds"] == 120
+    assert data["phase"] == "gate.network"
+    assert data["reason"] == "network_error"
+    assert data["action"] == "cli"
     assert captured.err == ""
 
 

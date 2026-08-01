@@ -13,7 +13,7 @@ from rich.text import Text
 
 from distill._console import console
 from distill.commands._helpers import get_config
-from distill.commands._json import emit_json, json_mode_active
+from distill.commands._json import ExitCode, emit_json, json_mode_active
 from distill.config import DistillConfig
 from distill.library.okf import export_okf_bundle
 from distill.library.profiles import (
@@ -210,7 +210,10 @@ def _load_profile_preview(
     config = get_config()
     path = find_research_profile(config.library_dir, profile)
     if not path.exists():
-        _exit_with_error(f"Profile not found: {path}")
+        _exit_with_error(
+            f"Profile not found: {profile}",
+            code=ExitCode.NOT_FOUND,
+        )
 
     loaded = _apply_profile_cost_policy(
         load_research_profile(path),
@@ -235,12 +238,20 @@ def _apply_profile_cost_policy(profile: ResearchProfile, configured: CostMode) -
     return profile.model_copy(update={"cost_mode": configured})
 
 
-def _exit_with_error(message: str) -> NoReturn:
+def _exit_with_error(message: str, *, code: ExitCode = ExitCode.RUNTIME_ERROR) -> NoReturn:
+    from distill.commands._json import emit_json_refusal, phase_for_exit_code
+
     if json_mode_active():
-        emit_json(error=message)
+        reason = "not_found" if code == ExitCode.NOT_FOUND else "runtime_error"
+        emit_json_refusal(
+            reason=reason,
+            error=message,
+            phase=phase_for_exit_code(code),
+            action="profile",
+        )
     else:
         console.print(f"[red]{message}[/red]")
-    raise typer.Exit(1)
+    raise typer.Exit(int(code))
 
 
 def _render_profile_preview(result: ProfilePreviewResult, path: Path) -> None:

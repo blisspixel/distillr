@@ -12,15 +12,18 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 __all__ = [
     "ExitCode",
     "JsonEnvelope",
     "emit_json",
+    "emit_json_refusal",
+    "exit_with_refusal",
     "handle_cli_error",
     "json_mode_active",
     "loop_refusal_fields",
+    "phase_for_exit_code",
     "set_json_active",
 ]
 
@@ -41,6 +44,26 @@ class ExitCode(IntEnum):
     NETWORK_ERROR = 4
     NOT_FOUND = 5
     BUDGET_EXCEEDED = 6
+
+
+_PHASE_BY_EXIT: dict[ExitCode, str] = {
+    ExitCode.SUCCESS: "gate.success",
+    ExitCode.RUNTIME_ERROR: "gate.runtime",
+    ExitCode.USAGE_ERROR: "gate.usage",
+    ExitCode.CONFIG_ERROR: "gate.config",
+    ExitCode.NETWORK_ERROR: "gate.network",
+    ExitCode.NOT_FOUND: "gate.not_found",
+    ExitCode.BUDGET_EXCEEDED: "gate.budget",
+}
+
+_REASON_BY_EXIT: dict[ExitCode, str] = {
+    ExitCode.RUNTIME_ERROR: "runtime_error",
+    ExitCode.USAGE_ERROR: "usage_error",
+    ExitCode.CONFIG_ERROR: "config_error",
+    ExitCode.NETWORK_ERROR: "network_error",
+    ExitCode.NOT_FOUND: "not_found",
+    ExitCode.BUDGET_EXCEEDED: "budget_exceeded",
+}
 
 
 @dataclass
@@ -141,6 +164,61 @@ def loop_refusal_fields(
     return fields
 
 
+def phase_for_exit_code(code: ExitCode | int) -> str:
+    """Map a stable CLI exit code to a loop-readable refusal phase id."""
+    try:
+        return _PHASE_BY_EXIT[ExitCode(int(code))]
+    except ValueError:
+        return "gate.runtime"
+
+
+def emit_json_refusal(
+    *,
+    reason: str,
+    error: str,
+    phase: str,
+    action: str = "cli",
+    limit: Mapping[str, object] | None = None,
+    extra: Mapping[str, object] | None = None,
+) -> None:
+    """Emit one failure envelope with loop-readable refusal fields."""
+    data: dict[str, object] = {
+        "reason": reason,
+        **loop_refusal_fields(action=action, phase=phase, limit=limit),
+    }
+    if extra is not None:
+        data.update(dict(extra))
+    emit_json(data, error=error)
+
+
+def exit_with_refusal(
+    message: str,
+    *,
+    code: ExitCode,
+    reason: str,
+    phase: str | None = None,
+    action: str = "cli",
+    limit: Mapping[str, object] | None = None,
+) -> NoReturn:
+    """Refuse a CLI command with human or JSON output and a stable exit code."""
+    import typer
+
+    from distill._console import console
+
+    resolved_phase = phase or phase_for_exit_code(code)
+    if json_mode_active():
+        emit_json_refusal(
+            reason=reason,
+            error=message,
+            phase=resolved_phase,
+            action=action,
+            limit=limit,
+        )
+    else:
+        console.print(f"[red]{message}[/red]")
+    raise typer.Exit(int(code))
+
+
 def _int_attr(obj: object, name: str) -> int | None:
     value = cast(object | None, getattr(obj, name, None))
     return value if isinstance(value, int) else None
@@ -224,7 +302,8 @@ def handle_cli_error(exc: BaseException, *, json_mode: bool = False) -> int:
     code = map_exception_to_exit_code(exc)
 
     if json_mode:
-        envelope = JsonEnvelope.fail(str(exc), _structured_error_data(exc))
+        data = _structured_error_data(exc, code=code)
+        envelope = JsonEnvelope.fail(str(exc), data)
         sys.stdout.write(envelope.to_json() + "\n")
     else:
         sys.stderr.write(f"Error: {exc}\n")
@@ -232,18 +311,28 @@ def handle_cli_error(exc: BaseException, *, json_mode: bool = False) -> int:
     return int(code)
 
 
-def _structured_error_data(exc: BaseException) -> object:
+def _structured_error_data(exc: BaseException, *, code: ExitCode) -> dict[str, object]:
     """Return stable orchestration metadata for typed retryable failures."""
     from distill.llm.errors import ProviderBusyTimeoutError
 
+    data: dict[str, object] = {
+        "reason": _REASON_BY_EXIT.get(code, "runtime_error"),
+        **loop_refusal_fields(
+            action="cli",
+            phase=phase_for_exit_code(code),
+            limit={"kind": "exception", "type": type(exc).__name__},
+        ),
+    }
     if isinstance(exc, ProviderBusyTimeoutError):
-        return {
-            "code": "provider_busy",
-            "retryable": True,
-            "terminal": False,
-            "provider": exc.provider,
-            "requested_model": exc.requested_model,
-            "active_models": list(exc.active_models),
-            "waited_seconds": exc.timeout_seconds,
-        }
-    return None
+        data.update(
+            {
+                "code": "provider_busy",
+                "retryable": True,
+                "terminal": False,
+                "provider": exc.provider,
+                "requested_model": exc.requested_model,
+                "active_models": list(exc.active_models),
+                "waited_seconds": exc.timeout_seconds,
+            }
+        )
+    return data

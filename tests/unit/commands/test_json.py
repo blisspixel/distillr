@@ -11,8 +11,12 @@ from hypothesis import strategies as st
 from distill.commands._json import (
     ExitCode,
     JsonEnvelope,
+    emit_json_refusal,
+    exit_with_refusal,
     handle_cli_error,
     map_exception_to_exit_code,
+    phase_for_exit_code,
+    set_json_active,
 )
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.pipeline.costs import BudgetExceededError
@@ -155,6 +159,10 @@ class TestExitCodeMapping:
         parsed = json.loads(captured.out)
         assert parsed["status"] == "error"
         assert "boom" in parsed["error"]
+        assert parsed["data"]["reason"] == "runtime_error"
+        assert parsed["data"]["phase"] == "gate.runtime"
+        assert parsed["data"]["action"] == "cli"
+        assert parsed["data"]["limit"]["type"] == "RuntimeError"
 
     def test_handle_cli_error_provider_busy_is_structured_and_retryable(self, capsys):
         error = ProviderBusyTimeoutError(
@@ -169,15 +177,63 @@ class TestExitCodeMapping:
         assert code == ExitCode.NETWORK_ERROR
         parsed = json.loads(capsys.readouterr().out)
         assert parsed["status"] == "error"
-        assert parsed["data"] == {
-            "code": "provider_busy",
-            "retryable": True,
-            "terminal": False,
-            "provider": "Ollama",
-            "requested_model": "qwen2.5:14b",
-            "active_models": ["qwen2.5-coder:32b"],
-            "waited_seconds": 7200,
-        }
+        data = parsed["data"]
+        assert data["code"] == "provider_busy"
+        assert data["retryable"] is True
+        assert data["terminal"] is False
+        assert data["provider"] == "Ollama"
+        assert data["requested_model"] == "qwen2.5:14b"
+        assert data["active_models"] == ["qwen2.5-coder:32b"]
+        assert data["waited_seconds"] == 7200
+        assert data["phase"] == "gate.network"
+        assert data["reason"] == "network_error"
+        assert data["action"] == "cli"
+
+
+def test_phase_for_exit_code_covers_stable_taxonomy():
+    assert phase_for_exit_code(ExitCode.NOT_FOUND) == "gate.not_found"
+    assert phase_for_exit_code(2) == "gate.usage"
+    assert phase_for_exit_code(99) == "gate.runtime"
+
+
+def test_exit_with_refusal_emits_json_envelope(capsys):
+    import typer
+
+    set_json_active(True)
+    try:
+        with pytest.raises(typer.Exit) as raised:
+            exit_with_refusal(
+                "Topic not found: demo",
+                code=ExitCode.NOT_FOUND,
+                reason="not_found",
+                action="concepts",
+                limit={"kind": "topic", "topic": "demo"},
+            )
+    finally:
+        set_json_active(False)
+
+    assert int(raised.value.exit_code) == int(ExitCode.NOT_FOUND)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["error"] == "Topic not found: demo"
+    assert payload["data"]["reason"] == "not_found"
+    assert payload["data"]["phase"] == "gate.not_found"
+    assert payload["data"]["action"] == "concepts"
+    assert payload["data"]["limit"]["topic"] == "demo"
+
+
+def test_emit_json_refusal_writes_loop_fields(capsys):
+    emit_json_refusal(
+        reason="usage_error",
+        error="bad flag",
+        phase="gate.usage",
+        limit={"kind": "flag"},
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "usage_error"
+    assert payload["data"]["phase"] == "gate.usage"
+    assert payload["data"]["limit"]["kind"] == "flag"
 
     def test_handle_cli_error_normal_mode(self, capsys):
         code = handle_cli_error(RuntimeError("boom"), json_mode=False)

@@ -55,8 +55,16 @@ def _exit_skill_error(
     reason: str,
     code: ExitCode = ExitCode.RUNTIME_ERROR,
 ) -> NoReturn:
+    from distill.commands._json import emit_json_refusal, phase_for_exit_code
+
     if json_mode_active():
-        emit_json({"reason": reason}, error=str(exc))
+        emit_json_refusal(
+            reason=reason,
+            error=str(exc),
+            phase=phase_for_exit_code(code),
+            action="skill",
+            limit={"kind": "skill_install"},
+        )
     else:
         console.print(f"[red]{exc}[/red]")
     raise typer.Exit(int(code))

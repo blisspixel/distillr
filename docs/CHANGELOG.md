@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Shared CLI JSON refusal helpers (`emit_json_refusal`, `exit_with_refusal`)
+  extend loop-readable fields to usage flags, provider-busy handling,
+  skill/profile errors, and concepts not-found paths without absolute topic
+  directory leaks.
+
 ## 0.19.49 - 2026-07-31
 
 Loop-readable refusal and least-capability hardening on the MCP and CLI

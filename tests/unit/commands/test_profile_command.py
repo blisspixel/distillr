@@ -102,13 +102,14 @@ def test_profile_preview_json_missing_yaml_keeps_single_suffix(tmp_path, monkeyp
         ["--json", "profile", "preview", "missing.yaml", "--no-fetch"],
     )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 5
     envelope = json.loads(result.stdout)
     assert envelope["status"] == "error"
-    assert envelope["error"].endswith(r"library\profiles\missing.yaml") or envelope[
-        "error"
-    ].endswith("library/profiles/missing.yaml")
+    assert envelope["error"] == "Profile not found: missing.yaml"
     assert "missing.yaml.yaml" not in envelope["error"]
+    assert envelope["data"]["reason"] == "not_found"
+    assert envelope["data"]["phase"] == "gate.not_found"
+    assert envelope["data"]["action"] == "profile"
 
 
 def test_profile_run_json_without_yes_returns_approval_plan(tmp_path, monkeypatch):

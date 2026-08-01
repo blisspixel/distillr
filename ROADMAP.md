@@ -141,9 +141,11 @@ cycle can improve a real workflow without opening unrelated feature scope:
 - **Observability debt:** make every bounded refusal identify the affected
   phase, limit, run or task identity, and local receipt or telemetry path.
   MCP write-side refusals (`read_only`, `budget_exceeded`,
-  `domain_not_allowed`) and CLI `--json` cost-policy / budget refusals now
-  carry those fields; remaining command-local CLI refusals still need the
-  same structured envelope where loops consume them.
+  `domain_not_allowed`), CLI cost-policy / budget refusals, shared
+  `handle_cli_error`, usage-flag rejections, skill/profile errors, and
+  concepts not-found paths now carry those fields; remaining command-local
+  CLI refusals still need the same structured envelope where loops consume
+  them.
 - **Reliability debt:** continue end-to-end deadline, byte, attempt, process,
   memory, state-transition, replay, and cross-platform fault-injection work.
 - **Security debt:** close validated findings, keep MCP reads least-capability,
