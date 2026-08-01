@@ -5,7 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.50 - 2026-08-01
+
+CLI loop-readable refusal expansion on top of the 0.19.48/0.19.49 MCP and
+CLI observability work. No public MCP tool schema changes.
 
 ### Changed
 
@@ -13,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   extend loop-readable fields to usage flags, provider-busy handling,
   skill/profile errors, concepts not-found paths, export not-found paths,
   and local-ingest missing-file refusals without host absolute path leaks.
+- Human refusal rendering escapes Rich markup so filenames with brackets
+  are not mangled.
 
 ## 0.19.49 - 2026-07-31
 

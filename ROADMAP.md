@@ -107,7 +107,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.49, 2026-07-31). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.50, 2026-08-01). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -556,6 +556,10 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
     percent branch coverage. The release adds loop-readable MCP and CLI
     refusal fields plus agent-safe exception redaction without moving public
     tool schemas.
+  - Status 2026-08-01: the 0.19.50 local release gate passes 6,399 tests with
+    four platform skips and eight live-network tests deselected at 95.03
+    percent branch coverage. Shared CLI refusal helpers cover concepts,
+    profile, skill, export, and ingest not-found paths for loop consumers.
 - **Integration tests run by default** with mock LLMs so contributors run the full pipeline on every push without burning real spend.
 - **Pyright blocking across the full package surface, with strict-mode promotion still open.** CI runs `pyright --warnings distill/` and fails on any diagnostic. `distill/llm/` is centrally strict, and promoted modules elsewhere carry file-level strict directives; remaining packages continue through the strict ratchet before 1.0. No `# type: ignore` without an inline reason comment.
 - **Parse, don't validate - strict domain types at every boundary.** Every external input (MCP tool arguments, frontmatter parsing, local-file/adapter ingest, LLM structured outputs) is *parsed once* at the system boundary into a rich domain type (a Pydantic v2 model with `strict=True, extra='forbid'`, a `NewType`, or a frozen dataclass), not re-validated ad hoc deeper in. Core logic never receives raw primitives that could be invalid - illegal states are made unrepresentable, so malformed input fails at the boundary with a precise error instead of propagating. The audit health surface now parses verify sidecars into typed flag rows and stale prompt records before rendering or action planning. The shared dashboard data surface parses cost logs, latest-run payloads, topic-change history, and site manifests into typed records before CLI or web renderers read them. Shared command helpers now preserve typed metadata-writing and duration-formatting contracts before artifact writes. Topic diff, trend, watch-alert, and change-history command paths now use typed topic-change rows and typed count records before writing artifacts or rendering command output. Reinforces the verifiable-corpus thesis: the corpus is only as trustworthy as the parsing on what enters it.
