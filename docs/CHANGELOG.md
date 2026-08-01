@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   agent-visible path helper.
 - MCP tool exception surfaces go through `agent_safe_error`, which drops
   OSError filenames and redacts host absolute paths from free-text errors.
+- CLI `--json` cost-policy and budget refusals include the same loop-readable
+  `action`, `phase`, `run_id`, `limit`, and optional `telemetry_path` fields.
 
 ## 0.19.48 - 2026-07-31
 

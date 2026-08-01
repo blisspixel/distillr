@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, cast
@@ -19,6 +20,7 @@ __all__ = [
     "emit_json",
     "handle_cli_error",
     "json_mode_active",
+    "loop_refusal_fields",
     "set_json_active",
 ]
 
@@ -104,6 +106,39 @@ def emit_json(data: object = None, *, error: str | None = None) -> None:
     """
     envelope = JsonEnvelope.fail(error, data) if error is not None else JsonEnvelope.success(data)
     sys.stdout.write(envelope.to_json() + "\n")
+
+
+def loop_refusal_fields(
+    *,
+    action: str,
+    phase: str,
+    limit: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Fields external loops need on a CLI JSON refusal.
+
+    Mirrors the MCP refusal envelope: action, phase, run_id, optional limit,
+    and a library-relative telemetry path when the active run knows its ops
+    directory. Never emits host absolute paths.
+    """
+    from distill.llm.run_context import current_run, current_run_id
+
+    fields: dict[str, object] = {
+        "action": action,
+        "phase": phase,
+        "run_id": current_run_id(),
+    }
+    if limit is not None:
+        fields["limit"] = dict(limit)
+
+    context = current_run()
+    if context is not None and context.ops_dir is not None:
+        # ops_dir is library/.distill; present as a library-relative label.
+        fields["telemetry_path"] = (
+            ".distill/phase_telemetry.jsonl"
+            if context.ops_dir.name == ".distill"
+            else "phase_telemetry.jsonl"
+        )
+    return fields
 
 
 def _int_attr(obj: object, name: str) -> int | None:

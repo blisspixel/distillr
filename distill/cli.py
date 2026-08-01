@@ -231,17 +231,40 @@ def main() -> None:
         except CostPolicyError as exc:
             mark_current_run_outcome("refused")
             if json_mode_active():
-                emit_json({"reason": "cost_policy_blocked"}, error=str(exc))
+                from distill.commands._json import loop_refusal_fields
+
+                emit_json(
+                    {
+                        "reason": "cost_policy_blocked",
+                        **loop_refusal_fields(
+                            action="cli",
+                            phase="gate.cost_policy",
+                            limit={"kind": "cost_mode"},
+                        ),
+                    },
+                    error=str(exc),
+                )
             else:
                 console.print(f"\n[red]{exc}[/red]")
             raise SystemExit(int(ExitCode.CONFIG_ERROR)) from exc
         except BudgetExceededError as exc:
             mark_current_run_outcome("budget_exceeded")
             if json_mode_active():
+                from distill.commands._json import loop_refusal_fields
+
                 payload: dict[str, object] = {
                     "reason": "budget_exceeded",
                     "spent_usd": round(exc.spent, 6),
                     "budget_usd": round(exc.budget, 6),
+                    **loop_refusal_fields(
+                        action="cli",
+                        phase="gate.budget",
+                        limit={
+                            "kind": "budget",
+                            "spent_usd": round(exc.spent, 6),
+                            "budget_usd": round(exc.budget, 6),
+                        },
+                    ),
                 }
                 if isinstance(exc, ProjectedBudgetExceededError):
                     payload["projected"] = True

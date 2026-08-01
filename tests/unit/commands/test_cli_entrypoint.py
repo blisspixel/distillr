@@ -243,6 +243,10 @@ def test_main_emits_budget_error_json(monkeypatch, capsys):
     assert payload["data"]["reason"] == "budget_exceeded"
     assert payload["data"]["spent_usd"] == 0.61
     assert payload["data"]["budget_usd"] == 0.5
+    assert payload["data"]["phase"] == "gate.budget"
+    assert payload["data"]["action"] == "cli"
+    assert payload["data"]["limit"]["kind"] == "budget"
+    assert payload["data"]["run_id"]
 
 
 def test_main_emits_projected_budget_error_json(monkeypatch, capsys):
@@ -283,6 +287,10 @@ def test_main_emits_cost_policy_error_json(monkeypatch, capsys):
     assert payload["status"] == "error"
     assert payload["data"]["reason"] == "cost_policy_blocked"
     assert "Route blocked by no-metered cost policy" in payload["error"]
+    assert payload["data"]["phase"] == "gate.cost_policy"
+    assert payload["data"]["action"] == "cli"
+    assert payload["data"]["limit"]["kind"] == "cost_mode"
+    assert payload["data"]["run_id"]
 
 
 def test_main_emits_provider_busy_error_json(monkeypatch, capsys):
