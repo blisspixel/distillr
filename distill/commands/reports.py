@@ -23,7 +23,7 @@ from distill.commands._helpers import (
     get_config,
     save_command_cost,
 )
-from distill.commands._json import ExitCode
+from distill.commands._json import ExitCode, exit_with_refusal
 from distill.commands._topic_resolution import (
     resolve_required_topic_for_channel as _resolve_required_topic_for_channel,
 )
@@ -75,8 +75,13 @@ def _export_okf_bundle_cli(config: DistillConfig, topic: str) -> None:
     try:
         result = export_okf_bundle(config, topic)
     except FileNotFoundError:
-        console.print(f"[yellow]Topic not found: {topic}[/yellow]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND) from None
+        exit_with_refusal(
+            f"Topic not found: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "topic", "topic": topic},
+        )
     if not result.validation.ok:
         console.print(f"[red]OKF export failed validation: {result.output_dir}[/red]")
         for issue in result.validation.errors:
@@ -92,12 +97,22 @@ def _export_okf_bundle_cli(config: DistillConfig, topic: str) -> None:
 def _export_zip_bundle_cli(config: DistillConfig, topic: str, bundle_format: str) -> None:
     topic_dir = config.topic_dir(topic)
     if not topic_dir.exists():
-        console.print(f"[yellow]Topic not found: {topic}[/yellow]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"Topic not found: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "topic", "topic": topic},
+        )
     files = _collect_topic_bundle_files(config, topic)
     if not files:
-        console.print(f"[yellow]No exportable corpus files found for topic: {topic}[/yellow]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"No exportable corpus files found for topic: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "topic_files", "topic": topic},
+        )
     zip_path = _export_topic_bundle(config, topic, bundle_format)
     console.print(f"[green]Exported bundle: {zip_path}[/green]")
     console.print(f"[dim]{zip_path.stat().st_size / 1024:.1f} KB[/dim]")
@@ -107,16 +122,31 @@ def _export_zip_bundle_cli(config: DistillConfig, topic: str, bundle_format: str
 def _export_citations_cli(config: DistillConfig, topic: str, export_format: str) -> None:
     normalized_format = "bibtex" if export_format == "bundle" else export_format
     if normalized_format.strip().lower() not in {"bib", "bibtex", "ris"}:
-        console.print("[red]citation format must be bibtex or ris[/red]")
-        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+        exit_with_refusal(
+            "citation format must be bibtex or ris",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="export",
+            limit={"kind": "citation_format"},
+        )
     try:
         content = render_citations(collect_paper_citations(config, topic), normalized_format)
     except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND) from None
+        exit_with_refusal(
+            str(exc),
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "citations", "topic": topic},
+        )
     if not content:
-        console.print(f"[yellow]No paper citations found for topic: {topic}[/yellow]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"No paper citations found for topic: {topic}",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "citations", "topic": topic},
+        )
     extension = "ris" if normalized_format.strip().lower() == "ris" else "bib"
     citation_path = _output_path(config, f"citations-{topic}.{extension}")
     citation_path.write_text(content, encoding="utf-8")
@@ -399,17 +429,27 @@ def export(
 
     if what == "citations":
         if channel:
-            console.print("[red]Citation export is topic-level. Omit --channel.[/red]")
-            raise typer.Exit(code=ExitCode.USAGE_ERROR)
+            exit_with_refusal(
+                "Citation export is topic-level. Omit --channel.",
+                code=ExitCode.USAGE_ERROR,
+                reason="usage_error",
+                action="export",
+                limit={"kind": "export_channel"},
+            )
         _export_citations_cli(config, topic, bundle_format)
         return
 
     md_path, title = _export_markdown_source(config, topic, channel, what)
 
     if not md_path.exists():
-        console.print(f"[yellow]File not found: {md_path}[/yellow]")
-        console.print("[dim]Run the appropriate command first to generate it.[/dim]")
-        raise typer.Exit(code=ExitCode.NOT_FOUND)
+        exit_with_refusal(
+            f"Export source not found for topic '{topic}' ({what}). "
+            "Run the appropriate command first to generate it.",
+            code=ExitCode.NOT_FOUND,
+            reason="not_found",
+            action="export",
+            limit={"kind": "export_source", "topic": topic, "what": what},
+        )
 
     # Build output filename from what + topic/channel
     out_name = f"{what}-{topic}-{channel}.docx" if channel else f"{what}-{topic}.docx"

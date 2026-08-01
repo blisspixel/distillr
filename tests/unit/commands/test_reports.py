@@ -568,7 +568,25 @@ class TestExportCommand:
         result = runner.invoke(cli.app, ["export", "ai", "--what", "synthesis"])
 
         assert result.exit_code == int(ExitCode.NOT_FOUND)
-        assert "File not found" in result.output
+        assert "export source not found" in result.output.lower()
+
+    def test_export_missing_markdown_source_json_is_loop_readable(self, tmp_path, monkeypatch):
+        import json
+
+        config = _config(tmp_path)
+        _seed_topic(config)
+        self._patch_config(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["--json", "export", "ai", "--what", "synthesis"])
+
+        assert result.exit_code == int(ExitCode.NOT_FOUND)
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "error"
+        assert payload["data"]["reason"] == "not_found"
+        assert payload["data"]["phase"] == "gate.not_found"
+        assert payload["data"]["action"] == "export"
+        assert payload["data"]["limit"]["topic"] == "ai"
+        assert payload["data"]["limit"]["what"] == "synthesis"
 
     def test_report_format_okf_rewrites_what_to_bundle(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

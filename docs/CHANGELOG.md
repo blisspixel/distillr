@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Shared CLI JSON refusal helpers (`emit_json_refusal`, `exit_with_refusal`)
   extend loop-readable fields to usage flags, provider-busy handling,
-  skill/profile errors, and concepts not-found paths without absolute topic
-  directory leaks.
+  skill/profile errors, concepts not-found paths, export not-found paths,
+  and local-ingest missing-file refusals without host absolute path leaks.
 
 ## 0.19.49 - 2026-07-31
 

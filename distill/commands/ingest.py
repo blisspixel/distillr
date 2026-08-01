@@ -22,7 +22,7 @@ from distill.commands._helpers import (
     get_config,
     set_command_cost_metadata,
 )
-from distill.commands._json import ExitCode
+from distill.commands._json import ExitCode, exit_with_refusal
 from distill.config import DistillConfig
 from distill.ingestors.github import GitHubFetchError, parse_github_url
 from distill.ingestors.local import LocalExtractionError
@@ -124,12 +124,13 @@ def ingest_cmd(
             return
 
         if local_path is not None:
-            console.print(
-                f"[red]Local file not found: {escape(str(local_path))}[/red]",
-                soft_wrap=True,
+            exit_with_refusal(
+                f"Local file not found: {local_path.name}",
+                code=ExitCode.NOT_FOUND,
+                reason="not_found",
+                action="ingest",
+                limit={"kind": "local_file", "name": local_path.name},
             )
-            console.print("[dim]Check the path and try again.[/dim]")
-            raise typer.Exit(int(ExitCode.NOT_FOUND))
 
         host = _host(url)
         if host in {"x.com", "twitter.com", "mobile.twitter.com"}:

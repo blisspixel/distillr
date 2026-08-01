@@ -202,6 +202,7 @@ def exit_with_refusal(
 ) -> NoReturn:
     """Refuse a CLI command with human or JSON output and a stable exit code."""
     import typer
+    from rich.markup import escape
 
     from distill._console import console
 
@@ -215,7 +216,8 @@ def exit_with_refusal(
             limit=limit,
         )
     else:
-        console.print(f"[red]{message}[/red]")
+        # Escape so operator text like "missing [draft].pdf" is not Rich markup.
+        console.print(f"[red]{escape(message)}[/red]")
     raise typer.Exit(int(code))
 
 

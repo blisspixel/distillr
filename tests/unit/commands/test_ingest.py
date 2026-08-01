@@ -410,10 +410,33 @@ def test_ingest_cmd_reports_missing_local_file_before_url_routing(
     result = CliRunner().invoke(app, ["ingest", str(missing)])
 
     assert result.exit_code == 5
-    assert f"Local file not found: {missing}" in result.output
-    assert "Check the path and try again" in result.output
+    assert f"Local file not found: {missing.name}" in result.output
+    assert str(missing) not in result.output
     assert "No dedicated adapter" not in result.output
     assert not (config.library_dir / ".distill" / "cost_log.jsonl").exists()
+
+
+def test_ingest_cmd_missing_local_file_json_is_loop_readable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from distill.cli import app
+
+    config = _config(tmp_path)
+    missing = tmp_path / "missing [draft] research.pdf"
+    monkeypatch.setattr(_ingest, "get_config", lambda: config)
+
+    result = CliRunner().invoke(app, ["--json", "ingest", str(missing)])
+
+    assert result.exit_code == 5
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "not_found"
+    assert payload["data"]["phase"] == "gate.not_found"
+    assert payload["data"]["action"] == "ingest"
+    assert payload["data"]["limit"]["name"] == missing.name
+    assert str(missing) not in payload["error"]
 
 
 def test_ingest_cmd_rejects_unc_before_filesystem_probe(
