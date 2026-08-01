@@ -729,7 +729,7 @@ class TestSiteBatchTool:
             empty = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
             monkeypatch.setattr(
                 "distill.mcp.tools.sites.refuse_if_host_not_allowed",
-                lambda _url: json.dumps({"status": "error", "error": "host refused"}),
+                lambda _url, **_kwargs: json.dumps({"status": "error", "error": "host refused"}),
             )
             refused = json.loads(
                 asyncio.run(site_batch("ai", urls=["https://example.com/docs"], preview=True))

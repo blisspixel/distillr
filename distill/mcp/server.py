@@ -40,7 +40,13 @@ from mcp.types import (
 
 from distill.config import DistillConfig
 from distill.library import Library
-from distill.llm.run_context import mark_current_run_outcome, run_scope, update_current_run
+from distill.llm.run_context import (
+    current_run,
+    current_run_id,
+    mark_current_run_outcome,
+    run_scope,
+    update_current_run,
+)
 from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
 from distill.pipeline.gaps import (
     TopicInventory,
@@ -238,6 +244,44 @@ def load_config() -> DistillConfig:
     return _config()
 
 
+def _refusal_observability(
+    *,
+    action: str,
+    phase: str,
+    limit: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Fields every MCP bounded refusal should carry for operators and loops.
+
+    Paths are library-relative when known. ``run_id`` is empty when the call
+    is outside ``run_scope`` (unit tests that invoke tools directly).
+    """
+    fields: dict[str, object] = {
+        "action": action,
+        "phase": phase,
+        "run_id": current_run_id(),
+    }
+    if limit is not None:
+        fields["limit"] = dict(limit)
+
+    library_dir: Path | None = None
+    telemetry: Path | None = None
+    context = current_run()
+    if context is not None and context.ops_dir is not None:
+        library_dir = context.ops_dir.parent
+        telemetry = context.ops_dir / "phase_telemetry.jsonl"
+    else:
+        try:
+            library_dir = _config().library_dir
+            telemetry = library_dir / ".distill" / "phase_telemetry.jsonl"
+        except Exception:
+            library_dir = None
+            telemetry = None
+
+    if library_dir is not None and telemetry is not None:
+        fields["telemetry_path"] = agent_visible_path(library_dir, telemetry)
+    return fields
+
+
 def _refuse_if_read_only(action: str) -> str | None:
     """Gate for write-side tools: spend, ingest, or corpus mutation.
 
@@ -257,6 +301,11 @@ def _refuse_if_read_only(action: str) -> str | None:
             f"'{action}' spends money or mutates the corpus and is disabled. "
             "Use the read tools (find_insights, read_insight, find_concepts, "
             "research_gaps, ...) or run the action via the distill CLI.",
+            **_refusal_observability(
+                action=action,
+                phase="gate.read_only",
+                limit={"kind": "read_only", "env": "DISTILL_MCP_READ_ONLY"},
+            ),
         },
         indent=2,
     )
@@ -338,6 +387,16 @@ def _budget_response(action: str, exc: BudgetExceededError) -> str:
         "or run the action via the distill CLI.",
         "spent": round(exc.spent, 6),
         "cap": exc.budget,
+        **_refusal_observability(
+            action=action,
+            phase="gate.budget",
+            limit={
+                "kind": "max_spend_per_call",
+                "env": "DISTILL_MCP_MAX_SPEND_PER_CALL",
+                "cap": exc.budget,
+                "spent": round(exc.spent, 6),
+            },
+        ),
     }
     if _ACCOUNTING_FAILURE_NOTE in getattr(exc, "__notes__", ()):
         payload["accounting_status"] = "failed"
@@ -445,6 +504,12 @@ def agent_visible_path(root: Path, path: Path) -> str:
     return relative.as_posix()
 
 
+def _ingest_allowlist_entries() -> list[str]:
+    return [
+        h.strip().lower() for h in _config().distill_mcp_ingest_allowlist.split(",") if h.strip()
+    ]
+
+
 def host_not_on_ingest_allowlist(url: str) -> str | None:
     """Return a domain_not_allowed error string when the URL host is blocked.
 
@@ -452,9 +517,7 @@ def host_not_on_ingest_allowlist(url: str) -> str | None:
     Does not mark run telemetry; callers that short-circuit the whole tool
     should use :func:`refuse_if_host_not_allowed` instead.
     """
-    allowlist = [
-        h.strip().lower() for h in _config().distill_mcp_ingest_allowlist.split(",") if h.strip()
-    ]
+    allowlist = _ingest_allowlist_entries()
     if not allowlist:
         return None
 
@@ -469,7 +532,7 @@ def host_not_on_ingest_allowlist(url: str) -> str | None:
     )
 
 
-def refuse_if_host_not_allowed(url: str) -> str | None:
+def refuse_if_host_not_allowed(url: str, *, action: str = "ingest") -> str | None:
     """Gate for URL-taking and stored-URL ingest tools: the host allowlist.
 
     With ``DISTILL_MCP_INGEST_ALLOWLIST`` set (comma-separated hostnames), a
@@ -494,10 +557,21 @@ def refuse_if_host_not_allowed(url: str) -> str | None:
         return None
 
     mark_current_run_outcome("refused")
+    host = (urlparse(url).hostname or "").lower()
     return json.dumps(
         {
             "status": "domain_not_allowed",
             "error": error,
+            **_refusal_observability(
+                action=action,
+                phase="gate.ingest_allowlist",
+                limit={
+                    "kind": "ingest_allowlist",
+                    "env": "DISTILL_MCP_INGEST_ALLOWLIST",
+                    "hosts": _ingest_allowlist_entries(),
+                    "requested_host": host,
+                },
+            ),
         },
         indent=2,
     )

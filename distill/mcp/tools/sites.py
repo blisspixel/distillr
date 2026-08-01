@@ -224,7 +224,7 @@ async def site_batch(  # noqa: C901 - legacy site workflow
         return json.dumps({"status": "error", "error": "No URLs to process."})
 
     for seed in seeds:
-        refusal = refuse_if_host_not_allowed(seed.url)
+        refusal = refuse_if_host_not_allowed(seed.url, action="site_batch")
         if refusal is not None:
             return refusal
 

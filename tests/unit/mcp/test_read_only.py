@@ -53,6 +53,11 @@ def test_write_tools_refuse_in_read_only(monkeypatch, module_name, tool_name, ar
     assert result["status"] == "read_only"
     assert tool_name in result["error"]
     assert "distill CLI" in result["error"]
+    assert result["phase"] == "gate.read_only"
+    assert result["action"]
+    assert result["limit"]["kind"] == "read_only"
+    assert result["limit"]["env"] == "DISTILL_MCP_READ_ONLY"
+    assert result["telemetry_path"] == ".distill/phase_telemetry.jsonl"
 
 
 def test_read_surface_stays_available_in_read_only(monkeypatch, tmp_path):

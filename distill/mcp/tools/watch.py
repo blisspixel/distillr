@@ -216,7 +216,7 @@ def watch_add(
             indent=2,
         )
     url = normalized_url
-    refusal = refuse_if_host_not_allowed(url)
+    refusal = refuse_if_host_not_allowed(url, action="watch_add")
     if refusal is not None:
         return refusal
     config = load_config()

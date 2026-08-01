@@ -157,13 +157,14 @@ only to clients that declared the capability (spec-required graceful
 degradation keeps today's blocking behavior for everyone else), persist the
 task registry under `library/.distill/` so handles survive a stdio restart,
 and surface `budget_exceeded` and `read_only` refusals as structured task
-failures on the existing ledger path. Status after the v2 port: the core
-SDK ships the general `Extension` seam (identifier plus contributed tools,
-resources, and methods) but not the official tasks extension itself. Adopt
-the official implementation when it publishes; implementing
-`io.modelcontextprotocol/tasks` on the Extension seam directly is the
-fallback once the extension spec stabilizes, and bare protocol methods
-outside that seam remain off the table.
+failures on the existing ledger path. Status after the v2 port (rechecked
+2026-07-31 against `mcp` 2.0.0): the core SDK ships the general
+`mcp.server.extension.Extension` seam (identifier plus contributed tools,
+resources, and methods) but still not the official
+`io.modelcontextprotocol/tasks` package or bindings. Adopt the official
+implementation when it publishes; implementing that identifier on the
+Extension seam directly is the fallback once the extension package
+stabilizes, and bare protocol methods outside that seam remain off the table.
 
 ## Decisions
 

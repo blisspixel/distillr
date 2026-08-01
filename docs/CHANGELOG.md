@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- MCP bounded refusals (`read_only`, `budget_exceeded`, `domain_not_allowed`)
+  now include loop-readable observability fields: `action`, `phase`, `run_id`
+  (when correlated), structured `limit` metadata, and a library-relative
+  `telemetry_path` (`.distill/phase_telemetry.jsonl`).
+- MCP `ask` returns library-relative `answer_path` through the shared
+  agent-visible path helper.
+
 ## 0.19.48 - 2026-07-31
 
 MCP SDK v2 graduation release: the server now runs on the stable `mcp 2.0.0`

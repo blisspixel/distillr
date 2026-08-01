@@ -17,6 +17,7 @@ from pydantic import Field
 
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_visible_path,
     capped_tracker,
     cost_summary,
     load_config,
@@ -99,9 +100,11 @@ def ask(
         {
             "answer": result.answer_text,
             "sources": result.sources,
-            "answer_path": str(result.answer_path.relative_to(config.library_dir))
-            if result.answer_path
-            else "",
+            "answer_path": (
+                agent_visible_path(config.library_dir, result.answer_path)
+                if result.answer_path
+                else ""
+            ),
             "cost": cost_summary(tracker),
         },
         indent=2,

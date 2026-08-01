@@ -74,6 +74,10 @@ class TestWriteToolBudgetCatch:
         assert result["status"] == "budget_exceeded"
         assert result["spent"] == 0.61
         assert result["cap"] == 0.5
+        assert result["action"] == "expensive_thing"
+        assert result["phase"] == "gate.budget"
+        assert result["limit"]["kind"] == "max_spend_per_call"
+        assert result["telemetry_path"] == ".distill/phase_telemetry.jsonl"
         assert "expensive_thing" in result["error"]
         assert "converges" in result["error"]
 
@@ -118,10 +122,18 @@ class TestIngestAllowlist:
         monkeypatch.setattr(
             _server, "_config", lambda: self._config_with("youtube.com, learn.microsoft.com")
         )
-        result = json.loads(_server.refuse_if_host_not_allowed("https://pastebin.com/raw/x"))
+        result = json.loads(
+            _server.refuse_if_host_not_allowed("https://pastebin.com/raw/x", action="site_batch")
+        )
         assert result["status"] == "domain_not_allowed"
         assert "pastebin.com" in result["error"]
         assert "youtube.com" in result["error"]
+        assert result["action"] == "site_batch"
+        assert result["phase"] == "gate.ingest_allowlist"
+        assert result["limit"]["kind"] == "ingest_allowlist"
+        assert result["limit"]["requested_host"] == "pastebin.com"
+        assert "youtube.com" in result["limit"]["hosts"]
+        assert result["telemetry_path"] == ".distill/phase_telemetry.jsonl"
 
     def test_unparseable_url_refused_when_list_set(self, monkeypatch):
         monkeypatch.setattr(_server, "_config", lambda: self._config_with("youtube.com"))

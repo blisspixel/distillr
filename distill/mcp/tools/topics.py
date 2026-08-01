@@ -35,7 +35,7 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     from distill.ingestors.youtube.discovery import get_video_info, resolve_channel_name
     from distill.pipeline.summary import RunSummary
 
-    refusal = refuse_if_host_not_allowed(url)
+    refusal = refuse_if_host_not_allowed(url, action="process_video_url")
     if refusal is not None:
         return refusal
     config = load_config()
