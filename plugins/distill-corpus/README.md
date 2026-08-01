@@ -2,7 +2,7 @@
 
 This is the generated, self-contained distribution of the canonical
 `skills/distill-corpus/` Agent Skill for Codex, Claude Code, Grok Build, and
-Gemini CLI. Version: `0.19.48`.
+Gemini CLI. Version: `0.19.49`.
 
 Do not edit this directory by hand. Change the canonical skill or the generator,
 then run:

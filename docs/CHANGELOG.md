@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.49 - 2026-07-31
+
+Loop-readable refusal and least-capability hardening on the MCP and CLI
+JSON surfaces. Builds on the 0.19.48 SDK v2 graduation without changing
+public tool schemas.
 
 ### Changed
 
