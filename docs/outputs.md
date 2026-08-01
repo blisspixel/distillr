@@ -4,6 +4,10 @@ What distill writes to disk. Every artifact is plain Markdown, text, or JSON und
 
 New Markdown artifacts use globally descriptive filenames and YAML frontmatter so they work well in Markdown knowledge-base tools and AI assistants. Older generic filenames such as `insights.md` and `topic_synthesis.md` are still readable for backwards compatibility, but new writes use names like `<paper-slug>_Insights.md` and `<topic>_Corpus_Synthesis.md`.
 
+Synthetic sample shapes appear later on this page. A real, unedited example
+corpus (6 papers on claim verification) ships in
+[`examples/`](../examples/README.md).
+
 ## Directory layout
 
 ```

@@ -5,6 +5,8 @@ The full documentation set. The [project README](../README.md) is the overview a
 ## Get started
 
 - [Project README](../README.md) - what distill is, install, and a first run.
+- [Install and setup](install.md) - alternate installers, keys, local models, updates.
+- [Positioning](positioning.md) - how Distill differs from Deep Research, notebooks, and wiki tools.
 - [Usage guide](usage.md) - the getting-started flows for each source type (YouTube, websites, papers, ingest), plus `distill init` setup.
 
 ## How-to guides

@@ -4,6 +4,26 @@ Distill exposes its corpus and a subset of its commands as an [MCP](https://mode
 
 In a multi-agent workflow, Distill can handle the research-and-corpus-building role: other agents (strategists, architects, writers) query `distill://...` resources or call MCP tools to get grounded, structured intelligence without duplicating the ingestion work.
 
+## Three agent paths
+
+1. **MCP (structured queries)** - this document. Claude Desktop / Claude Code
+   config below; use `DISTILL_MCP_READ_ONLY=1` for agent-facing deployments so
+   spend and ingest tools refuse.
+2. **Filesystem (the corpus is the interface)** - plain Markdown under
+   `library/topics/<topic>/` with stable names, YAML frontmatter, and generated
+   `CLAUDE.md` / `AGENTS.md` orientation files. See
+   [outputs.md](outputs.md) and
+   [usage.md](usage.md#agent-orientation-claudemd-and-agentsmd).
+3. **Active host session (bounded deferred work)** - `distill worker` claim /
+   submit handoff for already-active agent sessions. See
+   [usage.md](usage.md#active-host-session-workers).
+
+The packaged **Agent Skill** at [`skills/distill-corpus/`](../skills/distill-corpus/)
+covers receipt-backed reading, safe curation, and worker procedure. Install and
+lifecycle commands: [usage.md](usage.md#agent-skill-lifecycle). Distribution
+and host-specific install lines:
+[agent-skill-distribution.md](design/agent-skill-distribution.md).
+
 ## Installation
 
 The MCP server installs alongside the CLI. After `pip install distillr`, the `distill-mcp` command is available as a stdio transport.

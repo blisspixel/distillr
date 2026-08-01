@@ -154,6 +154,39 @@ Host billing is outside this security boundary. Results are labeled
 `host-managed`, never proven no-metered, because the enclosing session may use
 plan quota, credits, an API key, or another route Distill cannot observe.
 
+## Trust model (operator summary)
+
+Everything ingested (transcripts, pages, PDFs, tweets, READMEs, feeds) is
+treated as **untrusted input**. Injection-resistance rules are threaded through
+first- and second-hop prompts; the dashboard sanitizes rendered HTML; MCP file
+reads are confined to explicit namespaces, artifact classes, and byte limits
+(read-only mode available via `DISTILL_MCP_READ_ONLY`). Distill never bypasses
+login walls, captchas, or anti-bot defenses. YouTube extraction depends on
+yt-dlp and can churn with platform countermeasures; transient caption failures
+retry with backoff, captionless videos fall back to the local-first Whisper
+ladder, and remaining failures degrade with messages rather than corrupted
+corpora.
+
+Analysis output is LLM-generated and can err. Provenance fields exist so you
+can check receipts, and Distill checks them itself: a write-time verify hook
+grounds numeric claims in every insight against its source receipt before
+commit (`--verify warn|strict|off`). Answers from `distill ask` only re-enter
+the corpus if they pass that gate. The optional entailment tier
+(`pip install distillr[entailment]`) extends prose claims with a local
+cross-encoder. `distill audit` rolls verification coverage, prompt staleness,
+synthesis freshness, duplicates, and coverage gaps into a free, deterministic
+per-topic report. See [usage.md](usage.md#claim-verification-the-verify-hook)
+and the [roadmap security section](../ROADMAP.md#security-posture).
+
+## Release quality gate
+
+Every release clears the same CI gate: a large automated suite at 95% **branch**
+coverage, ruff + import-linter + pyright + bandit + pip-audit, pinned
+dependencies via a committed `uv.lock`, SHA-pinned Actions including the PyPI
+publish action, and PEP 740 build provenance on every PyPI release. Default
+tests mock LLM and network boundaries; live integration tests are marked and
+opt-in.
+
 ## Handling
 
 Security reports will be acknowledged within a week, triaged, and - if confirmed - patched in a point release with a CHANGELOG entry noting the fix (without disclosing the exploit detail until users have had a reasonable window to update).

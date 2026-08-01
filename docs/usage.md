@@ -1,8 +1,41 @@
 # Usage
 
-Full command reference. For the short version, see the README.
+Full command reference. For the short version, see the [README](../README.md).
+Install alternatives and keys: [install.md](install.md). Positioning vs other
+tools: [positioning.md](positioning.md).
 
 > Every command prints contextual next steps - file paths and suggested follow-up commands - so you can usually find your way without re-reading this doc.
+
+## Common first commands
+
+```bash
+# Goal-aware cross-source discovery
+distill discover "help an AI become a great music composer" --topic music --preview
+distill --cost-mode no-metered topic preview "agent memory systems" --topic memory --videos 10 --papers 10
+
+# YouTube topic, then arXiv papers
+distill latest "Microsoft Fabric best practices" --limit 10 --report
+distill --cost-mode no-metered papers "agent memory systems" --topic memory --limit 5 --preview
+distill --cost-mode paid-ok papers "agent memory systems" --topic memory --limit 20
+distill export memory --what citations --format bibtex
+
+# Vendor / research site batch
+distill site-batch configs/example_seeds.json --topic example --seed-only
+
+# Ask the corpus (grounded-only, cited); --save promotes a verified answer
+distill ask "which checker should the verify tier use?" --topic memory
+
+# Free trust report (no model calls)
+distill audit memory --report-only
+distill audit memory --next-actions --json
+```
+
+Long runs print per-item progress (completed, failed, spend, ETA). Use
+`distill --quiet <command>` for loops that only need files, exit codes, or
+JSON. DEBUG stays in `library/.distill/distill.log` (8 MiB roll, three backups).
+`--verbose` mirrors debug to stderr. Exit codes and site/discovery preview
+behavior are documented under [Exit Codes](#exit-codes) and the source sections
+below.
 
 ## Table of Contents
 
@@ -886,6 +919,24 @@ The documented JSON read surface stays structured on empty states. For
 are `null`, and `data.reason` identifies `no_channels`, `no_videos`,
 `video_not_found`, or `invalid_metadata`. Human `show` output remains concise.
 Missing topics passed to `diff` or `trends` exit with `NOT_FOUND` (5).
+
+## Dashboard
+
+```bash
+distill                         # terminal home screen
+distill --json                  # bounded dashboard.v2 operator snapshot
+distill --json dashboard        # the same explicit dashboard contract
+distill dashboard --web         # write a standalone local HTML dashboard
+distill serve                   # local web dashboard at http://127.0.0.1:8899
+```
+
+The terminal home screen shows tracked topics, watches, recent runs, failures,
+rolling spend, and paths to local run evidence. Bare and explicit dashboard
+JSON return the same bounded `dashboard.v2` envelope. Its `spend.recent_usd`
+field is null when retained cost evidence cannot support a complete total. The
+web dashboard adds keyboard-accessible drill-downs with rendered markdown, cost
+history, and watchlist status. Scripts are same-origin static assets under a
+restrictive CSP. Every dashboard reads library files only (no database).
 
 ## Diagnostics
 
