@@ -28,27 +28,11 @@ full workflow with an explicit limit and cost policy:
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
-That full command searches arXiv, selects and downloads up to 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a 20-paper run like the example below, expect single-digit minutes and under a dollar in model spend on the `grok-4.3` default. Terminal output during the run looks like this (illustrative run; see the labelled sample-output note below):
+That full command searches arXiv, selects and downloads up to 20 PDFs, extracts full text, runs structured analysis on each, and writes a cross-paper synthesis. For a mid-sized run on the `grok-4.3` default, expect single-digit minutes and well under a dollar in model spend. Terminal output during the run looks like this (shorter demo limit for the screenshot):
 
-```
-Papers: temporal knowledge graph
-Topic: tkg | Sort: relevance | Expand: on | Rerank: on | Limit: 20
+![distill papers CLI demo with synthetic paper titles, progress lines, cost summary, and Markdown corpus artifacts](docs/assets/cli-papers-demo.png)
 
-Analyzing 20 paper(s)
-
-  paper 1/20 | phase analyze | completed 0/20 | failed 0 | spent $0.0000 Time is Not a Label: Continuous Phase Rotation for Temporal Knowledge Graphs and Agentic Memory
-  paper | phase done | completed 1/20 | failed 0 | spent $0.03 | ~6m left
-  paper 2/20 | phase analyze | completed 1/20 | failed 0 | spent $0.03 Inductive Reasoning for Temporal Knowledge Graphs with Emerging Entities
-  ...
-
-  6m 47s  ~$0.58 (391,278 in / 38,117 out)
-
-  time_is_not_a_label_260411544_Paper.md     90.4 KB
-  time_is_not_a_label_260411544_Insights.md   8.1 KB
-  ...
-  tkg_Paper_Synthesis.md  11.8 KB
-  tkg_Corpus_Synthesis.md 10.5 KB
-```
+*Illustrative demo: synthetic titles and paths so the screenshot stays stable; real runs use current arXiv results and your configured model route.*
 
 ## Where distill sits
 
