@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `telemetry_path` (`.distill/phase_telemetry.jsonl`).
 - MCP `ask` returns library-relative `answer_path` through the shared
   agent-visible path helper.
+- MCP tool exception surfaces go through `agent_safe_error`, which drops
+  OSError filenames and redacts host absolute paths from free-text errors.
 
 ## 0.19.48 - 2026-07-31
 

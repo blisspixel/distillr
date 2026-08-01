@@ -18,6 +18,7 @@ from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     library,
@@ -346,7 +347,7 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
-            errors["video_error"] = str(e)
+            errors["video_error"] = agent_safe_error(e)
 
     # Stage 2: Search papers (unless videos_only)
     if not videos_only:
@@ -367,7 +368,7 @@ async def discover(  # noqa: C901 - legacy discovery workflow
         except BudgetExceededError:
             raise
         except Exception as e:
-            errors["paper_error"] = str(e)
+            errors["paper_error"] = agent_safe_error(e)
 
     # Stage 3: Done
     if ctx:

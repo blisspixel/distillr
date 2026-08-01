@@ -10,6 +10,7 @@ from distill.config import DistillConfig
 from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     host_not_on_ingest_allowlist,
@@ -121,7 +122,9 @@ def catch_up(  # noqa: C901 - legacy, will refactor
         try:
             videos = discover_videos(entry.url, days=ch_days, include_shorts=True, quiet=True)
         except Exception as exc:
-            results.append({"channel": entry.name, "status": "error", "error": str(exc)})
+            results.append(
+                {"channel": entry.name, "status": "error", "error": agent_safe_error(exc)}
+            )
             continue
 
         state = ChannelState(config.channel_dir(entry.topic, entry.name) / "state.json")

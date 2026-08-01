@@ -1502,6 +1502,21 @@ def test_agent_visible_path_is_root_relative_posix(tmp_path: Path) -> None:
     assert agent_visible_path(root, tmp_path / "outside.txt") == "outside.txt"
 
 
+def test_agent_safe_error_redacts_oserror_filenames_and_drive_paths() -> None:
+    from distill.mcp.server import agent_safe_error
+
+    os_err = FileNotFoundError(2, "No such file or directory", r"C:\Users\op\secret\file.md")
+    text = agent_safe_error(os_err)
+    assert "FileNotFoundError" in text
+    assert "No such file or directory" in text
+    assert r"C:\Users" not in text
+    assert "secret" not in text
+
+    free = agent_safe_error(ValueError(r"bad seed at C:\GitHub\distillr\library\x.json"))
+    assert "<path>" in free
+    assert r"C:\GitHub" not in free
+
+
 def test_mcp_host_allowlist_refusal_marks_correlated_run(tmp_path):
     config = DistillConfig(
         distill_output_dir=tmp_path / "library",

@@ -15,6 +15,7 @@ from distill.library.intent import CorpusIntent
 from distill.llm.availability import model_available
 from distill.llm.router import RouterConfig
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     load_config,
@@ -67,7 +68,7 @@ def _analyze_one(
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception as e:
-        return {"title": paper.title, "status": "error", "error": str(e)}
+        return {"title": paper.title, "status": "error", "error": agent_safe_error(e)}
 
 
 @mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))

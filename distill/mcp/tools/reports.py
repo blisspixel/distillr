@@ -9,6 +9,7 @@ from typing import Protocol
 from distill.config import DistillConfig
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     library,
@@ -62,7 +63,7 @@ def generate_report(topic: str, channel: str | None = None) -> str:
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"error": agent_safe_error(e)})
 
     if result:
         return json.dumps(
@@ -108,7 +109,7 @@ def resynthesize_topic(topic: str, channel: str | None = None) -> str:
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
-            results.append({"channel": ch.name, "status": "error", "error": str(e)})
+            results.append({"channel": ch.name, "status": "error", "error": agent_safe_error(e)})
 
     if not channel:
         results += _resynthesize_topic_level(
@@ -138,7 +139,7 @@ def _resynthesize_topic_level(
     except BudgetExceededError:
         raise  # the per-call spend cap is a hard stop; write_tool answers
     except Exception as e:
-        results.append({"topic": topic, "status": "error", "error": str(e)})
+        results.append({"topic": topic, "status": "error", "error": agent_safe_error(e)})
 
     try:
         corpus = synthesize_corpus(topic, config, tracker=tracker)
@@ -151,5 +152,5 @@ def _resynthesize_topic_level(
     except BudgetExceededError:
         raise
     except Exception as e:
-        results.append({"corpus": topic, "status": "error", "error": str(e)})
+        results.append({"corpus": topic, "status": "error", "error": agent_safe_error(e)})
     return results

@@ -14,6 +14,7 @@ import inspect
 import json
 import logging
 import math
+import re
 import string
 from collections.abc import Awaitable, Callable, Generator, Mapping
 from contextlib import contextmanager, suppress
@@ -62,6 +63,7 @@ from distill.pipeline.gaps import (
 
 __all__ = [
     "READ_TOOL_ANNOTATIONS",
+    "agent_safe_error",
     "agent_visible_path",
     "capped_tracker",
     "cost_summary",
@@ -81,6 +83,14 @@ __all__ = [
     "write_tool_annotations",
     "write_tool_names",
 ]
+
+# Host absolute paths that may appear inside exception strings on Windows or
+# common Unix roots. URLs with schemes are left alone (no match after ://).
+_WIN_ABS_PATH = re.compile(r"(?i)(?<![a-z0-9_])[a-z]:\\[^\s\"'<>|]+")
+_POSIX_HOME_ABS_PATH = re.compile(
+    r"(?<![\w:/])(/(?:Users|home|tmp|var|opt|private|Library|mnt|Volumes)"
+    r"(?:/[^\s\"'<>|]*)?)"
+)
 
 P = ParamSpec("P")
 R = TypeVar("R", str, Awaitable[str])
@@ -502,6 +512,25 @@ def agent_visible_path(root: Path, path: Path) -> str:
     except (OSError, ValueError):
         return path.name
     return relative.as_posix()
+
+
+def agent_safe_error(exc: BaseException) -> str:
+    """Format an exception for MCP clients without host filesystem layout.
+
+    ``OSError`` subclasses often embed absolute ``filename`` values; those are
+    dropped in favor of the exception type and ``strerror``. Remaining free
+    text has Windows drive paths and common POSIX home/tmp roots redacted.
+    """
+    if isinstance(exc, OSError):
+        errno_part = f" [errno {exc.errno}]" if exc.errno is not None else ""
+        detail = (exc.strerror or "").strip()
+        if detail:
+            return f"{type(exc).__name__}{errno_part}: {detail}"
+        return f"{type(exc).__name__}{errno_part}"
+
+    text = str(exc).strip() or type(exc).__name__
+    text = _WIN_ABS_PATH.sub("<path>", text)
+    return _POSIX_HOME_ABS_PATH.sub("<path>", text)
 
 
 def _ingest_allowlist_entries() -> list[str]:

@@ -11,6 +11,7 @@ from pydantic import StrictBool
 
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     library,
@@ -95,7 +96,7 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
-            results.append({"channel": ch.name, "status": "error", "error": str(e)})
+            results.append({"channel": ch.name, "status": "error", "error": agent_safe_error(e)})
 
     # Topic synthesis
     if ctx:
@@ -106,7 +107,7 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     except BudgetExceededError:
         raise
     except Exception as e:
-        results.append({"scope": "topic", "status": "error", "error": str(e)})
+        results.append({"scope": "topic", "status": "error", "error": agent_safe_error(e)})
 
     # Corpus synthesis
     if ctx:
@@ -120,7 +121,7 @@ async def synthesize(  # noqa: C901 - preserves ordered progress and scope rows.
     except BudgetExceededError:
         raise
     except Exception as e:
-        results.append({"scope": "corpus", "status": "error", "error": str(e)})
+        results.append({"scope": "corpus", "status": "error", "error": agent_safe_error(e)})
 
     if ctx:
         await ctx.report_progress(progress=total_steps, total=total_steps)

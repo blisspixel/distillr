@@ -16,6 +16,7 @@ from distill.commands._site_ingest import SiteIngestResult
 from distill.library.confined import read_confined_text, validate_confined_path
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_safe_error,
     capped_tracker,
     cost_summary,
     load_config,
@@ -207,7 +208,7 @@ async def site_batch(  # noqa: C901 - legacy site workflow
                 for seed in parsed_seeds
             ]
         except (TypeError, ValueError) as e:
-            return json.dumps({"status": "error", "error": str(e)})
+            return json.dumps({"status": "error", "error": agent_safe_error(e)})
     else:
         return json.dumps({"status": "error", "error": "Provide either 'urls' or 'seed_file'."})
 
@@ -218,7 +219,7 @@ async def site_batch(  # noqa: C901 - legacy site workflow
             same_section_only=same_section_only,
         )
     except ValueError as e:
-        return json.dumps({"status": "error", "error": str(e)})
+        return json.dumps({"status": "error", "error": agent_safe_error(e)})
 
     if not seeds:
         return json.dumps({"status": "error", "error": "No URLs to process."})
@@ -272,7 +273,7 @@ async def site_batch(  # noqa: C901 - legacy site workflow
         except BudgetExceededError:
             raise  # the per-call spend cap is a hard stop; write_tool answers
         except Exception as e:
-            results.append({"url": seed.url, "status": "error", "error": str(e)})
+            results.append({"url": seed.url, "status": "error", "error": agent_safe_error(e)})
 
     if ctx:
         await ctx.report_progress(progress=len(seeds), total=len(seeds))

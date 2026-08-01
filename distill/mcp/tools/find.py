@@ -10,7 +10,13 @@ from pydantic import Field
 
 from distill.library.confined import read_confined_text
 from distill.library.paths import strip_frontmatter
-from distill.mcp.server import READ_TOOL_ANNOTATIONS, load_config, mcp, resolve_within_library
+from distill.mcp.server import (
+    READ_TOOL_ANNOTATIONS,
+    agent_safe_error,
+    load_config,
+    mcp,
+    resolve_within_library,
+)
 from distill.pipeline.search import (
     MAX_SEARCH_QUERY_CHARS,
     MAX_SEARCH_RESULTS,
@@ -67,7 +73,7 @@ def find_insights(
         results = search_corpus(config, topic, query, limit=limit)
     except ValueError as exc:
         return json.dumps(
-            {"status": "error", "error": str(exc)},
+            {"status": "error", "error": agent_safe_error(exc)},
             indent=2,
         )
 
