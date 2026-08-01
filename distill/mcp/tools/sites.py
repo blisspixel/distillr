@@ -142,7 +142,9 @@ async def site_batch(  # noqa: C901 - legacy site workflow
         from distill.ingestors.sites.scraper import SiteSeed, parse_site_batch_json
         from distill.pipeline.summary import RunSummary
     except ImportError as e:
-        return json.dumps({"status": "error", "error": f"Site dependencies missing: {e}"})
+        return json.dumps(
+            {"status": "error", "error": f"Site dependencies missing: {agent_safe_error(e)}"}
+        )
 
     seeds: list[SiteSeed] = []
     if urls:

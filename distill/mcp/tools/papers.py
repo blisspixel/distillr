@@ -105,7 +105,9 @@ async def papers(
         from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
         from distill.pipeline.synthesis.corpus import synthesize_corpus
     except ImportError as e:
-        return json.dumps({"status": "error", "error": f"Paper dependencies missing: {e}"})
+        return json.dumps(
+            {"status": "error", "error": f"Paper dependencies missing: {agent_safe_error(e)}"}
+        )
 
     tracker = capped_tracker()
     results: list[PaperResultRow] = []
@@ -113,7 +115,9 @@ async def papers(
     try:
         found = search_arxiv(query, max_results=limit * 2)
     except Exception as e:
-        return json.dumps({"status": "error", "error": f"arXiv search failed: {e}"})
+        return json.dumps(
+            {"status": "error", "error": f"arXiv search failed: {agent_safe_error(e)}"}
+        )
 
     selected = found[:limit]
 
