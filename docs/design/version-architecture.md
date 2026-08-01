@@ -125,6 +125,9 @@ speculatively. Current state:
 | Whole-pipeline agentic plan (P1-P8) | [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) | Live; P1-P3/P6/P7 shipped, P4/P5 partial (deterministic verify shipped) |
 | Synthesis depth / thesis loop | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; thesis rung shipped, loop pending |
 | Version horizon (this doc) | `version-architecture.md` | Live |
+| Path to 1.0 (gates + order) | [`path-to-1.0.md`](path-to-1.0.md) | Live; operational checklist |
+| Contract compatibility | [`../contracts/COMPATIBILITY.md`](../contracts/COMPATIBILITY.md) | Live; freeze-ready policy |
+| Offline performance baseline | [`../performance/baseline-0.19.50.md`](../performance/baseline-0.19.50.md) | Partial scale-100 evidence |
 | Entailment verification tier | [`entailment-tier.md`](entailment-tier.md) | Shipped 0.13.0 and 0.13.1 |
 | `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
 | OKF interop + loop-readable stewardship | [`okf-loop-readiness.md`](okf-loop-readiness.md) | Next build slice |

@@ -1,8 +1,8 @@
 # Public contract snapshots
 
-These files are the machine-readable candidate for Distill's 1.0 external
-contract. They make accidental surface changes visible before 1.0 declares the
-contract stable.
+These files are the machine-readable **freeze-ready** external contract for
+Distill's 1.0 stability commitment. They make accidental surface changes
+visible before 1.0 declares the contract frozen.
 
 Current snapshots:
 
@@ -21,18 +21,29 @@ Current snapshots:
   `library.json` and per-channel `state.json` documents plus representative
   accepted empty, legacy, and explicit-field inputs and their normalized forms.
 
-The snapshots are marked `candidate` pending the broader 1.0 readiness
-conditions. The MCP 2026-07-28 compatibility checkpoint that previously gated
-them is complete: the inventory, the spec-alignment work, and the SDK v2 port
-shipped in 0.19.47 and 0.19.48 with the MCP snapshot byte-identical across
-the SDK swap
-([`docs/design/mcp-2026-07-28-adoption.md`](../design/mcp-2026-07-28-adoption.md)).
-Router and provider configuration plus direct
-runtime environment controls, additional stored-state documents and file
-locations not owned by the configuration path helpers,
-artifact-specific frontmatter schemas and value semantics, caller-specific
-reader and writer extension integration, and full legacy-library migration are
-also tracked by the 1.0 roadmap and will receive separate contract coverage.
+## Status
+
+| Field | Meaning |
+|-------|---------|
+| `freeze-ready` | Covered surface is complete enough to freeze at 1.0 under [`COMPATIBILITY.md`](COMPATIBILITY.md). Drift still requires reviewed PR + changelog. |
+| `frozen` | Used only after the 1.0.0 release tags these snapshots as SemVer public API. |
+
+The MCP 2026-07-28 compatibility checkpoint that previously blocked freeze
+readiness is **complete** (0.19.47 inventory + 0.19.48 SDK v2 port; snapshot
+byte-identical across the swap). See
+[`docs/design/mcp-2026-07-28-adoption.md`](../design/mcp-2026-07-28-adoption.md)
+and [`docs/design/path-to-1.0.md`](../design/path-to-1.0.md).
+
+Still **out of the freeze set** until separate slices land (additive after 1.0
+is allowed under the compatibility policy):
+
+- Router/provider configuration and direct runtime environment controls beyond
+  `config-v1.json`
+- Additional state documents and file locations outside configuration path
+  helpers
+- Artifact-specific frontmatter schemas and value semantics beyond the base set
+- Caller-specific reader and writer extension integration
+- Full legacy-library migration automation beyond the compatibility promise
 
 ## Compatibility policy
 
@@ -83,6 +94,8 @@ and MCP schemas follow the current
 the server answers both the 2026-07-28 era and legacy initialize clients, and
 the recorded wire shapes are identical in both. These sources were checked on
 2026-07-31.
+
+Library corpus promises live in [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## Review workflow
 

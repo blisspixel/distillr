@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Public contract snapshots move from `candidate` to **`freeze-ready`** after
+  the completed MCP 2026-07-28 checkpoint. Compatibility and library corpus
+  policy: [`docs/contracts/COMPATIBILITY.md`](contracts/COMPATIBILITY.md).
+  Plan: [`docs/design/path-to-1.0.md`](design/path-to-1.0.md).
+- First published offline performance baseline:
+  [`docs/performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
+  (Windows scale-100, n=20).
+
 ## 0.19.50 - 2026-08-01
 
 CLI loop-readable refusal expansion on top of the 0.19.48/0.19.49 MCP and

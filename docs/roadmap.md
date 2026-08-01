@@ -100,21 +100,13 @@ be moved to `CHANGELOG.md` on next release).
   `mcp>=1.27.2,<2` so the breaking SDK v2 line cannot enter fresh installs
   before the final-spec compatibility spike explicitly graduates it. The lock,
   wheel metadata, and package-metadata regression test carry the same boundary.
-- [~] **Candidate 1.0 public contract snapshots.** Deterministic snapshots now
-  cover the full CLI command and parameter tree plus MCP tools, input/output
-  schemas, resources, resource templates, and prompts, plus modern artifact
-  filename patterns, reader compatibility paths, base frontmatter, provenance
-  fields, and representative serialized frontmatter behavior, plus core
-  `DistillConfig` settings, environment names, declared non-secret defaults,
-  cost validation, configuration-owned library path shapes, and Draft 2020-12
-  schemas with normalization examples for the core library index and
-  per-channel state. The default suite rejects unreviewed drift in these
-  covered surfaces. These remain candidates until the post-2026-07-28 MCP
-  checkpoint completes; router/provider configuration and direct runtime
-  environment controls, additional state documents and file locations outside
-  configuration path helpers, artifact-specific frontmatter schemas and value
-  semantics, caller-specific reader and writer extension integration, and full
-  legacy migration remain separate contract slices.
+- [x] **Freeze-ready 1.0 public contract snapshots (covered surfaces).**
+  Deterministic snapshots cover the full CLI tree, MCP tools/resources/prompts,
+  artifact filename and base frontmatter contracts, core config, and core state
+  schemas. Status is `freeze-ready` after the MCP 2026-07-28 checkpoint (0.19.48).
+  Compatibility policy: [`contracts/COMPATIBILITY.md`](contracts/COMPATIBILITY.md).
+  Remaining uncovered slices (router env surface, artifact-specific schemas,
+  full legacy migration automation) stay separate and may expand additively.
 - [x] **MCP 2026-07-28 compatibility spike (inventory + phase 1).** Completed
   against the final published spec; the decision record is
   [`design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md).
@@ -404,11 +396,12 @@ per unit of time and cost, not language-level throughput in isolation.
   threshold-edge pairs, malformed frontmatter, broken links, and path edge
   cases. Replay paper, video, site, synthesis, verification, profile, and report
   workflows with frozen receipts and provider responses.
-- [ ] **Published 1.0 baseline.** Measure search, audit, links, discovery,
-  dashboard reads, export, near-duplicate detection, clean install, wheel size,
-  CLI cold start, a 20-paper run, a 50-video catch-up, and a site-batch. Publish
-  hardware, provider, model, corpus digest, cache state, p50/p95, CPU, peak RSS,
-  token, cost, verification, failure, retry, resume, and no-op metadata.
+- [~] **Published 1.0 baseline.** First offline evidence published as
+  [`performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
+  (Windows scale-100 corpus-scale suite, n=20, plus CLI `--version` process
+  start). Still open: scale 500/1k/10k, multi-host history, frozen workflow
+  replays, export/install metrics, and live 20-paper / 50-video / site-batch
+  reference journeys with full hardware and cost metadata.
 - [ ] **Honest regression policy.** Keep live provider, network, and hardware
   journeys as scheduled or release evidence. Allow deterministic offline
   benchmarks to block only after at least five comparable runs characterize

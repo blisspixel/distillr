@@ -98,7 +98,7 @@
       "uri": "distill://watchlist"
     }
   ],
-  "status": "candidate",
+  "status": "freeze-ready",
   "tools": [
     {
       "annotations": {

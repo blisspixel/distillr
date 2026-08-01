@@ -24,7 +24,7 @@ STATE_SNAPSHOT = ROOT / "docs" / "contracts" / "state-v1.json"
 
 
 def test_public_contract_snapshots_match_runtime() -> None:
-    """Runtime public surfaces must match their reviewed candidate-v1 snapshots."""
+    """Runtime public surfaces must match their reviewed freeze-ready v1 snapshots."""
     result = subprocess.run(
         [sys.executable, str(SNAPSHOT_SCRIPT), "--check"],
         cwd=ROOT,

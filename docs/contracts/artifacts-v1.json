@@ -329,5 +329,5 @@
     ],
     "serialization_example": "---\nstring: \"contract value\"\nboolean_true: true\nboolean_false: false\ninteger: 1\nnumber: 1.5\narray: [\"alpha\", \"beta\"]\nobject: {\"alpha\": 1}\n---"
   },
-  "status": "candidate"
+  "status": "freeze-ready"
 }

@@ -327,5 +327,5 @@
     },
     "type": "object"
   },
-  "status": "candidate"
+  "status": "freeze-ready"
 }

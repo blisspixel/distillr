@@ -128,7 +128,7 @@ def cli_contract() -> dict[str, object]:
     visit(root_command, ())
     return {
         "contract": "distill-cli.v1",
-        "status": "candidate",
+        "status": "freeze-ready",
         "commands": commands,
     }
 
@@ -230,7 +230,7 @@ async def mcp_contract() -> dict[str, object]:
 
     return {
         "contract": "distill-mcp.v1",
-        "status": "candidate",
+        "status": "freeze-ready",
         "json_schema_dialect": JSON_SCHEMA_DIALECT,
         "tools": sorted(tools, key=lambda row: str(row["name"])),
         "resources": sorted(resources, key=lambda row: str(row["uri"])),
@@ -336,7 +336,7 @@ def artifact_contract() -> dict[str, object]:
 
     return {
         "contract": "distill-artifacts.v1",
-        "status": "candidate",
+        "status": "freeze-ready",
         "artifact_types": artifact_types,
         "frontmatter": {
             "base_fields": sorted(set(standard_frontmatter) - set(provenance_fields)),
@@ -463,7 +463,7 @@ def state_contract() -> dict[str, object]:
     return {
         "contract": "distill-state.v1",
         "json_schema_dialect": JSON_SCHEMA_DIALECT,
-        "status": "candidate",
+        "status": "freeze-ready",
         "documents": {
             "channel_state": {
                 "normalized_schema": _persisted_schema(ChannelStateData),
@@ -672,7 +672,7 @@ def config_contract() -> dict[str, object]:
 
     return {
         "contract": "distill-core-config.v1",
-        "status": "candidate",
+        "status": "freeze-ready",
         "schema": schema,
         "environment": {
             "loader_policy": {key: _json_value(settings_config.get(key)) for key in loader_keys},
