@@ -16,8 +16,13 @@ AGENT_PLUGINS_SCHEMA_SHA256 = "0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86
 def _portable_text_sha256(payload: bytes) -> str:
     """Hash text content after platform-independent newline normalization."""
 
-    normalized = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    return hashlib.sha256(normalized).hexdigest()
+    return hashlib.sha256(_normalize_newlines(payload)).hexdigest()
+
+
+def _normalize_newlines(payload: bytes) -> bytes:
+    """Return one LF baseline for portable text comparisons and fixtures."""
+
+    return payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
 def _load_distribution_generator() -> ModuleType:
@@ -41,9 +46,8 @@ def test_interoperability_baselines_match_code_and_immutable_schema() -> None:
     assert OKF_VERSION == "0.2"
     schema_payload = schema_path.read_bytes()
     assert _portable_text_sha256(schema_payload) == AGENT_PLUGINS_SCHEMA_SHA256
-    assert _portable_text_sha256(schema_payload.replace(b"\n", b"\r\n")) == (
-        AGENT_PLUGINS_SCHEMA_SHA256
-    )
+    crlf_schema_payload = _normalize_newlines(schema_payload).replace(b"\n", b"\r\n")
+    assert _portable_text_sha256(crlf_schema_payload) == AGENT_PLUGINS_SCHEMA_SHA256
 
 
 def test_public_docs_state_exact_portable_boundaries() -> None:
