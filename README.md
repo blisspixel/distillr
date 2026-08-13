@@ -65,12 +65,14 @@ profiles expose the same durable corpus to agents. Artifact layout and samples:
 [`examples/`](examples/README.md).
 
 Agent distribution uses one canonical Agent Skill plus an
-[Agent Plugins v1](https://agent-plugins.org/specification) root manifest and
-client compatibility manifests. `distill export <topic> --format okf` produces
-an [OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+[Agent Plugins 1.0.0](https://agent-plugins.org/specification) portable package
+and separate client compatibility surfaces. The specification is currently a
+Working Draft. `distill export <topic> --format okf` produces an
+[OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 projection with portable provenance, bounded receipt copies, lifecycle fields,
 and digest-bound machine-verification events. The native `library/` remains the
-source of truth.
+source of truth. Exact standards boundaries and update policy:
+[`docs/interoperability.md`](docs/interoperability.md).
 
 How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 [`docs/positioning.md`](docs/positioning.md).
@@ -87,6 +89,7 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 | [`docs/outputs.md`](docs/outputs.md) | What every artifact contains |
 | [`docs/architecture.md`](docs/architecture.md) | Data flow and routing |
 | [`docs/invariants.md`](docs/invariants.md) | Design charter |
+| [`docs/interoperability.md`](docs/interoperability.md) | Agent Plugins and OKF baselines |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Trust boundaries and disclosure |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Dev setup and quality gates |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | What shipped |

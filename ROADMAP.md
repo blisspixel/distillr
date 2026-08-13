@@ -71,7 +71,7 @@ Distillr should not chase that crowd - the vault-maintenance fight is lost to 35
 
 - **AGENTS.md won the cross-vendor baseline** (Linux Foundation / Agentic AI Foundation; supported in Codex, Cursor, Gemini CLI, and 30+ tools) - but Claude Code reads CLAUDE.md, so the corpus emits *both* per topic. `llms.txt` is not the core interface, but once OKF export ships it can become a thin optional pointer to the exported bundle for tools that look there.
 - **SKILL.md went vendor-neutral** ([agentskills.io](https://agentskills.io), ~32 tools by March 2026), and the winning vendor pattern is exactly distillr's shape: *a CLI plus one skill teaching the agent to use it*. One canonical SKILL.md is one file, ~100 tokens until invoked - categorically different from the symlink-machinery model this roadmap still rejects.
-- **Agent Plugins v1 standardizes portable packaging.** The generated `distill-corpus` plugin now carries the required root [`plugin.json`](https://agent-plugins.org/specification), the fixed `skills/` tree, and existing client compatibility manifests. The portable package deliberately omits `mcp.json`: installing a skill must not silently activate Distill's write-capable or spend-capable MCP surface.
+- **Agent Plugins 1.0.0 standardizes portable packaging as a Working Draft.** The strict `distill-corpus-agent-plugin-<version>.zip` release artifact carries the required root [`plugin.json`](https://agent-plugins.org/specification) and fixed `skills/` tree. The separate universal compatibility bundle keeps client-native manifests without claiming they are part of the portable standard. The strict package deliberately omits `mcp.json`: installing a skill must not silently activate Distill's write-capable or spend-capable MCP surface. The exact Agent Plugins, Agent Skills, and OKF boundaries are recorded in [`docs/interoperability.md`](docs/interoperability.md).
 - **The MCP server stays but slims.** Token-efficiency is now canon: Anthropic measured ~85% schema savings from deferred tool loading and large gains from [code-execution over tool calls](https://www.anthropic.com/engineering/code-execution-with-mcp); GitHub cut agentic-workflow tokens ~62% partly by replacing MCP calls with the `gh` CLI; Claude Code's own best practices call CLI tools "the most context-efficient way to interact with external services." At ~500-1,000 schema tokens per tool, 22 always-loaded tools is the pattern the ecosystem is punishing. Consolidate to a handful of workflow-shaped tools that return **paths into the corpus plus short previews, never full payloads** - the corpus being plain files makes this natural. The server remains the only route to claude.ai web/mobile and hosted agents, so it stays; it becomes a thin window onto the files.
 - **MCP 2026-07-28 is a compatibility checkpoint, not a product pivot - and the inventory is done.** The final spec makes the protocol core stateless (the `initialize` handshake is removed; version and capabilities travel per-request in `_meta`), mandates `server/discover`, replaces server-initiated requests with the Multi Round-Trip Request pattern, requires cache metadata on listings, moves Tasks to an official extension, and deprecates roots, sampling, and logging. The completed inventory ([`docs/design/mcp-2026-07-28-adoption.md`](docs/design/mcp-2026-07-28-adoption.md)) found Distill depends on none of the removed or deprecated features; the whole era migration concentrates in the SDK boundary. Phase 1 (behavior-hint annotations held to the write-tool registry, frozen deterministic tool order, server identity, tests off private SDK internals) shipped on the v1 SDK in 0.19.47, and phase 2, the SDK v2 port, shipped in 0.19.48: the server now negotiates 2026-07-28 with modern clients through `server/discover` (with deliberate cache metadata) while still answering legacy initialize clients from the same stdio binary, proven against both client generations with the contract snapshot byte-identical across the swap. The Tasks extension for long-running ingest remains staged behind official SDK extension support.
 - **Registries don't distribute.** MCP registry usage concentrates in ~10 famous servers (top 10 take ~46% of attention); skills marketplaces have a measured 13.4% critical-flaw rate (Snyk ToxicSkills, Feb 2026). The adoption levers that work: a good `uvx`-runnable CLI, agent-readable docs in the repo, and a self-describing corpus - plus the security story ("your research is local plain files; no third-party server in the loop"), which MCP's 2026 CVE record turned into a real selling point.
@@ -406,7 +406,8 @@ performance baseline, sustained clean cross-platform release evidence,
 representative user and operator journey reviews, accessibility and security
 closure, and a materially reduced high-impact refinement backlog. Detail for
 the eventual commitment remains below. Shipped work and rationale live in
-[`docs/CHANGELOG.md`](docs/CHANGELOG.md). The
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md). The current external interoperability
+baselines live in [`docs/interoperability.md`](docs/interoperability.md). The
 "[intentionally not in scope](#intentionally-not-in-scope)" section remains the
 deliberate exclusions list.
 
@@ -441,8 +442,9 @@ scratch workspace, submitted with ownership and hash receipts, or abandoned for
 another host. One canonical Agent Skill now packages that procedure for Codex,
 Claude Code, Grok Build, Gemini CLI, Antigravity, claude.ai, and compatible
 Agent Skills clients. Generated client manifests, strict local vendor
-validation, byte-for-byte drift checks, deterministic release archives, and
-SHA-256 checksums keep those surfaces synchronized. The installed CLI now
+validation, byte-for-byte drift checks, a strict Agent Plugins 1.0.0 archive,
+the broader universal compatibility bundle, deterministic release archives,
+and SHA-256 checksums keep those surfaces synchronized. The installed CLI now
 verifies its wheel bundle and provides preview-first direct install, clean
 update or removal, and deterministic export as a portable fallback. Six native
 Claude plugin cases compare positive, adversarial, and negative-trigger
@@ -586,9 +588,9 @@ The 1.0 stability commitment freezes the *external contracts* (CLI flags, MCP sc
 - **Agent Skill distribution is generated and drift-gated.** One canonical
   skill feeds the Codex, Claude, Grok, Gemini, Antigravity, and claude.ai
   surfaces. CI verifies the wheel integrity manifest, exact generated copies,
-  behavioral-eval structure, and deterministic archives;
-  releases attach the `.skill`, claude.ai ZIP, universal plugin ZIP, and
-  SHA-256 checksums separately from the Python packages.
+  behavioral-eval structure, and deterministic archives. Releases attach the
+  `.skill`, claude.ai ZIP, strict Agent Plugins ZIP, universal compatibility
+  ZIP, and SHA-256 checksums separately from the Python packages.
 - **Python 3.12-3.14 support matrix**, every version green on every PR. `requires-python = ">=3.12"`; the floor moves forward as old versions reach EOL, the ceiling tracks the current stable release.
 - **Container runtime matches the Python floor.** The Dockerfile follows the same Python 3.12 minimum as the package metadata, and focused metadata tests keep the image base from drifting behind the supported runtime.
 - **OS support matrix: Linux, macOS, and Windows are all first-class.** Shipped 2026-06-11: CI now runs the unit suite + CLI smoke on `macos-latest` and `windows-latest` (Python 3.12) alongside the full coverage-gated 3.12-3.14 matrix on ubuntu, so path handling, console rendering, and subprocess behavior are enforced on every platform users actually run - development happens on Windows, and before this the CI was ubuntu-only. 1.0 may widen the smoke jobs toward the full version matrix. This tool has to work for anyone, on whatever box they have - including local models on consumer GPUs.

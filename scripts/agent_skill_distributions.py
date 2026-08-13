@@ -16,6 +16,8 @@ import zipfile
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_SKILL = PurePosixPath("skills/distill-corpus")
 CANONICAL_EVALS = PurePosixPath("evals/distill-corpus")
@@ -50,7 +52,14 @@ PLUGIN_DESCRIPTION = (
     "Read, verify, and curate a receipt-backed Distill research corpus, including bounded "
     "active-session worker handoffs."
 )
-AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+AGENT_PLUGINS_VERSION = "1.0.0"
+AGENT_PLUGINS_SCHEMA = (
+    f"https://agent-plugins.org/schemas/{AGENT_PLUGINS_VERSION}/plugin.schema.json"
+)
+AGENT_SKILL_FIELDS = frozenset(
+    {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+)
+AGENT_SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class DistributionError(ValueError):
@@ -127,6 +136,73 @@ def _read_source_payload(
     return relative, _canonical_text_payload(payload, relative=relative, label=label)
 
 
+def _agent_skill_frontmatter(payload: bytes) -> dict[str, object]:
+    """Parse canonical Agent Skill frontmatter into a string-keyed mapping."""
+
+    text = payload.decode("utf-8")
+    lines = text.splitlines()
+    if not lines or lines[0] != "---":
+        raise DistributionError("Canonical SKILL.md must start with YAML frontmatter")
+    try:
+        closing = lines.index("---", 1)
+    except ValueError as exc:
+        raise DistributionError("Canonical SKILL.md frontmatter is not closed") from exc
+    try:
+        parsed = yaml.safe_load("\n".join(lines[1:closing]))
+    except yaml.YAMLError as exc:
+        raise DistributionError("Canonical SKILL.md frontmatter is not valid YAML") from exc
+    if not isinstance(parsed, dict) or any(not isinstance(key, str) for key in parsed):
+        raise DistributionError("Canonical SKILL.md frontmatter must be a string-keyed mapping")
+    return parsed
+
+
+def _validate_optional_agent_skill_fields(frontmatter: Mapping[str, object]) -> None:
+    """Validate optional fields defined by the Agent Skills specification."""
+
+    for field in ("license", "allowed-tools"):
+        value = frontmatter.get(field)
+        if value is not None and (not isinstance(value, str) or not value):
+            raise DistributionError(f"Canonical SKILL.md {field} must be a non-empty string")
+    compatibility = frontmatter.get("compatibility")
+    if compatibility is not None and (
+        not isinstance(compatibility, str) or not 1 <= len(compatibility) <= 500
+    ):
+        raise DistributionError("Canonical SKILL.md compatibility must contain 1 to 500 characters")
+    metadata = frontmatter.get("metadata")
+    if metadata is not None and (
+        not isinstance(metadata, dict)
+        or any(
+            not isinstance(key, str) or not isinstance(value, str)
+            for key, value in metadata.items()
+        )
+    ):
+        raise DistributionError("Canonical SKILL.md metadata must map strings to strings")
+
+
+def _validate_agent_skill(payload: bytes) -> None:
+    """Validate the canonical SKILL.md interoperability floor."""
+
+    frontmatter = _agent_skill_frontmatter(payload)
+    unknown = set(frontmatter) - AGENT_SKILL_FIELDS
+    if unknown:
+        raise DistributionError(
+            "Canonical SKILL.md frontmatter has unsupported fields: " + ", ".join(sorted(unknown))
+        )
+
+    name = frontmatter.get("name")
+    if (
+        name != CANONICAL_SKILL.name
+        or not isinstance(name, str)
+        or not AGENT_SKILL_NAME.fullmatch(name)
+    ):
+        raise DistributionError("Canonical SKILL.md name must match its valid skill directory name")
+    description = frontmatter.get("description")
+    if not isinstance(description, str) or not 1 <= len(description) <= 1024:
+        raise DistributionError("Canonical SKILL.md description must contain 1 to 1024 characters")
+
+    _validate_optional_agent_skill_fields(frontmatter)
+
+
 def _skill_files(root: Path) -> dict[PurePosixPath, bytes]:
     source = root.joinpath(*CANONICAL_SKILL.parts)
     if _is_link(source) or not source.is_dir():
@@ -160,6 +236,7 @@ def _skill_files(root: Path) -> dict[PurePosixPath, bytes]:
 
     if PurePosixPath("SKILL.md") not in files:
         raise DistributionError("Canonical skill is missing SKILL.md")
+    _validate_agent_skill(files[PurePosixPath("SKILL.md")])
     return dict(sorted(files.items(), key=lambda item: item[0].as_posix()))
 
 
@@ -230,7 +307,7 @@ def _bundle_manifest(version: str, skill_files: Mapping[PurePosixPath, bytes]) -
 
 
 def _portable_plugin_manifest(version: str) -> dict[str, object]:
-    """Return the vendor-neutral Agent Plugins v1 manifest."""
+    """Return the vendor-neutral Agent Plugins 1.0.0 manifest."""
 
     return {
         "$schema": AGENT_PLUGINS_SCHEMA,
@@ -360,13 +437,21 @@ def _claude_marketplace(version: str) -> dict[str, object]:
     }
 
 
-def _plugin_readme(version: str) -> bytes:
+def _universal_plugin_readme(version: str) -> bytes:
     return f"""# Distill Corpus agent plugin
 
 This is the generated, self-contained distribution of the canonical
 `skills/distill-corpus/` Agent Skill. The root `plugin.json` targets the
-vendor-neutral Agent Plugins v1 specification. Compatibility manifests are also
-included for Codex, Claude Code, Grok Build, and Gemini CLI. Version: `{version}`.
+vendor-neutral Agent Plugins {AGENT_PLUGINS_VERSION} Working Draft. This
+repository distribution is the universal compatibility bundle, so native
+manifests are also included for Codex, Claude Code, Grok Build, and Gemini CLI.
+Version: `{version}`.
+
+The release artifact named
+`distill-corpus-agent-plugin-{version}.zip` contains only the portable Agent
+Plugins core, documentation, and license. Use that artifact when a client asks
+for a strict Agent Plugins package. The historical
+`distill-corpus-plugin-{version}.zip` name remains the universal bundle.
 
 Do not edit this directory by hand. Change the canonical skill or the generator,
 then run:
@@ -390,6 +475,23 @@ keyword score and not evidence that another client's router behaves identically.
 """.encode()
 
 
+def _portable_plugin_readme(version: str) -> bytes:
+    return f"""# Distill Corpus portable agent plugin
+
+This archive targets the vendor-neutral Agent Plugins {AGENT_PLUGINS_VERSION}
+Working Draft. It contains the required root `plugin.json`, one Agent Skill at
+`skills/distill-corpus/`, this README, and the Apache-2.0 license. Version:
+`{version}`.
+
+The package intentionally omits `mcp.json`. Installing a corpus procedure must
+not silently activate Distill's write-capable or spend-capable MCP tools.
+Configure `distill-mcp` separately with the desired read-only and cost policy.
+
+Client-native manifests and behavioral evals live in the repository's universal
+compatibility bundle. They are not part of this portable Agent Plugins archive.
+""".encode()
+
+
 def expected_tracked_files(root: Path) -> dict[PurePosixPath, bytes]:
     """Return every generated tracked file and its exact expected bytes."""
     version = _project_version(root)
@@ -405,7 +507,7 @@ def expected_tracked_files(root: Path) -> dict[PurePosixPath, bytes]:
         PLUGIN_ROOT / "gemini-extension.json": _json_bytes(
             _gemini_manifest(version, name="distill-corpus")
         ),
-        PLUGIN_ROOT / "README.md": _plugin_readme(version),
+        PLUGIN_ROOT / "README.md": _universal_plugin_readme(version),
         PLUGIN_ROOT / "LICENSE": license_bytes,
         CODEX_MARKETPLACE: _json_bytes(_codex_marketplace()),
         CLAUDE_MARKETPLACE: _json_bytes(_claude_marketplace(version)),
@@ -524,7 +626,7 @@ def _zip_bytes(files: Mapping[PurePosixPath, bytes], root_name: str) -> bytes:
 
 
 def build_archives(root: Path, output: Path) -> list[Path]:
-    """Build deterministic skill and universal plugin release archives."""
+    """Build deterministic skill, portable plugin, and universal release archives."""
     errors = check_tracked(root)
     if errors:
         raise DistributionError(
@@ -539,11 +641,20 @@ def build_archives(root: Path, output: Path) -> list[Path]:
         for path, payload in tracked.items()
         if path.is_relative_to(PLUGIN_ROOT)
     }
+    portable_plugin_files: dict[PurePosixPath, bytes] = {
+        PurePosixPath("plugin.json"): tracked[PLUGIN_ROOT / "plugin.json"],
+        PurePosixPath("README.md"): _portable_plugin_readme(version),
+        PurePosixPath("LICENSE"): tracked[PLUGIN_ROOT / "LICENSE"],
+    }
+    for relative, payload in skill_files.items():
+        portable_plugin_files[PurePosixPath("skills/distill-corpus") / relative] = payload
     skill_archive = _zip_bytes(skill_files, "distill-corpus")
     plugin_archive = _zip_bytes(plugin_files, "distill-corpus")
+    portable_plugin_archive = _zip_bytes(portable_plugin_files, "distill-corpus")
     artifacts = {
         f"distill-corpus-{version}.skill": skill_archive,
         f"distill-corpus-{version}.zip": skill_archive,
+        f"distill-corpus-agent-plugin-{version}.zip": portable_plugin_archive,
         f"distill-corpus-plugin-{version}.zip": plugin_archive,
     }
 

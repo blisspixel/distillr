@@ -378,7 +378,7 @@ The following items were present in the codebase prior to 0.7 and have been reso
 
 - **`_cli_impl.py` is oversized (~1,200+ lines).** The 0.3 restructure moved wiring to `cli.py` and created the `commands/` subpackage, but business logic (private `_discover_*`, `_llm_expand_*` helpers) stayed in `_cli_impl.py` as a migration holding area. 0.7 decomposes it into per-command modules.
 - **Artifact provenance is incomplete.** YAML frontmatter records `analyzed_by` (model name) and cost, but not exact model version, temperature, seed, or prompt identifier. 0.7 adds full provenance fields.
-- **Legacy migration bridge in `config.py`.** `router_config_from_distill` contains env-parsing inside functions and import-side effects from the pre-0.3 era. Scheduled for deletion in 0.7 (Grok 4.3 retirement May 15, 2026 is the forcing function).
+- **Legacy migration bridge in `config.py`.** `router_config_from_distill` contained env parsing inside functions and import side effects from the pre-0.3 era. The 0.7 work removed that bridge; the Grok 4.3 retirement deadline was its forcing function.
 - **Slugify/path logic lives in `config.py`.** `sanitize_path_component` and `slugify_title` belong in `library/paths.py`. 0.7 moves them.
 - **Report-phase circuit breaker lacks backoff/jitter.** The 3-failure breaker retries immediately. 0.7 adds exponential backoff with jitter and an `LLMCall` dataclass for debugging.
 - **Pyright is in basic mode.** New modules added in 0.7+ get `# pyright: strict`. Global strict enforcement is scheduled for 1.0.
@@ -397,7 +397,7 @@ These are sometimes flagged in audits but are intentional:
 - **No full PromptRegistry / A/B framework.** Prompt versioning via `prompt_id` in frontmatter (0.7) provides reproducibility. A registry class is premature until the prompt surface stabilizes post-0.8.
 - **Import-linter enforces dependency direction in CI.** "Risk of creeping imports" is not a gap - violations fail the build.
 
-A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. In 2026, cloud models (Grok 4.3 at 1M tokens, Gemini 3.1 Pro at 1M tokens) handle this comfortably - a 100K-char paper is roughly 25K tokens, well within the effective attention range of these models. The lost-in-the-middle concern applies primarily to local models with 8K-32K context windows. The fix (0.6) is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category rerank.
+A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. Current cloud routes such as Grok 4.5 at 500K tokens and Gemini 3.1 Pro at 1M tokens handle that input size comfortably. A 100K-character paper is roughly 25K tokens, well within both registered context windows. The lost-in-the-middle concern applies primarily to local models with smaller effective context windows. The fix is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category reranking.
 
 ## Current package layout
 

@@ -14,6 +14,7 @@ from types import ModuleType
 
 import pytest
 import yaml
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "agent_skill_distributions.py"
@@ -125,6 +126,56 @@ def test_portable_plugin_manifest_targets_agent_plugins_v1() -> None:
     }
     assert "skills" not in manifest
     assert PurePosixPath("plugins/distill-corpus/mcp.json") not in expected
+
+    schema = json.loads(
+        (ROOT / "tests/fixtures/standards/agent-plugins-1.0.0-plugin.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(manifest)
+
+
+@pytest.mark.parametrize(
+    ("frontmatter", "message"),
+    [
+        ("name: wrong\ndescription: Test skill.", "name must match"),
+        ("name: distill-corpus\ndescription: ''", "description must contain"),
+        (
+            "name: distill-corpus\ndescription: Test skill.\nmetadata:\n  version: 1",
+            "metadata must map strings to strings",
+        ),
+        (
+            "name: distill-corpus\ndescription: Test skill.\nunknown: value",
+            "unsupported fields",
+        ),
+        (
+            "name: distill-corpus\ndescription: Test skill.\nlicense: ''",
+            "license must be a non-empty string",
+        ),
+        (
+            "name: distill-corpus\ndescription: Test skill.\ncompatibility: ''",
+            "compatibility must contain 1 to 500 characters",
+        ),
+        (
+            "name: distill-corpus\ndescription: Test skill.\nallowed-tools: []",
+            "allowed-tools must be a non-empty string",
+        ),
+    ],
+)
+def test_generator_rejects_nonconformant_agent_skill_frontmatter(
+    tmp_path: Path,
+    frontmatter: str,
+    message: str,
+) -> None:
+    root = _minimal_root(tmp_path)
+    (root / "skills/distill-corpus/SKILL.md").write_text(
+        f"---\n{frontmatter}\n---\n\n# Test\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GENERATOR.DistributionError, match=message):
+        GENERATOR.expected_tracked_files(root)
 
 
 def test_write_repairs_drift_and_removes_unexpected_plugin_files(tmp_path: Path) -> None:
@@ -252,6 +303,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
 
     skill_path = first / f"distill-corpus-{VERSION}.skill"
     zip_path = first / f"distill-corpus-{VERSION}.zip"
+    portable_plugin_path = first / f"distill-corpus-agent-plugin-{VERSION}.zip"
     plugin_path = first / f"distill-corpus-plugin-{VERSION}.zip"
     assert skill_path.read_bytes() == zip_path.read_bytes()
 
@@ -274,6 +326,29 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
         == GENERATOR._skill_files(ROOT)[PurePosixPath("SKILL.md")]
     )
 
+    portable_payloads = _archive_payloads(portable_plugin_path)
+    assert set(portable_payloads) == {
+        "distill-corpus/LICENSE",
+        "distill-corpus/README.md",
+        "distill-corpus/plugin.json",
+        *{
+            f"distill-corpus/skills/distill-corpus/{relative.as_posix()}"
+            for relative in GENERATOR._skill_files(ROOT)
+        },
+    }
+    portable_manifest = json.loads(portable_payloads["distill-corpus/plugin.json"])
+    schema = json.loads(
+        (ROOT / "tests/fixtures/standards/agent-plugins-1.0.0-plugin.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator(schema).validate(portable_manifest)
+    assert b"Working Draft" in portable_payloads["distill-corpus/README.md"]
+    assert not any(
+        name.startswith("distill-corpus/.") or name.startswith("distill-corpus/evals/")
+        for name in portable_payloads
+    )
+
     checksum_path = first / f"distill-agent-distributions-{VERSION}.sha256"
     rows = {
         name: digest
@@ -284,6 +359,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
     assert set(rows) == {
         f"distill-corpus-{VERSION}.skill",
         f"distill-corpus-{VERSION}.zip",
+        f"distill-corpus-agent-plugin-{VERSION}.zip",
         f"distill-corpus-plugin-{VERSION}.zip",
     }
     for name, digest in rows.items():

@@ -23,9 +23,10 @@ covers receipt-backed reading, safe curation, and worker procedure. Install and
 lifecycle commands: [usage.md](usage.md#agent-skill-lifecycle). Distribution
 and host-specific install lines:
 [agent-skill-distribution.md](design/agent-skill-distribution.md).
-The portable Agent Plugins v1 package is deliberately skill-only. It does not
-auto-register this MCP server, because plugin installation alone must not widen
-write or spend authority.
+The strict portable Agent Plugins 1.0.0 package is deliberately skill-only. It
+does not auto-register this MCP server, because plugin installation alone must
+not widen write or spend authority. Exact standards boundaries:
+[interoperability.md](interoperability.md).
 
 ## Installation
 

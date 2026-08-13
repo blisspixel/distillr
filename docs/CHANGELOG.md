@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Agent distribution builds now include a strict
+  `distill-corpus-agent-plugin-<version>.zip` containing only the portable
+  Agent Plugins manifest, Agent Skill, README, and license. The historical
+  `distill-corpus-plugin-<version>.zip` remains the universal client
+  compatibility bundle.
+- The canonical Agent Skill frontmatter and portable manifest now have offline
+  conformance checks against the current Agent Skills rules and a checked-in
+  copy of the immutable Agent Plugins 1.0.0 JSON Schema.
+
 ### Changed
 
 - The locked Pyright quality gate now uses 1.1.411.
+- Interoperability documentation now records the exact Agent Plugins 1.0.0
+  Working Draft, current Agent Skills, and OKF v0.2 baselines, distinguishes the
+  historical OKF v0.1 launch article from the current specification, and
+  defines the future standards-update procedure.
 
 ### Security
 

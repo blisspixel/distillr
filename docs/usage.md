@@ -408,11 +408,16 @@ update, validation, and checksum details. Direct plan-quota adapters remain
 separate and blocked until adapter doctor, current support, auth, usage,
 scratch, and eval gates pass.
 
-The generated repository plugin also follows
-[Agent Plugins v1](https://agent-plugins.org/specification): root `plugin.json`
-provides the portable manifest and `skills/` is the fixed skill location. The
-package intentionally has no root `mcp.json`; configure `distill-mcp`
-separately with explicit read-only and cost policy when MCP access is required.
+The strict release archive follows the current
+[Agent Plugins 1.0.0 Working Draft](https://agent-plugins.org/specification):
+root `plugin.json` provides the portable manifest and `skills/` is the fixed
+skill location. It intentionally has no root `mcp.json`; configure
+`distill-mcp` separately with explicit read-only and cost policy when MCP
+access is required. The checked-in repository plugin and historical plugin ZIP
+also carry client-native compatibility files. Use
+`distill-corpus-agent-plugin-<version>.zip` when a client requests the strict
+portable package. See the [interoperability baseline](interoperability.md) for
+the exact boundary and version update policy.
 
 The installed Python package carries an exact, integrity-manifested copy of the
 skill. Inspect all clients and direct-discovery targets without writing or

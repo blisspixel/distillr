@@ -2,6 +2,10 @@
 
 Status: implemented; OKF projection upgraded to v0.2 in August 2026.
 
+The exact current standards baseline and future update procedure live in
+[`../interoperability.md`](../interoperability.md). This design note explains
+the product mapping. The normative OKF specification remains authoritative.
+
 This document records what Distill should take from the June 2026 OKF and loop
 engineering wave, and what it should explicitly leave alone.
 

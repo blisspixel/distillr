@@ -23,6 +23,8 @@ Task-oriented recipes for a specific goal.
 - [Agent Skill distribution](design/agent-skill-distribution.md) - native
   Codex, Claude, Grok, Gemini, Antigravity, and claude.ai packaging, release,
   validation, update, and billing contracts.
+- [Interoperability standards](interoperability.md) - exact Agent Plugins,
+  Agent Skills, and OKF baselines, portable boundaries, and update policy.
 - [Briefing context template](briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts.
 - [Grok 4.5 default migration](migration-grok-4.5.md) - current xAI default,
   pricing, context, and override behavior.
@@ -39,6 +41,8 @@ Look-up information: precise, structured, neutral.
 - [Public contracts](contracts/) - candidate-v1 artifact, CLI, core
   configuration, MCP, and core state snapshots plus the compatibility policy.
 - [Cost model](cost.md) - per-workload cost, examples, and guardrails.
+- [Interoperability standards](interoperability.md) - current portable package
+  and knowledge-exchange contracts.
 
 ## Explanation
 
