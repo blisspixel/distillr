@@ -3665,6 +3665,27 @@
           "type": {
             "name": "text"
           }
+        },
+        {
+          "count": false,
+          "default": 1,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "workers",
+          "names": [
+            "--workers"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": 3,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
         }
       ],
       "path": "distill papers"

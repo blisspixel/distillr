@@ -50,6 +50,16 @@ The discover command does four things:
 
 The same goal-aware rerank pattern also lives inside `distill papers` at a smaller scale (single source, query-grounded rather than goal-grounded): query expansion + `RankedPaper` rerank replaced the old "literal query, newest-first, blind top-N" behavior.
 
+Paper batch analysis has a deliberately narrow concurrency boundary. The
+default remains one worker. `distill papers --workers 2|3` uses a reusable
+bounded executor that keeps at most three independent analyses live, propagates
+the run context into each thread, and returns worker exceptions to the
+coordinating thread as values. Cost-ledger mutation, projected-spend
+reservations, and provider construction are synchronized. Verification,
+artifact writes, progress, run-summary mutation, and all synthesis remain
+serialized. This executor is not used by report sections, whose ordered context
+is part of report quality.
+
 ### arXiv query policy
 
 The arXiv API's default parser OR's bare terms, so `temporal knowledge graph` returns anything mentioning any of those words. Previously we wrapped multi-word queries in quotes for phrase match, but that was too strict for 3+ word LLM-generated queries (`"symbolic music transformer composition"` as a literal phrase returns zero even when the target papers exist). The current policy in `_build_search_query`:

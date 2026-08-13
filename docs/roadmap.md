@@ -114,11 +114,13 @@ be moved to `CHANGELOG.md` on next release).
   numbered citations and missing, duplicated, or reordered headings.
 - [x] **Versioned section data.** Section copy lives in strict versioned JSON.
   Typed Python owns schema validation, profile selection, and scope rules.
-- [ ] **Bounded ingest concurrency remains forward work.** Current paper and
-  video batch loops remain sequential. The first safe fan-out must isolate
-  per-item writes and progress, serialize shared state, and make budget
-  authorization atomic before concurrent model calls. Report chapters are not
-  a concurrency target.
+- [~] **Bounded ingest concurrency.** `distill papers --workers 2|3` now runs
+  only independent PDF fetch and paper analysis in a bounded group. The default
+  stays at one worker. Context propagation, synchronized provider construction,
+  atomic projected-spend reservations, main-thread progress and artifact
+  writes, stable summary order, and failure isolation are covered by hermetic
+  tests. Video batch fan-out remains forward work and must reuse the same
+  serialized state boundary. Report chapters are not a concurrency target.
 
 ### 0b. MCP 2026-07-28 compatibility spike
 

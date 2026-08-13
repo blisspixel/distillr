@@ -663,6 +663,9 @@ distill --cost-mode no-metered papers "agent memory systems" --topic my-research
 distill papers "agent memory systems" --topic my-research --limit 20 \
   --no-expand --no-rerank --sort date
 
+# Opt in to a small independent-analysis group after approving projected spend
+distill papers "agent memory systems" --topic my-research --limit 20 --workers 3
+
 # Mixed-source synthesis across videos, sites, and papers filed under one topic
 distill corpus my-research
 
@@ -683,12 +686,21 @@ Flags on `distill papers`:
 - `--rerank / --no-rerank` - LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
 - `--rigor strict|balanced|loose|off` - quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` - under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
 - `--preview` - show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
+- `--workers 1|2|3` - concurrent independent PDF fetch and paper analysis.
+  Default `1` preserves one-at-a-time spend and failure semantics. Values `2`
+  and `3` are explicit opt-ins after the total workflow estimate passes.
 
 During ingestion, `distill papers` prints per-paper progress with the current
 phase, item count, completed count, failed count, running spend, and ETA once
 enough items have completed. Per-paper analysis failures become structured
 `paper-analysis` run issues and the loop continues. The spend cap remains a
-hard stop.
+hard stop. With multiple workers, only independent fetch and analysis run in
+the bounded worker group. Progress updates, verification, artifact writes,
+summary mutation, cross-paper synthesis, and mixed-corpus synthesis stay on the
+coordinating thread. Projected per-paper spend is reserved atomically against
+the shared budget before each concurrent analysis starts. A hard stop cancels
+work that has not started; a provider request already in flight cannot be
+retracted, so use `--workers 1` when strict one-call-at-a-time behavior matters.
 
 The default pipeline (expand + rerank + relevance-sorted) fixes the prior failure mode where generic queries like "music theory deep learning" or "automatic harmonization" pulled in unrelated subfields (physics, image processing) because arXiv's tokenizer has no concept of research intent.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
@@ -328,6 +329,7 @@ class RouterConfig(BaseSettings):
 
 
 _provider_cache: dict[str, Any] = {}
+_provider_cache_lock = threading.RLock()
 
 
 def _validated_local_endpoint(provider_name: str, config: RouterConfig) -> str:
@@ -361,45 +363,48 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         anthropic_api_key=config.anthropic_api_key,
         local_endpoint=local_endpoint,
     )
-    if cache_key in _provider_cache:
-        return _provider_cache[cache_key]
+    with _provider_cache_lock:
+        if cache_key in _provider_cache:
+            return _provider_cache[cache_key]
 
-    provider: Any
-    if provider_name == "xai":
-        from distill.llm.providers.grok import GrokProvider
+        provider: Any
+        if provider_name == "xai":
+            from distill.llm.providers.grok import GrokProvider
 
-        provider = GrokProvider(config.xai_api_key)
-    elif provider_name == "gemini":
-        from distill.llm.providers.gemini import GeminiProvider
+            provider = GrokProvider(config.xai_api_key)
+        elif provider_name == "gemini":
+            from distill.llm.providers.gemini import GeminiProvider
 
-        provider = GeminiProvider(config.gemini_api_key)
-    elif provider_name == "anthropic":
-        from distill.llm.providers.anthropic import AnthropicProvider
+            provider = GeminiProvider(config.gemini_api_key)
+        elif provider_name == "anthropic":
+            from distill.llm.providers.anthropic import AnthropicProvider
 
-        provider = AnthropicProvider(config.anthropic_api_key)
-    elif provider_name == "agent":
-        from distill.llm.providers.agent import AgentProvider
+            provider = AnthropicProvider(config.anthropic_api_key)
+        elif provider_name == "agent":
+            from distill.llm.providers.agent import AgentProvider
 
-        provider = AgentProvider(config.ops_dir)
-    elif provider_name == "openai":
-        raise ConfigurationError(
-            f"Provider '{provider_name}' is not implemented yet. "
-            "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
-        )
-    elif provider_name == "ollama":
-        from distill.llm.providers.ollama import OllamaProvider
+            provider = AgentProvider(config.ops_dir)
+        elif provider_name == "openai":
+            raise ConfigurationError(
+                f"Provider '{provider_name}' is not implemented yet. "
+                "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
+            )
+        elif provider_name == "ollama":
+            from distill.llm.providers.ollama import OllamaProvider
 
-        provider = OllamaProvider(base_url=local_endpoint)
-    elif provider_name == "lmstudio":
-        from distill.llm.providers.lmstudio import LMStudioProvider
+            provider = OllamaProvider(base_url=local_endpoint)
+        elif provider_name == "lmstudio":
+            from distill.llm.providers.lmstudio import LMStudioProvider
 
-        provider = LMStudioProvider(base_url=local_endpoint)
-    else:
-        valid = "xai, gemini, anthropic, agent, ollama, lmstudio"
-        raise ConfigurationError(f"Unknown provider '{provider_name}'. Valid providers: {valid}")
+            provider = LMStudioProvider(base_url=local_endpoint)
+        else:
+            valid = "xai, gemini, anthropic, agent, ollama, lmstudio"
+            raise ConfigurationError(
+                f"Unknown provider '{provider_name}'. Valid providers: {valid}"
+            )
 
-    _provider_cache[cache_key] = provider
-    return provider
+        _provider_cache[cache_key] = provider
+        return provider
 
 
 get_provider = _get_provider

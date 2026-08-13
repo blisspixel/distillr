@@ -108,7 +108,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.52, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.53, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -123,9 +123,12 @@ Shipped: **0.1 through 0.19** (latest release 0.19.52, 2026-08-13). Per-release 
   single-provider path. Section definitions are strict versioned data, report
   orchestration is decomposed without parallelizing the section spine, and
   document-wide QA now covers contradictions, near duplicates, terminology,
-  and source independence before a final structural audit. Bounded paper and
-  video fan-out remains forward work until shared budget, progress, and state
-  writes are concurrency-safe.
+  and source independence before a final structural audit. Paper analysis now
+  has opt-in bounded fan-out through `distill papers --workers 2|3`: projected
+  spend reservations and provider-cache access are synchronized, while
+  progress, verification, artifact writes, summaries, and synthesis remain on
+  the coordinating thread. Video fan-out remains forward work. Report sections
+  are not a concurrency target.
 
   Cost visibility tightened after the xAI spend review: `distill doctor` reports
   the active cost mode and warns when `auto` mode has metered API keys

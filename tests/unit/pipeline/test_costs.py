@@ -1500,6 +1500,151 @@ def test_token_usage_authorization_includes_existing_spend_without_mutation():
     assert tracker.entries == [existing]
 
 
+def test_budget_reservation_is_atomic_and_released():
+    tracker = CostTracker(budget=0.15)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def reserve() -> None:
+        with tracker.reserve_budget(0.10):
+            entered.set()
+            assert release.wait(timeout=5)
+
+    thread = threading.Thread(target=reserve)
+    thread.start()
+    assert entered.wait(timeout=5)
+
+    with pytest.raises(ProjectedBudgetExceededError), tracker.reserve_budget(0.10):
+        pass
+
+    release.set()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    with tracker.reserve_budget(0.10):
+        pass
+
+
+def test_budget_reservation_consumes_recorded_cost_before_next_authorization():
+    tracker = CostTracker(budget=0.003)
+
+    with tracker.reserve_budget(0.002):
+        tracker.record(TokenUsage(prompt_tokens=1_000, model="grok-4.5"))
+        # The $0.002 actual row consumes the reservation. A
+        # second worker can reserve the genuinely remaining headroom instead
+        # of double-counting both actual and projected cost.
+        with tracker.reserve_budget(0.001):
+            pass
+
+    assert tracker.total_cost == 0.002
+
+
+def test_authorization_counts_other_reservations_and_own_remaining_headroom():
+    tracker = CostTracker(budget=0.02)
+    other_entered = threading.Event()
+    release_other = threading.Event()
+
+    def hold_other_reservation() -> None:
+        with tracker.reserve_budget(0.01):
+            other_entered.set()
+            assert release_other.wait(timeout=5)
+
+    thread = threading.Thread(target=hold_other_reservation)
+    thread.start()
+    assert other_entered.wait(timeout=5)
+
+    try:
+        with tracker.reserve_budget(0.01):
+            # A projected call covered by this worker's reservation is allowed.
+            tracker.authorize_token_usage(TokenUsage(prompt_tokens=2_500, model="grok-4.5"))
+            # Recorded spend consumes this worker's own reservation. A later
+            # call that exceeds its remaining headroom must not borrow the
+            # reservation held by the other worker.
+            tracker.record(TokenUsage(prompt_tokens=4_500, model="grok-4.5"))
+            with pytest.raises(ProjectedBudgetExceededError):
+                tracker.authorize_token_usage(TokenUsage(prompt_tokens=2_500, model="grok-4.5"))
+    finally:
+        release_other.set()
+        thread.join(timeout=5)
+
+    assert not thread.is_alive()
+
+
+def test_concurrent_attempt_recording_keeps_exactly_one_row_per_attempt():
+    tracker = CostTracker()
+    usage = TokenUsage(
+        prompt_tokens=100,
+        model="grok-4.5",
+        attempt_id="shared-attempt",
+    )
+    threads = [threading.Thread(target=tracker.record, args=(usage,)) for _ in range(8)]
+
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert tracker.entries == [usage]
+
+
+def test_concurrent_child_keeps_local_history_and_delegates_to_parent():
+    parent = CostTracker(budget=0.004)
+    first = parent.concurrent_child()
+    second = parent.concurrent_child()
+    first_usage = TokenUsage(prompt_tokens=1_000, model="grok-4.5", attempt_id="first")
+    second_usage = TokenUsage(
+        prompt_tokens=500,
+        model="claude-sonnet-5",
+        attempt_id="second",
+    )
+
+    with parent.reserve_budget(0.002):
+        first.record(first_usage)
+    with parent.reserve_budget(0.002):
+        second.record(second_usage)
+
+    assert first.entries == [first_usage]
+    assert second.entries == [second_usage]
+    assert parent.entries == [first_usage, second_usage]
+    assert first.entries[-1].model == "grok-4.5"
+    assert second.entries[-1].model == "claude-sonnet-5"
+
+
+def test_concurrent_child_authorization_uses_parent_budget():
+    parent = CostTracker(budget=0.000001)
+    child = parent.concurrent_child()
+    projected = TokenUsage(prompt_tokens=1_000, model="grok-4.5")
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        child.authorize_token_usage(projected)
+
+    assert child.entries == []
+    assert parent.entries == []
+
+
+def test_concurrent_child_fixed_price_usage_is_local_and_written_through():
+    parent = CostTracker()
+    child = parent.concurrent_child()
+
+    child.authorize_gemini_query("deep-research-preview-04-2026")
+    child.record_gemini_query(
+        "deep-research-preview-04-2026",
+        outcome="ambiguous",
+    )
+    child.authorize_transcription("openai", 60.0, model="whisper-1")
+    child.record_transcription(
+        "openai",
+        60.0,
+        model="whisper-1",
+        outcome="failed",
+    )
+
+    assert child.gemini_queries == parent.gemini_queries == 1
+    assert child.gemini_query_outcomes == parent.gemini_query_outcomes == ["ambiguous"]
+    assert len(child.transcriptions) == len(parent.transcriptions) == 1
+    assert child.transcriptions[0] == parent.transcriptions[0]
+
+
 def test_gemini_query_outcomes_are_validated_and_summarized():
     tracker = CostTracker()
     tracker.record_gemini_query(outcome="ambiguous")

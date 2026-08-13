@@ -15,6 +15,10 @@ import os
 import re
 import secrets
 import shutil
+import threading
+from collections.abc import Generator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -99,6 +103,10 @@ __all__ = [
 
 PROFILE_RECEIPT_ENV = "DISTILL_PROFILE_RECEIPT_ID"
 _PROFILE_RECEIPT_RE = re.compile(r"[0-9a-f]{64}")
+_ACTIVE_BUDGET_RESERVATION: ContextVar[tuple[int, str] | None] = ContextVar(
+    "distill_active_budget_reservation",
+    default=None,
+)
 
 
 def _token_usage_cost(usage: TokenUsage) -> float:
@@ -167,6 +175,18 @@ class CostTracker:
         repr=False,
         compare=False,
     )
+    _lock: Any = field(
+        default_factory=threading.RLock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _budget_reservations: dict[str, float] = field(
+        default_factory=dict[str, float],
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         if self.budget is not None:
@@ -182,30 +202,95 @@ class CostTracker:
         if self.budget is not None and self.total_cost > self.budget:
             raise BudgetExceededError(self.total_cost, self.budget)
 
+    def _consume_active_reservation(self, actual_cost: float) -> None:
+        active = _ACTIVE_BUDGET_RESERVATION.get()
+        if active is None or active[0] != id(self) or actual_cost <= 0:
+            return
+        reservation_id = active[1]
+        remaining = self._budget_reservations.get(reservation_id)
+        if remaining is None:
+            return
+        self._budget_reservations[reservation_id] = max(remaining - actual_cost, 0.0)
+
+    def _projected_total(self, increment: float) -> float:
+        """Return an atomic projection including every in-flight reservation.
+
+        The current worker's remaining reservation already covers the same
+        amount of its next provider call, so only an excess above that amount
+        is added. Reservations owned by other workers are always counted.
+        Callers hold ``_lock`` while using this helper.
+        """
+
+        reserved = _finite_cost_sum(
+            list(self._budget_reservations.values()),
+            label="reserved cost",
+        )
+        active = _ACTIVE_BUDGET_RESERVATION.get()
+        covered = 0.0
+        if active is not None and active[0] == id(self):
+            covered = min(
+                increment,
+                self._budget_reservations.get(active[1], 0.0),
+            )
+        return self.total_cost + reserved + max(increment - covered, 0.0)
+
     def record(self, usage: TokenUsage):
         """Record provider-accurate usage without duplicating streamed attempts."""
-        for entry in usage.expanded():
-            if entry.attempt_id and entry.attempt_id in self._recorded_attempt_ids:
-                continue
-            self.entries.append(entry)
-            if entry.attempt_id:
-                self._recorded_attempt_ids.add(entry.attempt_id)
-        self._check_budget()
+        with self._lock:
+            added_cost = 0.0
+            for entry in usage.expanded():
+                if entry.attempt_id and entry.attempt_id in self._recorded_attempt_ids:
+                    continue
+                self.entries.append(entry)
+                added_cost += _token_usage_cost(entry)
+                if entry.attempt_id:
+                    self._recorded_attempt_ids.add(entry.attempt_id)
+            self._consume_active_reservation(added_cost)
+            self._check_budget()
 
     def authorize_token_usage(self, usage: TokenUsage) -> None:
         """Refuse projected token spend before provider contact without recording it."""
 
-        seen_attempt_ids = set(self._recorded_attempt_ids)
-        projected_increment = 0.0
-        for entry in usage.expanded():
-            if entry.attempt_id and entry.attempt_id in seen_attempt_ids:
-                continue
-            if entry.attempt_id:
-                seen_attempt_ids.add(entry.attempt_id)
-            projected_increment += _token_usage_cost(entry)
-        projected = self.total_cost + projected_increment
-        if self.budget is not None and projected > self.budget:
-            raise ProjectedBudgetExceededError(projected, self.budget)
+        with self._lock:
+            seen_attempt_ids = set(self._recorded_attempt_ids)
+            projected_increment = 0.0
+            for entry in usage.expanded():
+                if entry.attempt_id and entry.attempt_id in seen_attempt_ids:
+                    continue
+                if entry.attempt_id:
+                    seen_attempt_ids.add(entry.attempt_id)
+                projected_increment += _token_usage_cost(entry)
+            projected = self._projected_total(projected_increment)
+            if self.budget is not None and projected > self.budget:
+                raise ProjectedBudgetExceededError(projected, self.budget)
+
+    @contextmanager
+    def reserve_budget(self, projected_cost: float) -> Generator[None, None, None]:
+        """Atomically reserve projected spend while one concurrent item runs.
+
+        Reservations are not ledger entries and are always released. They stop
+        concurrent workers from independently authorizing against the same
+        remaining budget while provider-accurate usage is still in flight.
+        """
+
+        amount = _finite_nonnegative(projected_cost, label="projected reservation")
+        reservation_id = secrets.token_hex(16)
+        with self._lock:
+            reserved = _finite_cost_sum(
+                list(self._budget_reservations.values()),
+                label="reserved cost",
+            )
+            projected = self.total_cost + reserved + amount
+            if self.budget is not None and projected > self.budget:
+                raise ProjectedBudgetExceededError(projected, self.budget)
+            self._budget_reservations[reservation_id] = amount
+        active_token = _ACTIVE_BUDGET_RESERVATION.set((id(self), reservation_id))
+        try:
+            yield
+        finally:
+            _ACTIVE_BUDGET_RESERVATION.reset(active_token)
+            with self._lock:
+                self._budget_reservations.pop(reservation_id, None)
 
     def record_attempt(self, attempt: LLMUsageAttempt, *, call_type: str = "") -> None:
         """Record one request before a provider retries or the router falls back."""
@@ -230,28 +315,32 @@ class CostTracker:
     def authorize_gemini_query(self, model: str = "") -> None:
         """Refuse a known-price Deep Research query before provider contact."""
 
-        projected = self.total_cost + deep_research_query_cost(model)
-        if self.budget is not None and projected > self.budget:
-            raise ProjectedBudgetExceededError(projected, self.budget)
+        with self._lock:
+            projected = self._projected_total(deep_research_query_cost(model))
+            if self.budget is not None and projected > self.budget:
+                raise ProjectedBudgetExceededError(projected, self.budget)
 
     def record_gemini_query(self, model: str = "", *, outcome: str = "accepted") -> None:
         """Record an accepted or ambiguously submitted Deep Research query."""
 
         if outcome not in {"accepted", "ambiguous"}:
             raise ValueError(f"unsupported Gemini query outcome: {outcome}")
-        self.gemini_queries += 1
-        self.gemini_query_models.append(model)
-        self.gemini_query_outcomes.append(outcome)
-        self._check_budget()
+        with self._lock:
+            self.gemini_queries += 1
+            self.gemini_query_models.append(model)
+            self.gemini_query_outcomes.append(outcome)
+            self._consume_active_reservation(deep_research_query_cost(model))
+            self._check_budget()
 
     def authorize_transcription(self, provider: str, duration_s: float, *, model: str = "") -> None:
         """Refuse a known-price transcription before provider contact."""
 
         del model
         duration = normalize_transcription_duration(duration_s)
-        projected = self.total_cost + transcription_cost(provider, duration)
-        if self.budget is not None and projected > self.budget:
-            raise ProjectedBudgetExceededError(projected, self.budget)
+        with self._lock:
+            projected = self._projected_total(transcription_cost(provider, duration))
+            if self.budget is not None and projected > self.budget:
+                raise ProjectedBudgetExceededError(projected, self.budget)
 
     def record_transcription(
         self,
@@ -269,32 +358,37 @@ class CostTracker:
         if outcome not in {"completed", "failed"}:
             raise ValueError(f"unsupported transcription outcome: {outcome}")
         duration = normalize_transcription_duration(duration_s)
-        self.transcriptions.append(
-            TranscriptionUsage(
-                provider=provider,
-                model=model,
-                duration_s=duration,
-                cost=transcription_cost(provider, duration),
-                outcome=outcome,
+        with self._lock:
+            self.transcriptions.append(
+                TranscriptionUsage(
+                    provider=provider,
+                    model=model,
+                    duration_s=duration,
+                    cost=transcription_cost(provider, duration),
+                    outcome=outcome,
+                )
             )
-        )
-        self._check_budget()
+            self._consume_active_reservation(transcription_cost(provider, duration))
+            self._check_budget()
 
     @property
     def total_input_tokens(self) -> int:
-        return sum(e.prompt_tokens for e in self.entries)
+        with self._lock:
+            return sum(e.prompt_tokens for e in self.entries)
 
     @property
     def total_output_tokens(self) -> int:
-        return sum(e.completion_tokens for e in self.entries)
+        with self._lock:
+            return sum(e.completion_tokens for e in self.entries)
 
     @property
     def total_grok_cost(self) -> float:
         """Estimated xAI cost based on token usage and the actual model used."""
-        return _finite_cost_sum(
-            [_token_usage_cost(entry) for entry in self.entries],
-            label="token cost",
-        )
+        with self._lock:
+            return _finite_cost_sum(
+                [_token_usage_cost(entry) for entry in self.entries],
+                label="token cost",
+            )
 
     @property
     def total_gemini_cost(self) -> float:
@@ -305,38 +399,52 @@ class CostTracker:
         rate. Falls back to the standard per-query estimate for count-only
         trackers (e.g. sub-range report copies that carry only ``gemini_queries``).
         """
-        if self.gemini_query_models:
-            return _finite_cost_sum(
-                [deep_research_query_cost(m) for m in self.gemini_query_models],
+        with self._lock:
+            if self.gemini_query_models:
+                return _finite_cost_sum(
+                    [deep_research_query_cost(m) for m in self.gemini_query_models],
+                    label="Gemini query cost",
+                )
+            return _finite_nonnegative(
+                self.gemini_queries * deep_research_query_cost(),
                 label="Gemini query cost",
             )
-        return _finite_nonnegative(
-            self.gemini_queries * deep_research_query_cost(),
-            label="Gemini query cost",
-        )
 
     @property
     def total_transcription_cost(self) -> float:
         """Estimated cloud speech-to-text cost across the run."""
-        return _finite_cost_sum(
-            [t.cost for t in self.transcriptions],
-            label="transcription cost",
-        )
+        with self._lock:
+            return _finite_cost_sum(
+                [t.cost for t in self.transcriptions],
+                label="transcription cost",
+            )
 
     @property
     def total_cost(self) -> float:
-        return _finite_cost_sum(
-            [self.total_grok_cost, self.total_gemini_cost, self.total_transcription_cost],
-            label="total cost",
-        )
+        with self._lock:
+            return _finite_cost_sum(
+                [self.total_grok_cost, self.total_gemini_cost, self.total_transcription_cost],
+                label="total cost",
+            )
 
     def format_cost(self) -> str:
         """Human-readable cost string."""
         total = self.total_cost
         direct_cost = f"${total:.4f}" if total < 0.01 else f"${total:.2f}"
-        if any(entry.external_cost_unavailable for entry in self.entries):
-            return f"{direct_cost} direct; external cost unavailable"
+        with self._lock:
+            if any(entry.external_cost_unavailable for entry in self.entries):
+                return f"{direct_cost} direct; external cost unavailable"
         return direct_cost
+
+    def concurrent_child(self) -> CostTracker:
+        """Return a per-worker ledger view backed by this synchronized tracker.
+
+        Analysis code sometimes needs the model history from its own item. The
+        child retains that local history while delegating every usage row and
+        authorization decision to the parent budget and run ledger.
+        """
+
+        return _ConcurrentCostTracker(self)
 
     def summary_dict(self) -> dict[str, Any]:
         """Summary for logging/display."""
@@ -412,6 +520,42 @@ class CostTracker:
                 for outcome in sorted({row.outcome for row in self.transcriptions})
             }
         return summary
+
+
+class _ConcurrentCostTracker(CostTracker):
+    """Worker-local usage history that writes through to one parent tracker."""
+
+    def __init__(self, parent: CostTracker) -> None:
+        super().__init__(run_id=parent.run_id)
+        self._parent = parent
+
+    def record(self, usage: TokenUsage) -> None:
+        super().record(usage)
+        self._parent.record(usage)
+
+    def authorize_token_usage(self, usage: TokenUsage) -> None:
+        self._parent.authorize_token_usage(usage)
+
+    def authorize_gemini_query(self, model: str = "") -> None:
+        self._parent.authorize_gemini_query(model)
+
+    def record_gemini_query(self, model: str = "", *, outcome: str = "accepted") -> None:
+        super().record_gemini_query(model, outcome=outcome)
+        self._parent.record_gemini_query(model, outcome=outcome)
+
+    def authorize_transcription(self, provider: str, duration_s: float, *, model: str = "") -> None:
+        self._parent.authorize_transcription(provider, duration_s, model=model)
+
+    def record_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+        outcome: str = "completed",
+    ) -> None:
+        super().record_transcription(provider, duration_s, model=model, outcome=outcome)
+        self._parent.record_transcription(provider, duration_s, model=model, outcome=outcome)
 
 
 def save_run_log(

@@ -9,7 +9,9 @@ from __future__ import annotations
 import logging
 import tempfile
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -589,6 +591,42 @@ def test_get_provider_constructs_keyed_providers(
 
     assert provider is provider_instance
     provider_cls.assert_called_once_with(expected_arg)
+
+
+def test_get_provider_constructs_one_cached_instance_under_concurrency(tmp_path: Path) -> None:
+    provider_instance = object()
+    constructor_entered = Event()
+    release_constructor = Event()
+    second_lookup_started = Event()
+    config = RouterConfig(
+        provider="xai",
+        xai_api_key="xai-key",
+        ops_dir=str(tmp_path / "ops"),
+    )
+
+    def construct(_api_key: str) -> object:
+        constructor_entered.set()
+        assert release_constructor.wait(timeout=5)
+        return provider_instance
+
+    def second_lookup() -> object:
+        second_lookup_started.set()
+        return get_provider("xai", config)
+
+    with (
+        patch("distill.llm.providers.grok.GrokProvider", side_effect=construct) as provider_cls,
+        ThreadPoolExecutor(max_workers=2) as executor,
+    ):
+        first = executor.submit(get_provider, "xai", config)
+        assert constructor_entered.wait(timeout=5)
+        second = executor.submit(second_lookup)
+        assert second_lookup_started.wait(timeout=5)
+        release_constructor.set()
+
+        assert first.result(timeout=5) is provider_instance
+        assert second.result(timeout=5) is provider_instance
+
+    provider_cls.assert_called_once_with("xai-key")
 
 
 @pytest.mark.parametrize(

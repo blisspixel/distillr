@@ -255,7 +255,7 @@ class BatchProgress:
         return self._eta.start()
 
     def finish_item(self, start_time: float, *, success: bool) -> None:
-        self._eta.tick(start_time)
+        self._eta.tick(start_time, success=success)
         if success:
             self.completed += 1
         else:
@@ -265,10 +265,12 @@ class BatchProgress:
     def processed(self) -> int:
         return self.completed + self.failed
 
-    def item_line(self, phase: str, title: str = "") -> str:
-        index = min(self.processed + 1, self.total) if self.total else 0
+    def item_line(self, phase: str, title: str = "", *, index: int | None = None) -> str:
+        display_index = (
+            min(self.processed + 1, self.total) if index is None and self.total else index or 0
+        )
         suffix = f" [bold]{title}[/bold]" if title else ""
-        return f"  [dim]{self._parts(phase, index=index)}[/dim]{suffix}"
+        return f"  [dim]{self._parts(phase, index=display_index)}[/dim]{suffix}"
 
     def status_line(self, phase: str) -> str:
         return f"  [dim]{self._parts(phase)}[/dim]"

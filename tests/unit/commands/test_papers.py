@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -16,6 +18,7 @@ from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
 from distill.pipeline.costs import BudgetExceededError
 from distill.pipeline.ranking import RankedPaper
+from distill.pipeline.summary import RunSummary
 
 runner = CliRunner()
 
@@ -116,6 +119,182 @@ def _invoke_papers(*extra: str):
             *extra,
         ],
     )
+
+
+def test_paper_batch_workers_bound_analysis_and_serialize_writes(
+    paper_config,
+    monkeypatch,
+):
+    records = [
+        _paper("2607.00001v1", title="First"),
+        _paper("2607.00002v1", title="Second"),
+        _paper("2607.00003v1", title="Third"),
+    ]
+    barrier = threading.Barrier(3)
+    lock = threading.Lock()
+    coordinator_thread = threading.get_ident()
+    writer_threads: list[int] = []
+    active = 0
+    peak = 0
+
+    def analyze(record, config, *, tracker, intent):
+        nonlocal active, peak
+        assert config is paper_config
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        barrier.wait(timeout=5)
+        # Deliberately finish out of input order. Summary output must still be
+        # stable even though independent analysis completes concurrently.
+        time.sleep({"First": 0.03, "Second": 0.02, "Third": 0.01}[record.title])
+        with lock:
+            active -= 1
+        return f"# {record.title} insights", f"# {record.title} paper"
+
+    def write(topic, record, config, insights, document):
+        assert topic == "research"
+        assert insights.endswith("insights")
+        assert document.endswith("paper")
+        writer_threads.append(threading.get_ident())
+        paper_dir = config.paper_dir(topic, record.title, record.paper_id)
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        return paper_dir
+
+    def find(paper_dir, kind, *, identity=None):
+        assert identity is None
+        path = paper_dir / f"{kind}.md"
+        path.write_text(kind, encoding="utf-8")
+        return path
+
+    monkeypatch.setattr(papers_cmd, "analyze_paper", analyze)
+    monkeypatch.setattr(papers_cmd, "_write_paper_artifacts", write)
+    monkeypatch.setattr(papers_cmd, "find_artifact", find)
+    summary = RunSummary(command="papers")
+
+    papers_cmd._analyze_paper_batch(
+        records,
+        topic="research",
+        config=paper_config,
+        tracker=papers_cmd.budgeted_cost_tracker(paper_config, "papers"),
+        router_config=papers_cmd.RouterConfig(),
+        workers=3,
+        summary=summary,
+    )
+
+    expected_outputs: list[Path] = []
+    for record in records:
+        paper_dir = paper_config.paper_dir("research", record.title, record.paper_id)
+        expected_outputs.extend(
+            [(paper_dir / "paper.md").resolve(), (paper_dir / "insights.md").resolve()]
+        )
+    assert peak == 3
+    assert writer_threads == [coordinator_thread, coordinator_thread, coordinator_thread]
+    assert summary.output_files == expected_outputs
+    assert summary.issues == []
+
+
+def test_paper_batch_worker_failure_is_isolated_and_ordered(paper_config, monkeypatch):
+    records = [
+        _paper("2607.00001v1", title="Good One"),
+        _paper("2607.00002v1", title="Broken"),
+        _paper("2607.00003v1", title="Good Two"),
+    ]
+    written: list[str] = []
+
+    def analyze(record, config, *, tracker, intent):
+        if record.title == "Broken":
+            raise ValueError("fixture failure")
+        return "# Insights", "# Paper"
+
+    def write(topic, record, config, insights, document):
+        written.append(record.title)
+        paper_dir = config.paper_dir(topic, record.title, record.paper_id)
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        return paper_dir
+
+    def find(paper_dir, kind, *, identity=None):
+        path = paper_dir / f"{kind}.md"
+        path.write_text(kind, encoding="utf-8")
+        return path
+
+    monkeypatch.setattr(papers_cmd, "analyze_paper", analyze)
+    monkeypatch.setattr(papers_cmd, "_write_paper_artifacts", write)
+    monkeypatch.setattr(papers_cmd, "find_artifact", find)
+    summary = RunSummary(command="papers")
+
+    papers_cmd._analyze_paper_batch(
+        records,
+        topic="research",
+        config=paper_config,
+        tracker=papers_cmd.budgeted_cost_tracker(paper_config, "papers"),
+        router_config=papers_cmd.RouterConfig(),
+        workers=2,
+        summary=summary,
+    )
+
+    assert sorted(written) == ["Good One", "Good Two"]
+    assert len(summary.issues) == 1
+    assert summary.issues[0].stage == "paper-analysis"
+    assert summary.issues[0].context == "Broken"
+    assert dict(summary.issues[0].details)["paper_id"] == "2607.00002v1"
+
+
+def test_papers_workers_are_strictly_bounded_by_the_cli(paper_config):
+    result = _invoke_papers("--workers", "4")
+
+    assert result.exit_code == 2
+    assert "not in the range 1<=x<=3" in result.output
+
+
+def test_completed_paper_turns_missing_results_and_write_failures_into_item_errors(
+    paper_config,
+    monkeypatch,
+):
+    record = _paper("2607.00001v1", title="Defensive Result")
+    missing = papers_cmd.BoundedTaskResult[PaperRecord, tuple[str, str]](
+        index=0,
+        item=record,
+    )
+
+    path, error = papers_cmd._write_completed_paper(
+        missing,
+        topic="research",
+        config=paper_config,
+    )
+
+    assert path is None
+    assert isinstance(error, RuntimeError)
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("fixture write failure")
+
+    monkeypatch.setattr(papers_cmd, "_write_paper_artifacts", fail_write)
+    completed = papers_cmd.BoundedTaskResult(
+        index=0,
+        item=record,
+        value=("# Insights", "# Paper"),
+    )
+
+    path, error = papers_cmd._write_completed_paper(
+        completed,
+        topic="research",
+        config=paper_config,
+    )
+
+    assert path is None
+    assert isinstance(error, OSError)
+    assert str(error) == "fixture write failure"
+
+    def stop_write(*_args, **_kwargs):
+        raise BudgetExceededError(spent=1.01, budget=1.0)
+
+    monkeypatch.setattr(papers_cmd, "_write_paper_artifacts", stop_write)
+    with pytest.raises(BudgetExceededError):
+        papers_cmd._write_completed_paper(
+            completed,
+            topic="research",
+            config=paper_config,
+        )
 
 
 def test_paper_tail_call_count_matches_papers_only_and_mixed_corpus(paper_config):

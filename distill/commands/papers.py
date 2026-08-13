@@ -38,17 +38,24 @@ from distill.commands._learning import (
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import (
+    PaperRecord,
     fetch_arxiv_paper,
     search_arxiv_multi,
     search_arxiv_papers,
 )
+from distill.library.intent import CorpusIntent
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
-from distill.pipeline.costs import BudgetExceededError, estimate_paper_workflow_cost
+from distill.pipeline.concurrency import (
+    MAX_INGEST_WORKERS,
+    BoundedTaskResult,
+    iter_bounded,
+)
+from distill.pipeline.costs import BudgetExceededError, CostTracker, estimate_paper_workflow_cost
 from distill.pipeline.ranking import rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
@@ -68,6 +75,113 @@ def _nonempty(path: Path) -> bool:
 def _paper_tail_calls(topic: str, config: DistillConfig) -> int:
     """One paper synthesis plus a corpus call only when mixed inputs require it."""
     return 1 + int(has_corpus_synthesis_inputs(topic, config))
+
+
+def _write_completed_paper(
+    result: BoundedTaskResult[PaperRecord, tuple[str, str]],
+    *,
+    topic: str,
+    config: DistillConfig,
+) -> tuple[Path | None, Exception | None]:
+    error = result.error
+    if isinstance(error, (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError)):
+        raise error
+    if error is not None:
+        return None, error
+    if result.value is None:
+        return None, RuntimeError("paper analysis completed without a result")
+
+    insights, document = result.value
+    try:
+        # Verification, filesystem writes, console notices, and summary
+        # mutation stay on the coordinating thread.
+        return (
+            _write_paper_artifacts(
+                topic,
+                result.item,
+                config,
+                insights,
+                document,
+            ),
+            None,
+        )
+    except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
+        raise
+    except Exception as exc:
+        return None, exc
+
+
+def _analyze_paper_batch(
+    records: list[PaperRecord],
+    *,
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    router_config: RouterConfig,
+    workers: int,
+    summary: RunSummary,
+) -> None:
+    """Analyze independent papers concurrently and serialize all shared writes."""
+
+    intent: CorpusIntent | None = _resolve_intent(config, topic)
+    item_estimate = estimate_paper_workflow_cost(
+        1,
+        synthesis_calls=0,
+        router_config=router_config,
+    )
+    progress = BatchProgress("paper", len(records), tracker)
+    starts: dict[int, float] = {}
+    paper_dirs: dict[int, Path] = {}
+    item_errors: dict[int, Exception] = {}
+
+    def on_submit(index: int, record: PaperRecord) -> None:
+        starts[index] = progress.start_item()
+        console.print(progress.item_line("analyze", record.title, index=index + 1))
+
+    def analyze(record: PaperRecord) -> tuple[str, str]:
+        with tracker.reserve_budget(item_estimate):
+            item_tracker = tracker.concurrent_child()
+            return analyze_paper(
+                record,
+                config,
+                tracker=item_tracker,
+                intent=intent,
+            )
+
+    for result in iter_bounded(
+        records,
+        analyze,
+        max_workers=workers,
+        on_submit=on_submit,
+    ):
+        paper_dir, error = _write_completed_paper(result, topic=topic, config=config)
+        success = paper_dir is not None
+        if paper_dir is not None:
+            paper_dirs[result.index] = paper_dir
+
+        if error is not None:
+            item_errors[result.index] = error
+            console.print(f"  [red]failed: {error}[/red]")
+
+        progress.finish_item(starts.pop(result.index), success=success)
+        console.print(progress.status_line("done" if success else "failed"))
+
+    # Stable summary order follows the selected-paper order, independent of
+    # completion timing.
+    for index, record in enumerate(records):
+        error = item_errors.get(index)
+        if error is not None:
+            cli_shared.record_exception_issue(
+                summary,
+                stage="paper-analysis",
+                exc=error,
+                context=record.title,
+                details={"topic": topic, "paper_id": record.paper_id},
+            )
+            continue
+        paper_dir = paper_dirs[index]
+        summary.add_output(find_artifact(paper_dir, "paper"))
+        summary.add_output(find_artifact(paper_dir, "insights"))
 
 
 def _completed_paper_artifacts(
@@ -212,6 +326,13 @@ def papers(  # noqa: C901 — legacy, will refactor
         "--concepts",
         help="Run the concept playbook extraction over the topic after ingest succeeds",
     ),
+    workers: int = typer.Option(
+        1,
+        "--workers",
+        min=1,
+        max=MAX_INGEST_WORKERS,
+        help="Concurrent independent paper analyses (1-3; default 1 for conservative spend).",
+    ),
 ):
     """Search arXiv and ingest a paper set into the topic corpus."""
     from distill.pipeline.discovery import RIGOR_LEVELS_WITH_OFF
@@ -246,7 +367,7 @@ def papers(  # noqa: C901 — legacy, will refactor
     console.print(f"\n[bold]Papers: {query}[/bold]")
     console.print(
         f"[dim]Topic: {topic_name} | Sort: {sort} | Expand: {'on' if expand else 'off'} "
-        f"| Rerank: {'on' if rerank else 'off'} | Limit: {limit}[/dim]\n"
+        f"| Rerank: {'on' if rerank else 'off'} | Limit: {limit} | Workers: {workers}[/dim]\n"
     )
 
     queries = _expand_paper_queries(query, config=config, tracker=tracker, expand=expand)
@@ -344,36 +465,15 @@ def papers(  # noqa: C901 — legacy, will refactor
     console.print()
 
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
-    progress = BatchProgress("paper", len(records), tracker)
-    for record in records:
-        item_start = progress.start_item()
-        console.print(progress.item_line("analyze", record.title))
-        try:
-            insights, document = analyze_paper(
-                record,
-                config,
-                tracker=tracker,
-                intent=_resolve_intent(config, topic_name),
-            )
-            paper_dir = _write_paper_artifacts(topic_name, record, config, insights, document)
-        except (BudgetExceededError, CostPolicyError, ProviderBusyTimeoutError):
-            raise  # the spend cap is a hard stop, never a per-item issue
-        except Exception as exc:
-            console.print(f"  [red]failed: {exc}[/red]")
-            cli_shared.record_exception_issue(
-                summary,
-                stage="paper-analysis",
-                exc=exc,
-                context=record.title,
-                details={"topic": topic_name, "paper_id": getattr(record, "paper_id", "")},
-            )
-            progress.finish_item(item_start, success=False)
-            console.print(progress.status_line("failed"))
-            continue
-        summary.add_output(find_artifact(paper_dir, "paper"))
-        summary.add_output(find_artifact(paper_dir, "insights"))
-        progress.finish_item(item_start, success=True)
-        console.print(progress.status_line("done"))
+    _analyze_paper_batch(
+        records,
+        topic=topic_name,
+        config=config,
+        tracker=tracker,
+        router_config=router_config,
+        workers=workers,
+        summary=summary,
+    )
 
     synthesis = synthesize_papers(topic_name, config, tracker=tracker)
     if synthesis:

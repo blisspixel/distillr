@@ -34,6 +34,11 @@ right:
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 ```
 
+Paper analysis stays one-at-a-time by default. After reviewing the projected
+total, pass `--workers 2` or `--workers 3` to analyze independent papers in a
+small bounded group. Discovery, artifact writes, verification, synthesis, and
+report sections remain serialized.
+
 ![distill papers CLI demo with synthetic paper titles, progress lines, cost summary, and Markdown corpus artifacts](docs/assets/cli-papers-demo.png)
 
 *Illustrative demo (synthetic titles and paths). Real runs use current arXiv

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.53 - 2026-08-13
+
+Bounded paper-ingest concurrency and shared-budget safety release. Independent
+paper analysis can now use a small opt-in worker group without changing the
+ordered report spine or serial artifact publication boundary.
+
+The maintainer required a $0 validation run for this release, so no paid native
+Claude plugin evaluation was executed. Substitute release evidence consists of
+the hermetic full suite, strict Agent Plugin distribution validation, public
+contract checks, security and dependency audits, and isolated package smoke
+tests. The portable plugin procedure itself is unchanged.
+
+### Added
+
+- `distill papers --workers 1|2|3` provides opt-in bounded concurrency for
+  independent PDF fetch and paper analysis. The conservative default remains
+  one worker, and values above three are rejected by the CLI.
+- A reusable bounded-ingest executor caps live futures, propagates run context,
+  returns worker failures to the coordinating thread, and stops refilling when
+  the caller raises a workflow hard stop.
+
+### Changed
+
+- Paper verification, artifact writes, progress, run-summary mutation, and
+  synthesis remain serialized even when analysis workers are enabled. Summary
+  output order follows the selected-paper order rather than completion timing.
+- Cost tracking and provider-cache construction are synchronized. Concurrent
+  items reserve projected spend atomically and consume that reservation as
+  provider-accurate usage reaches the ledger, avoiding both shared-budget races
+  and double-counted in-flight estimates.
+
 ## 0.19.52 - 2026-08-13
 
 Portable interoperability and offline-test hardening release. Adds a strict
