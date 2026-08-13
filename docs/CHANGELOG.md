@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.52 - 2026-08-13
+
+Portable interoperability and offline-test hardening release. Adds a strict
+Agent Plugins 1.0.0 artifact alongside the universal compatibility bundle,
+locks the current Agent Skills and OKF 0.2 boundaries in maintained guidance,
+and prevents default tests from reaching public services.
 
 ### Added
 
