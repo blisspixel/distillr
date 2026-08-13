@@ -4,6 +4,7 @@ import json
 import math
 import threading
 from contextlib import contextmanager
+from datetime import date
 
 import pytest
 
@@ -505,14 +506,30 @@ def test_cost_tracker_uses_model_specific_pricing():
         )
     )
 
-    assert tracker.total_grok_cost == 8.0
+    assert tracker.total_grok_cost == 7.5
     assert tracker.summary_dict()["by_model"]["grok-4.20"]["calls"] == 1
 
 
-def test_anthropic_sonnet5_uses_current_intro_pricing():
-    from distill.llm.cost import compute_cost
+def test_cost_tracker_applies_long_context_rate_per_provider_call():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=200_000,
+            completion_tokens=100_000,
+            model="grok-4.6",
+            call_type="synthesis",
+        )
+    )
 
-    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
+    assert tracker.total_grok_cost == 2.0
+
+
+def test_anthropic_sonnet5_uses_intro_pricing(monkeypatch: pytest.MonkeyPatch):
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 8, 13))
+
+    assert cost_mod.compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
 
 
 def test_cost_tracker_distinguishes_local_from_unproven_agent_usage():
@@ -863,7 +880,7 @@ def test_terminal_profile_receipt_is_written_once_for_zero_usage(tmp_path, monke
 def test_costs_pricing_delegates_to_llm_cost():
     """distill/costs.py pricing lookups match distill/llm/cost.py pricing."""
     from distill.llm.cost import PRICING as LLM_PRICING
-    from distill.llm.cost import get_pricing
+    from distill.llm.cost import compute_cost
 
     # CostTracker.total_grok_cost uses get_pricing() from distill.llm.cost
     tracker = CostTracker()
@@ -876,8 +893,7 @@ def test_costs_pricing_delegates_to_llm_cost():
         )
     )
 
-    rates = get_pricing("grok-4.3")
-    expected = 1_000_000 * rates["input"] / 1_000_000 + 1_000_000 * rates["output"] / 1_000_000
+    expected = compute_cost("grok-4.3", 1_000_000, 1_000_000)
     assert tracker.total_grok_cost == expected
 
     # Verify the pricing dict is the same object
@@ -1677,8 +1693,8 @@ def test_total_cost_includes_transcription():
     tracker = CostTracker()
     tracker.record(TokenUsage(prompt_tokens=1_000_000, completion_tokens=0, model="grok-4.3"))
     tracker.record_transcription("xai-grok-stt", 3600.0)
-    # grok input 1M @ $1.25 + transcription 1h @ $0.10
-    assert round(tracker.total_cost, 4) == round(1.25 + 0.10, 4)
+    # Grok 4.3 long-context input 1M @ $2.50 + transcription 1h @ $0.10.
+    assert round(tracker.total_cost, 4) == round(2.50 + 0.10, 4)
 
 
 def test_summary_dict_includes_transcription_when_present():
@@ -1821,7 +1837,7 @@ def test_stage_cost_tracks_default_model_pricing():
     # at the default model — i.e. it tracks the model, never a hard-coded rate.
     tin, tout = _STAGE_TOKENS["video_full"]
     assert estimate_stage_cost("video_full") == compute_cost(DEFAULT_MODEL, tin, tout)
-    # grok-4.5 default ($2 / $6): 13k in + 6k out = $0.062.
+    # grok-4.6 default ($2 / $6): 13k in + 6k out = $0.062.
     assert round(estimate_stage_cost("video_full"), 5) == 0.062
 
 

@@ -26,8 +26,10 @@ Task-oriented recipes for a specific goal.
 - [Interoperability standards](interoperability.md) - exact Agent Plugins,
   Agent Skills, and OKF baselines, portable boundaries, and update policy.
 - [Briefing context template](briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts.
-- [Grok 4.5 default migration](migration-grok-4.5.md) - current xAI default,
+- [Grok 4.6 default migration](migration-grok-4.6.md) - current xAI default,
   pricing, context, and override behavior.
+- [Grok 4.5 default migration](migration-grok-4.5.md) - historical guide for
+  the previous default.
 - [Grok 4.3 migration](migration-grok-4.3.md) - historical guide for moving
   off the retired fast tiers.
 
@@ -38,7 +40,7 @@ Look-up information: precise, structured, neutral.
 - [Usage guide](usage.md) - the full command and flag reference.
 - [Outputs](outputs.md) - what every artifact (insights, syntheses, reports, sidecars) contains.
 - [MCP server](mcp.md) - tools, resources, and prompts exposed to agents.
-- [Public contracts](contracts/) - candidate-v1 artifact, CLI, core
+- [Public contracts](contracts/) - freeze-ready v1 artifact, CLI, core
   configuration, MCP, and core state snapshots plus the compatibility policy.
 - [Cost model](cost.md) - per-workload cost, examples, and guardrails.
 - [Interoperability standards](interoperability.md) - current portable package

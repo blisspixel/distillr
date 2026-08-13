@@ -7,14 +7,14 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
 ```
   Discover (optional)         Source inputs                Capture               Per-item analysis         Synthesis               Report / briefing / synthesis
  ┌──────────────────┐       ┌──────────────────┐     ┌────────────────┐     ┌──────────────────────┐    ┌────────────────┐   ┌─────────────────────────────────┐
- │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.5             │    │ Per-channel    │   │ distill report                  │
+ │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.6             │    │ Per-channel    │   │ distill report                  │
  │   goal → queries │──────▶│ YouTube search   │ ──▶ │ YouTube cap.   │ ──▶ │  2-pass full video   │─┐  │ synthesis      │   │  corpus / accordion / DR profiles│
  │   goal rerank    │       │ arXiv search     │     │ Playwright     │     │  1-pass Short        │ │  │ Per-topic      │   │                                 │
  │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ configured route     │ │─▶│ synthesis      │─▶ │ distill research-brief          │
  │   shortlist      │       │ Single URL/paper │     │ Whisper ladder │     │  per-page / per-paper│ │  │ Mixed-source   │   │  Gemini Deep Research (grounded)│
  └──────────────────┘       └──────────────────┘     └────────────────┘     └──────────────────────┘─┘  │ corpus synth.  │   │                                 │
          │                          │                       │                          │                 └────────────────┘   │ distill synthesize              │
-         │                          ▼                       ▼                          ▼                                      │  grok-4.5 single-call corpus    │
+         │                          ▼                       ▼                          ▼                                      │  grok-4.6 single-call corpus    │
          │                  library/topics/<topic>/…  <slug>_Transcript.txt /                                              └─────────────────────────────────┘
          │                  (all artifacts as         <slug>_Content.md / <slug>_Paper.md                                                   │
          │                   frontmatter markdown)    + metadata.json +                                                                        ▼
@@ -214,8 +214,8 @@ xAI model choice is separated by workload, overridable via `.env`:
 
 | Workload | Default | Why |
 |---|---|---|
-| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.5` ($2/$6 per 1M) | Current xAI default; configurable reasoning |
-| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.5` ($2/$6 per 1M) | Current xAI default with a 500K context window |
+| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.6` ($2/$6 per 1M short-context tokens) | Current xAI default; configurable reasoning |
+| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.6` ($2/$6 per 1M short-context tokens) | Current xAI default with a 500K context window; long-context pricing begins at 200K prompt tokens |
 
 Gemini Deep Research (`deep-research-preview-04-2026`) handles the accordion
 dossier, the `deep-research` report profile, and `distill research-brief`. The
@@ -367,7 +367,7 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 **Just-in-time hydration over preloading.** `distill discover` pulls papers + videos *against a goal* and reranks before ingesting; `distill papers` expands and reranks before per-paper analysis; channel watches load only delta videos since the last run. The system never asks "load everything for this topic and let the model figure it out" - it asks "what's the smallest sufficient set for this query?" This is the "Select" pillar.
 
-**Workload-tuned model routing trades fidelity against context budget.** Routing is by workload tag, not a single hard-coded model: analysis, synthesis, site/paper, and report-section workloads each resolve through `distill/llm/router.py`. The current xAI defaults resolve to `grok-4.5` with a 500K-token context window; existing model overrides remain valid. The accordion and deep-research profiles route their research stage to Gemini for web-grounded retrieval, while the default report starts from local corpus artifacts. Anthropic `claude-sonnet-5` is also wired as an explicit opt-in metered route with a 1M-token window, but it is not a calibrated default until `distill eval` proves it for a workload. Keeping the tags distinct even when they collapse to one cloud model is deliberate: the routing seam is where a local model or a different provider can take a specific workload, such as bulk transcripts on local compute or harder mid-length synthesis on cloud. The cross-provider, cost-aware version of that choice is what `distill eval` measures (see [`../ROADMAP.md`](../ROADMAP.md), "Looking beyond 1.0").
+**Workload-tuned model routing trades fidelity against context budget.** Routing is by workload tag, not a single hard-coded model: analysis, synthesis, site/paper, and report-section workloads each resolve through `distill/llm/router.py`. The current xAI defaults resolve to `grok-4.6` with a 500K-token context window; existing model overrides remain valid. The accordion and deep-research profiles route their research stage to Gemini for web-grounded retrieval, while the default report starts from local corpus artifacts. Anthropic `claude-sonnet-5` is also wired as an explicit opt-in metered route with a 1M-token window, but it is not a calibrated default until `distill eval` proves it for a workload. Keeping the tags distinct even when they collapse to one cloud model is deliberate: the routing seam is where a local model or a different provider can take a specific workload, such as bulk transcripts on local compute or harder mid-length synthesis on cloud. The cross-provider, cost-aware version of that choice is what `distill eval` measures (see [`../ROADMAP.md`](../ROADMAP.md), "Looking beyond 1.0").
 
 **Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative - they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
 
@@ -407,7 +407,7 @@ These are sometimes flagged in audits but are intentional:
 - **No full PromptRegistry / A/B framework.** Prompt versioning via `prompt_id` in frontmatter (0.7) provides reproducibility. A registry class is premature until the prompt surface stabilizes post-0.8.
 - **Import-linter enforces dependency direction in CI.** "Risk of creeping imports" is not a gap - violations fail the build.
 
-A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. Current cloud routes such as Grok 4.5 at 500K tokens and Gemini 3.1 Pro at 1M tokens handle that input size comfortably. A 100K-character paper is roughly 25K tokens, well within both registered context windows. The lost-in-the-middle concern applies primarily to local models with smaller effective context windows. The fix is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category reranking.
+A note on paper analysis: the previous roadmap flagged "100K-char PDF in a single prompt" as a fidelity risk. Current cloud routes such as Grok 4.6 at 500K tokens and Gemini 3.1 Pro Preview at 1M tokens handle that input size comfortably. A 100K-character paper is roughly 25K tokens, well within both registered context windows. The lost-in-the-middle concern applies primarily to local models with smaller effective context windows. The fix is adaptive: the router knows each provider's context window and only chunks when the content exceeds it. Cloud users get single-pass analysis with no overhead; local-model users get section-aware chunking with per-category reranking.
 
 ## Current package layout
 

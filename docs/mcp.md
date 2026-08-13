@@ -112,7 +112,7 @@ crawling, writes, or spend, and that preview is allowed even when
 |---|---|
 | `synthesize` | Regenerate synthesis over a topic only with explicit literal JSON boolean `force=true` authorization; numeric, string, and null coercions are rejected (`style=...`; `two_pass=true` runs over `claims.jsonl`) |
 | `resynthesize_topic` | Regenerate channel, topic, and mixed-source corpus synthesis from existing insights |
-| `generate_report` | Deep research report (Gemini + Grok 4-phase pipeline) |
+| `generate_report` | Report through the canonical facade. The compatibility default is `accordion`; set `profile="corpus-report"` for a sequential report from existing corpus evidence without mandatory Gemini Deep Research, or `profile="deep-research"` for the research-only path. |
 
 **Query the corpus (read surface)**
 

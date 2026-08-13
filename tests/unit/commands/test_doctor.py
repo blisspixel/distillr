@@ -669,7 +669,7 @@ class TestDoctorJsonExtras:
 
         assert data["ready"] is False
         assert data["local_inference"]["configured_provider"] == "ollama"
-        assert data["local_inference"]["configured_model"] == "grok-4.5"
+        assert data["local_inference"]["configured_model"] == "grok-4.6"
         assert data["local_inference"]["configured_model_ready"] is False
 
     def test_json_local_readiness_matches_exact_configured_model(self, tmp_path, monkeypatch):

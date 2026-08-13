@@ -1,8 +1,9 @@
 # Path to 1.0 (and beyond)
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
-and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Written 2026-08-01
-from code, roadmap, and release evidence at `distillr==0.19.50`.
+and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
+2026-08-13 against code, roadmap, and release evidence at
+`distillr==0.19.54`; the first performance baseline remains 0.19.50 evidence.
 
 ## The honest answer
 
@@ -39,21 +40,15 @@ stability promise:
 
 From the ROADMAP 1.0 readiness gate (paraphrased and prioritized by dependency):
 
-### A. Contract freeze of covered surfaces (unblocked)
+### A. Contract freeze of covered surfaces (complete)
 
 MCP 2026-07-28 checkpoint **shipped** (0.19.47 inventory + 0.19.48 SDK v2).
-Covered snapshots already exist and drift-gate CI. Remaining work:
-
-1. Publish a **compatibility policy** for the covered surfaces (CLI, MCP, library
-   layout, frontmatter base, OKF, next-action JSON, profiles, cost modes).
-2. Publish a **library corpus migration policy** (a 0.5-era corpus opens cleanly
-   in 1.0, or migration is explicit and tested).
-3. Mark covered snapshots as **freeze-ready** once the policy docs and migration
-   evidence exist. Additional contract slices (router env surface, artifact-
-   specific schemas, full legacy migration) can still expand *after* freeze as
-   additive minor versions under the policy.
-4. **Project name decision:** keep `distill` CLI + `distillr` PyPI package
-   (already public). Rename window closes at 1.0.
+Covered snapshots exist and drift-gate CI. The compatibility and library corpus
+migration policy is published in [`COMPATIBILITY.md`](../contracts/COMPATIBILITY.md), covered
+snapshots are marked `freeze-ready`, and the project names are fixed as CLI
+`distill` plus PyPI package `distillr`. Additional contract slices, including
+more router environment settings and artifact-specific schemas, may expand
+additively under that policy and do not block 1.0.
 
 ### B. Published performance baseline (partial harness, no freeze yet)
 
@@ -71,7 +66,7 @@ Still open for the 1.0 bar:
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met (0.19.50: 95.03%, 6399 tests) |
+| Branch coverage >=95% | Met (0.19.54 local release gate: 95.07%, 6,553 tests) |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
 | Python 3.12-3.14 + OS smoke | Met |
 | Golden structural offline gate | Met; do not extend to live model scoring |
@@ -153,6 +148,6 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
 | 2 Performance baseline v1 | partial | scale-100 Windows baseline published under `docs/performance/` |
-| 3 Quality ratchets | partial | 95% cov, llm strict, file-level strict ~75% of modules |
+| 3 Quality ratchets | partial | 95.07% cov, llm strict, file-level strict ~75% of modules |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

@@ -214,7 +214,11 @@ class TestDeprecationWarningAndFallback:
 
     def test_non_retired_models_pass_through(self) -> None:
         """Non-retired models pass through unchanged."""
-        non_retired = ["grok-4.3", "grok-4.20-non-reasoning", "grok-imagine-image"]
+        non_retired = [
+            "grok-4.3",
+            "grok-4.20-0309-non-reasoning",
+            "grok-imagine-image",
+        ]
         for model in non_retired:
             config = RouterConfig(fast_model=model)
             _, model_id = config.resolve("analysis")

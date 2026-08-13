@@ -49,7 +49,7 @@ PROVIDER_HELP: dict[str, str] = {
 }
 
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
-    "xai": "grok-4.5",
+    "xai": "grok-4.6",
     "gemini": "gemini-3.6-flash",
     "anthropic": "claude-sonnet-5",
 }
@@ -64,6 +64,17 @@ _CATALOG_EXCLUDED_PREFIXES: tuple[str, ...] = (
     "deep-research",
     "gemini-deep-research",
     "gpt-",
+)
+
+_CATALOG_EXCLUDED_IDS: frozenset[str] = frozenset(
+    {
+        # Compatibility-only alias. Google's current public model id includes
+        # the preview suffix, so do not offer the shorter historical spelling.
+        "gemini-3.1-pro",
+        # Compatibility-only spelling retained for older Distill configs. The
+        # current xAI slug includes the dated 0309 segment.
+        "grok-4.20-non-reasoning",
+    }
 )
 
 
@@ -112,6 +123,8 @@ def known_models_for_provider(provider: str) -> list[str]:
 
     models: list[str] = []
     for model_id in PRICING:
+        if model_id in _CATALOG_EXCLUDED_IDS:
+            continue
         if model_id in RETIRED_MODELS:
             continue
         if is_xai_media_generation_model(model_id):
@@ -134,7 +147,13 @@ def price_summary(model: str) -> str:
         return f"~${rates['per_query']:.2f}/query"
     input_rate = rates.get("input", 0.0)
     output_rate = rates.get("output", 0.0)
-    return f"${input_rate:.2f}/${output_rate:.2f} per 1M"
+    summary = f"${input_rate:.2f}/${output_rate:.2f} per 1M"
+    threshold = rates.get("long_context_min_input")
+    if threshold is None:
+        return summary
+    long_input = rates.get("long_input", input_rate)
+    long_output = rates.get("long_output", output_rate)
+    return f"{summary}; ${long_input:.2f}/${long_output:.2f} at {int(threshold):,}+ prompt tokens"
 
 
 def validate_provider_route(provider: str, model: str) -> tuple[str, str]:

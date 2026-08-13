@@ -2,11 +2,12 @@
 
 Last authoritative review: 2026-08-13.
 
-Distill uses open formats at two different boundaries. Agent Plugins packages
-the procedure an agent can load. Open Knowledge Format packages a read-only
-projection of the knowledge that procedure can inspect. Neither standard
-replaces Distill's native corpus, cost policy, verification gate, or MCP
-authorization boundary.
+Distill uses open standards at three different boundaries. Agent Plugins
+packages the procedure an agent can load. Model Context Protocol exposes a
+controlled runtime surface. Open Knowledge Format packages a read-only
+projection of the knowledge that procedure can inspect. None replaces
+Distill's native corpus, cost policy, verification gate, or authorization
+boundary.
 
 ## Current baselines
 
@@ -14,6 +15,7 @@ authorization boundary.
 |---|---|---|---|
 | Portable agent package | Agent Plugins 1.0.0 | Working Draft | [Specification](https://agent-plugins.org/specification) and [manifest schema](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json) |
 | Agent procedure | Agent Skills | Current published specification | [Specification](https://agentskills.io/specification) |
+| Agent runtime protocol | MCP 2026-07-28 | Current compatibility checkpoint | [Specification](https://modelcontextprotocol.io/specification/2026-07-28) |
 | Knowledge exchange | OKF 0.2 | Current specification | [OKF v0.2 specification](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) |
 
 The [Google Cloud launch article](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/)
@@ -50,6 +52,21 @@ proves the generated copies match the canonical skill, and builds deterministic
 archives with SHA-256 checksums. These are structural checks. Trigger quality,
 faithfulness, and workflow value remain semantic evaluation concerns.
 
+## MCP boundary
+
+`distill-mcp` uses the MCP SDK v2 line and negotiates protocol 2026-07-28 with
+modern clients while preserving the legacy initialize path for older clients.
+The public contract snapshot locks tools, resources, templates, prompts,
+annotations, server identity, and deterministic discovery order. Read-only
+mode and per-call spend caps remain Distill policy, not properties Agent
+Plugins or MCP can infer.
+
+The strict Agent Plugins archive deliberately omits `mcp.json`, so installing
+the portable skill does not activate this runtime surface. Operators configure
+`distill-mcp` separately. The detailed protocol inventory and compatibility
+evidence are in
+[`design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md).
+
 ## OKF boundary
 
 `distill export <topic|all> --format okf` writes an OKF 0.2 directory bundle.
@@ -80,7 +97,7 @@ attester ABI, or caching machinery that OKF 0.2 explicitly defers.
 
 ## Version update policy
 
-Standards are configuration and contracts, not evergreen prose. When either
+Standards are configuration and contracts, not evergreen prose. When an
 upstream specification changes:
 
 1. Read the normative specification and schema from the authoritative source.
@@ -93,7 +110,7 @@ upstream specification changes:
    upstream change is breaking.
 6. Regenerate tracked plugin files and run the complete quality gate.
 7. Keep model, provider, client, and pricing claims in their own current-source
-   registries. Neither Agent Plugins nor OKF proves a route is supported or
+   registries. No interoperability standard proves a route is supported or
    free.
 
 Do not implement draft proposals merely because they exist in an issue or

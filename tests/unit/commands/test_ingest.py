@@ -329,7 +329,7 @@ def test_ingest_cmd_persists_budget_crossing_usage(
     assert result.exit_code == 1
     assert isinstance(result.exception, BudgetExceededError)
     [row] = _cost_rows(config)
-    assert row["actual_cost"] == pytest.approx(1.25)
+    assert row["actual_cost"] == pytest.approx(2.50)
     assert row["usage_ledger"]["metered_llm_calls"] == 1
     assert row["metadata"]["source_type"] == "x"
 

@@ -171,10 +171,11 @@ def test_existing_tool_schemas_unchanged():
     wr_params = tools["watch_remove"].input_schema.get("properties", {})
     assert "name" in wr_params
 
-    # generate_report should accept topic, channel
+    # generate_report should accept topic, channel, profile
     gr_params = tools["generate_report"].input_schema.get("properties", {})
     assert "topic" in gr_params
     assert "channel" in gr_params
+    assert "profile" in gr_params
 
     # resynthesize_topic should accept topic, channel
     rt_params = tools["resynthesize_topic"].input_schema.get("properties", {})

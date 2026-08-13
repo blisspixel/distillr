@@ -19,6 +19,8 @@ from distill.mcp.server import (
     write_tool_annotations,
 )
 from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.report.facade import ReportProfileName, run_report
+from distill.pipeline.report.profiles import parse_report_profile
 
 __all__: list[str] = []
 
@@ -36,26 +38,34 @@ class TopicSynthesizer(Protocol):
 
 @mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=False, open_world=True))
 @write_tool("generate_report", ledger_command="report")
-def generate_report(topic: str, channel: str | None = None) -> str:
-    """Generate a deep research report for a topic (long-running).
+def generate_report(
+    topic: str,
+    channel: str | None = None,
+    profile: str = ReportProfileName.ACCORDION.value,
+) -> str:
+    """Generate a report for a topic through the canonical report facade.
 
     Args:
         topic: Topic to report on
         channel: Specific channel scope
+        profile: corpus-report, accordion, or deep-research
     """
     config = load_config()
-    if not config.gemini_api_key:
+    try:
+        selected_profile = parse_report_profile(profile)
+    except ValueError as exc:
+        return json.dumps({"error": str(exc)})
+    if selected_profile is not ReportProfileName.CORPUS_REPORT and not config.gemini_api_key:
         return "Error: GEMINI_API_KEY not configured. Required for reports."
-
-    from distill.pipeline.report.accordion import run_accordion_research
 
     tracker = capped_tracker()
     scope = "channel" if channel else "topic"
 
     try:
-        result = run_accordion_research(
+        result = run_report(
             topic=topic,
             config=config,
+            profile=selected_profile,
             scope=scope,
             channel_name=channel,
             tracker=tracker,
@@ -71,12 +81,19 @@ def generate_report(topic: str, channel: str | None = None) -> str:
                 "status": "complete",
                 "words": len(result.split()),
                 "characters": len(result),
+                "profile": selected_profile.value,
                 "report": result[:5000] + "\n\n... (truncated, full report saved to disk)",
                 "cost": cost_summary(tracker),
             },
             indent=2,
         )
-    return json.dumps({"status": "failed", "cost": cost_summary(tracker)})
+    return json.dumps(
+        {
+            "status": "failed",
+            "profile": selected_profile.value,
+            "cost": cost_summary(tracker),
+        }
+    )
 
 
 @mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=False, open_world=False))

@@ -135,7 +135,7 @@ def _provider_reasoning_effort(
     model: str,
 ) -> str | None:
     normalized_model = model.strip().lower()
-    if provider_name == "xai" and normalized_model.startswith(("grok-4.5", "grok-4.3")):
+    if provider_name == "xai" and normalized_model.startswith(("grok-4.6", "grok-4.5", "grok-4.3")):
         return resolve_xai_reasoning_effort(config, workload_tag)
     if provider_name == "anthropic" and normalized_model.startswith(
         (

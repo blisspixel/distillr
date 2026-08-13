@@ -108,14 +108,16 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.53, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.54, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
-  Model registry refresh on 2026-08-13 moved the xAI default to `grok-4.5`
-  with current pricing, context metadata, and cost estimates while retaining
-  explicit model overrides. Current Claude 5 pricing is also registered, and
-  the unimplemented OpenAI route has current reserved GPT-5.6 cost metadata.
+  Model registry refresh on 2026-08-13 moved the xAI default first to
+  `grok-4.5`, then to the newly published `grok-4.6`, while retaining explicit
+  overrides. Pricing and context metadata now cover xAI's per-request
+  long-context tiers, the corrected 1M Grok 4.20 family, current Claude 5
+  pricing, current Gemini Deep Research planning ranges, and reserved GPT-5.6
+  metadata for the unimplemented OpenAI route.
 
   Report refinement on 2026-08-12 put one facade over three explicit profiles.
   The default `corpus-report` writes sequentially from durable corpus evidence;

@@ -104,6 +104,7 @@ Cloud routes read keys from `.env` in your working directory (copy from
 ```bash
 XAI_API_KEY=xai-...             # Grok models (default analysis)
 GEMINI_API_KEY=AIza...          # Gemini analysis route + Deep Research reports
+ANTHROPIC_API_KEY=sk-ant-...    # Claude API route (metered, explicit opt-in)
 ```
 
 Pick or change the analysis route with the CLI (writes `.env` only on `set`):
@@ -114,6 +115,11 @@ distill provider list gemini                  # known models + prices
 distill provider set gemini gemini-3.6-flash  # persist default route
 distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
+
+The Anthropic API route is implemented but not a calibrated default. Select it
+explicitly, permit metered spend, and review the estimate before running it.
+OpenAI model IDs are retained only for cost-registry and future-routing truth;
+OpenAI is not currently a runnable Distill provider.
 
 Full provider command reference: [usage.md](usage.md#provider-and-model-route).
 

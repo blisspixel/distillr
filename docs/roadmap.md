@@ -24,10 +24,11 @@ Current UX priorities:
 - Make the website workflow feel first-class instead of command-by-command
 - Keep the YouTube "stay current" path fast and obvious
 - Goal-aware discovery as the front door when the user has a research goal rather than a keyword query
-- Track the final MCP 2026-07-28 spec and run a near-term compatibility spike
-  while Distill's 1.0 MCP surface remains a candidate
-- Keep the candidate CLI, MCP, library, frontmatter, OKF, next-action, and
-  profile contracts open to evidence-backed refinement after that checkpoint
+- Maintain the shipped MCP 2026-07-28 and legacy dual-era boundary while the
+  optional Tasks extension waits for official SDK support
+- Keep the covered CLI, MCP, artifact, configuration, and state snapshots
+  freeze-ready under the published compatibility policy; add uncovered slices
+  without weakening existing promises
 - Finish the Pyright strict-mode, boundary-type, and deterministic-core
   verification ratchets while preserving the branch-coverage floor
 - Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
@@ -99,10 +100,12 @@ be moved to `CHANGELOG.md` on next release).
 
 - [x] **One report facade with explicit profiles.** `distill report` defaults to
   `corpus-report`, which writes from existing syntheses, insights, and receipt
-  paths without mandatory Gemini spend. `accordion` adds a Gemini Deep Research
-  dossier before the same ordered writer, and `deep-research` preserves the
-  single-provider path. Profile-aware estimates run before provider work and
-  price a proven local writer at zero direct API cost.
+  paths without mandatory Gemini spend. MCP `generate_report` uses the same
+  facade while retaining its compatibility default of `accordion`. `accordion`
+  adds a Gemini Deep Research dossier before the same ordered writer, and
+  `deep-research` preserves the single-provider path. Profile-aware estimates
+  run before provider work and price a proven local writer at zero direct API
+  cost.
 - [x] **Sequential report spine.** One-section writing, retry and refusal,
   progress, batch policy, full-document review, and ordered rewrites are
   separate functions. Section writing remains sequential by design, carries

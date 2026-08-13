@@ -6,12 +6,12 @@ Google bills Deep Research for its underlying model inference and tool usage.
 Distill uses a conservative per-run planning estimate for authorization because
 the final Deep Research usage is not known before the job starts.
 
-Cold-start figures below use the **`grok-4.5` default** at $2 input and $6
-output per 1M tokens. They are derived from representative per-stage token
+Cold-start figures below use the **`grok-4.6` default** at $2 input and $6
+output per 1M short-context tokens. They are derived from representative per-stage token
 volumes in `distill/pipeline/cost_estimates.py`, so the estimate follows the
 selected model rather than a fixed dollar table. When sufficient clean history
 exists, the pre-run estimate self-calibrates against the actual
-`cost_log.jsonl` rows. Use `distill eval --models grok-4.5,<candidate>` before
+`cost_log.jsonl` rows. Use `distill eval --models grok-4.6,<candidate>` before
 moving a workload to a cheaper cloud or local model.
 
 Local analysis is not stale-source analysis. When `DISTILL_PROVIDER=ollama` or
@@ -225,7 +225,7 @@ The provider cache policy is in
 
 ## Per-stage cost
 
-| Stage | Typical cost | Basis at grok-4.5 |
+| Stage | Typical cost | Basis at grok-4.6 |
 |---|---|---|
 | YouTube caption extraction | **$0** | yt-dlp pulls auto-generated captions |
 | arXiv PDF download + text extraction | **$0** | pypdf, local |
@@ -242,11 +242,11 @@ The provider cache policy is in
 | **Discover query generation (`distill discover`)** | **~$0.02** | One call generating paper + video queries from a goal |
 | **Discover rerank (`distill discover`)** | **~$0.04-0.09** | One call scoring combined paper+video candidates against the goal |
 | Default `corpus-report` | **~$0.99** | ~420K input + ~25K output across ordered sections, full-document QA, and a likely rewrite |
-| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | 1 standard Deep Research query |
+| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | Distill authorization midpoint for one standard Deep Research query; Google estimates ~$1-3 |
 | Accordion ordered writing + QA | **~$0.90** | ~360K input + ~30K output across the sequential report spine |
-| `deep-research` profile | **~$2.50** | 1 standard Deep Research query, without section writing |
-| `distill research-brief` | **~$3-5** | 1 Gemini Deep Research query with custom File Search store |
-| `distill synthesize` | **~$0.33-0.65** | 1 Grok 4.5 call over the gathered corpus |
+| `deep-research` profile | **~$2.50** | Distill authorization midpoint for one standard Deep Research query, without section writing |
+| `distill research-brief` | **~$1-3 typical** | 1 standard Gemini Deep Research query with custom File Search store; actual tool and token use varies |
+| `distill synthesize` | **~$0.33-0.65** | 1 Grok 4.6 call over the gathered corpus; prompts at 200K tokens or more use long-context rates |
 
 ## Example runs
 
@@ -271,7 +271,7 @@ The provider cache policy is in
 | One `distill synthesize` across all 5 topics | 1 × $0.45 | ~$0.45 |
 | **Total** | | **~$8.20** |
 
-Add `distill research-brief` (~$3-5) only if you want web-augmented cross-topic Deep Research on top.
+Add `distill research-brief` (typically ~$1-3) only if you want web-augmented cross-topic Deep Research on top.
 
 **Single `distill discover` run (goal-driven, ~8 papers + ~8 videos):**
 
@@ -293,12 +293,16 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
 
 ## Budget guidance
 
-- Bulk video analysis is cheap but not free on grok-4.5: the cold-start
+- Bulk video analysis is cheap but not free on grok-4.6: the cold-start
   estimate is about $0.062 per full video, so 1,000 videos is about $62 before
   calibration. To drive marginal API cost toward $0, use a local model only
   after `distill eval` confirms it clears the workload quality bar.
-- Gemini Deep Research dominates the bill at $2-3 per report.
-- `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
+- Gemini Deep Research commonly dominates the bill. Google currently estimates
+  ~$1-3 for standard and ~$3-7 for Max; Distill authorizes at $2.50 and $5.00
+  planning midpoints before provider usage is available.
+- `distill synthesize` is the cheapest way to get dense cross-topic synthesis
+  because it is a single call on the configured synthesis route with no Deep
+  Research stage.
 - Use the command's current estimate and an explicit workflow budget. Do not
   carry forward a fixed quarterly allowance from an older model price.
 
@@ -354,28 +358,57 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 
 | Model | Input | Output | Context | Used for |
 |---|---|---|---|---|
-| `grok-4.5` | $2.00/1M | $6.00/1M | 500K | Default for analysis, reranking, synthesis, briefs, papers, sites, and report section writing |
+| `grok-4.6` | $2.00/1M | $6.00/1M | 500K | Default for analysis, reranking, synthesis, briefs, papers, sites, and report section writing |
+| `grok-4.5` | $2.00/1M | $6.00/1M | 500K | Supported explicit override and previous default |
 | `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Supported explicit override and historical default |
-| `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; Distill substitutes the current `grok-4.5` default. The historical registry price remains for old ledger rows. |
-| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 131K | Supported explicit override |
-| `deep-research-preview-04-2026` | token and tool based | ~$2-5 planning estimate per run | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
+| `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; Distill substitutes the current `grok-4.6` default. The historical registry price remains for old ledger rows. |
+| `grok-4.20-0309-non-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit non-reasoning override |
+| `grok-4.20-0309-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit override |
+| `deep-research-preview-04-2026` | token and tool based | Google estimates ~$1-3; Distill plans at $2.50 | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
+| `deep-research-max-preview-04-2026` | token and tool based | Google estimates ~$3-7; Distill plans at $5.00 | N/A | Explicit deeper-research override |
 | `gemini-3.6-flash` | $1.50/1M | $7.50/1M | 1M | Preferred optional Gemini-provider chat model (GA 2026-07-21); doctor probe default |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19); still selectable |
 | `gemini-3.5-flash-lite` | $0.30/1M | $2.50/1M | 1M | High-throughput optional Gemini chat model (GA 2026-07-21) |
+| `gemini-3.1-pro-preview` | $2.00/1M | $12.00/1M | 1M | Optional Gemini model; prompts over 200K use $4/$18 rates |
 | `claude-sonnet-5` | $2.00/1M through 2026-08-31, then $3.00/1M | $10.00/1M through 2026-08-31, then $15.00/1M | 1M | Optional Anthropic-provider chat model; current intro-rate estimate, not a default route |
 | `claude-opus-5` | $5.00/1M | $25.00/1M | 1M | Optional Anthropic model |
 | `claude-fable-5` | $10.00/1M | $50.00/1M | 1M | Optional Anthropic model; highest widely available capability tier |
+| `gpt-5.6-sol` | $5.00/1M | $30.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
+| `gpt-5.6-terra` | $2.00/1M | $12.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
+| `gpt-5.6-luna` | $0.20/1M | $1.20/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
 
-As of 2026-08-13, both xAI tiers default to `grok-4.5`. Explicit model
+As of 2026-08-13, both xAI tiers default to `grok-4.6`. Explicit model
 overrides remain available and are costed by the same registry.
+
+xAI's short-context prices above apply below 200K prompt tokens. At 200K or
+more, Grok 4.6 and 4.5 cost $4 input and $12 output per 1M tokens, while Grok
+4.3 and the registered Grok 4.20 family cost $2.50 input and $5 output. The
+threshold applies per provider request, not to a run's aggregate tokens.
+Distill prices each ledger entry at the applicable tier and keeps sequential
+report estimates split across their representative calls.
+
+Gemini 3.1 Pro Preview changes from $2/$12 to $4/$18 when a prompt exceeds
+200K tokens. The reserved GPT-5.6 family changes to 2x input and 1.5x output
+when a prompt exceeds 272K tokens. These thresholds are registered even though
+OpenAI is not yet a routable Distill analysis provider, so future estimates
+cannot inherit a known undercount.
+
+Authoritative pricing and capability sources are the
+[xAI model catalog](https://docs.x.ai/developers/models),
+[xAI pricing table](https://docs.x.ai/developers/pricing),
+[Gemini pricing page](https://ai.google.dev/gemini-api/docs/pricing),
+[Gemini Deep Research guide](https://ai.google.dev/gemini-api/docs/deep-research),
+[Anthropic model overview](https://platform.claude.com/docs/en/about-claude/models/overview),
+[Anthropic pricing guide](https://platform.claude.com/docs/en/about-claude/pricing),
+and [OpenAI model catalog](https://developers.openai.com/api/docs/models).
 
 ## Overriding models
 
 All model defaults are overridable via `.env`:
 
 ```bash
-DISTILL_FAST_MODEL=grok-4.5
-DISTILL_PREMIUM_MODEL=grok-4.5
+DISTILL_FAST_MODEL=grok-4.6
+DISTILL_PREMIUM_MODEL=grok-4.6
 DISTILL_ANALYSIS_MODEL=
 DISTILL_SITE_MODEL=
 DISTILL_SYNTHESIS_MODEL=
@@ -401,7 +434,7 @@ distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 
 Leave the narrow overrides blank to use the broader `DISTILL_FAST_MODEL` and
-`DISTILL_PREMIUM_MODEL` defaults. Both default to `grok-4.5`. Legacy `XAI_*`
+`DISTILL_PREMIUM_MODEL` defaults. Both default to `grok-4.6`. Legacy `XAI_*`
 model variables and `ACCORDION_SECTION_MODEL` remain migration aliases; a
 matching `DISTILL_*` variable takes precedence.
 Claude Sonnet 5 uses Anthropic adaptive thinking by default. Distill omits

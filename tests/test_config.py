@@ -96,8 +96,8 @@ class TestDistillConfig:
         assert config.distill_cost_warning_spike_multiplier == 2.5
         assert config.distill_cost_warning_run_spike_min_usd == 1.0
         assert config.cost_workflow_budgets_usd == {}
-        assert config.xai_model_for("analysis") == "grok-4.5"
-        assert config.xai_model_for("site") == "grok-4.5"
+        assert config.xai_model_for("analysis") == "grok-4.6"
+        assert config.xai_model_for("site") == "grok-4.6"
 
     def test_custom_config(self, tmp_path):
         config = DistillConfig(

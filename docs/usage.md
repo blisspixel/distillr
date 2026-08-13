@@ -245,7 +245,8 @@ distill catch-up --dry-run                          # preview
 distill reanalyze deals --deep
 ```
 
-Scan mode (used by `catch-up`) is lightweight (~$0.001/video). During
+Scan mode (used by `catch-up`) is lightweight (~$0.008/video at the default
+Grok 4.6 route). During
 processing, `catch-up` prints per-video completed count, failed count, running
 spend, and ETA when enough videos have completed. Use `reanalyze --deep` when
 you want the full 2-pass analysis on a video you flagged from a scan.
@@ -764,8 +765,8 @@ distill report ai --no-qa
 | Profile | Research material | Writing path | Cold-start estimate |
 |---|---|---|---:|
 | `corpus-report` (default) | Existing syntheses, insights, and receipt paths | 6 ordered sections, assembly, full-document QA, ordered rewrites | ~$0.99 on the default Grok route; $0 direct API cost on a proven local route |
-| `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | ~$3.40 at current defaults |
-| `deep-research` | Gemini Deep Research | One provider-authored report | ~$2.50 |
+| `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | ~$3.40 at Distill's current planning midpoint |
+| `deep-research` | Gemini Deep Research | One provider-authored report | ~$2.50 planning midpoint; Google estimates ~$1-3 typical |
 
 The estimates are admission values, not price guarantees. Distill resolves the
 configured report route before applying a workflow cap. A local Ollama or LM
@@ -781,16 +782,16 @@ for the complete flow.
 
 ## Evaluate models (cost × quality)
 
-Models change fast. `grok-4.5` is the current xAI default, while explicit
+Models change fast. `grok-4.6` is the current xAI default, while explicit
 overrides remain supported. `distill eval` measures whether a different cloud
 or local model is good enough for a workload instead of guessing.
 
 ```bash
 # Compare the cloud floor against a local model on all workloads
-distill eval --models grok-4.5,qwen3.5:27b
+distill eval --models grok-4.6,qwen3.5:27b
 
 # One workload, write a report artifact, skip the cost prompt
-distill eval --workload paper --models grok-4.5,qwen3.5:27b --report --yes
+distill eval --workload paper --models grok-4.6,qwen3.5:27b --report --yes
 ```
 
 It runs each model over frozen golden fixtures (3 each for paper, video, and
@@ -813,7 +814,7 @@ Flags:
   reserved OpenAI route (`gpt` / `o1` / `o3`), or an adapter candidate
   (`adapter:`); anything else is treated as a local Ollama model.
 - `--anchor <model>` - the incumbent/reference everything is compared against.
-  `auto` uses `grok-4.5` when an XAI key is configured, otherwise the first
+  `auto` uses `grok-4.6` when an XAI key is configured, otherwise the first
   listed model. The anchor is added to `--models` if absent.
 - `--judge <model>` - model judge used for source-anchored faithfulness and
   pairwise at-par comparisons. `auto` selects a different-family model that is
@@ -853,9 +854,9 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 | Command | Engine | Best for | Typical cost |
 |---|---|---|---|
 | `distill report <topic>` | Existing corpus + configured ordered writer | Evidence-backed report without mandatory web research | ~$0.99 on default cloud route; $0 direct on proven local route |
-| `distill report <topic> --profile accordion` | Gemini Deep Research + configured ordered writer | Full-depth strategic intelligence report | ~$3.40 at current defaults |
-| `distill report <topic> --profile deep-research` | Gemini Deep Research | Single provider-authored research report | ~$2.50 |
-| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | ~$3-5 |
+| `distill report <topic> --profile accordion` | Gemini Deep Research + configured ordered writer | Full-depth strategic intelligence report | ~$3.40 at Distill's current planning midpoint |
+| `distill report <topic> --profile deep-research` | Gemini Deep Research | Single provider-authored research report | ~$2.50 planning midpoint; Google estimates ~$1-3 typical |
+| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | Google estimates ~$1-3 for a typical standard task; actual tool and token use varies |
 | `distill synthesize --topic ... --context-file ...` | Configured synthesis model, one call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | Estimate before run |
 
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).

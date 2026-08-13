@@ -1,8 +1,9 @@
 # Grok 4.5 default migration
 
-As verified on 2026-08-13, xAI documents `grok-4.5` as its flagship text model. Distill
-uses it as the default for analysis, reranking, synthesis, site and paper work,
-briefs, and accordion section writing.
+This is the historical guide for the 2026-08-13 move to Grok 4.5. xAI now
+documents Grok 4.6 as its flagship model, and current Distill releases default
+to `grok-4.6`. See the [Grok 4.6 default migration](migration-grok-4.6.md) for
+the active registry, pricing, context, and override behavior.
 
 This is a default change, not a forced migration. Existing environment and
 per-workload overrides keep their configured model IDs. A user who has pinned
@@ -12,20 +13,20 @@ per-workload overrides keep their configured model IDs. A user who has pinned
 
 | Model | Input per 1M | Output per 1M | Context | Distill status |
 |---|---:|---:|---:|---|
-| `grok-4.5` | $2.00 | $6.00 | 500K | Default |
+| `grok-4.5` | $2.00 | $6.00 | 500K | Supported explicit override |
 | `grok-4.3` | $1.25 | $2.50 | 1M | Supported explicit override |
-| `grok-4.20` family | $2.00 | $6.00 | 131K | Supported explicit override |
+| `grok-4.20` family | $1.25 | $2.50 | 1M | Supported explicit override |
 
 The source of truth for xAI model availability and pricing is the
 [xAI model catalog](https://docs.x.ai/developers/models). Distill keeps pricing
 and context metadata in code so estimates, budget authorization, chunk sizing,
 and provider selection move together.
 
-## What changes automatically
+## What changed in that release
 
-- New default configuration resolves xAI workloads to `grok-4.5`.
-- `distill eval` uses `grok-4.5` as the xAI reference when no model is supplied.
-- Cold-start cost estimates use the `grok-4.5` token rates.
+- New default configuration resolved xAI workloads to `grok-4.5`.
+- `distill eval` used `grok-4.5` as the xAI reference when no model was supplied.
+- Cold-start cost estimates used the `grok-4.5` token rates.
 - Chunk planning uses the documented 500K context window.
 - Configured reasoning effort is sent to both `grok-4.5` and supported
   `grok-4.3` overrides.
@@ -40,7 +41,7 @@ and provider selection move together.
   accordion and deep-research profiles keep the current
   `deep-research-preview-04-2026` agent ID.
 
-## Pinning the previous model
+## Historical pinning example
 
 To retain the prior xAI default deliberately:
 

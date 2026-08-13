@@ -39,8 +39,44 @@ __all__ = [
 # Report estimates include all sequential section inputs and outputs, one
 # full-document QA review, and one likely section rewrite. They are registry
 # backed so a default-model price change is visible in dry-run projections.
-ACCORDION_GROK_ESTIMATE: float = compute_cost(DEFAULT_MODEL, 360_000, 30_000)
-CORPUS_REPORT_ESTIMATE: float = compute_cost(DEFAULT_MODEL, 420_000, 25_000)
+# The totals span several calls, so price each representative call separately:
+# treating the aggregate input as one request would incorrectly trigger a
+# provider's long-context tier even when every individual prompt is below it.
+
+
+def _estimate_multi_call_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    *,
+    calls: int,
+) -> float:
+    """Price aggregate token volumes distributed over ``calls`` requests."""
+
+    input_per_call, input_remainder = divmod(input_tokens, calls)
+    output_per_call, output_remainder = divmod(output_tokens, calls)
+    return sum(
+        compute_cost(
+            model,
+            input_per_call + (1 if index < input_remainder else 0),
+            output_per_call + (1 if index < output_remainder else 0),
+        )
+        for index in range(calls)
+    )
+
+
+ACCORDION_GROK_ESTIMATE: float = _estimate_multi_call_cost(
+    DEFAULT_MODEL,
+    360_000,
+    30_000,
+    calls=12,
+)
+CORPUS_REPORT_ESTIMATE: float = _estimate_multi_call_cost(
+    DEFAULT_MODEL,
+    420_000,
+    25_000,
+    calls=8,
+)
 
 # Representative input and output token volumes for one ingested unit. These
 # registry-backed estimates track the configured default model rather than a
@@ -585,6 +621,7 @@ def report_profile_estimate(
         generation = _report_generation_estimate(
             input_tokens=360_000,
             output_tokens=30_000,
+            calls=12,
             default=ACCORDION_GROK_ESTIMATE,
             router_config=router_config,
         ) * (0.85 if skip_qa else 1.0)
@@ -595,6 +632,7 @@ def report_profile_estimate(
         generation = _report_generation_estimate(
             input_tokens=420_000,
             output_tokens=25_000,
+            calls=8,
             default=CORPUS_REPORT_ESTIMATE,
             router_config=router_config,
         )
@@ -606,6 +644,7 @@ def _report_generation_estimate(
     *,
     input_tokens: int,
     output_tokens: int,
+    calls: int,
     default: float,
     router_config: RouterConfig | None,
 ) -> float:
@@ -614,5 +653,10 @@ def _report_generation_estimate(
     return _routed_model_cost(
         "accordion",
         router_config,
-        lambda model: compute_cost(model, input_tokens, output_tokens),
+        lambda model: _estimate_multi_call_cost(
+            model,
+            input_tokens,
+            output_tokens,
+            calls=calls,
+        ),
     )

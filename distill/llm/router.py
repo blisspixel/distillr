@@ -92,8 +92,8 @@ class RouterConfig(BaseSettings):
     # DISTILL_COST_MODE: auto | no-metered | paid-ok
     cost_mode: CostMode = "auto"
     # Tier defaults
-    fast_model: str = "grok-4.5"
-    premium_model: str = "grok-4.5"
+    fast_model: str = "grok-4.6"
+    premium_model: str = "grok-4.6"
 
     # Per-workload model overrides (empty = use tier default)
     analysis_model: str = ""

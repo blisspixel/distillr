@@ -59,7 +59,7 @@ _HELP = (
     "  distill --cost-mode no-metered doctor\n"
     "      readiness check without API-billed provider probes\n"
     "  distill provider list\n"
-    "      show analysis providers and known models (xai default; gemini optional)\n"
+    "      show analysis providers and known models (xAI default; Gemini and Anthropic opt-in)\n"
     '  distill --cost-mode no-metered papers "topic" -n 5 --preview\n'
     "      shortlist without paper ingest; refuses ambiguous billing\n\n"
     "Cloud key validation requires explicit permission:\n"

@@ -2,11 +2,12 @@
 
 import pytest
 
-from distill.llm.cost import deep_research_query_cost
+from distill.llm.cost import compute_cost, deep_research_query_cost
 from distill.llm.router import RouterConfig
 from distill.pipeline.cost_estimates import (
     ACCORDION_GROK_ESTIMATE,
     CORPUS_REPORT_ESTIMATE,
+    _estimate_multi_call_cost,
     report_profile_estimate,
 )
 
@@ -14,6 +15,26 @@ from distill.pipeline.cost_estimates import (
 def test_report_generation_estimates_are_not_legacy_placeholders():
     assert ACCORDION_GROK_ESTIMATE > 0.5
     assert 0.5 < CORPUS_REPORT_ESTIMATE < 1.5
+
+
+def test_report_token_totals_are_priced_as_separate_calls():
+    estimate = _estimate_multi_call_cost(
+        "grok-4.6",
+        input_tokens=400_003,
+        output_tokens=40_001,
+        calls=4,
+    )
+
+    expected = sum(
+        (
+            compute_cost("grok-4.6", 100_001, 10_001),
+            compute_cost("grok-4.6", 100_001, 10_000),
+            compute_cost("grok-4.6", 100_001, 10_000),
+            compute_cost("grok-4.6", 100_000, 10_000),
+        )
+    )
+    assert estimate == pytest.approx(expected)
+    assert estimate < compute_cost("grok-4.6", 400_003, 40_001)
 
 
 def test_corpus_report_estimate_and_no_qa_discount():

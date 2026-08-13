@@ -47,7 +47,7 @@ def test_provider_show_json(isolated_cwd: Path) -> None:
     payload = json.loads(result.stdout)
     assert payload["status"] == "ok"
     assert payload["data"]["provider"] == "xai"
-    assert payload["data"]["model"] == "grok-4.5"
+    assert payload["data"]["model"] == "grok-4.6"
 
 
 def test_provider_list_gemini_json(isolated_cwd: Path) -> None:
@@ -207,7 +207,7 @@ def test_get_provider_override_reads_context() -> None:
 def test_provider_root_no_subcommand_shows_human_route(isolated_cwd: Path) -> None:
     result = runner.invoke(cli.app, ["provider"])
     assert result.exit_code == 0, result.output
-    assert "grok-4.5" in result.output
+    assert "grok-4.6" in result.output
     assert "Provider" in result.output
     assert "Pricing" in result.output
     assert "Change default" in result.output

@@ -77,7 +77,7 @@ def test_provider_type_classification(provider_name: str, model: str) -> None:
 
 def test_exact_cloud_model_lookup() -> None:
     """Known cloud models resolve to their documented context window."""
-    metadata = asyncio.run(resolve_metadata("xai", "grok-4.5"))
+    metadata = asyncio.run(resolve_metadata("xai", "grok-4.6"))
     assert metadata.context_window == 500_000
     assert metadata.provider_type == "cloud"
 
@@ -109,6 +109,11 @@ def test_prefix_cloud_model_lookup() -> None:
     assert metadata.context_window == 1_000_000
 
 
+def test_current_grok_420_non_reasoning_slug_has_one_million_context() -> None:
+    metadata = asyncio.run(resolve_metadata("xai", "grok-4.20-0309-non-reasoning"))
+    assert metadata.context_window == 1_000_000
+
+
 def test_unknown_cloud_model_defaults() -> None:
     """Unknown cloud models get the default context window."""
     metadata = asyncio.run(resolve_metadata("xai", "unknown-model-xyz"))
@@ -134,7 +139,7 @@ def test_local_provider_with_context_window_method() -> None:
 
 
 def test_resolve_metadata_sync_matches_async_cloud_path() -> None:
-    metadata = resolve_metadata_sync("xai", "grok-4.5")
+    metadata = resolve_metadata_sync("xai", "grok-4.6")
     assert metadata.context_window == 500_000
     assert metadata.provider_type == "cloud"
 

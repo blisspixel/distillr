@@ -175,12 +175,13 @@ def research_brief_cmd(
     """Run a multi-topic Gemini Deep Research briefing grounded on existing corpora.
 
     Unlike `distill report` (4-phase strategic report, one topic) and `distill brief`
-    (fast Grok-based single-topic brief), this runs a single Deep Research call
+    (fast configured-model single-topic brief), this runs a single Deep Research call
     across one or more topics with a user-supplied context block that shapes the
     briefing for a specific audience, decision, or downstream agent.
 
     The context file IS the prompt — distill handles file gathering, File Search
-    grounding, Deep Research invocation, and output. Cost: ~$3-5 per briefing.
+    grounding, Deep Research invocation, and output. Google estimates ~$1-3
+    for a typical standard task; actual token and tool usage varies.
 
     Example:
         distill research-brief -t rag-research -t vector-dbs \\

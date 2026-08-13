@@ -49,7 +49,7 @@ __all__ = [
     "judge_shares_family",
 ]
 
-DEFAULT_JUDGE_MODEL: str = "grok-4.5"
+DEFAULT_JUDGE_MODEL: str = "grok-4.6"
 _MAX_SOURCE_CHARS: int = 6000
 _MAX_OUTPUT_CHARS: int = 8000
 

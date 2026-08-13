@@ -110,7 +110,7 @@ def test_fallback_preserves_and_deduplicates_provider_accurate_attempts(tmp_path
     )
 
     assert [(row.provider_name, row.model, row.outcome) for row in response.usage_attempts] == [
-        ("xai", "grok-4.5", "error"),
+        ("xai", "grok-4.6", "error"),
         ("ollama", "qwen3.5:27b", "success"),
     ]
     assert len(tracker.entries) == 2

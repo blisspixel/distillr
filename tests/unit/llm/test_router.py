@@ -560,9 +560,9 @@ def test_retired_model_resolution_warns_and_replaces(caplog: Any) -> None:
         provider_name, model_id = config.resolve("analysis")
 
     assert provider_name == "xai"
-    assert model_id == "grok-4.5"
+    assert model_id == "grok-4.6"
     assert "grok-3" in caplog.text
-    assert "grok-4.5" in caplog.text
+    assert "grok-4.6" in caplog.text
 
 
 @pytest.mark.parametrize(

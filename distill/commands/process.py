@@ -288,7 +288,8 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
     """Process a full YouTube channel -- discover, transcribe, analyze.
 
     Adds the channel to your library, discovers recent videos, gets transcripts,
-    and runs 2-pass Grok analysis on each. Use --report to also generate a full report.
+    and runs 2-pass analysis on each through the configured route. Use --report
+    to also generate a full report.
 
     Examples:
       distill channel https://www.youtube.com/@NateBJones

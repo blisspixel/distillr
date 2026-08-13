@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.54 - 2026-08-13
+
+Current-provider and cost-truth release. Grok 4.6 is now the xAI default, and
+large-request accounting follows provider long-context thresholds instead of
+silently applying short-context rates to every call.
+
+The maintainer required a $0 validation run for this release, so no paid model
+or native Claude plugin evaluation was executed. Substitute release evidence
+consists of the hermetic full suite, strict Agent Plugin distribution
+validation, public contract checks, security and dependency audits, and
+isolated package smoke tests. The portable plugin procedure itself is
+unchanged.
+
+The local release gate passes 6,553 tests with 95.07% branch coverage; 4 tests
+are skipped and 8 explicitly paid or live-network tests are deselected.
+
+### Added
+
+- Grok 4.6 pricing, 500K context metadata, reasoning support, provider-catalog
+  selection, eval defaults, and a dedicated migration guide.
+- Per-call long-context pricing metadata and boundary tests for current xAI,
+  Gemini 3.1 Pro Preview, and reserved OpenAI GPT-5.6 entries.
+
+### Changed
+
+- All new xAI workload defaults now resolve to `grok-4.6`; explicit model
+  overrides remain untouched.
+- Grok 4.20 pricing and context metadata now match the current $1.25/$2.50
+  short-context rates and 1M context window. The catalog uses xAI's exact
+  `grok-4.20-0309-non-reasoning` slug while retaining the older shortened
+  spelling only as a hidden compatibility alias.
+- Cost tracking, authorization, and workflow budgets apply xAI's higher rates
+  to every token in a request at or above 200K prompt tokens. Sequential report
+  estimates remain split by representative call so aggregate run tokens do not
+  trigger a false long-context tier.
+- Deep Research documentation distinguishes Google's current ~$1-3 standard
+  and ~$3-7 Max estimates from Distill's $2.50 and $5.00 authorization
+  midpoints.
+- The documentation-wide standards review reconfirmed Agent Plugins 1.0.0
+  Working Draft, OKF v0.2, MCP 2026-07-28, current Claude 5 metadata, current
+  Gemini models, and the reserved GPT-5.6 registry.
+- MCP `generate_report` now uses the canonical report facade and accepts an
+  explicit profile. Its compatibility default remains `accordion`, while
+  `corpus-report` no longer requires a Gemini Deep Research key.
+
+### Security
+
+- Provider cost authorization no longer undercounts registered long-context
+  requests, preventing workflow caps from approving known higher-tier spend at
+  short-context rates.
+
 ## 0.19.53 - 2026-08-13
 
 Bounded paper-ingest concurrency and shared-budget safety release. Independent

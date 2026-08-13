@@ -53,11 +53,68 @@ MAX_TRANSCRIPTION_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 
 PRICING: dict[str, dict[str, float]] = {
     # xAI Grok — current models
-    "grok-4.5": {"input": 2.00, "output": 6.00},
-    "grok-4.3": {"input": 1.25, "output": 2.50},
-    "grok-4.20-non-reasoning": {"input": 2.00, "output": 6.00},
-    "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
-    "grok-4.20": {"input": 2.00, "output": 6.00},
+    # xAI bills the higher rates for every token in a request once its prompt
+    # reaches 200K tokens. Cached-input discounts are intentionally omitted:
+    # Distill does not yet receive a provider-accurate cached-token count, so
+    # authorization stays conservative at the uncached rate.
+    "grok-4.6": {
+        "input": 2.00,
+        "output": 6.00,
+        "long_context_min_input": 200_000,
+        "long_input": 4.00,
+        "long_output": 12.00,
+    },
+    "grok-4.5": {
+        "input": 2.00,
+        "output": 6.00,
+        "long_context_min_input": 200_000,
+        "long_input": 4.00,
+        "long_output": 12.00,
+    },
+    "grok-4.3": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
+    "grok-4.20-multi-agent-0309": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
+    "grok-4.20-0309-non-reasoning": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
+    # Compatibility alias retained for configurations written before xAI's
+    # exact dated slug was reflected in Distill's registry.
+    "grok-4.20-non-reasoning": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
+    "grok-4.20-0309-reasoning": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
+    "grok-4.20": {
+        "input": 1.25,
+        "output": 2.50,
+        "long_context_min_input": 200_000,
+        "long_input": 2.50,
+        "long_output": 5.00,
+    },
     "grok-imagine-image": {"per_query": 0.50},
     # xAI Grok — retired models (retained for historical cost computation)
     "grok-4-1-fast-reasoning": {"input": 0.20, "output": 0.50},
@@ -72,7 +129,21 @@ PRICING: dict[str, dict[str, float]] = {
     "gemini-3.6-flash": {"input": 1.50, "output": 7.50},
     "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
-    "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
+    "gemini-3.1-pro-preview": {
+        "input": 2.00,
+        "output": 12.00,
+        "long_context_min_input": 200_001,
+        "long_input": 4.00,
+        "long_output": 18.00,
+    },
+    # Compatibility alias retained for existing configuration and ledgers.
+    "gemini-3.1-pro": {
+        "input": 2.00,
+        "output": 12.00,
+        "long_context_min_input": 200_001,
+        "long_input": 4.00,
+        "long_output": 18.00,
+    },
     "gemini-3.1-flash": {"input": 0.25, "output": 1.50},
     # Planning estimates for one Deep Research run. Actual Google billing is
     # based on underlying model inference and tool usage.
@@ -106,14 +177,32 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
     # OpenAI reserved route pricing. The route remains unimplemented, but
     # registry entries keep future estimates and historical ledgers honest.
-    "gpt-5.6-sol": {"input": 5.00, "output": 30.00},
-    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
-    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
+    "gpt-5.6-sol": {
+        "input": 5.00,
+        "output": 30.00,
+        "long_context_min_input": 272_001,
+        "long_input": 10.00,
+        "long_output": 45.00,
+    },
+    "gpt-5.6-terra": {
+        "input": 2.00,
+        "output": 12.00,
+        "long_context_min_input": 272_001,
+        "long_input": 4.00,
+        "long_output": 18.00,
+    },
+    "gpt-5.6-luna": {
+        "input": 0.20,
+        "output": 1.20,
+        "long_context_min_input": 272_001,
+        "long_input": 0.40,
+        "long_output": 1.80,
+    },
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
 }
 
-DEFAULT_MODEL: str = "grok-4.5"
+DEFAULT_MODEL: str = "grok-4.6"
 
 
 def deep_research_query_cost(model: str = "") -> float:
@@ -166,15 +255,21 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
         (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
 
-    For per-query models (e.g. ``gemini-deep-research``) the per-query cost
-    is returned directly, ignoring token counts.
+    Models with a registered long-context threshold use their long-context
+    rates for every token once ``input_tokens`` reaches that threshold. For
+    per-query models (e.g. ``gemini-deep-research``) the per-query cost is
+    returned directly, ignoring token counts.
     """
     rates = get_pricing(model)
     if "per_query" in rates:
         return rates["per_query"]
-    return (
-        input_tokens * rates.get("input", 0.0) + output_tokens * rates.get("output", 0.0)
-    ) / 1_000_000
+    input_rate = rates.get("input", 0.0)
+    output_rate = rates.get("output", 0.0)
+    long_context_min_input = rates.get("long_context_min_input")
+    if long_context_min_input is not None and input_tokens >= long_context_min_input:
+        input_rate = rates.get("long_input", input_rate)
+        output_rate = rates.get("long_output", output_rate)
+    return (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
 
 
 def get_pricing(model: str) -> dict[str, float]:
@@ -183,7 +278,7 @@ def get_pricing(model: str) -> dict[str, float]:
     Resolution order:
     1. Date-resolved temporary pricing windows.
     2. Exact match in ``PRICING``.
-    3. Prefix match, e.g. ``"grok-4.5-beta"`` matches ``"grok-4.5"``.
+    3. Prefix match, e.g. ``"grok-4.6-beta"`` matches ``"grok-4.6"``.
     4. Fall back to ``DEFAULT_MODEL`` and log a warning.
     """
     # Normalize first: catalog keys are lowercase, but a model id reaches here

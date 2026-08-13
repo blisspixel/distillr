@@ -131,7 +131,7 @@ def synthesize_cmd(
         help="Max output tokens (default 32768 ≈ 120KB of output).",
     ),
 ):
-    """Run a single-call Grok deep synthesis across one or more topics.
+    """Run a single-call deep synthesis across one or more topics.
 
     Best for academic/technical corpus synthesis where the corpus is the ground
     truth and web augmentation would add noise. The configured model's context

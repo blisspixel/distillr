@@ -105,10 +105,12 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 Active beta with a broad working surface (sources, discovery, verify, synthesis,
 ask, audit, MCP, dashboard, profiles, deferred workers). Every change still
 clears the same release gate (95% branch coverage, ruff, pyright, import-linter,
-bandit, pip-audit, supported Python matrix, build provenance). Public contracts
-remain open to evidence-backed improvement; pin versions if you integrate on
-MCP schemas or frontmatter. 1.0 is a future stability commitment, not a
-calendar date: [`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
+bandit, pip-audit, supported Python matrix, build provenance). Covered v1
+contract snapshots are freeze-ready under the published compatibility policy;
+uncovered pre-1.0 surfaces can still improve additively. Pin versions if you
+integrate on MCP schemas or frontmatter. 1.0 is a future stability commitment,
+not a calendar date:
+[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
 
 ## License
 

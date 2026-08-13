@@ -291,7 +291,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be reanalyzed"),
 ) -> None:
-    """Re-run Grok analysis on existing transcripts -- skip re-downloading.
+    """Re-run configured-model analysis on transcripts, without re-downloading.
 
     Walks all video directories that have a transcript artifact, re-runs the
     2-pass (full) or 1-pass (Short) analysis, overwrites the insight artifact,

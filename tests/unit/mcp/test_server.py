@@ -1306,6 +1306,30 @@ class TestGenerateReport:
 
         assert result["error"] == "bad run"
 
+    def test_rejects_unknown_profile(self, mock_config):
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            result = json.loads(generate_report("ai", profile="unknown"))
+
+        assert "unknown report profile" in result["error"]
+
+    def test_corpus_profile_does_not_require_gemini(self, tmp_path):
+        config = DistillConfig(
+            gemini_api_key="",
+            xai_api_key="test-xai",
+            distill_output_dir=tmp_path / "library",
+        )
+        report = "# Corpus report\n\nGrounded body"
+        with (
+            patch("distill.mcp.server._config", return_value=config),
+            patch("distill.pipeline.report.corpus.run_corpus_report", return_value=report),
+            patch("distill.mcp.server.save_run_log"),
+            patch("distill.mcp.server._cost_summary", return_value=_FAKE_COST),
+        ):
+            result = json.loads(generate_report("ai", profile="corpus-report"))
+
+        assert result["status"] == "complete"
+        assert result["profile"] == "corpus-report"
+
     def test_returns_complete_payload(self, mock_config):
         report = "word " * 1200
         with (
@@ -1317,6 +1341,7 @@ class TestGenerateReport:
             result = json.loads(generate_report("ai", channel="TestChannel"))
 
         assert result["status"] == "complete"
+        assert result["profile"] == "accordion"
         assert result["words"] == len(report.split())
         assert result["characters"] == len(report)
         assert "(truncated" in result["report"]

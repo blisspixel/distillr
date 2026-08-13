@@ -53,7 +53,13 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
     **Validates: Requirements 5.1**
     """
     rates = get_pricing(model)
-    expected = (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1_000_000
+    input_rate = rates["input"]
+    output_rate = rates["output"]
+    threshold = rates.get("long_context_min_input")
+    if threshold is not None and input_tokens >= threshold:
+        input_rate = rates["long_input"]
+        output_rate = rates["long_output"]
+    expected = (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
     assert compute_cost(model, input_tokens, output_tokens) == expected
 
 
@@ -113,24 +119,26 @@ def test_prefix_matching_for_versioned_model_names() -> None:
     result = get_pricing("grok-4.3-beta")
     assert result == PRICING["grok-4.3"]
 
-    result2 = get_pricing("gemini-3.1-pro-latest")
-    assert result2 == PRICING["gemini-3.1-pro"]
+    result2 = get_pricing("gemini-3.1-pro-preview-latest")
+    assert result2 == PRICING["gemini-3.1-pro-preview"]
 
 
 @pytest.mark.parametrize(
     "model,expected_input,expected_output",
     [
+        ("grok-4.6", 2.00, 6.00),
         ("grok-4.5", 2.00, 6.00),
         ("grok-4.3", 1.25, 2.50),
         ("grok-4-1-fast-reasoning", 0.20, 0.50),
-        ("grok-4.20-0309-reasoning", 2.00, 6.00),
-        ("grok-4.20", 2.00, 6.00),
+        ("grok-4.20-0309-non-reasoning", 1.25, 2.50),
+        ("grok-4.20-0309-reasoning", 1.25, 2.50),
+        ("grok-4.20", 1.25, 2.50),
         ("gemini-3.6-flash", 1.50, 7.50),
         ("gemini-3.5-flash", 1.50, 9.00),
         ("gemini-3.5-flash-lite", 0.30, 2.50),
+        ("gemini-3.1-pro-preview", 2.00, 12.00),
         ("gemini-3.1-pro", 2.00, 12.00),
         ("gemini-3.1-flash", 0.25, 1.50),
-        ("claude-sonnet-5", 2.00, 10.00),
         ("claude-fable-5", 10.00, 50.00),
         ("claude-mythos-5", 10.00, 50.00),
         ("claude-opus-5", 5.00, 25.00),
@@ -151,6 +159,27 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
     assert rates["output"] == expected_output
 
 
+@pytest.mark.parametrize(
+    ("model", "threshold", "short_cost", "long_cost"),
+    [
+        ("grok-4.6", 200_000, 0.999998, 2.0),
+        ("grok-4.3", 200_000, 0.49999875, 1.0),
+        ("gemini-3.1-pro-preview", 200_001, 1.6, 2.600004),
+        ("gpt-5.6-sol", 272_001, 4.36, 7.22001),
+    ],
+)
+def test_long_context_pricing_starts_at_registered_boundary(
+    model: str,
+    threshold: int,
+    short_cost: float,
+    long_cost: float,
+) -> None:
+    """A single long prompt uses the provider's all-token long-context rate."""
+
+    assert compute_cost(model, threshold - 1, 100_000) == pytest.approx(short_cost)
+    assert compute_cost(model, threshold, 100_000) == pytest.approx(long_cost)
+
+
 def test_sonnet5_standard_pricing_after_intro_period(monkeypatch: pytest.MonkeyPatch) -> None:
     import distill.llm.cost as cost_mod
 
@@ -160,6 +189,17 @@ def test_sonnet5_standard_pricing_after_intro_period(monkeypatch: pytest.MonkeyP
     assert rates["input"] == 3.00
     assert rates["output"] == 15.00
     assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 18.0
+
+
+def test_sonnet5_intro_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 8, 13))
+
+    rates = get_pricing("claude-sonnet-5")
+    assert rates["input"] == 2.00
+    assert rates["output"] == 10.00
+    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
 
 
 def test_deep_research_query_cost_model_aware() -> None:

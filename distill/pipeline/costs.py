@@ -29,8 +29,8 @@ from distill.llm.cost import (
     PRICING as LLM_PRICING,
 )
 from distill.llm.cost import (
+    compute_cost,
     deep_research_query_cost,
-    get_pricing,
     normalize_transcription_duration,
     transcription_cost,
 )
@@ -114,11 +114,7 @@ def _token_usage_cost(usage: TokenUsage) -> float:
         return 0.0
     if usage.no_metered_cost:
         return 0.0
-    rates = get_pricing(usage.model)
-    return (
-        usage.prompt_tokens * rates.get("input", 0.0) / 1_000_000
-        + usage.completion_tokens * rates.get("output", 0.0) / 1_000_000
-    )
+    return compute_cost(usage.model, usage.prompt_tokens, usage.completion_tokens)
 
 
 def _empty_attempt_id_set() -> set[str]:

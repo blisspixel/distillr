@@ -131,7 +131,7 @@ class TestGrokProviderSuccess:
         assert result.output_tokens == 50
         assert result.model == "grok-4.3"
 
-    @pytest.mark.parametrize("model", ["grok-4.5", "grok-4.3"])
+    @pytest.mark.parametrize("model", ["grok-4.6", "grok-4.5", "grok-4.3"])
     def test_reasoning_effort_is_forwarded_for_supported_models(self, model: str) -> None:
         provider, mock_client = _build_provider()
         mock_client.chat.completions.create.return_value = _make_mock_response()

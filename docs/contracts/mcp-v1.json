@@ -535,6 +535,10 @@
             ],
             "default": null
           },
+          "profile": {
+            "default": "accordion",
+            "type": "string"
+          },
           "topic": {
             "type": "string"
           }
