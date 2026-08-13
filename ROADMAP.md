@@ -59,7 +59,7 @@ We deliberately do **not** position this as a "memory layer." The agent-memory c
 
 Distillr should not chase that crowd - the vault-maintenance fight is lost to 35k/11k-star incumbents and the storage format is no longer a differentiator (everyone has Markdown now).
 
-**OKF changes the interop story, not the product thesis.** Google Cloud introduced the [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) on 2026-06-12 as a vendor-neutral Markdown + YAML-frontmatter specification for agent-readable knowledge bundles; the [v0.1 spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) requires only parseable frontmatter with `type`, conventional `index.md` / `log.md`, Markdown links, and citations. That validates distillr's file-first bet, but it also means "plain Markdown" will become table stakes. The right move is not to rewrite the native corpus around OKF or build a graph viewer; it is to make distillr a high-quality OKF producer and validator so verified research corpora can move into other agent systems without losing receipts, audit state, or provenance.
+**OKF changes the interop story, not the product thesis.** Google Cloud introduced the [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) on 2026-06-12 as a vendor-neutral Markdown + YAML-frontmatter specification for agent-readable knowledge bundles. The current [v0.2 spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) keeps the minimal `type`, `index.md`, `log.md`, and Markdown-link base while making `sources`, `generated`, `verified`, `status`, `stale_after`, trust tiers, and attested computations first-class. That validates distillr's file-first bet, but it also means "plain Markdown" will become table stakes. Distillr should remain a high-quality OKF producer and validator so verified research corpora can move into other agent systems without losing receipts, audit state, freshness, or provenance. The native corpus remains authoritative.
 
 **Where distillr's ground is uncrowded (verified June 2026):**
 
@@ -71,6 +71,7 @@ Distillr should not chase that crowd - the vault-maintenance fight is lost to 35
 
 - **AGENTS.md won the cross-vendor baseline** (Linux Foundation / Agentic AI Foundation; supported in Codex, Cursor, Gemini CLI, and 30+ tools) - but Claude Code reads CLAUDE.md, so the corpus emits *both* per topic. `llms.txt` is not the core interface, but once OKF export ships it can become a thin optional pointer to the exported bundle for tools that look there.
 - **SKILL.md went vendor-neutral** ([agentskills.io](https://agentskills.io), ~32 tools by March 2026), and the winning vendor pattern is exactly distillr's shape: *a CLI plus one skill teaching the agent to use it*. One canonical SKILL.md is one file, ~100 tokens until invoked - categorically different from the symlink-machinery model this roadmap still rejects.
+- **Agent Plugins v1 standardizes portable packaging.** The generated `distill-corpus` plugin now carries the required root [`plugin.json`](https://agent-plugins.org/specification), the fixed `skills/` tree, and existing client compatibility manifests. The portable package deliberately omits `mcp.json`: installing a skill must not silently activate Distill's write-capable or spend-capable MCP surface.
 - **The MCP server stays but slims.** Token-efficiency is now canon: Anthropic measured ~85% schema savings from deferred tool loading and large gains from [code-execution over tool calls](https://www.anthropic.com/engineering/code-execution-with-mcp); GitHub cut agentic-workflow tokens ~62% partly by replacing MCP calls with the `gh` CLI; Claude Code's own best practices call CLI tools "the most context-efficient way to interact with external services." At ~500-1,000 schema tokens per tool, 22 always-loaded tools is the pattern the ecosystem is punishing. Consolidate to a handful of workflow-shaped tools that return **paths into the corpus plus short previews, never full payloads** - the corpus being plain files makes this natural. The server remains the only route to claude.ai web/mobile and hosted agents, so it stays; it becomes a thin window onto the files.
 - **MCP 2026-07-28 is a compatibility checkpoint, not a product pivot - and the inventory is done.** The final spec makes the protocol core stateless (the `initialize` handshake is removed; version and capabilities travel per-request in `_meta`), mandates `server/discover`, replaces server-initiated requests with the Multi Round-Trip Request pattern, requires cache metadata on listings, moves Tasks to an official extension, and deprecates roots, sampling, and logging. The completed inventory ([`docs/design/mcp-2026-07-28-adoption.md`](docs/design/mcp-2026-07-28-adoption.md)) found Distill depends on none of the removed or deprecated features; the whole era migration concentrates in the SDK boundary. Phase 1 (behavior-hint annotations held to the write-tool registry, frozen deterministic tool order, server identity, tests off private SDK internals) shipped on the v1 SDK in 0.19.47, and phase 2, the SDK v2 port, shipped in 0.19.48: the server now negotiates 2026-07-28 with modern clients through `server/discover` (with deliberate cache metadata) while still answering legacy initialize clients from the same stdio binary, proven against both client generations with the contract snapshot byte-identical across the swap. The Tasks extension for long-running ingest remains staged behind official SDK extension support.
 - **Registries don't distribute.** MCP registry usage concentrates in ~10 famous servers (top 10 take ~46% of attention); skills marketplaces have a measured 13.4% critical-flaw rate (Snyk ToxicSkills, Feb 2026). The adoption levers that work: a good `uvx`-runnable CLI, agent-readable docs in the repo, and a self-describing corpus - plus the security story ("your research is local plain files; no third-party server in the loop"), which MCP's 2026 CVE record turned into a real selling point.
@@ -107,9 +108,24 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.50, 2026-08-01). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.51, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
+
+  Model registry refresh on 2026-08-13 moved the xAI default to `grok-4.5`
+  with current pricing, context metadata, and cost estimates while retaining
+  explicit model overrides. Current Claude 5 pricing is also registered, and
+  the unimplemented OpenAI route has current reserved GPT-5.6 cost metadata.
+
+  Report refinement on 2026-08-12 put one facade over three explicit profiles.
+  The default `corpus-report` writes sequentially from durable corpus evidence;
+  `accordion` adds a Gemini Deep Research dossier; `deep-research` keeps the
+  single-provider path. Section definitions are strict versioned data, report
+  orchestration is decomposed without parallelizing the section spine, and
+  document-wide QA now covers contradictions, near duplicates, terminology,
+  and source independence before a final structural audit. Bounded paper and
+  video fan-out remains forward work until shared budget, progress, and state
+  writes are concurrency-safe.
 
   Cost visibility tightened after the xAI spend review: `distill doctor` reports
   the active cost mode and warns when `auto` mode has metered API keys
@@ -119,7 +135,7 @@ Shipped: **0.1 through 0.19** (latest release 0.19.50, 2026-08-01). Per-release 
   including high daily spend, spend spikes, configured per-workflow budget
   overruns, and any recorded xAI media-generation model ids.
 - **0.18 Batch-run visibility** - the `_logic.py` monolith fully retired, per-item / per-phase progress with running cost and ETA on the long ingest and report loops, and `-q` / `-v` / `--json` verbosity controls while the CLI contracts remain candidates.
-- **0.17 OKF interop + loop-ready stewardship** - `distill export --what bundle --format okf` and `distill okf validate` (OKF v0.1 bundles projected over the native corpus), plus `distill audit --next-actions --json` as the loop handoff surface. Design: [`docs/design/okf-loop-readiness.md`](docs/design/okf-loop-readiness.md).
+- **0.17 OKF interop + loop-ready stewardship** - `distill export --what bundle --format okf` and `distill okf validate` (now upgraded from the original v0.1 projection to OKF v0.2), plus `distill audit --next-actions --json` as the loop handoff surface. Design: [`docs/design/okf-loop-readiness.md`](docs/design/okf-loop-readiness.md).
 - **0.13-0.16 Engineering legibility + CLI-UX** - the entailment tier + verify-on-every-synthesis (0.13), agent-grade `--json` / strict stdout-stderr split (0.14), in-place `distill update` (0.15), the blocking structural golden-corpus eval gate (0.16), and the full `_logic.py` monolith removal. Design: [`docs/design/logic-decomposition.md`](docs/design/logic-decomposition.md).
 - **0.12 Compounding corpus** - the `distill ask` loop with strict-by-definition `--save` promotion, revision-cached sub-agent MCP summaries, read-only MCP + per-call spend caps + ingest allowlist, semantic dedup, the prompt-version registry + staleness rollup, and per-item failure isolation. Design: [`docs/design/ask-loop.md`](docs/design/ask-loop.md).
 - **0.11 Source breadth + audio** - five adapters (GitHub repos, podcasts RSS-first, generic media, newsletters, X), every one verify-gated, plus YouTube caption-retry with backoff and the Whisper fallback.
@@ -715,12 +731,12 @@ distill/
 │   │   ├── topic.py
 │   │   ├── corpus.py
 │   │   └── register.py      # 0.9 - PhD / exec / pop styles
-│   ├── report/              # 4-phase Deep Research pipeline
-│   │   ├── phase1_research.py
-│   │   ├── phase2_facts.py
-│   │   ├── phase3_writing.py
-│   │   ├── phase4_qa.py
-│   │   └── compaction.py    # 0.6 - between-phase summaries
+│   ├── report/              # profiled sequential report pipeline
+│   │   ├── facade.py        # one public dispatch boundary
+│   │   ├── profiles.py      # profile names and capabilities
+│   │   ├── corpus.py        # bounded corpus-first research material
+│   │   ├── accordion.py     # ordered writing, assembly, QA, audit
+│   │   └── deep_research.py # single-provider Gemini path
 │   ├── discovery.py         # goal-aware cross-source fanout + rerank
 │   └── ranking.py           # generic LLM rerank
 │

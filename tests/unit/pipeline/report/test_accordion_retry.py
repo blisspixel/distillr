@@ -49,6 +49,10 @@ def _make_response(text: str = "Section content here") -> LLM_Response:
     )
 
 
+def _configure_router(mock_router_config: MagicMock) -> None:
+    mock_router_config.return_value.resolve.return_value = ("xai", "grok-4.3")
+
+
 # ─── Test: Retry-then-success resets counter ─────────────────────────
 
 
@@ -66,6 +70,8 @@ def test_retry_then_success_resets_counter(
 ):
     """When a section fails then succeeds on retry, consecutive_failures resets to 0."""
     from distill.pipeline.report.accordion import _write_sections
+
+    _configure_router(mock_router_config)
 
     # Section 1: fails once then succeeds (retry success)
     # Section 2: succeeds immediately
@@ -126,6 +132,8 @@ def test_3_consecutive_failures_stops_loop(
     """When 3 sections fail consecutively (after retries exhausted), the loop stops."""
     from distill.pipeline.report.accordion import _write_sections
 
+    _configure_router(mock_router_config)
+
     # All calls fail
     mock_llm_call.side_effect = RuntimeError("API unavailable")
 
@@ -162,6 +170,8 @@ def test_success_after_failure_prevents_circuit_break(
 ):
     """A success between failures prevents the 3-consecutive-failure circuit breaker."""
     from distill.pipeline.report.accordion import _write_sections
+
+    _configure_router(mock_router_config)
 
     call_sequence = {
         "Introduction": "fail",  # fails all retries -> consecutive=1
@@ -216,6 +226,8 @@ def test_llmcall_logged_on_failure(
     """LLMCall records are logged when a section fails after all retries."""
     from distill.pipeline.report.accordion import _write_sections
 
+    _configure_router(mock_router_config)
+
     mock_llm_call.side_effect = RuntimeError("API timeout")
 
     with caplog.at_level(logging.WARNING, logger="distill.pipeline.report.accordion"):
@@ -257,6 +269,8 @@ def test_llmcall_logged_on_final_failure(
     """An ERROR-level LLMCall record is logged when all retries are exhausted."""
     from distill.pipeline.report.accordion import _write_sections
 
+    _configure_router(mock_router_config)
+
     mock_llm_call.side_effect = RuntimeError("Permanent failure")
 
     with caplog.at_level(logging.ERROR, logger="distill.pipeline.report.accordion"):
@@ -293,6 +307,8 @@ def test_llmcall_logged_on_retry_success(
 ):
     """When a call succeeds after retries, an INFO-level LLMCall is logged with attempt > 1."""
     from distill.pipeline.report.accordion import _write_sections
+
+    _configure_router(mock_router_config)
 
     call_count = {"n": 0}
 
@@ -344,6 +360,8 @@ def test_empty_response_counts_as_failure(
 ):
     """An LLM call that returns empty text counts as a failure for the circuit breaker."""
     from distill.pipeline.report.accordion import _write_sections
+
+    _configure_router(mock_router_config)
 
     # Return empty text (not an exception, but empty content)
     mock_llm_call.return_value = _make_response("")

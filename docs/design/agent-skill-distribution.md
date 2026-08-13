@@ -7,10 +7,10 @@ Status: implemented
 Distill maintains one hand-edited Agent Skill at
 [`skills/distill-corpus/`](../../skills/distill-corpus/). A deterministic
 generator copies that exact skill into one self-contained plugin that current
-Codex, Claude Code, Grok Build, and Gemini CLI surfaces can consume. The same
-generator builds the ZIP-shaped artifacts used by claude.ai and other Agent
-Skills clients, plus an integrity-manifested package resource used by the
-`distill skill` lifecycle.
+Agent Plugins v1, Codex, Claude Code, Grok Build, and Gemini CLI surfaces can
+consume. The same generator builds the ZIP-shaped artifacts used by claude.ai
+and other Agent Skills clients, plus an integrity-manifested package resource
+used by the `distill skill` lifecycle.
 
 The skill teaches an already active agent how to read and curate a Distill
 corpus and how to complete a bounded `distill worker` task. It is not an LLM
@@ -42,6 +42,9 @@ The common denominator is the
 [`SKILL.md` Agent Skills format](https://agentskills.io/specification). Vendor
 packaging is a thin distribution layer around it:
 
+- [Agent Plugins v1](https://agent-plugins.org/specification) defines the
+  portable package contract: required root `plugin.json`, fixed `skills/`, and
+  optional root `mcp.json`.
 - [Codex uses `.codex-plugin/plugin.json` and a `skills/` directory](https://learn.chatgpt.com/docs/build-plugins).
 - [Claude Code plugins use `.claude-plugin/plugin.json` and the same `skills/`
   directory](https://code.claude.com/docs/en/discover-plugins), with a
@@ -62,6 +65,7 @@ packaging is a thin distribution layer around it:
 
 | Surface | Preferred unit | Install or load path | Validation |
 |---|---|---|---|
+| Agent Plugins v1 clients | Portable plugin | Install `plugins/distill-corpus` or the matching plugin archive | Root manifest schema, fixed skill discovery, and drift check |
 | Codex CLI and app | Repository plugin | Add `blisspixel/distillr` as marketplace `distillr`, then install `distill-corpus@distillr` | Codex plugin validator plus drift check |
 | Claude Code | Repository plugin | Add marketplace `blisspixel/distillr`, then install `distill-corpus@distillr` | `claude plugin validate --strict` |
 | Grok Build | Claude-compatible plugin | Use the repository marketplace or load `plugins/distill-corpus` with `--plugin-dir` | Same generated plugin and skill checks |
@@ -71,10 +75,16 @@ packaging is a thin distribution layer around it:
 | Generic Agent Skills clients | Canonical skill or `.skill` | Install the folder or matching release archive | Agent Skills validator and checksum |
 | Any installed Distill CLI | Verified direct fallback | Preview with `distill skill install --client <client>`, then apply with `--yes` | Runtime manifest, exact inventory, safe replacement, post-write verification |
 
-The repository plugin deliberately contains all three current manifests and
-one copied `skills/distill-corpus/` tree. Each client ignores the manifests it
-does not own. This produces one cacheable plugin instead of three copies that
-can disagree.
+The repository plugin deliberately contains the portable Agent Plugins v1 root
+manifest, three client compatibility manifests, and one copied
+`skills/distill-corpus/` tree. Each client ignores the manifests it does not
+own. This produces one cacheable plugin instead of separate copies that can
+disagree.
+
+The portable package is intentionally skill-only and omits root `mcp.json`.
+Installing a corpus procedure must not silently activate Distill's write-capable
+or spend-capable MCP tools. Operators configure `distill-mcp` separately with
+the desired read-only mode, allowlist, and spend caps.
 
 ## Source and drift invariants
 
@@ -89,6 +99,8 @@ The generator enforces structural ground truth only:
 
 - the package version is strict semantic versioning and is copied into every
   versioned manifest;
+- root `plugin.json` declares the Agent Plugins v1.0.0 schema and uses only its
+  closed set of portable metadata fields;
 - skill inputs are bounded regular files, not links or credential-shaped files;
 - the generated plugin has an exact file inventory and byte-for-byte skill and
   eval copy;
@@ -186,10 +198,11 @@ That produces:
 - `distill-agent-distributions-<version>.sha256`, checksums for all three.
 
 Skill archives contain `distill-corpus/SKILL.md` at their root. The plugin
-archive contains `distill-corpus/` followed by the three manifests, the single
-skill tree, behavioral evals, its README, and its license. The wheel carries the
-small verified skill resource required by `distill skill`; standalone agent
-artifacts stay in `agent-dist/` and are not published as Python distributions.
+archive contains `distill-corpus/` followed by the portable root manifest, the
+three compatibility manifests, the single skill tree, behavioral evals, its
+README, and its license. The wheel carries the small verified skill resource
+required by `distill skill`; standalone agent artifacts stay in `agent-dist/`
+and are not published as Python distributions.
 
 ## Billing and fallback truth
 

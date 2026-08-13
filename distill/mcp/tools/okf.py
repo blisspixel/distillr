@@ -1,5 +1,5 @@
 # pyright: strict
-"""MCP tools — OKF export and validation."""
+"""MCP tools for OKF export and validation."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def _bundle_preview(output_dir: Path) -> str:
 @mcp.tool(annotations=write_tool_annotations(destructive=True, idempotent=True, open_world=False))
 @write_tool("okf_export")
 def okf_export(topic: str) -> str:
-    """Export a topic (or ``all``) into an OKF v0.1 bundle under output/.
+    """Export a topic (or ``all``) into an OKF v0.2 bundle under output/.
 
     Args:
         topic: Topic name, or ``all`` for the whole library

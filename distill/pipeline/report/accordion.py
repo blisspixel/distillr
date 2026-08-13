@@ -2,13 +2,11 @@
 """Accordion method -- Deep Research dossier + section-by-section Grok writing."""
 
 import hashlib
-import json
 import logging
 import re
 import time
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
 
 from distill._console import console
 from distill.config import DistillConfig
@@ -17,11 +15,9 @@ from distill.library.paths import (
     artifact_exists,
     artifact_path,
     base_frontmatter,
-    find_artifact,
     tags_for,
     write_markdown_artifact,
 )
-from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.call import LLMCall
 from distill.llm.cost_policy import require_route_allowed
@@ -48,8 +44,16 @@ from distill.pipeline.report.accordion_qa import (
 from distill.pipeline.report.accordion_qa import (
     parse_qa_failures as _parse_qa_failures,
 )
+from distill.pipeline.report.assembly import assemble_report as _render_assembled_report
+from distill.pipeline.report.assembly import audit_assembled_report
 from distill.pipeline.report.deep_research import _get_report_path
 from distill.pipeline.report.file_search import create_research_store, delete_store
+from distill.pipeline.report.materials import (
+    channels_for_scope as _channels_for_scope,
+)
+from distill.pipeline.report.materials import (
+    gather_tagged_materials as _gather_tagged_materials,
+)
 from distill.pipeline.summary import BatchProgress
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.report import (
@@ -62,6 +66,7 @@ from distill.prompts.report import (
     qa_prompt,
     section_prompt,
 )
+from distill.prompts.report_sections import DEFAULT_SECTION_PROFILE
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +87,42 @@ def __getattr__(name: str) -> object:
 
 
 __all__ = [
+    "report_router_config",
     "run_accordion_research",
+    "run_sequential_report",
 ]
 
 # Gemini Deep Research (the April-2026 successor to deep-research-pro-preview-12-2025).
 # Standard variant, not the pricier deep-research-max-preview-04-2026.
 DEEP_RESEARCH_MODEL = "deep-research-preview-04-2026"
-MAX_CORPUS_CHARS = 350_000
-type ChannelRef = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class SectionWriteResult:
+    """Outcome of one section call before orchestration policy is applied."""
+
+    section: WrittenSection | None
+    error: str = ""
+    refusal: str = ""
+
+
+def report_router_config(config: DistillConfig) -> RouterConfig:
+    """Build one report router so preflight and model calls use the same keys."""
+
+    return RouterConfig(
+        xai_api_key=config.xai_api_key.get_secret_value(),
+        gemini_api_key=config.gemini_api_key.get_secret_value(),
+        anthropic_api_key=config.anthropic_api_key.get_secret_value(),
+        openai_api_key=config.openai_api_key.get_secret_value(),
+        cost_mode=config.distill_cost_mode,
+        fast_model=config.xai_fast_model,
+        premium_model=config.xai_premium_model,
+        analysis_model=config.xai_analysis_model,
+        rerank_model=config.xai_rerank_model,
+        synthesis_model=config.xai_synthesis_model,
+        site_model=config.xai_site_model,
+        accordion_model=config.accordion_section_model,
+    )
 
 
 def run_accordion_research(
@@ -105,6 +138,8 @@ def run_accordion_research(
     skip_qa: bool = False,
 ) -> str | None:
     """Run the full accordion pipeline: research -> sections -> assembly -> QA."""
+    router_config = report_router_config(config)
+    router_config.validate_config("accordion")
     require_route_allowed(
         cost_mode=config.distill_cost_mode,
         provider="gemini",
@@ -161,18 +196,67 @@ def run_accordion_research(
         console.print("[cyan]Research-only mode -- skipping section writing[/cyan]")
         return dossier
 
+    return run_sequential_report(
+        topic=topic,
+        config=config,
+        dossier=dossier,
+        scope=scope,
+        channel_name=channel_name,
+        sections=sections,
+        tracker=tracker,
+        skip_qa=skip_qa,
+        phase_progress=phase_progress,
+        section_profile=DEFAULT_SECTION_PROFILE,
+        research_label="Deep Research dossier",
+        method_label="Accordion method | Deep Research dossier plus sequential section writing",
+        prompt_family="report.accordion",
+        router_config=router_config,
+    )
+
+
+def run_sequential_report(
+    *,
+    topic: str,
+    config: DistillConfig,
+    dossier: str,
+    scope: str = "topic",
+    channel_name: str | None = None,
+    sections: list[str] | None = None,
+    tracker: CostTracker,
+    skip_qa: bool = False,
+    phase_progress: BatchProgress | None = None,
+    section_profile: str = DEFAULT_SECTION_PROFILE,
+    research_label: str = "Deep Research dossier",
+    method_label: str = "Accordion method | Deep Research dossier plus sequential section writing",
+    prompt_family: str = "report.accordion",
+    router_config: RouterConfig | None = None,
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = (
+        "a senior pre-sales architect who advises enterprise customers on AI strategy "
+        "across Microsoft, Google, AWS, and NVIDIA"
+    ),
+    show_video_coverage: bool = True,
+) -> str | None:
+    """Write, review, assemble, audit, and save an ordered report."""
+
+    if not dossier.strip():
+        return None
+    progress = phase_progress or BatchProgress("report", 2 if skip_qa else 3, tracker)
+    router = router_config or report_router_config(config)
+    router.validate_config("accordion")
+
     # Determine active sections based on scope
     _, channel_count = _count_sources(topic, config, scope, channel_name)
-    active_sections = get_active_sections(scope, channel_count)
+    active_sections = get_active_sections(scope, channel_count, profile=section_profile)
 
     # ── Phase 2: Section Writing ──
-    section_model = config.xai_model_for("accordion")
+    _, section_model = router.resolve("accordion")
     console.print(
         f"\n[bold cyan]Phase 2: Section Writing ({section_model} x {len(active_sections)} sections)[/bold cyan]"
     )
 
-    phase_start = phase_progress.start_item()
-    console.print(phase_progress.item_line("sections", "Section writing"))
+    phase_start = progress.start_item()
+    console.print(progress.item_line("sections", "Section writing"))
     with phase_scope("report.sections", wait_class="provider"):
         tagged_materials = _gather_tagged_materials(topic, config, scope, channel_name)
 
@@ -186,21 +270,25 @@ def run_accordion_research(
             filter_sections=sections,
             tracker=tracker,
             active_sections=active_sections,
+            research_label=research_label,
+            router_config=router,
+            report_title=report_title,
+            writer_role=writer_role,
         )
 
     if not written_sections:
-        phase_progress.finish_item(phase_start, success=False)
-        console.print(phase_progress.status_line("failed"))
+        progress.finish_item(phase_start, success=False)
+        console.print(progress.status_line("failed"))
         console.print("[red]No sections were written successfully[/red]")
         return None
-    phase_progress.finish_item(phase_start, success=True)
-    console.print(phase_progress.status_line("done"))
+    progress.finish_item(phase_start, success=True)
+    console.print(progress.status_line("done"))
 
     # ── Phase 3: Assembly ──
     console.print("\n[bold cyan]Phase 3: Assembly[/bold cyan]")
 
-    phase_start = phase_progress.start_item()
-    console.print(phase_progress.item_line("assembly", "Report assembly"))
+    phase_start = progress.start_item()
+    console.print(progress.item_line("assembly", "Report assembly"))
     with phase_scope("report.assembly", wait_class="deterministic_cpu"):
         report = _assemble_report(
             topic=topic,
@@ -208,16 +296,19 @@ def run_accordion_research(
             scope=scope,
             channel_name=channel_name,
             sections=written_sections,
+            method_label=method_label,
+            report_title=report_title,
+            show_video_coverage=show_video_coverage,
         )
-    phase_progress.finish_item(phase_start, success=True)
-    console.print(phase_progress.status_line("done"))
+    progress.finish_item(phase_start, success=True)
+    console.print(progress.status_line("done"))
 
     # ── Phase 4: QA ──
     if not skip_qa:
         console.print("\n[bold cyan]Phase 4: QA Review[/bold cyan]")
 
-        phase_start = phase_progress.start_item()
-        console.print(phase_progress.item_line("qa", "QA review"))
+        phase_start = progress.start_item()
+        console.print(progress.item_line("qa", "QA review"))
         with phase_scope("report.qa", wait_class="provider"):
             written_sections, rewrote = _run_qa_phase(
                 topic=topic,
@@ -226,9 +317,14 @@ def run_accordion_research(
                 report=report,
                 written_sections=written_sections,
                 tracker=tracker,
+                active_sections=active_sections,
+                research_label=research_label,
+                router_config=router,
+                report_title=report_title,
+                writer_role=writer_role,
             )
-        phase_progress.finish_item(phase_start, success=True)
-        console.print(phase_progress.status_line("done"))
+        progress.finish_item(phase_start, success=True)
+        console.print(progress.status_line("done"))
 
         # Re-assemble if any sections were rewritten
         if rewrote:
@@ -241,12 +337,17 @@ def run_accordion_research(
                 scope=scope,
                 channel_name=channel_name,
                 sections=written_sections,
+                method_label=method_label,
+                report_title=report_title,
+                show_video_coverage=show_video_coverage,
             )
+
+    audit_assembled_report(report, written_sections)
 
     # Save
     output_path = _get_report_path(topic, config, scope, channel_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    section_model = config.xai_model_for("accordion")
+    _, section_model = router.resolve("accordion")
     write_markdown_artifact(
         output_path.parent,
         "report",
@@ -259,12 +360,16 @@ def run_accordion_research(
             source="distill",
             tags=tags_for(topic, "report") if scope != "all" else tags_for("", "report"),
             synthesis_scope="interpretation",
-            extra={"legacy_filename": "report.md"},
+            extra={
+                "legacy_filename": "report.md",
+                "report_profile": section_profile,
+                "research_source": research_label,
+            },
             provenance=ProvenanceFields(
                 model=section_model,
                 model_version=section_model,
                 temperature=0.5,
-                prompt_id=PROMPT_IDS["report.accordion"],
+                prompt_id=PROMPT_IDS[prompt_family],
             ),
         ),
     )
@@ -364,7 +469,7 @@ def _run_dossier_phase(
 # ─── Phase 2: Section Writing ────────────────────────────────────────
 
 
-def _write_sections(  # noqa: C901 - sequential section orchestration and failure gates
+def _write_sections(
     topic: str,
     config: DistillConfig,
     dossier: str,
@@ -374,11 +479,18 @@ def _write_sections(  # noqa: C901 - sequential section orchestration and failur
     filter_sections: list[str] | None = None,
     tracker: CostTracker | None = None,
     active_sections: list[ReportSection] | None = None,
+    research_label: str = "Deep Research dossier",
+    router_config: RouterConfig | None = None,
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = (
+        "a senior pre-sales architect who advises enterprise customers on AI strategy "
+        "across Microsoft, Google, AWS, and NVIDIA"
+    ),
 ) -> list[WrittenSection]:
     """Write each report section sequentially with context continuity."""
-    rc = RouterConfig()
+    rc = router_config or report_router_config(config)
     written: list[WrittenSection] = []
-    section_list = active_sections or REPORT_SECTIONS
+    section_list = REPORT_SECTIONS if active_sections is None else active_sections
     total = len(section_list)
     selected_sections = [
         (i, section_def)
@@ -395,142 +507,27 @@ def _write_sections(  # noqa: C901 - sequential section orchestration and failur
         item_start = progress.start_item()
         console.print(progress.item_line("write", section_title))
 
-        tagged = tagged_materials.get(section_id)
-
-        prompt = section_prompt(
-            section=section_def,
+        result = write_one_section(
             topic=topic,
-            research_dossier=dossier,
+            config=config,
+            dossier=dossier,
+            section_def=section_def,
             previous_sections=written,
             section_index=i,
             total_sections=total,
-            tagged_material=tagged,
+            tagged_material=tagged_materials.get(section_id),
+            tracker=tracker,
+            router_config=rc,
+            research_label=research_label,
+            report_title=report_title,
+            writer_role=writer_role,
         )
-
-        voice = section_def.get("voice", "analytical")
-        temp = 0.3 if voice == "reference" else 0.5 if voice == "analytical" else 0.6
-
-        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
-        model_name = config.xai_model_for("accordion")
-        content = ""
-
-        def _make_llm_call(
-            _prompt: str = prompt,
-            _temp: float = temp,
-            _section_title: str = section_title,
-        ) -> str:
-            """Execute the LLM call for this section."""
-            response = llm_call(
-                rc,
-                workload_tag="accordion",
-                prompt=_prompt,
-                max_tokens=16384,
-                temperature=_temp,
-                call_type=f"section:{_section_title[:30]}",
-                usage_tracker=tracker,
-            )
-            if tracker:
-                tracker.record(
-                    TokenUsage.from_response(response, call_type=f"section:{_section_title[:30]}")
-                )
-            return response.text
-
-        start_time = time.monotonic()
-        attempt_count = 1
-        last_error: Exception | None = None
-
-        def _on_retry(
-            attempt: int,
-            delay: float,
-            error: Exception,
-            _model_name: str = model_name,
-            _prompt_hash: str = prompt_hash,
-            _prompt: str = prompt,
-            _temp: float = temp,
-            _start_time: float = start_time,
-            _section_title: str = section_title,
-        ) -> None:
-            nonlocal attempt_count, last_error
-            attempt_count = attempt + 2  # attempt is 0-based, next call is attempt+2
-            last_error = error
-            # Log LLMCall for the failed attempt
-            failed_call = LLMCall(
-                model=_model_name,
-                prompt_hash=_prompt_hash,
-                prompt_text=_prompt[:4096] if len(_prompt) <= 4096 else "",
-                temperature=_temp,
-                max_tokens=16384,
-                latency_ms=int((time.monotonic() - _start_time) * 1000),
-                error_message=str(error),
-                attempt=attempt + 1,
-            )
-            logger.warning(
-                "LLM call failed for section %r (attempt %d), retrying in %.1fs: %s",
-                _section_title,
-                attempt + 1,
-                delay,
-                error,
-                extra={"llm_call": failed_call.to_dict()},
-            )
-
-        try:
-            content = retry_with_backoff(
-                _make_llm_call,
-                max_retries=3,
-                base_delay=2.0,
-                jitter_fraction=0.5,
-                is_permanent=lambda exc: isinstance(exc, BudgetExceededError),
-                on_retry=_on_retry,
-            )
-            latency_ms = int((time.monotonic() - start_time) * 1000)
-
-            # Log successful LLMCall (with attempt number for retry-success visibility)
-            if attempt_count > 1:
-                success_call = LLMCall(
-                    model=model_name,
-                    prompt_hash=prompt_hash,
-                    prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
-                    temperature=temp,
-                    max_tokens=16384,
-                    response_text=content[:2048] if content else "",
-                    latency_ms=latency_ms,
-                    attempt=attempt_count,
-                )
-                logger.info(
-                    "LLM call succeeded for section %r after %d attempts",
-                    section_title,
-                    attempt_count,
-                    extra={"llm_call": success_call.to_dict()},
-                )
-        except BudgetExceededError:
-            raise
-        except Exception as e:
-            latency_ms = int((time.monotonic() - start_time) * 1000)
-            # Log final failure LLMCall
-            final_call = LLMCall(
-                model=model_name,
-                prompt_hash=prompt_hash,
-                prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
-                temperature=temp,
-                max_tokens=16384,
-                latency_ms=latency_ms,
-                error_message=str(e),
-                attempt=attempt_count,
-            )
-            logger.error(
-                "LLM call exhausted retries for section %r: %s",
-                section_title,
-                e,
-                extra={"llm_call": final_call.to_dict()},
-            )
-            console.print(f"  [red]Failed after retries: {e}[/red]")
-            content = ""
-
-        refusal = _unresolved_numbered_citation_reason(content)
-        if not content or refusal:
+        if result.section is None:
+            if result.error:
+                console.print(f"  [red]Failed after retries: {result.error}[/red]")
             message = (
-                f"  [red]Refused {section_title}: {refusal}[/red]"
-                if refusal
+                f"  [red]Refused {section_title}: {result.refusal}[/red]"
+                if result.refusal
                 else f"  [red]Failed to write {section_title}[/red]"
             )
             console.print(message)
@@ -543,17 +540,8 @@ def _write_sections(  # noqa: C901 - sequential section orchestration and failur
             continue
 
         consecutive_failures = 0
-        content = _clean_section_output(content)
-        word_count = len(content.split())
-        written.append(
-            {
-                "id": section_id,
-                "title": section_title,
-                "content": content,
-                "word_count": word_count,
-            }
-        )
-        console.print(f"  [green]{word_count:,} words[/green]")
+        written.append(result.section)
+        console.print(f"  [green]{result.section['word_count']:,} words[/green]")
         progress.finish_item(item_start, success=True)
         console.print(progress.status_line("done"))
 
@@ -563,41 +551,177 @@ def _write_sections(  # noqa: C901 - sequential section orchestration and failur
     return written
 
 
+def write_one_section(
+    *,
+    topic: str,
+    config: DistillConfig,
+    dossier: str,
+    section_def: ReportSection,
+    previous_sections: list[WrittenSection],
+    section_index: int,
+    total_sections: int,
+    tagged_material: str | None,
+    tracker: CostTracker | None,
+    router_config: RouterConfig,
+    research_label: str = "Deep Research dossier",
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = (
+        "a senior pre-sales architect who advises enterprise customers on AI strategy "
+        "across Microsoft, Google, AWS, and NVIDIA"
+    ),
+) -> SectionWriteResult:
+    """Write one section with retries, receipts, and citation refusal."""
+
+    section_title = section_def["title"]
+    prompt = section_prompt(
+        section=section_def,
+        topic=topic,
+        research_dossier=dossier,
+        previous_sections=previous_sections,
+        section_index=section_index,
+        total_sections=total_sections,
+        tagged_material=tagged_material,
+        research_label=research_label,
+        report_title=report_title,
+        writer_role=writer_role,
+    )
+    voice = section_def.get("voice", "analytical")
+    temperature = 0.3 if voice == "reference" else 0.5 if voice == "analytical" else 0.6
+    prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+    _, model_name = router_config.resolve("accordion")
+    start_time = time.monotonic()
+    attempt_count = 1
+
+    def make_call() -> str:
+        response = llm_call(
+            router_config,
+            workload_tag="accordion",
+            prompt=prompt,
+            max_tokens=16384,
+            temperature=temperature,
+            call_type=f"section:{section_title[:30]}",
+            usage_tracker=tracker,
+        )
+        if tracker:
+            tracker.record(
+                TokenUsage.from_response(response, call_type=f"section:{section_title[:30]}")
+            )
+        return response.text
+
+    def on_retry(attempt: int, delay: float, error: Exception) -> None:
+        nonlocal attempt_count
+        attempt_count = attempt + 2
+        failed_call = LLMCall(
+            model=model_name,
+            prompt_hash=prompt_hash,
+            prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
+            temperature=temperature,
+            max_tokens=16384,
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+            error_message=str(error),
+            attempt=attempt + 1,
+        )
+        logger.warning(
+            "LLM call failed for section %r (attempt %d), retrying in %.1fs: %s",
+            section_title,
+            attempt + 1,
+            delay,
+            error,
+            extra={"llm_call": failed_call.to_dict()},
+        )
+
+    try:
+        content = retry_with_backoff(
+            make_call,
+            max_retries=3,
+            base_delay=2.0,
+            jitter_fraction=0.5,
+            is_permanent=lambda exc: isinstance(exc, BudgetExceededError),
+            on_retry=on_retry,
+        )
+    except BudgetExceededError:
+        raise
+    except Exception as exc:
+        final_call = LLMCall(
+            model=model_name,
+            prompt_hash=prompt_hash,
+            prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
+            temperature=temperature,
+            max_tokens=16384,
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+            error_message=str(exc),
+            attempt=attempt_count,
+        )
+        logger.error(
+            "LLM call exhausted retries for section %r: %s",
+            section_title,
+            exc,
+            extra={"llm_call": final_call.to_dict()},
+        )
+        return SectionWriteResult(section=None, error=str(exc))
+
+    if attempt_count > 1:
+        success_call = LLMCall(
+            model=model_name,
+            prompt_hash=prompt_hash,
+            prompt_text=prompt[:4096] if len(prompt) <= 4096 else "",
+            temperature=temperature,
+            max_tokens=16384,
+            response_text=content[:2048] if content else "",
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+            attempt=attempt_count,
+        )
+        logger.info(
+            "LLM call succeeded for section %r after %d attempts",
+            section_title,
+            attempt_count,
+            extra={"llm_call": success_call.to_dict()},
+        )
+
+    refusal = _unresolved_numbered_citation_reason(content)
+    if not content or refusal:
+        return SectionWriteResult(section=None, refusal=refusal or "")
+    cleaned = _clean_section_output(content)
+    return SectionWriteResult(
+        section={
+            "id": section_def["id"],
+            "title": section_title,
+            "content": cleaned,
+            "word_count": len(cleaned.split()),
+        }
+    )
+
+
 # ─── Phase 3: Assembly ───────────────────────────────────────────────
 
 
 # ─── Phase 4: QA ────────────────────────────────────────────────────
 
 
-def _run_qa_phase(  # noqa: C901 - legacy, will refactor
+def _run_qa_phase(
     topic: str,
     config: DistillConfig,
     dossier: str,
     report: str,
     written_sections: list[WrittenSection],
     tracker: CostTracker | None = None,
+    active_sections: list[ReportSection] | None = None,
+    research_label: str = "Deep Research dossier",
+    router_config: RouterConfig | None = None,
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = "a senior pre-sales architect",
 ) -> tuple[list[WrittenSection], int]:
     """Run QA review and fix failed sections. Returns (sections, rewrite_count)."""
-    rc = RouterConfig()
-
-    prompt = qa_prompt(topic, dossier, report)
-    try:
-        qa_response = llm_call(
-            rc,
-            workload_tag="accordion",
-            prompt=prompt,
-            max_tokens=16384,
-            retries=1,
-            call_type="qa_review",
-            usage_tracker=tracker,
-        )
-        qa_result = qa_response.text
-        if tracker:
-            tracker.record(TokenUsage.from_response(qa_response, call_type="qa_review"))
-    except BudgetExceededError:
-        raise
-    except Exception:
-        qa_result = ""
+    rc = router_config or report_router_config(config)
+    qa_result = review_assembled_report(
+        topic=topic,
+        dossier=dossier,
+        report=report,
+        tracker=tracker,
+        router_config=rc,
+        research_label=research_label,
+        report_title=report_title,
+    )
 
     if not qa_result:
         console.print("  [yellow]QA review failed -- skipping[/yellow]")
@@ -623,19 +747,7 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
     failed_norm = {_normalize_qa_title(t) for t in failed_sections}
     feedback_norm = {_normalize_qa_title(k): v for k, v in qa_by_section.items()}
 
-    section_lookup = {s["id"]: s for s in REPORT_SECTIONS}
-    for s in get_active_sections():
-        section_lookup[s["id"]] = s
-
-    rewrite_targets: list[tuple[int, WrittenSection, ReportSection]] = []
-    for i, section in enumerate(written_sections):
-        if _normalize_qa_title(section["title"]) not in failed_norm:
-            continue
-
-        section_def = section_lookup.get(section.get("id", ""))
-        if not section_def:
-            continue
-        rewrite_targets.append((i, section, section_def))
+    rewrite_targets = _qa_rewrite_targets(written_sections, active_sections, failed_norm)
 
     rewrote = 0
     progress = BatchProgress("qa-fix", len(rewrite_targets), tracker)
@@ -649,30 +761,18 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
         item_start = progress.start_item()
         console.print(progress.item_line("rewrite", title))
 
-        try:
-            fix_response = llm_call(
-                rc,
-                workload_tag="accordion",
-                prompt=fix_prompt(
-                    section=section_def,
-                    topic=topic,
-                    research=dossier,
-                    qa_feedback=feedback,
-                    original_content=section["content"],
-                ),
-                max_tokens=16384,
-                call_type=f"fix:{title[:25]}",
-                usage_tracker=tracker,
-            )
-            rewrite = fix_response.text
-            if tracker:
-                tracker.record(
-                    TokenUsage.from_response(fix_response, call_type=f"fix:{title[:25]}")
-                )
-        except BudgetExceededError:
-            raise
-        except Exception:
-            rewrite = ""
+        rewrite = rewrite_one_section(
+            topic=topic,
+            dossier=dossier,
+            report=report,
+            section=section,
+            section_def=section_def,
+            feedback=feedback,
+            tracker=tracker,
+            router_config=rc,
+            report_title=report_title,
+            writer_role=writer_role,
+        )
 
         if rewrite:
             refusal = _unresolved_numbered_citation_reason(rewrite)
@@ -702,225 +802,125 @@ def _run_qa_phase(  # noqa: C901 - legacy, will refactor
     return written_sections, rewrote
 
 
+def review_assembled_report(
+    *,
+    topic: str,
+    dossier: str,
+    report: str,
+    tracker: CostTracker | None,
+    router_config: RouterConfig,
+    research_label: str,
+    report_title: str = "Strategic Intelligence Report",
+) -> str:
+    """Review the complete report once so cross-section issues stay visible."""
+
+    try:
+        response = llm_call(
+            router_config,
+            workload_tag="accordion",
+            prompt=qa_prompt(
+                topic,
+                dossier,
+                report,
+                research_label=research_label,
+                report_title=report_title,
+            ),
+            max_tokens=16384,
+            retries=1,
+            call_type="qa_review",
+            usage_tracker=tracker,
+        )
+        if tracker:
+            tracker.record(TokenUsage.from_response(response, call_type="qa_review"))
+        return response.text
+    except BudgetExceededError:
+        raise
+    except Exception:
+        return ""
+
+
+def _qa_rewrite_targets(
+    written_sections: list[WrittenSection],
+    active_sections: list[ReportSection] | None,
+    failed_normalized_titles: set[str],
+) -> list[tuple[int, WrittenSection, ReportSection]]:
+    section_lookup = {section["id"]: section for section in (active_sections or REPORT_SECTIONS)}
+    for section in get_active_sections():
+        section_lookup[section["id"]] = section
+    targets: list[tuple[int, WrittenSection, ReportSection]] = []
+    for index, written in enumerate(written_sections):
+        if _normalize_qa_title(written["title"]) not in failed_normalized_titles:
+            continue
+        definition = section_lookup.get(written.get("id", ""))
+        if definition:
+            targets.append((index, written, definition))
+    return targets
+
+
+def rewrite_one_section(
+    *,
+    topic: str,
+    dossier: str,
+    report: str,
+    section: WrittenSection,
+    section_def: ReportSection,
+    feedback: str,
+    tracker: CostTracker | None,
+    router_config: RouterConfig,
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = "a senior pre-sales architect",
+) -> str:
+    """Rewrite one QA failure with the full document as ordered context."""
+
+    title = section["title"]
+    try:
+        response = llm_call(
+            router_config,
+            workload_tag="accordion",
+            prompt=fix_prompt(
+                section=section_def,
+                topic=topic,
+                research=dossier,
+                qa_feedback=feedback,
+                original_content=section["content"],
+                report_context=report,
+                report_title=report_title,
+                writer_role=writer_role,
+            ),
+            max_tokens=16384,
+            call_type=f"fix:{title[:25]}",
+            usage_tracker=tracker,
+        )
+        if tracker:
+            tracker.record(TokenUsage.from_response(response, call_type=f"fix:{title[:25]}"))
+        return response.text
+    except BudgetExceededError:
+        raise
+    except Exception:
+        return ""
+
+
 def _assemble_report(
     topic: str,
     config: DistillConfig,
     scope: str,
     channel_name: str | None,
     sections: list[WrittenSection],
+    method_label: str = "Accordion method | Deep Research dossier plus section-by-section Grok writing",
+    report_title: str = "Strategic Intelligence Report",
+    show_video_coverage: bool = True,
 ) -> str:
     """Assemble written sections into the final report."""
-    now = datetime.now().strftime("%B %d, %Y")
-    scope_label = _scope_label(scope, topic, channel_name)
-
     video_count, channel_count = _count_sources(topic, config, scope, channel_name)
-
-    lines = [
-        f"# Strategic Intelligence Report: {topic.upper()}",
-        "",
-        f"*{scope_label} | {now}*",
-        f"*{channel_count} channel(s), {video_count} videos analyzed*",
-        "*Accordion method | Deep Research dossier plus section-by-section Grok writing*",
-        "",
-        "---",
-        "",
-    ]
-
-    lines.append("## Table of Contents")
-    lines.append("")
-    for i, section in enumerate(sections, 1):
-        lines.append(f"{i}. **{section['title']}** ({section['word_count']:,} words)")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    for section in sections:
-        lines.append(f"## {section['title']}")
-        lines.append("")
-        lines.append(section["content"])
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    total_words = sum(section.get("word_count", 0) for section in sections)
-    lines.append(
-        f"*Distill report | Accordion method | {len(sections)} sections | {total_words:,} words*"
-    )
-
-    return "\n".join(lines)
-
-
-# ─── Tagged Material Gathering ───────────────────────────────────────
-
-
-def _gather_tagged_materials(
-    topic: str,
-    config: DistillConfig,
-    scope: str,
-    channel_name: str | None,
-) -> dict[str, str]:
-    """Gather section-specific source material from the corpus."""
-    tagged: dict[str, str] = {}
-
-    syntheses = _load_syntheses(topic, config, scope, channel_name)
-    if syntheses:
-        tagged["creator_consensus"] = syntheses
-        # Single-channel reports swap the creator_consensus section for
-        # creator_accuracy (SINGLE_CHANNEL_REPLACEMENT). Store under both ids so
-        # the gathered synthesis reaches whichever section is actually written,
-        # instead of being silently dropped on single-channel runs.
-        tagged["creator_accuracy"] = syntheses
-
-    vendor_insights = _load_tagged_insights(
-        topic,
-        config,
-        scope,
-        channel_name,
-        keywords=["Microsoft", "Azure", "Google", "AWS", "NVIDIA", "OpenAI", "Anthropic"],
-        max_chars=30000,
-    )
-    if vendor_insights:
-        tagged["vendor_battleground"] = vendor_insights
-
-    enterprise_insights = _load_tagged_insights(
-        topic,
-        config,
-        scope,
-        channel_name,
-        keywords=["enterprise", "customer", "production", "deploy", "ROI", "TCO", "pricing"],
-        max_chars=20000,
-    )
-    if enterprise_insights:
-        tagged["enterprise_reality"] = enterprise_insights
-
-    return tagged
-
-
-def _load_syntheses(
-    topic: str,
-    config: DistillConfig,
-    scope: str,
-    channel_name: str | None,
-) -> str:
-    """Load channel and topic syntheses as supplementary material."""
-    parts: list[str] = []
-    channels = _channels_for_scope(topic, config, scope, channel_name)
-
-    for t, ch in channels:
-        synth_file = find_artifact(
-            config.channel_dir(t, ch),
-            "synthesis",
-            identity=f"{t}_{ch}",
-        )
-        if synth_file.exists():
-            link = emit_wiki_link(f"Channel synthesis: {ch}", f"{t}_{ch}", "synthesis")
-            parts.append(
-                f"### {ch} Channel Synthesis\nSource: {link}\n{synth_file.read_text(encoding='utf-8')}"
-            )
-
-    topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
-    if topic_synth.exists():
-        link = emit_wiki_link(f"Topic synthesis: {topic}", topic, "topic_synthesis")
-        parts.append(
-            f"### Topic Synthesis: {topic}\nSource: {link}\n{topic_synth.read_text(encoding='utf-8')}"
-        )
-
-    return "\n\n".join(parts) if parts else ""
-
-
-def _load_tagged_insights(
-    topic: str,
-    config: DistillConfig,
-    scope: str,
-    channel_name: str | None,
-    keywords: list[str],
-    max_chars: int = 30000,
-) -> str:
-    """Load insights that mention specific keywords."""
-    channels = _channels_for_scope(topic, config, scope, channel_name)
-    matching: list[str] = []
-    total_chars = 0
-    keywords_lower = [k.lower() for k in keywords]
-
-    for t, ch in channels:
-        videos_dir = config.videos_dir(t, ch)
-        if not videos_dir.exists():
-            continue
-        for vid_dir in sorted(videos_dir.iterdir()):
-            if not vid_dir.is_dir():
-                continue
-            insights_file = find_artifact(vid_dir, "insights")
-            if not insights_file.exists():
-                continue
-
-            content = insights_file.read_text(encoding="utf-8")
-            content_lower = content.lower()
-
-            if any(kw in content_lower for kw in keywords_lower):
-                title, source_id = _read_video_metadata_title_and_id(
-                    vid_dir / "metadata.json", fallback=vid_dir.name
-                )
-
-                link = emit_wiki_link(title, source_id, "insights")
-                entry = f"**{title}** ({ch}) {link}:\n{content}\n"
-                if total_chars + len(entry) > max_chars:
-                    break
-                matching.append(entry)
-                total_chars += len(entry)
-
-    return "\n---\n".join(matching) if matching else ""
-
-
-def _channels_for_scope(
-    topic: str,
-    config: DistillConfig,
-    scope: str,
-    channel_name: str | None,
-) -> list[ChannelRef]:
-    if scope == "channel" and channel_name:
-        return [(topic, channel_name)]
-
-    if scope == "topic":
-        ch_dir = config.topic_dir(topic) / "channels"
-        if not ch_dir.exists():
-            return []
-        return [(topic, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir()]
-
-    channels: list[ChannelRef] = []
-    topics_root = config.topics_dir()
-    if not topics_root.exists():
-        return channels
-
-    for t_dir in sorted(topics_root.iterdir()):
-        if not t_dir.is_dir():
-            continue
-        ch_dir = t_dir / "channels"
-        if ch_dir.exists():
-            channels.extend((t_dir.name, d.name) for d in sorted(ch_dir.iterdir()) if d.is_dir())
-
-    return channels
-
-
-def _read_video_metadata_title_and_id(meta_file: Path, fallback: str) -> tuple[str, str]:
-    if not meta_file.exists():
-        return fallback, fallback
-
-    try:
-        raw = json.loads(meta_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.debug("Ignoring unreadable video metadata at %s: %s", meta_file, exc)
-        return fallback, fallback
-
-    if not isinstance(raw, dict):
-        logger.debug("Ignoring non-object video metadata at %s", meta_file)
-        return fallback, fallback
-
-    meta = cast("dict[str, Any]", raw)
-    title = meta.get("title")
-    source_id = meta.get("video_id")
-    return (
-        title if isinstance(title, str) and title else fallback,
-        source_id if isinstance(source_id, str) and source_id else fallback,
+    return _render_assembled_report(
+        topic=topic,
+        scope_label=_scope_label(scope, topic, channel_name),
+        sections=sections,
+        video_count=video_count,
+        channel_count=channel_count,
+        method_label=method_label,
+        report_title=report_title,
+        show_video_coverage=show_video_coverage,
     )
 
 

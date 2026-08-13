@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 
 GEMINI_DEEP_RESEARCH_MODEL: str = "gemini-deep-research"
 GEMINI_DEEP_RESEARCH_COST: float = 2.50
-# Deep Research Max reads many more sources per task (~$5/report typical, $2-15
-# range) so it carries a distinct per-query estimate from the standard variant.
+# Google bills Deep Research for underlying model tokens and tools rather than
+# at a flat query price. Distill uses conservative per-run planning estimates
+# so it can authorize spend before Google reports the final usage. Max reads
+# more sources and therefore carries a higher planning estimate.
 DEEP_RESEARCH_MAX_COST: float = 5.00
 DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     GEMINI_DEEP_RESEARCH_MODEL,
@@ -51,6 +53,7 @@ MAX_TRANSCRIPTION_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 
 PRICING: dict[str, dict[str, float]] = {
     # xAI Grok — current models
+    "grok-4.5": {"input": 2.00, "output": 6.00},
     "grok-4.3": {"input": 1.25, "output": 2.50},
     "grok-4.20-non-reasoning": {"input": 2.00, "output": 6.00},
     "grok-4.20-0309-reasoning": {"input": 2.00, "output": 6.00},
@@ -71,8 +74,8 @@ PRICING: dict[str, dict[str, float]] = {
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
     "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
     "gemini-3.1-flash": {"input": 0.25, "output": 1.50},
-    # Deep Research is a per-query product; $2.50/query is an approximation across
-    # the standard variants (Max may run higher).
+    # Planning estimates for one Deep Research run. Actual Google billing is
+    # based on underlying model inference and tool usage.
     GEMINI_DEEP_RESEARCH_MODEL: _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research": _GEMINI_DEEP_RESEARCH_PRICING,
     "deep-research-preview-04-2026": _GEMINI_DEEP_RESEARCH_PRICING,
@@ -82,9 +85,12 @@ PRICING: dict[str, dict[str, float]] = {
     "deep-research-max": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-max-preview-04-2026": _DEEP_RESEARCH_MAX_PRICING,
     "deep-research-pro-preview-12-2025": _GEMINI_DEEP_RESEARCH_PRICING,
-    # Anthropic reserved route pricing estimates. Opus 4.6/4.7/4.8 are the
-    # current 1M-context Opus tier at a flat $5/$25 per 1M tokens (4.8 is the
-    # newest Opus; there is no "Opus 5" -- the 5 generation is Fable/Sonnet).
+    # Anthropic API pricing. Fable and Mythos share the high-capability tier;
+    # Mythos is limited availability. Opus 5 and the recent Opus 4 releases
+    # share the $5/$25 tier.
+    "claude-fable-5": {"input": 10.00, "output": 50.00},
+    "claude-mythos-5": {"input": 10.00, "output": 50.00},
+    "claude-opus-5": {"input": 5.00, "output": 25.00},
     "claude-opus-4-8": {"input": 5.00, "output": 25.00},
     "claude-opus-4-7": {"input": 5.00, "output": 25.00},
     "claude-opus-4-6": {"input": 5.00, "output": 25.00},
@@ -96,20 +102,26 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4": {"input": 5.00, "output": 25.00},
     "claude-sonnet-5": _SONNET_5_INTRO_PRICING,
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
+    "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
-    # OpenAI reserved route pricing estimates
+    # OpenAI reserved route pricing. The route remains unimplemented, but
+    # registry entries keep future estimates and historical ledgers honest.
+    "gpt-5.6-sol": {"input": 5.00, "output": 30.00},
+    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
+    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
 }
 
-DEFAULT_MODEL: str = "grok-4.3"
+DEFAULT_MODEL: str = "grok-4.5"
 
 
 def deep_research_query_cost(model: str = "") -> float:
-    """Return the per-query estimate for a Gemini Deep Research job.
+    """Return the pre-run planning estimate for a Gemini Deep Research job.
 
     Model-aware: ``deep-research-max-preview-04-2026`` is ~$5/query, the standard
-    variants ~$2.50. An empty model falls back to the standard estimate.
+    variants ~$2.50. Actual billing is token and tool based. An empty model
+    falls back to the standard estimate.
     """
     name = model or GEMINI_DEEP_RESEARCH_MODEL
     return get_pricing(name).get("per_query", GEMINI_DEEP_RESEARCH_COST)
@@ -171,7 +183,7 @@ def get_pricing(model: str) -> dict[str, float]:
     Resolution order:
     1. Date-resolved temporary pricing windows.
     2. Exact match in ``PRICING``.
-    3. Prefix match, e.g. ``"grok-4.3-beta"`` matches ``"grok-4.3"``.
+    3. Prefix match, e.g. ``"grok-4.5-beta"`` matches ``"grok-4.5"``.
     4. Fall back to ``DEFAULT_MODEL`` and log a warning.
     """
     # Normalize first: catalog keys are lowercase, but a model id reaches here

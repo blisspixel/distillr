@@ -693,7 +693,7 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             state["blocking"].append(
                 f"Configured analysis model '{cloud_model}' is not an xAI text model. "
                 "Remove the stale DISTILL_MODEL or DISTILL_ANALYSIS_MODEL override, "
-                "or set it to grok-4.3, then re-run `distill init`."
+                "or set it to grok-4.5, then re-run `distill init`."
             )
         else:
             if not quiet:

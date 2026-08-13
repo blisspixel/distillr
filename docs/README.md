@@ -24,7 +24,10 @@ Task-oriented recipes for a specific goal.
   Codex, Claude, Grok, Gemini, Antigravity, and claude.ai packaging, release,
   validation, update, and billing contracts.
 - [Briefing context template](briefing-contexts/TEMPLATE.md) - starting point for `--context-file` prompts.
-- [Grok 4.3 migration](migration-grok-4.3.md) - moving off the retired fast tiers.
+- [Grok 4.5 default migration](migration-grok-4.5.md) - current xAI default,
+  pricing, context, and override behavior.
+- [Grok 4.3 migration](migration-grok-4.3.md) - historical guide for moving
+  off the retired fast tiers.
 
 ## Reference
 

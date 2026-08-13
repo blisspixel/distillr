@@ -10,13 +10,13 @@ XAI_MEDIA_GENERATION_MODEL_PREFIXES: tuple[str, ...] = (
 
 RETIREMENT_DATE = "May 15, 2026"
 RETIRED_MODELS: dict[str, str] = {
-    "grok-4-1-fast-reasoning": "grok-4.3",
+    "grok-4-1-fast-reasoning": "grok-4.5",
     "grok-4-1-fast-non-reasoning": "grok-4.20-non-reasoning",
-    "grok-4-fast-reasoning": "grok-4.3",
+    "grok-4-fast-reasoning": "grok-4.5",
     "grok-4-fast-non-reasoning": "grok-4.20-non-reasoning",
-    "grok-4-0709": "grok-4.3",
-    "grok-code-fast-1": "grok-4.3",
-    "grok-3": "grok-4.3",
+    "grok-4-0709": "grok-4.5",
+    "grok-code-fast-1": "grok-4.5",
+    "grok-3": "grok-4.5",
     "grok-imagine-image-pro": "grok-imagine-image",
 }
 
@@ -32,5 +32,5 @@ def xai_media_generation_refusal(model: str) -> str:
     return (
         f"Model '{model}' is an xAI media generation model, not a Distill text "
         "analysis model. Distill does not call xAI image or video generation APIs; "
-        "configure an xAI text model such as grok-4.3 for these workloads."
+        "configure an xAI text model such as grok-4.5 for these workloads."
     )

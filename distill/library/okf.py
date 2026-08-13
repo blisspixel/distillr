@@ -11,17 +11,34 @@ import secrets
 import shutil
 import stat
 import time
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, cast
+from typing import Any, cast
 from urllib.parse import unquote, urlparse
 
 import yaml
 
+from distill._version import get_version
 from distill.config import DistillConfig
 from distill.library.confined import read_confined_text, validate_confined_path
+from distill.library.okf_v02 import (
+    RESERVED_NAMES as _RESERVED_NAMES,
+)
+from distill.library.okf_v02 import (
+    OkfIssue,
+    SupplementalFile,
+    build_okf_frontmatter,
+    build_provenance_lines,
+    collect_okf_sources,
+    merge_supplemental_files,
+    project_verification,
+    validate_reserved_file,
+    validate_v02_concept_frontmatter,
+    write_llms_txt,
+    write_okf_index,
+    write_okf_log,
+)
 from distill.library.paths import (
     atomic_write_text,
     dump_frontmatter,
@@ -33,10 +50,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import WIKI_LINK_PATTERN
 from distill.parsing import read_bounded_json_object, read_bounded_jsonl_objects
 
-IssueSeverity = Literal["error", "warning"]
-
 _MAX_OKF_SOURCE_BYTES = 16 * 1024 * 1024
-_RESERVED_NAMES = {"index.md", "log.md"}
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+(?:\s[^)]*)?)\)")
 _URL_KEYS = ("url", "source_url", "resource", "video_url", "paper_url", "page_url", "repo_url")
 _TITLE_KEYS = ("title", "video_title", "paper_title", "page_title", "repo_name", "channel")
@@ -105,18 +119,6 @@ class OkfValidationLimits:
 
 
 @dataclass(frozen=True, slots=True)
-class OkfIssue:
-    """A validation issue found in an OKF bundle."""
-
-    severity: IssueSeverity
-    path: str
-    message: str
-
-    def to_dict(self) -> dict[str, str]:
-        return {"severity": self.severity, "path": self.path, "message": self.message}
-
-
-@dataclass(frozen=True, slots=True)
 class OkfValidationResult:
     """Validation result for an OKF bundle."""
 
@@ -171,10 +173,10 @@ def validate_okf_bundle(  # noqa: C901 - validation keeps every budget stop expl
 ) -> OkfValidationResult:
     """Validate an OKF bundle directory.
 
-    The validator enforces the structural OKF v0.1 requirements Distill relies
-    on: every non-reserved Markdown file has parseable YAML frontmatter and a
-    non-empty ``type`` field. Broken Markdown links are warnings so consumers can
-    accept partially built bundles while still surfacing cleanup work.
+    The validator enforces OKF v0.2's structural requirements and checks the
+    optional provenance, trust, lifecycle, and attestation families when they
+    are present. Broken Markdown links and soft producer guidance remain
+    warnings so consumers can accept partially built bundles.
     """
 
     limits = limits or OkfValidationLimits()
@@ -242,9 +244,13 @@ def validate_okf_bundle(  # noqa: C901 - validation keeps every budget stop expl
             concept_type = meta.get("type")
             if not isinstance(concept_type, str) or not concept_type.strip():
                 errors.append(OkfIssue("error", rel, "Frontmatter must include a non-empty type"))
+            else:
+                validate_v02_concept_frontmatter(meta, rel, errors, warnings)
 
         if md_file.name in _RESERVED_NAMES and meta is None and text.startswith("---"):
             errors.append(OkfIssue("error", rel, "Reserved file frontmatter is not parseable"))
+        elif md_file.name in _RESERVED_NAMES:
+            validate_reserved_file(root, md_file, text, meta, rel, errors, warnings)
 
         link_error = _collect_link_warnings(
             root,
@@ -367,34 +373,41 @@ def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
     _replace_output_dir(config, staging_root)
     try:
         generated_at = utc_now_iso()
-        index_entries: list[tuple[str, str, str]] = []
+        generated_by = f"distillr/{get_version()}"
+        index_entries: list[tuple[str, str, str, str]] = []
         written_docs: list[Path] = []
+        supplemental_files: dict[Path, str] = {}
+        source_file_set = frozenset(source_files)
         for source_file in source_files:
             rel_path = source_file.relative_to(source_root)
             target = staging_root / rel_path
-            okf_doc, concept_type, title = _render_okf_document(
+            okf_doc, concept_type, title, description, supplemental = _render_okf_document(
                 source_root=source_root,
                 source_file=source_file,
                 rel_path=rel_path,
                 topic=topic_label,
                 generated_at=generated_at,
+                generated_by=generated_by,
                 stem_index=stem_index,
+                source_files=source_file_set,
             )
             atomic_write_text(target, okf_doc)
             written_docs.append(target)
-            index_entries.append((rel_path.as_posix(), concept_type, title))
+            index_entries.append((rel_path.as_posix(), concept_type, title, description))
+            merge_supplemental_files(supplemental_files, supplemental)
+
+        for rel_path, content in supplemental_files.items():
+            atomic_write_text(staging_root / rel_path, content)
 
         history = _collect_log_history(config, topic_label)
-        _write_index(staging_root, topic_label, source_root, index_entries, generated_at)
-        _write_log(
+        write_okf_index(staging_root, topic_label, index_entries, _INDEX_TYPE_ORDER)
+        write_okf_log(
             staging_root,
-            topic_label,
-            source_root,
             len(written_docs),
             generated_at,
             history=history,
         )
-        _write_llms_txt(staging_root, topic_label, len(written_docs))
+        write_llms_txt(staging_root, topic_label, len(written_docs))
 
         staged_validation = validate_okf_bundle(staging_root)
         if not staged_validation.ok:
@@ -416,7 +429,7 @@ def export_okf_bundle(config: DistillConfig, topic: str) -> OkfExportResult:
         output_dir=output_root,
         source_root=source_root,
         topic=topic_label,
-        files_written=len(written_docs) + 3,
+        files_written=len(written_docs) + len(supplemental_files) + 3,
         validation=validation,
     )
 
@@ -462,7 +475,7 @@ def _parse_frontmatter(
         return None
     try:
         data: object = _load_bounded_yaml(block, max_depth=max_yaml_depth) or {}
-    except yaml.YAMLError as exc:
+    except (yaml.YAMLError, ValueError, OverflowError) as exc:
         errors.append(OkfIssue("error", rel_path, f"Invalid YAML frontmatter: {exc}"))
         return None
     if not isinstance(data, dict):
@@ -576,8 +589,10 @@ def _render_okf_document(
     rel_path: Path,
     topic: str,
     generated_at: str,
+    generated_by: str,
     stem_index: dict[str, str],
-) -> tuple[str, str, str]:
+    source_files: frozenset[Path],
+) -> tuple[str, str, str, str, tuple[SupplementalFile, ...]]:
     source_text = read_confined_text(source_file, source_root, max_bytes=_MAX_OKF_SOURCE_BYTES)
     if source_text is None:
         msg = f"Refusing unsafe or unreadable OKF source: {rel_path}"
@@ -588,81 +603,60 @@ def _render_okf_document(
     concept_type = _type_for(source_file, native_meta, rel_path=rel_path)
     body = _rewrite_wikilinks(raw_body, stem_index) if raw_body else ""
     source_url = _first_value(native_meta, _URL_KEYS)
-    verify_sidecar = _verify_sidecar_for(source_file)
     rel_source = rel_path.as_posix()
+    description = f"Distill projection of {rel_source}"
+    verification = project_verification(
+        source_root,
+        source_file,
+        _verify_sidecar_for(source_file),
+    )
+    sources, receipt_supplemental = collect_okf_sources(
+        source_root=source_root,
+        source_file=source_file,
+        source_files=source_files,
+        native_meta=native_meta,
+        source_url=source_url,
+        title=title,
+        verification=verification,
+    )
 
-    frontmatter: dict[str, Any] = {
-        "type": concept_type,
-        "title": title,
-        "description": f"Distill projection of {rel_source}",
-        "tags": _tags_for(topic, native_meta, concept_type),
-        "timestamp": generated_at,
-        "source_path": rel_source,
-    }
-    if source_url:
-        frontmatter["resource"] = source_url
-    if native_type := native_meta.get("type"):
-        frontmatter["native_type"] = native_type
-    if verify_sidecar and verify_sidecar.exists():
-        frontmatter["verify_sidecar"] = verify_sidecar.relative_to(source_root).as_posix()
-
-    sections = [dump_frontmatter(frontmatter), "", body or f"# {title}", "", "# Citations", ""]
-    sections.append(f"- Distill source artifact: `{rel_source}`")
-    if source_url:
-        sections.append(f"- Source URL: {source_url}")
-    if verify_sidecar and verify_sidecar.exists():
-        sections.append(f"- Verify sidecar: `{verify_sidecar.relative_to(source_root).as_posix()}`")
-    sections.append("")
-    return "\n".join(sections).rstrip() + "\n", concept_type, title
-
-
-def _write_index(
-    output_root: Path,
-    topic: str,
-    source_root: Path,
-    entries: list[tuple[str, str, str]],
-    generated_at: str,
-) -> None:
-    frontmatter = {
-        "okf_version": "0.1",
-        "title": f"Distill OKF bundle: {topic}",
-        "timestamp": generated_at,
-        "source_root": str(source_root),
-    }
-    lines = [
-        dump_frontmatter(frontmatter),
-        "",
-        f"# Distill OKF Bundle: {topic}",
-        "",
-        "Progressive disclosure by concept type. Each entry links to one OKF concept document.",
-        "",
-    ]
-    if not entries:
-        lines.extend(
-            ["## Concepts", "", "- No Markdown concepts were available in the source corpus.", ""]
+    frontmatter = build_okf_frontmatter(
+        concept_type=concept_type,
+        title=title,
+        description=description,
+        rel_source=rel_source,
+        generated_by=generated_by,
+        generated_at=generated_at,
+        native_meta=native_meta,
+        tags=_tags_for(topic, native_meta, concept_type),
+        native_model=_first_value(native_meta, ("analyzed_by", "model", "model_version")),
+        source_url=source_url,
+        sources=sources,
+        verification=verification,
+    )
+    sections = [dump_frontmatter(frontmatter), "", body or f"# {title}", ""]
+    sections.extend(
+        build_provenance_lines(
+            rel_source=rel_source,
+            source_url=source_url,
+            sources=sources,
+            verification=verification,
         )
-        atomic_write_text(output_root / "index.md", "\n".join(lines))
-        return
-
-    grouped: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for rel_path, concept_type, title in entries:
-        grouped[concept_type].append((rel_path, title))
-
-    ordered_types = [ctype for ctype in _INDEX_TYPE_ORDER if ctype in grouped]
-    for concept_type in sorted(grouped):
-        if concept_type not in ordered_types:
-            ordered_types.append(concept_type)
-
-    for concept_type in ordered_types:
-        lines.extend([f"## {concept_type}", ""])
-        for rel_path, title in sorted(grouped[concept_type], key=lambda item: item[0]):
-            lines.append(f"- [{title}]({rel_path})")
-        lines.append("")
-
-    atomic_write_text(output_root / "index.md", "\n".join(lines))
+    )
+    sections.append("")
+    supplemental = [*receipt_supplemental]
+    if verification is not None:
+        supplemental.append(verification.supplemental)
+    return (
+        "\n".join(sections).rstrip() + "\n",
+        concept_type,
+        title,
+        description,
+        tuple(supplemental),
+    )
 
 
-def _collect_log_history(config: DistillConfig, topic: str) -> list[str]:
+def _collect_log_history(config: DistillConfig, topic: str) -> list[tuple[str, str]]:
     """Gather recent profile-run events for OKF log.md chronological history."""
     if topic.lower() == "all":
         return []
@@ -670,7 +664,7 @@ def _collect_log_history(config: DistillConfig, topic: str) -> list[str]:
     entries = _profile_log_entries(config.library_dir, topic)
     entries.extend(_cost_log_entries(config.library_dir, topic))
     entries.sort(key=lambda item: item[0])
-    return [message for _, message in entries[-_MAX_LOG_HISTORY:]]
+    return entries[-_MAX_LOG_HISTORY:]
 
 
 def _profile_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]:
@@ -722,49 +716,6 @@ def _cost_log_entries(library_dir: Path, topic: str) -> list[tuple[str, str]]:
 def _read_json_object(path: Path) -> dict[str, Any] | None:
     data = read_bounded_json_object(path, max_bytes=_MAX_PROFILE_STATE_BYTES)
     return cast("dict[str, Any]", data) if data else None
-
-
-def _write_llms_txt(output_root: Path, topic: str, concept_count: int) -> None:
-    """Write a thin llms.txt pointer for tools that look for it at bundle root."""
-    lines = [
-        f"# Distill OKF Bundle: {topic}",
-        "> Verified research corpus exported from Distill. Start at index.md.",
-        "",
-        "## Primary",
-        "- [index.md](index.md): typed concept index and bundle navigation",
-        "- [log.md](log.md): export and stewardship history",
-        "",
-        f"Concept documents: {concept_count}",
-        "",
-    ]
-    atomic_write_text(output_root / "llms.txt", "\n".join(lines))
-
-
-def _write_log(
-    output_root: Path,
-    topic: str,
-    source_root: Path,
-    concept_count: int,
-    generated_at: str,
-    *,
-    history: list[str],
-) -> None:
-    frontmatter = {
-        "okf_version": "0.1",
-        "title": f"Distill OKF log: {topic}",
-        "timestamp": generated_at,
-    }
-    lines = [
-        dump_frontmatter(frontmatter),
-        "",
-        "# Log",
-        "",
-        f"- {generated_at}: Exported {concept_count} concept documents from `{source_root}`.",
-    ]
-    for entry in history:
-        lines.append(f"- {entry}")
-    lines.append("")
-    atomic_write_text(output_root / "log.md", "\n".join(lines))
 
 
 def _okf_output_root(config: DistillConfig, output_name: str) -> Path:

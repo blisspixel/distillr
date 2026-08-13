@@ -5,10 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.19.51 - 2026-08-13
+
+Corpus-to-report and interoperability refinement release. Adds a corpus-first
+report path, stronger ordered report QA, OKF v0.2 projection, Agent Plugins v1
+packaging, current provider metadata, and dependency security updates.
 
 ### Changed
 
+- `distill report` now uses one profile facade. The default `corpus-report`
+  builds a six-section report from existing syntheses, insights, and receipt
+  paths without mandatory Gemini Deep Research. `--profile accordion` adds a
+  Gemini dossier before ten ordered strategic sections, and `--profile
+  deep-research` retains the single-provider path. `--legacy` remains a
+  compatibility alias for `deep-research`.
+- Report writing remains sequential by design, but its orchestration is split
+  into one-section writing, retry and refusal, batch policy, full-document
+  review, and ordered rewrite functions. Provider preflight now validates the
+  section writer before accordion research spend, and one router instance owns
+  all section and QA calls.
+- Report QA now reviews the assembled document for contradictions, near
+  duplicates, terminology drift, and source independence. Rewrites receive the
+  full report context and run in report order. A final structural audit refuses
+  unresolved numbered citations and a missing, duplicated, or reordered
+  section spine.
+- Report section copy moved to strict versioned JSON with typed schema
+  validation. Profile-aware cold-start estimates replace the former report
+  placeholder: about $0.99 for the default Grok corpus report and about $3.40
+  for accordion at current defaults. Proven local writers project zero direct
+  API cost; Gemini stages remain metered.
+- The xAI defaults now resolve to `grok-4.5`, with current $2/$6 per-million
+  token pricing, a 500K context window, configurable reasoning, updated
+  cold-start estimates, and migration-safe environment overrides. The provider
+  registry also recognizes current Claude 5 and reserved GPT-5.6 model IDs so
+  unknown-model fallback cannot understate their cost.
+- Current adaptive Claude models receive configured effort without unsupported
+  sampling parameters, including Sonnet 5, Opus 5, Fable 5, Mythos 5, and the
+  supported Opus 4.7 and 4.8 routes.
+- Gemini Deep Research keeps the current April 2026 standard agent ID. Its
+  authorization amount is explicitly a planning estimate because Google bills
+  the underlying model inference and tools rather than a flat query price.
+- The generated `distill-corpus` distribution now includes a portable Agent
+  Plugins v1 root `plugin.json` while retaining the Codex, Claude, Grok, and
+  Gemini compatibility surfaces. It remains skill-only: MCP activation still
+  requires separate operator configuration and policy.
+- OKF export and validation now target v0.2. Exports use `generated`, `sources`,
+  lifecycle fields, date-grouped logs, and bounded receipt copies. A verify
+  sidecar produces `verified` only when its schema and usable clean coverage are
+  valid, its digest binds to the exact artifact, and its verification timestamp
+  is valid. Flagged, incomplete, invalid, and unbound sidecars remain audit
+  receipts without elevating trust.
 - Public contract snapshots move from `candidate` to **`freeze-ready`** after
   the completed MCP 2026-07-28 checkpoint. Compatibility and library corpus
   policy: [`docs/contracts/COMPATIBILITY.md`](contracts/COMPATIBILITY.md).
@@ -16,6 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - First published offline performance baseline:
   [`docs/performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
   (Windows scale-100, n=20).
+
+### Security
+
+- Updated the locked `cryptography` dependency from 49.0.0 to 50.0.0 and the
+  direct `pypdf` floor from 6.14.2 to 6.15.0 for PYSEC-2026-3552,
+  PYSEC-2026-3655, and PYSEC-2026-3656.
 
 ## 0.19.50 - 2026-08-01
 

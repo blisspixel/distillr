@@ -224,7 +224,7 @@
         "type": "integer"
       },
       "accordion_section_model": {
-        "default": "grok-4.3",
+        "default": "grok-4.5",
         "type": "string"
       },
       "anthropic_api_key": {
@@ -305,11 +305,11 @@
         "writeOnly": true
       },
       "xai_fast_model": {
-        "default": "grok-4.3",
+        "default": "grok-4.5",
         "type": "string"
       },
       "xai_premium_model": {
-        "default": "grok-4.3",
+        "default": "grok-4.5",
         "type": "string"
       },
       "xai_rerank_model": {
@@ -317,7 +317,7 @@
         "type": "string"
       },
       "xai_site_model": {
-        "default": "grok-4.3",
+        "default": "grok-4.5",
         "type": "string"
       },
       "xai_synthesis_model": {

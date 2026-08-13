@@ -40,6 +40,7 @@ from distill.llm.usage import LLMUsageAttempt
 from distill.pipeline.budget import BudgetExceededError, ProjectedBudgetExceededError
 from distill.pipeline.cost_estimates import (
     ACCORDION_GROK_ESTIMATE,
+    CORPUS_REPORT_ESTIMATE,
     CostCalibration,
     CostEstimate,
     estimate_ask_workflow_cost,
@@ -54,6 +55,7 @@ from distill.pipeline.cost_estimates import (
     estimate_video_workflow_cost,
     load_cost_calibration,
     report_deep_research_estimate,
+    report_profile_estimate,
 )
 from distill.pipeline.cost_history import estimator_accuracy, projected_next_run_cost
 from distill.pipeline.cost_warnings import CostWarning, cost_anomaly_warnings
@@ -64,6 +66,7 @@ from distill.pipeline.usage_records import (
 
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
+    "CORPUS_REPORT_ESTIMATE",
     "LLM_PRICING",
     "PROFILE_RECEIPT_ENV",
     "BudgetExceededError",
@@ -90,6 +93,7 @@ __all__ = [
     "load_cost_calibration",
     "projected_next_run_cost",
     "report_deep_research_estimate",
+    "report_profile_estimate",
     "save_run_log",
 ]
 

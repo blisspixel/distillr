@@ -1,6 +1,6 @@
 # OKF interop and loop-ready stewardship
 
-Status: accepted direction for the next build slice after 0.16.1.
+Status: implemented; OKF projection upgraded to v0.2 in August 2026.
 
 This document records what Distill should take from the June 2026 OKF and loop
 engineering wave, and what it should explicitly leave alone.
@@ -8,10 +8,12 @@ engineering wave, and what it should explicitly leave alone.
 ## Research signals
 
 - Google Cloud introduced the Open Knowledge Format on 2026-06-12 as a
-  vendor-neutral way to exchange agent-readable knowledge bundles: Markdown files
-  with YAML frontmatter, conventional `index.md` / `log.md`, Markdown links, and
-  citations. Source: [Google Cloud blog](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
-  and [OKF v0.1 spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+  vendor-neutral way to exchange agent-readable knowledge bundles: Markdown
+  files with YAML frontmatter, conventional `index.md` / `log.md`, and Markdown
+  links. The launch article describes v0.1. The current v0.2 specification adds
+  first-class provenance, trust, lifecycle, freshness, and attested computation
+  fields. Sources: [Google Cloud launch article](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
+  and [current OKF v0.2 spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
 - Anthropic's context-engineering guidance frames agents as LLMs using tools in a
   loop, with context treated as a finite resource. The useful design pressure for
   Distill is progressive disclosure, paths-not-payloads, compact state, and
@@ -52,9 +54,15 @@ The two useful additions are:
 
 - **Native corpus stays authoritative.** OKF export is a read-only projection
   from `library/`, not a migration or replacement.
-- **Receipts survive export.** OKF concept docs must preserve source URLs,
-  source artifact paths, verify sidecar paths, prompt/model provenance, and
-  citations.
+- **Receipts survive export.** OKF concept docs preserve source URLs and native
+  artifact paths. Exact sibling source receipts and verify sidecars are copied
+  into the bundle through bounded, no-follow reads and linked from standard
+  `sources` or Distill verification metadata.
+- **Trust projection fails closed.** Sidecar existence alone never produces
+  OKF `verified`. The sidecar must match a supported schema, contain usable clean
+  coverage, bind to the exact artifact digest, and carry a valid verification
+  time. Other sidecars remain inspectable receipts with `invalid`, `incomplete`,
+  `flagged`, or `unbound` status.
 - **Permissive where OKF is permissive.** Missing optional fields and broken
   links warn, not fail. Missing parseable frontmatter or missing `type` fails.
 - **Loop runner stays external.** Distill emits state and safe commands. Codex,
@@ -122,21 +130,28 @@ core contract should stay tool-neutral: JSON in, argv out, verifier decides.
 
 | Distill artifact | OKF `type` | Notes |
 |---|---|---|
-| `_Insights.md` | `Source Insight` | Include source URL, source artifact path, verify sidecar path, prompt/model fields, and citations. |
-| topic / corpus / paper / site synthesis | `Synthesis` | Include synthesized source paths and synthesis verify sidecar. |
-| `answers/*_Insights.md` | `Derived Answer` | Include cited source paths and strict verify result. |
+| `_Insights.md` | `Source Insight` | Include source URL, `sources`, native artifact path, generation metadata, copied verification receipt, and digest-bound `verified` when clean. |
+| topic / corpus / paper / site synthesis | `Synthesis` | Preserve rewritten source links and apply the same verification projection rules. |
+| `answers/*_Insights.md` | `Derived Answer` | Preserve cited source paths and project the strict verify receipt without overstating trust. |
 | `concepts/*.md` | `Concept Playbook` | Preserve native evidence fields and backlinks. |
 | `entities/*.md` | `Entity Playbook` | Same evidence model as concepts. |
 | audit artifact | `Audit Report` | Export as a concept so consumers can inspect trust state. |
-| source receipts | `Source Receipt` | Optional in the first slice; useful when an exported bundle should be self-contained. |
+| source receipts | `Source Receipt` or supplemental file | Markdown receipts are normal concepts. Exact non-Markdown sibling receipts named by sidecars are copied as supplemental files. |
 
 The root export should include:
 
-- `index.md` with `okf_version: "0.1"` frontmatter and progressive-disclosure
-  sections by topic and artifact type.
-- `log.md` synthesized from run history, audit events, and export metadata.
+- `index.md` with `okf_version: "0.2"` frontmatter and progressive-disclosure
+  sections by topic and artifact type, including descriptions.
+- `log.md` with ISO date-grouped run history and export metadata, newest date
+  first and without legacy frontmatter.
 - Standard Markdown links, preferably absolute bundle-relative links.
-- `# Citations` sections on concept docs that make external claims.
+- `sources` frontmatter for source material and stable bundle-relative receipt
+  resources. Existing body citations remain intact; v0.2 no longer generates a
+  legacy `# Citations` list.
+- `generated: {by, at}` for the export projection. Native model and generation
+  details remain available as producer extension fields.
+- Absolute `stale_after` only when the native artifact already provides a valid
+  absolute date. Relative profile durations are not guessed across artifacts.
 
 ## Loop next-action schema
 

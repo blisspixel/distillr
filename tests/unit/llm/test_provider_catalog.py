@@ -27,7 +27,7 @@ def test_normalize_provider_rejects_unknown() -> None:
 
 
 def test_default_models() -> None:
-    assert default_model_for_provider("xai") == "grok-4.3"
+    assert default_model_for_provider("xai") == "grok-4.5"
     assert default_model_for_provider("gemini") == "gemini-3.6-flash"
     assert default_model_for_provider("anthropic") == "claude-sonnet-5"
     assert default_model_for_provider("ollama") == ""
@@ -41,9 +41,20 @@ def test_gemini_catalog_includes_new_flash_models() -> None:
     assert "deep-research" not in models
 
 
+def test_current_xai_and_anthropic_models_are_catalogued() -> None:
+    xai_models = known_models_for_provider("xai")
+    anthropic_models = known_models_for_provider("anthropic")
+
+    assert xai_models[0] == "grok-4.5"
+    assert "grok-4.3" in xai_models
+    assert "claude-fable-5" in anthropic_models
+    assert "claude-opus-5" in anthropic_models
+    assert "claude-sonnet-5" in anthropic_models
+
+
 def test_infer_cloud_provider_for_model() -> None:
     assert infer_cloud_provider_for_model("gemini-3.6-flash") == "gemini"
-    assert infer_cloud_provider_for_model("grok-4.3") == "xai"
+    assert infer_cloud_provider_for_model("grok-4.5") == "xai"
     assert infer_cloud_provider_for_model("claude-sonnet-5") == "anthropic"
     assert infer_cloud_provider_for_model("qwen3.5:27b") == ""
 

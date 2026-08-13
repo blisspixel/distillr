@@ -22,8 +22,8 @@ library/
     ├── <topic>_Site_Synthesis.md  # Cross-site website synthesis
     ├── <topic>_Corpus_Synthesis.md# Mixed-source view (when multiple source types exist)
     ├── <topic>_Paper_Synthesis.md # Cross-paper synthesis (when papers exist)
-    ├── <topic>_Research.md        # Deep Research Phase 1 output
-    ├── <topic>_Report.md          # Full 4-phase report
+    ├── <topic>_Research.md        # Accordion Deep Research dossier, when selected
+    ├── <topic>_Report.md          # Selected report profile output
     ├── <topic>_Brief.md           # Lightweight brief
     ├── <topic>_Watch_Update.md    # Last topic-watch delta
     ├── <topic>_Topic_Diff.md      # Latest change report
@@ -139,10 +139,23 @@ Citation exports are local and read from existing paper artifacts:
 
 ## Reports (any scope)
 
-- **`<scope>_Research.md`** - Phase 1 output: structured raw facts from Deep Research with descriptive citations and confidence levels
-- **`<topic>_Report.md`** - The capstone. Typically 30-50 pages for a full multi-source topic, though actual length varies. Sections adapt to scope:
+- **`<scope>_Research.md`** - The optional accordion Phase 1 dossier: structured facts from Gemini Deep Research with descriptive citations and confidence labels. The default corpus profile does not create this artifact.
+- **`<topic>_Report.md`** - The selected report profile output. Frontmatter records `report_profile` and `research_source` so consumers can distinguish corpus-first and Deep Research-backed reports.
 
-### Single-channel reports (10 sections)
+### Default corpus reports (6 sections)
+
+1. Executive Synthesis
+2. Evidence Map and Key Findings
+3. Source Convergence and Disagreement
+4. Contradictions, Uncertainty, and Gaps
+5. Implications
+6. Recommendations and Next Questions
+
+These sections are source-type neutral. They work across papers, sites, video,
+feeds, repositories, and local documents. The evidence map cites named corpus
+artifacts or receipt paths.
+
+### Accordion single-channel reports (10 sections)
 
 1. Executive Briefing
 2. Validated Technology Landscape
@@ -155,9 +168,10 @@ Citation exports are local and read from existing paper artifacts:
 9. Customer Conversation Playbook
 10. Strategic Synthesis
 
-### Multi-channel reports (10 sections)
+### Accordion multi-channel reports (10 sections)
 
-Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreement/disagreement). Others match the single-channel list.
+Section 6 becomes "Creator Consensus and Contrarian Views" for cross-creator
+agreement and disagreement. The other sections match the single-channel list.
 
 ### Exports
 
@@ -167,7 +181,7 @@ Section 6 becomes "Creator Consensus & Contrarian Views" (cross-creator agreemen
 ## Research briefings and deep syntheses
 
 - **`output/briefing-{name}.md`** - Output of `distill research-brief` (Gemini Deep Research, web-augmented, multi-topic)
-- **`output/synthesis-{name}.md`** - Output of `distill synthesize` (grok-4.3 single call, corpus-only, multi-topic)
+- **`output/synthesis-{name}.md`** - Output of `distill synthesize` (configured synthesis model, single call, corpus-only, multi-topic)
 
 ## Package Latest (agent handoff)
 

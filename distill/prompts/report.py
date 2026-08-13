@@ -2,8 +2,13 @@
 
 # pyright: strict
 
-from typing import NotRequired, TypedDict
-
+from distill.prompts.report_sections import (
+    REPORT_SECTIONS,
+    SINGLE_CHANNEL_REPLACEMENT,
+    ReportSection,
+    WrittenSection,
+    get_active_sections,
+)
 from distill.prompts.shared import DERIVED_CONTENT_RULES, REGISTER_RULES
 
 __all__ = [
@@ -19,229 +24,6 @@ __all__ = [
     "section_prompt",
     "topic_brief_prompt",
 ]
-
-
-# ─── Report Section Definitions ──────────────────────────────────────
-
-# Sections tagged "multi_channel_only" are skipped when scope is a single channel.
-# Sections tagged "voice" control tone: "reference", "analytical", "actionable".
-
-
-class ReportSection(TypedDict):
-    """A report section definition (the shape of every REPORT_SECTIONS entry).
-
-    ``multi_channel_only`` is ``NotRequired`` because the single-channel
-    replacement section legitimately omits it.
-    """
-
-    id: str
-    title: str
-    position: str
-    voice: str
-    instructions: str
-    dossier_focus: list[str] | None
-    multi_channel_only: NotRequired[bool]
-
-
-class WrittenSection(TypedDict):
-    """An already-written section, passed back as prior-context for continuity."""
-
-    id: NotRequired[str]
-    title: str
-    content: str
-    word_count: int
-
-
-REPORT_SECTIONS: list[ReportSection] = [
-    {
-        "id": "executive_briefing",
-        "title": "Executive Briefing",
-        "position": "opening",
-        "voice": "actionable",
-        "multi_channel_only": False,
-        "instructions": (
-            "Lead with the 3-5 most consequential findings from this research period. "
-            "Write for a time-pressed executive who needs the 'so what' immediately. "
-            "Each finding should be 2-3 sentences: what happened, why it matters, what to do. "
-            "Use bullet points or numbered findings, not dense paragraphs. "
-            "Do NOT summarize the report structure -- deliver intelligence."
-        ),
-        "dossier_focus": None,
-    },
-    {
-        "id": "validated_landscape",
-        "title": "The Validated Technology Landscape",
-        "position": "middle",
-        "voice": "reference",
-        "multi_channel_only": False,
-        "instructions": (
-            "Map every major product launch, GA release, preview announcement, and capability update "
-            "from the research period. This is a REFERENCE section, not a sales pitch. "
-            "Use a consistent format for each entry: Product/Feature, Vendor, Date, Status, Pricing. "
-            "Use markdown tables for vendor comparisons where helpful. "
-            "Group by vendor: Microsoft/Azure, Google Cloud, AWS, NVIDIA, OpenAI, Anthropic, others. "
-            "Be exhaustive and factual. Let the data speak -- no 'pitch this tomorrow' language here."
-        ),
-        "dossier_focus": ["validated_announcements", "market_data"],
-    },
-    {
-        "id": "vendor_battleground",
-        "title": "Vendor Competitive Battleground",
-        "position": "middle",
-        "voice": "analytical",
-        "multi_channel_only": False,
-        "instructions": (
-            "Analyze the competitive dynamics across Microsoft/Azure, Google Cloud, AWS, and NVIDIA. "
-            "For each vendor: current strategic posture, recent wins/losses, where they're investing, "
-            "what they're de-emphasizing. Identify the 2-3 most significant competitive shifts. "
-            "Include specific evidence: partnership announcements, pricing moves, customer wins. "
-            "Call out vendor marketing claims that don't match reality. "
-            "Use a summary table at the end comparing vendor strengths/weaknesses."
-        ),
-        "dossier_focus": ["competitive_positioning", "market_data"],
-    },
-    {
-        "id": "enterprise_reality",
-        "title": "Enterprise Adoption Reality Check",
-        "position": "middle",
-        "voice": "analytical",
-        "multi_channel_only": False,
-        "instructions": (
-            "What are enterprises ACTUALLY doing with AI right now? Separate production deployments "
-            "from POCs from vaporware. Cover: which use cases are generating real ROI, what's failing, "
-            "where the gap is between vendor promises and customer reality. "
-            "Include specific adoption data, case studies, and earnings call mentions. "
-            "Address pricing/economics: what does it actually cost to run AI workloads? "
-            "What's the real TCO story?"
-        ),
-        "dossier_focus": ["enterprise_adoption", "pricing_economics"],
-    },
-    {
-        "id": "corrections_nuances",
-        "title": "Corrections, Nuances, and Hype Check",
-        "position": "middle",
-        "voice": "analytical",
-        "multi_channel_only": False,
-        "instructions": (
-            "This is the truth-telling section. Use a structured format for each correction: "
-            "**Claim**: What the creator said. **Reality**: What the evidence shows. **Source**: Where verified. "
-            "Also flag claims that are technically true but misleading. "
-            "Be specific about which creator said what and what the actual situation is. "
-            "This section builds credibility for the entire report. "
-            "Keep tone neutral and factual -- present corrections as clarifications, not attacks."
-        ),
-        "dossier_focus": ["corrections_contradictions"],
-    },
-    {
-        "id": "creator_consensus",
-        "title": "Creator Consensus and Contrarian Views",
-        "position": "middle",
-        "voice": "analytical",
-        "multi_channel_only": False,
-        "instructions": (
-            "Analyze where the YouTube creators agree and disagree. Points of consensus across "
-            "independent creators are stronger signals. Points of disagreement reveal uncertainty. "
-            "For each major theme: who agrees, who disagrees, and what evidence supports each position. "
-            "Identify the creators who have been most accurate historically vs those who tend toward hype. "
-            "Use the channel synthesis data heavily here."
-        ),
-        "dossier_focus": ["gaps_coverage"],
-    },
-    {
-        "id": "gaps_blindspots",
-        "title": "Coverage Gaps and Blind Spots",
-        "position": "middle",
-        "voice": "reference",
-        "multi_channel_only": False,
-        "instructions": (
-            "What important developments happened that the creators did NOT cover? What topics are "
-            "systematically under-covered? Consider: regulatory changes, enterprise-specific developments, "
-            "infrastructure/ops issues, security concerns, international developments. "
-            "For each gap: what happened, why it matters, and where to find more information. "
-            "Use bullet points or a table. This is a reference section -- factual, not salesy."
-        ),
-        "dossier_focus": ["gaps_coverage", "forward_signals"],
-    },
-    {
-        "id": "predictions_timeline",
-        "title": "Predictions and 90-Day Outlook",
-        "position": "middle",
-        "voice": "analytical",
-        "multi_channel_only": False,
-        "instructions": (
-            "Based on everything gathered: what's coming in the next 90 days? "
-            "Use a structured format: one subsection per prediction with "
-            "Confidence (High/Medium/Low), Evidence, What to Watch. "
-            "Also evaluate the creators' predictions: which are likely right, which are wishful thinking? "
-            "End with a summary table of predictions ranked by confidence."
-        ),
-        "dossier_focus": ["forward_signals"],
-    },
-    {
-        "id": "customer_playbook",
-        "title": "Customer Conversation Playbook",
-        "position": "closing",
-        "voice": "actionable",
-        "multi_channel_only": False,
-        "instructions": (
-            "For a pre-sales architect who takes customer calls daily: what should they be saying? "
-            "Structure as 3-5 specific scenarios with clear headers. For each: "
-            "the customer question, the key response points (bulleted), and one closing line. "
-            "Keep each scenario tight -- 150-200 words max. "
-            "Reference specific data from earlier sections by name, don't re-state the full stat. "
-            "This is the most directly actionable section -- make it concrete and scannable."
-        ),
-        "dossier_focus": None,
-    },
-    {
-        "id": "strategic_synthesis",
-        "title": "Strategic Synthesis",
-        "position": "closing",
-        "voice": "actionable",
-        "multi_channel_only": False,
-        "instructions": (
-            "Tie everything together. What are the 3-5 meta-themes that emerge from this entire analysis? "
-            "What should a pre-sales architect internalize from this research period? "
-            "Connect the dots across vendors, enterprise adoption, creator insights, and market data. "
-            "End with the single most important takeaway -- the one thing that changes how you approach "
-            "customer conversations for the next 90 days. Be bold but evidence-based."
-        ),
-        "dossier_focus": None,
-    },
-]
-
-
-SINGLE_CHANNEL_REPLACEMENT: ReportSection = {
-    "id": "creator_accuracy",
-    "title": "Creator Signal vs. Noise",
-    "position": "middle",
-    "voice": "analytical",
-    "instructions": (
-        "Evaluate this creator's track record across their coverage. "
-        "Where were they right? Where were they wrong? Where were they early on a real trend? "
-        "Identify their systematic biases (e.g., hype-prone, vendor-friendly, doom-oriented). "
-        "Rate their reliability by topic area: which subjects should readers trust them on, "
-        "and which should they cross-reference? "
-        "This replaces the multi-creator consensus section for single-channel reports."
-    ),
-    "dossier_focus": ["corrections_contradictions", "gaps_coverage"],
-}
-
-
-def get_active_sections(scope: str = "topic", channel_count: int = 1) -> list[ReportSection]:
-    """Return the section list adapted to the report scope.
-
-    Each entry is a defensive copy so callers cannot mutate the module-level
-    ``REPORT_SECTIONS`` definitions.
-    """
-    is_single = scope == "channel" or channel_count <= 1
-    active: list[ReportSection] = []
-    for section in REPORT_SECTIONS:
-        if section["id"] == "creator_consensus" and is_single:
-            active.append(SINGLE_CHANNEL_REPLACEMENT.copy())
-            continue
-        active.append(section.copy())
-    return active
 
 
 # ─── Position + Voice Guidance ──────────────────────────────────────
@@ -394,6 +176,12 @@ def section_prompt(
     section_index: int,
     total_sections: int,
     tagged_material: str | None = None,
+    research_label: str = "Deep Research dossier",
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = (
+        "a senior pre-sales architect who advises enterprise customers on AI strategy "
+        "across Microsoft, Google, AWS, and NVIDIA"
+    ),
 ) -> str:
     """Phase 2: Write a single report section with full context."""
 
@@ -432,9 +220,9 @@ The following source material is particularly relevant to this section:
 {tagged_material}
 """
 
-    return f"""You are a senior pre-sales architect who advises enterprise customers on AI strategy across Microsoft, Google, AWS, and NVIDIA.
+    return f"""You are {writer_role}.
 
-You are writing one section of a comprehensive Strategic Intelligence Report on "{topic}".
+You are writing one section of a comprehensive {report_title} on "{topic}".
 
 ## POSITION IN REPORT
 {guidance}
@@ -444,7 +232,7 @@ You are writing one section of a comprehensive Strategic Intelligence Report on 
 
 SECURITY: {DERIVED_CONTENT_RULES}
 
-## RESEARCH DOSSIER (verified facts from Deep Research)
+## RESEARCH MATERIAL ({research_label})
 {research_dossier}
 {tagged_text}
 ## PREVIOUS SECTIONS (for continuity -- reference these, NEVER repeat their content)
@@ -487,12 +275,18 @@ Do NOT include word counts, section labels, or meta-commentary about the writing
 # ─── QA Prompt ──────────────────────────────────────────────────────
 
 
-def qa_prompt(topic: str, research: str, report: str) -> str:
+def qa_prompt(
+    topic: str,
+    research: str,
+    report: str,
+    research_label: str = "Deep Research dossier",
+    report_title: str = "Strategic Intelligence Report",
+) -> str:
     """Phase 4: QA review of the assembled report against the research."""
-    return f"""You are a senior editor reviewing a Strategic Intelligence Report on "{topic}".
+    return f"""You are a senior editor reviewing a {report_title} on "{topic}".
 
 You have two documents:
-1. The RESEARCH, raw validated facts gathered by Deep Research (the ground truth)
+1. The RESEARCH, {research_label} used as the report's evidence boundary
 2. The REPORT, the final report written from that research
 
 Your job: find problems. Be specific and ruthless.
@@ -523,7 +317,11 @@ Your job: find problems. Be specific and ruthless.
 
 9. **Creator opinions presented as facts** -- Creator estimates, projections, or opinions labeled [Confirmed] instead of [Estimated] or [Reported]. Example: a creator saying "50 agents outproduce 500 coders" is an estimate, not a confirmed fact.
 
-10. **Inherited bias without counterweight** -- Sections that adopt a creator's bullish/bearish framing without noting it as one perspective. The report should flag systematic biases (e.g., uniformly pro-agent, vendor-friendly) rather than amplifying them uncritically.
+10. **Inherited bias without counterweight** -- Sections that adopt a source's bullish or bearish framing without noting it as one perspective. The report should flag systematic biases rather than amplifying them uncritically.
+
+11. **Terminology drift** -- The same product, organization, method, or metric is named or defined inconsistently across sections.
+
+12. **Source independence errors** -- Repetition of one originating claim is described as independent corroboration, or receipt paths and descriptive attributions do not identify the evidence clearly enough to audit.
 
 ## OUTPUT FORMAT
 
@@ -553,12 +351,15 @@ def fix_prompt(
     research: str,
     qa_feedback: str,
     original_content: str,
+    report_context: str = "",
+    report_title: str = "Strategic Intelligence Report",
+    writer_role: str = "a senior pre-sales architect",
 ) -> str:
     """Rewrite a section that failed QA, incorporating specific feedback."""
     voice = section.get("voice", "analytical")
     voice_text = VOICE_GUIDANCE.get(voice, VOICE_GUIDANCE["analytical"])
 
-    return f"""You are a senior pre-sales architect rewriting one section of a Strategic Intelligence Report on "{topic}".
+    return f"""You are {writer_role} rewriting one section of a {report_title} on "{topic}".
 
 This section FAILED quality review. You must fix the specific issues identified below.
 
@@ -574,6 +375,9 @@ This section FAILED quality review. You must fix the specific issues identified 
 ## ORIGINAL SECTION CONTENT
 {original_content}
 
+## FULL REPORT CONTEXT
+{report_context}
+
 ## YOUR TASK
 Rewrite the **{section["title"]}** section, fixing every issue identified in the QA feedback.
 
@@ -585,7 +389,8 @@ Rules:
 - Use specific numbers, names, dates, products from the research. No vague language.
 - Keep paragraphs under 80 words. Use bullet points, tables, and ### subheadings.
 - Never use em-dashes or en-dashes. Use commas, semicolons, colons, or parentheses instead.
-- NEVER repeat facts already stated in other sections. Cross-reference instead.
+- Never repeat facts already stated in other sections. Use the full report context to cross-reference them instead.
+- Resolve the terminology, contradiction, and source-independence issues identified by QA without changing supported facts.
 - Target 800-1500 words.
 
 Output ONLY the rewritten section content (no title heading, no word counts, no meta-commentary)."""

@@ -170,7 +170,7 @@ def test_from_preview_refuses_projected_spend_before_ingest(mock_config, monkeyp
             catch_exceptions=False,
         )
 
-    assert raised.value.projected == pytest.approx(0.05333333333333333)
+    assert raised.value.projected == pytest.approx(0.09933333333333333)
     assert called["ingest"] is False
 
 

@@ -1,8 +1,18 @@
 # Cost model
 
-Distill runs on a mix of free and paid stages. YouTube captions and local PDF extraction are free. Model calls are metered per-token by xAI, Anthropic, and Gemini chat routes, and per-query by Google Gemini Deep Research.
+Distill runs on a mix of free and paid stages. YouTube captions and local PDF
+extraction are free. xAI, Anthropic, and Gemini model calls are token-metered.
+Google bills Deep Research for its underlying model inference and tool usage.
+Distill uses a conservative per-run planning estimate for authorization because
+the final Deep Research usage is not known before the job starts.
 
-Figures below are at the **`grok-4.3` default** ($1.25/$2.50 per 1M tokens, the current flagship since April 2026). They are derived from representative per-stage token volumes (`_STAGE_TOKENS` in `distill/pipeline/costs.py`) × the model's pricing, so they track the model rather than a fixed table - and the pre-run estimate self-calibrates against your actual `cost_log.jsonl` history. grok-4.3 is the **cloud floor**: xAI retired the cheaper fast tiers (grok-4-1-fast, grok-4-fast, grok-3, …) on 2026-05-15, and those slugs now redirect to grok-4.3 and bill at grok-4.3 rates ([migration guide](migration-grok-4.3.md)). To go cheaper than grok-4.3 you run analysis on a **local model** (Ollama/LM Studio, $0 marginal) - measure the tradeoff first with `distill eval --models grok-4.3,<local-model>`, which scores quality and cost over frozen fixtures and recommends the cheapest model that clears your bar.
+Cold-start figures below use the **`grok-4.5` default** at $2 input and $6
+output per 1M tokens. They are derived from representative per-stage token
+volumes in `distill/pipeline/cost_estimates.py`, so the estimate follows the
+selected model rather than a fixed dollar table. When sufficient clean history
+exists, the pre-run estimate self-calibrates against the actual
+`cost_log.jsonl` rows. Use `distill eval --models grok-4.5,<candidate>` before
+moving a workload to a cheaper cloud or local model.
 
 Local analysis is not stale-source analysis. When `DISTILL_PROVIDER=ollama` or
 `DISTILL_PROVIDER=lmstudio` is set, Distill still searches and fetches current
@@ -147,9 +157,12 @@ execution; `distill video`, `distill channel`, `distill catch-up`,
 and synthesis estimates before their model work starts; `distill corpus` checks
 one synthesis-call estimate before model preflight only when the topic has
 corpus source sections, preserving empty and paper-only no-synthesis paths;
-`distill report` and
-`distill research-brief` check their Deep Research estimates before the Gemini
-call; direct `distill synthesize`, `distill topic brief`, and on-demand
+`distill report` checks its selected profile before any provider call. The
+default corpus profile prices only the configured sequential writer, the
+accordion profile prices Gemini Deep Research plus ordered writing and QA, and
+the deep-research profile prices one Gemini job. `distill research-brief`
+checks its Deep Research estimate before the Gemini call; direct `distill
+synthesize`, `distill topic brief`, and on-demand
 `distill synthesis` generation check their known synthesis-call estimates before
 model execution; and `distill discover` checks saved preview estimates and
 freshly ranked ingest-plan estimates before ingest. Second, direct CLI workflows that create a
@@ -212,27 +225,28 @@ The provider cache policy is in
 
 ## Per-stage cost
 
-| Stage | Typical cost | Basis (@ grok-4.3) |
+| Stage | Typical cost | Basis at grok-4.5 |
 |---|---|---|
 | YouTube caption extraction | **$0** | yt-dlp pulls auto-generated captions |
 | arXiv PDF download + text extraction | **$0** | pypdf, local |
-| Per-video analysis - full (2 passes) | **~$0.03** | ~13K input + ~6K output |
-| Per-video analysis - Short (1 pass) | **~$0.002** | ~800 input + ~500 output |
-| Per-video analysis - scan (1 pass) | **~$0.004** | ~1.5K input + ~800 output (lightweight triage) |
-| Per-page analysis (website) | **~$0.02-0.05** | Varies with page length |
-| Per-paper analysis (full PDF) | **~$0.03-0.05** | ~20K input + ~3K output |
-| Channel synthesis | **~$0.035** | ~20K input + ~4K output |
-| Topic synthesis | **~$0.035** | Similar to channel synthesis |
-| Paper synthesis (per topic) | **~$0.20** | ~150K input + ~5K output |
-| **Paper query expansion (`distill papers`)** | **~$0.01** | One call to generate up to 6 search variants |
-| **Paper rerank (`distill papers`)** | **~$0.01-0.03** | One call scoring 20-40 paper candidates pre-ingest |
-| **Discover query generation (`distill discover`)** | **~$0.01** | One call generating paper + video queries from a goal |
-| **Discover rerank (`distill discover`)** | **~$0.02-0.05** | One call scoring combined paper+video candidates against the goal |
-| Report Phase 1 (Gemini Deep Research) | **~$2-3** | 1 Deep Research query, variable search depth |
-| Report Phase 2 (sections) | **~$0.29** | ~150K input + ~40K output |
-| Report Phase 4 (QA + rewrites) | **~$0.03** | ~20K input + ~2K output |
+| Per-video analysis - full (2 passes) | **~$0.062** | ~13K input + ~6K output |
+| Per-video analysis - Short (1 pass) | **~$0.005** | ~800 input + ~500 output |
+| Per-video analysis - scan (1 pass) | **~$0.008** | ~1.5K input + ~800 output (lightweight triage) |
+| Per-page analysis (website) | **~$0.042** | ~12K input + ~3K output |
+| Per-paper analysis (full PDF) | **~$0.058** | ~20K input + ~3K output |
+| Channel synthesis | **~$0.064** | ~20K input + ~4K output |
+| Topic synthesis | **~$0.064** | Similar to channel synthesis |
+| Paper synthesis (per topic) | **~$0.33** | ~150K input + ~5K output |
+| **Paper query expansion (`distill papers`)** | **~$0.02** | One call to generate up to 6 search variants |
+| **Paper rerank (`distill papers`)** | **~$0.02-0.06** | One call scoring 20-40 paper candidates pre-ingest |
+| **Discover query generation (`distill discover`)** | **~$0.02** | One call generating paper + video queries from a goal |
+| **Discover rerank (`distill discover`)** | **~$0.04-0.09** | One call scoring combined paper+video candidates against the goal |
+| Default `corpus-report` | **~$0.99** | ~420K input + ~25K output across ordered sections, full-document QA, and a likely rewrite |
+| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | 1 standard Deep Research query |
+| Accordion ordered writing + QA | **~$0.90** | ~360K input + ~30K output across the sequential report spine |
+| `deep-research` profile | **~$2.50** | 1 standard Deep Research query, without section writing |
 | `distill research-brief` | **~$3-5** | 1 Gemini Deep Research query with custom File Search store |
-| `distill synthesize` | **~$0.20-0.40** | 1 Grok 4.3 call over the gathered corpus |
+| `distill synthesize` | **~$0.33-0.65** | 1 Grok 4.5 call over the gathered corpus |
 
 ## Example runs
 
@@ -240,23 +254,22 @@ The provider cache policy is in
 
 | Component | Calculation | Cost |
 |---|---|---|
-| 182 full videos × 2 passes | 182 × $0.03 | ~$5.70 |
-| 187 Shorts × 1 pass | 187 × $0.002 | ~$0.42 |
-| Channel synthesis | 1 × $0.035 | ~$0.035 |
-| Report Phase 1 (Gemini) | 1 query | ~$2-3 |
-| Report Phase 2 (sections) | 1 × Grok | ~$0.29 |
-| Report Phase 4 (QA + rewrites) | 1-3 × Grok | ~$0.03 |
-| **Total** | | **~$8.5-9.5** |
+| 182 full videos × 2 passes | 182 × $0.062 | ~$11.28 |
+| 187 Shorts × 1 pass | 187 × $0.0046 | ~$0.86 |
+| Channel synthesis | 1 × $0.064 | ~$0.06 |
+| Accordion Phase 1 (Gemini) | 1 query | ~$2.50 |
+| Accordion ordered writing + QA | registry-backed projection | ~$0.90 |
+| **Total** | | **~$15.60** |
 
 **100 arXiv papers across 5 topics + one cross-topic synthesis:**
 
 | Component | Calculation | Cost |
 |---|---|---|
-| 100 papers × full-PDF analysis | 100 × $0.0325 | ~$3.25 |
-| 5 × (query expansion + rerank) | 5 × $0.03 | ~$0.15 |
-| 5 paper syntheses | 5 × $0.20 | ~$1.00 |
-| One `distill synthesize` across all 5 topics | 1 × $0.30 | ~$0.30 |
-| **Total** | | **~$4.70** |
+| 100 papers × full-PDF analysis | 100 × $0.058 | ~$5.80 |
+| 5 × (query expansion + rerank) | 5 × $0.06 | ~$0.30 |
+| 5 paper syntheses | 5 × $0.33 | ~$1.65 |
+| One `distill synthesize` across all 5 topics | 1 × $0.45 | ~$0.45 |
+| **Total** | | **~$8.20** |
 
 Add `distill research-brief` (~$3-5) only if you want web-augmented cross-topic Deep Research on top.
 
@@ -264,24 +277,30 @@ Add `distill research-brief` (~$3-5) only if you want web-augmented cross-topic 
 
 | Component | Calculation | Cost |
 |---|---|---|
-| Discover query generation | 1 × $0.01 | ~$0.01 |
-| Discover goal-aware rerank | 1 × $0.03 avg | ~$0.03 |
-| 8 papers × full-PDF analysis | 8 × $0.0325 | ~$0.26 |
-| 8 videos × full 2-pass analysis | 8 × $0.03 | ~$0.25 |
-| Per-channel syntheses + topic synthesis | ~6 × $0.035 | ~$0.21 |
-| Paper synthesis + corpus synthesis | $0.20 + $0.10 | ~$0.30 |
-| **Total** | | **~$1.05** |
+| Discover query generation | 1 × $0.02 | ~$0.02 |
+| Discover goal-aware rerank | 1 × $0.06 avg | ~$0.06 |
+| 8 papers × full-PDF analysis | 8 × $0.058 | ~$0.46 |
+| 8 videos × full 2-pass analysis | 8 × $0.062 | ~$0.50 |
+| Per-channel syntheses + topic synthesis | ~6 × $0.064 | ~$0.38 |
+| Paper synthesis + corpus synthesis | $0.33 + $0.18 | ~$0.51 |
+| **Total** | | **~$1.93** |
 
-Previewing first (`--preview`) stops after the rerank step and costs **~$0.04-0.06**. That's the point of preview - sanity-check the shortlist for pennies before committing. The fresh-topic sizing menu shows each option's spend so you can size against the real cost before approving.
+Previewing first (`--preview`) stops after the rerank step and typically costs
+**~$0.06-0.12** at the default route. The fresh-topic sizing menu shows each
+option's projected spend before approval.
 
 The pre-run estimate shown under a discover preview (and per option in the fresh-topic sizing menu) is **metadata-aware and self-calibrating**: per-video cost scales with the candidate's duration, and the per-source rates are derived from clean single-source runs in your own `cost_log.jsonl` (falling back to the defaults above when history is thin). It's reported as an honest range, e.g. `~$0.42 (est; $0.29-$0.63)`, that narrows as calibration data accrues - so the number tracks *your* model and content mix rather than a fixed table.
 
 ## Budget guidance
 
-- Bulk video analysis is cheap but not free on grok-4.3: ~$0.03/video, so 1,000 videos costs ~$31. There is no cheaper xAI cloud tier anymore (the fast tiers retired 2026-05-15); to drive bulk cost toward $0, run analysis on a local model (`DISTILL_PROVIDER=ollama`) once `distill eval` confirms it clears the quality bar.
+- Bulk video analysis is cheap but not free on grok-4.5: the cold-start
+  estimate is about $0.062 per full video, so 1,000 videos is about $62 before
+  calibration. To drive marginal API cost toward $0, use a local model only
+  after `distill eval` confirms it clears the workload quality bar.
 - Gemini Deep Research dominates the bill at $2-3 per report.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis because it's single-call Grok with no Deep Research involvement.
-- Budget ~$15-20 per topic per quarter as a safe upper bound for a channel-heavy workflow on grok-4.3.
+- Use the command's current estimate and an explicit workflow budget. Do not
+  carry forward a fixed quarterly allowance from an older model price.
 
 Use `distill costs` to see actual cost history with per-run token breakdowns
 and the correlated command, provider, and phase performance evidence available
@@ -335,28 +354,32 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 
 | Model | Input | Output | Context | Used for |
 |---|---|---|---|---|
-| `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Default for all workloads (analysis, reranking, synthesis, briefs, papers, sites, report section writing) |
-| `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; slug redirects to grok-4.3 and bills at grok-4.3 rates. distillr auto-substitutes it (the $0.20/$0.50 entry in the registry is kept only to price pre-retirement `cost_log.jsonl` rows). |
-| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 2M | Still available; selectable via env override for higher-fidelity passes |
-| `deep-research-preview-04-2026` | pay-as-you-go | ~$2-5/query | N/A | Report Phase 1, `distill research-brief` |
+| `grok-4.5` | $2.00/1M | $6.00/1M | 500K | Default for analysis, reranking, synthesis, briefs, papers, sites, and report section writing |
+| `grok-4.3` | $1.25/1M | $2.50/1M | 1M | Supported explicit override and historical default |
+| `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; Distill substitutes the current `grok-4.5` default. The historical registry price remains for old ledger rows. |
+| `grok-4.20-0309-reasoning` | $2.00/1M | $6.00/1M | 131K | Supported explicit override |
+| `deep-research-preview-04-2026` | token and tool based | ~$2-5 planning estimate per run | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
 | `gemini-3.6-flash` | $1.50/1M | $7.50/1M | 1M | Preferred optional Gemini-provider chat model (GA 2026-07-21); doctor probe default |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19); still selectable |
 | `gemini-3.5-flash-lite` | $0.30/1M | $2.50/1M | 1M | High-throughput optional Gemini chat model (GA 2026-07-21) |
 | `claude-sonnet-5` | $2.00/1M through 2026-08-31, then $3.00/1M | $10.00/1M through 2026-08-31, then $15.00/1M | 1M | Optional Anthropic-provider chat model; current intro-rate estimate, not a default route |
+| `claude-opus-5` | $5.00/1M | $25.00/1M | 1M | Optional Anthropic model |
+| `claude-fable-5` | $10.00/1M | $50.00/1M | 1M | Optional Anthropic model; highest widely available capability tier |
 
-Since 0.3.1, both fast and premium tiers default to `grok-4.3`. The older models remain available via `.env` overrides for users who prefer them.
+As of 2026-08-13, both xAI tiers default to `grok-4.5`. Explicit model
+overrides remain available and are costed by the same registry.
 
 ## Overriding models
 
 All model defaults are overridable via `.env`:
 
 ```bash
-XAI_FAST_MODEL=grok-4.3
-XAI_PREMIUM_MODEL=grok-4.3
-XAI_ANALYSIS_MODEL=
-XAI_SITE_MODEL=
-XAI_SYNTHESIS_MODEL=
-ACCORDION_SECTION_MODEL=
+DISTILL_FAST_MODEL=grok-4.5
+DISTILL_PREMIUM_MODEL=grok-4.5
+DISTILL_ANALYSIS_MODEL=
+DISTILL_SITE_MODEL=
+DISTILL_SYNTHESIS_MODEL=
+DISTILL_ACCORDION_MODEL=
 
 # Multi-provider support
 # Routable provider names: xai, gemini, anthropic, agent, ollama, lmstudio.
@@ -367,6 +390,7 @@ DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | agent | oll
 DISTILL_MODEL=                          # e.g. gemini-3.6-flash with DISTILL_PROVIDER=gemini
 DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
 DISTILL_SYNTHESIS_PROVIDER=
+DISTILL_ACCORDION_PROVIDER=             # sequential report sections and QA
 ```
 
 Prefer the CLI over hand-editing when changing the default route:
@@ -376,7 +400,10 @@ distill provider set gemini gemini-3.6-flash
 distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 
-Leave the narrow overrides blank to use the broader `XAI_FAST_MODEL` / `XAI_PREMIUM_MODEL` defaults. Both default to `grok-4.3` since 0.3.1.
+Leave the narrow overrides blank to use the broader `DISTILL_FAST_MODEL` and
+`DISTILL_PREMIUM_MODEL` defaults. Both default to `grok-4.5`. Legacy `XAI_*`
+model variables and `ACCORDION_SECTION_MODEL` remain migration aliases; a
+matching `DISTILL_*` variable takes precedence.
 Claude Sonnet 5 uses Anthropic adaptive thinking by default. Distill omits
 explicit sampling parameters such as `temperature` for Sonnet 5 compatibility,
 while still forwarding `DISTILL_<WORKLOAD>_REASONING_EFFORT` as

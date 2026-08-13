@@ -721,7 +721,7 @@ def test_json_verdict(in_tmp, monkeypatch):
     assert env["data"]["xai_key"] == "ok"
     assert env["data"]["next"].startswith("distill --cost-mode paid-ok papers ")
     assert env["data"]["analysis_provider"] == "xai"
-    assert env["data"]["analysis_model"] == "grok-4.3"
+    assert env["data"]["analysis_model"] == "grok-4.5"
 
 
 def test_existing_env_not_clobbered_by_command(in_tmp, monkeypatch):

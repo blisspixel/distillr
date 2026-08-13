@@ -408,6 +408,12 @@ update, validation, and checksum details. Direct plan-quota adapters remain
 separate and blocked until adapter doctor, current support, auth, usage,
 scratch, and eval gates pass.
 
+The generated repository plugin also follows
+[Agent Plugins v1](https://agent-plugins.org/specification): root `plugin.json`
+provides the portable manifest and `skills/` is the fixed skill location. The
+package intentionally has no root `mcp.json`; configure `distill-mcp`
+separately with explicit read-only and cost policy when MCP access is required.
+
 The installed Python package carries an exact, integrity-manifested copy of the
 skill. Inspect all clients and direct-discovery targets without writing or
 starting any host:
@@ -715,39 +721,59 @@ distill resynthesize my-research --two-pass
 
 ## Reports
 
-The 4-phase strategic report (research -> section writing -> assembly -> QA):
+`distill report` is one facade with three explicit profiles. The default reads
+the durable corpus and does not require Gemini Deep Research:
 
 ```bash
-distill report ai                                   # topic-scoped report
-distill report SomeCreator                          # channel-scoped (auto-resolves topic)
-distill report --all                                # report across every topic
+distill report ai                                   # corpus-report, topic scope
+distill report SomeCreator                          # corpus-report, channel scope
+distill report --all                                # corpus-report, entire library
 distill report ai --focus "enterprise deployment patterns and vendor lock-in"
 
-# Debugging / iteration
-distill report ai --research-only                   # Phase 1 only
-distill report ai --sections executive_briefing,vendor_battleground
-distill report ai --legacy                          # single-shot Deep Research
-distill report ai --no-qa                           # skip Phase 4
-distill report ai --test                            # cheaper, faster validation
+# Full depth: Gemini dossier, then ordered strategic sections and QA
+distill report ai --profile accordion
+distill report ai --profile accordion --research-only
+distill report ai --profile accordion --sections executive_briefing,vendor_battleground
+
+# One Gemini Deep Research artifact, without sequential section writing
+distill report ai --profile deep-research
+distill report ai --legacy                          # compatibility alias
+
+# Corpus profile iteration
+distill report ai --sections evidence_map,contradictions_uncertainty
+distill report ai --no-qa
 ```
 
-See [architecture.md](architecture.md) for how the 4 phases interact.
+| Profile | Research material | Writing path | Cold-start estimate |
+|---|---|---|---:|
+| `corpus-report` (default) | Existing syntheses, insights, and receipt paths | 6 ordered sections, assembly, full-document QA, ordered rewrites | ~$0.99 on the default Grok route; $0 direct API cost on a proven local route |
+| `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | ~$3.40 at current defaults |
+| `deep-research` | Gemini Deep Research | One provider-authored report | ~$2.50 |
 
-During the default 4-phase report, `distill report` prints report-phase
-progress for research, section writing, assembly, and QA. Section writing also
-prints per-section progress, and QA rewrites print per-fix progress. Each line
-includes completed count, failed count, running spend, and ETA when available.
+The estimates are admission values, not price guarantees. Distill resolves the
+configured report route before applying a workflow cap. A local Ollama or LM
+Studio writer contributes $0 direct API cost; Gemini Deep Research remains
+metered in the two profiles that use it.
+
+Sequential writing is deliberate. Section N sees prior sections, and the QA
+review sees the complete assembled report before failed sections are rewritten
+in report order. Independent report chapters are not fanned out. The final
+structural audit refuses unresolved numbered citations and a missing,
+duplicated, or reordered section spine. See [architecture.md](architecture.md)
+for the complete flow.
 
 ## Evaluate models (cost × quality)
 
-Models change fast and there is no cheap xAI cloud tier anymore (the fast tiers retired 2026-05-15; `grok-4.3` is the cloud floor). `distill eval` measures whether a cheaper model - usually a **local** one - is good enough, instead of guessing.
+Models change fast. `grok-4.5` is the current xAI default, while explicit
+overrides remain supported. `distill eval` measures whether a different cloud
+or local model is good enough for a workload instead of guessing.
 
 ```bash
 # Compare the cloud floor against a local model on all workloads
-distill eval --models grok-4.3,qwen3.5:27b
+distill eval --models grok-4.5,qwen3.5:27b
 
 # One workload, write a report artifact, skip the cost prompt
-distill eval --workload paper --models grok-4.3,qwen3.5:27b --report --yes
+distill eval --workload paper --models grok-4.5,qwen3.5:27b --report --yes
 ```
 
 It runs each model over frozen golden fixtures (3 each for paper, video, and
@@ -770,7 +796,7 @@ Flags:
   reserved OpenAI route (`gpt` / `o1` / `o3`), or an adapter candidate
   (`adapter:`); anything else is treated as a local Ollama model.
 - `--anchor <model>` - the incumbent/reference everything is compared against.
-  `auto` uses `grok-4.3` when an XAI key is configured, otherwise the first
+  `auto` uses `grok-4.5` when an XAI key is configured, otherwise the first
   listed model. The anchor is added to `--models` if absent.
 - `--judge <model>` - model judge used for source-anchored faithfulness and
   pairwise at-par comparisons. `auto` selects a different-family model that is
@@ -791,14 +817,15 @@ The eval **recommends**; it never switches your configured model. To act on a re
 
 ## Research briefings and deep synthesis
 
-When the 4-phase report is the wrong shape (multi-topic literature review, stakeholder decision briefing, architectural grounding for a downstream agent), use one of these instead:
+For a multi-topic literature review, custom stakeholder briefing, or a dense
+single-call synthesis, use one of these instead:
 
 ```bash
 # Multi-topic Gemini Deep Research briefing (web-augmented)
 distill research-brief -t topic-a,topic-b \
   --context-file private/product-decision.md --name q2-review
 
-# Multi-topic grok-4.3 single-call synthesis (corpus-only, no web augmentation)
+# Multi-topic Grok single-call synthesis (corpus-only, no web augmentation)
 distill synthesize -t topic-a,topic-b \
   --context-file private/lit-review.md --name ai-lit
 
@@ -808,9 +835,11 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 
 | Command | Engine | Best for | Typical cost |
 |---|---|---|---|
-| `distill report <topic>` | Gemini Deep Research + Grok 4-phase pipeline | Strategic intelligence report on one topic, 30-50 pages | ~$2-4 |
+| `distill report <topic>` | Existing corpus + configured ordered writer | Evidence-backed report without mandatory web research | ~$0.99 on default cloud route; $0 direct on proven local route |
+| `distill report <topic> --profile accordion` | Gemini Deep Research + configured ordered writer | Full-depth strategic intelligence report | ~$3.40 at current defaults |
+| `distill report <topic> --profile deep-research` | Gemini Deep Research | Single provider-authored research report | ~$2.50 |
 | `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | ~$3-5 |
-| `distill synthesize --topic ... --context-file ...` | grok-4.3 single call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | ~$0.50 |
+| `distill synthesize --topic ... --context-file ...` | Configured synthesis model, one call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | Estimate before run |
 
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
 
@@ -902,7 +931,7 @@ distill trends ai --limit 5
 distill export ai --what report
 distill export SomeCreator --what synthesis
 distill export ai --what bundle --format deepr      # zipped corpus bundle
-distill export ai --format okf                      # OKF v0.1 directory bundle
+distill export ai --format okf                      # OKF v0.2 directory bundle
 distill export all --format okf                     # OKF bundle for every topic
 distill export ai --what citations --format bibtex  # paper citations
 distill export ai --what citations --format ris     # Zotero-readable citations

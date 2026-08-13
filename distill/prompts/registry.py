@@ -49,6 +49,7 @@ PROMPT_IDS: dict[str, str] = {
     # Reports / briefs / answers
     "report.dossier": "report.dossier.v1",
     "report.accordion": "report.accordion.v1",
+    "report.corpus": "report.corpus.v1",
     "report.deep_research": "report.deep_research.v1",
     "brief.topic": "brief.topic.v1",
     "ask": "ask.v1",

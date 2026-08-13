@@ -77,8 +77,8 @@ def test_provider_type_classification(provider_name: str, model: str) -> None:
 
 def test_exact_cloud_model_lookup() -> None:
     """Known cloud models resolve to their documented context window."""
-    metadata = asyncio.run(resolve_metadata("xai", "grok-4.3"))
-    assert metadata.context_window == 1_000_000
+    metadata = asyncio.run(resolve_metadata("xai", "grok-4.5"))
+    assert metadata.context_window == 500_000
     assert metadata.provider_type == "cloud"
 
 
@@ -86,6 +86,20 @@ def test_anthropic_sonnet5_context_window_lookup() -> None:
     """Claude Sonnet 5 resolves to the documented 1M context window."""
     metadata = asyncio.run(resolve_metadata("anthropic", "claude-sonnet-5"))
     assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
+@pytest.mark.parametrize("model", ["claude-fable-5", "claude-mythos-5", "claude-opus-5"])
+def test_anthropic_current_capability_tiers_have_one_million_context(model: str) -> None:
+    metadata = asyncio.run(resolve_metadata("anthropic", model))
+    assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
+@pytest.mark.parametrize("model", ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])
+def test_reserved_openai_56_context_metadata(model: str) -> None:
+    metadata = asyncio.run(resolve_metadata("openai", model))
+    assert metadata.context_window == 1_050_000
     assert metadata.provider_type == "cloud"
 
 
@@ -120,8 +134,8 @@ def test_local_provider_with_context_window_method() -> None:
 
 
 def test_resolve_metadata_sync_matches_async_cloud_path() -> None:
-    metadata = resolve_metadata_sync("xai", "grok-4.3")
-    assert metadata.context_window == 1_000_000
+    metadata = resolve_metadata_sync("xai", "grok-4.5")
+    assert metadata.context_window == 500_000
     assert metadata.provider_type == "cloud"
 
 

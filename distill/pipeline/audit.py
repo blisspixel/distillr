@@ -42,6 +42,7 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.library.verify_sidecar import parse_verify_sidecar
 from distill.pipeline.audit_reanalysis import (
     frontmatter_field,
     reanalysis_argvs,
@@ -86,7 +87,6 @@ from distill.pipeline.quality_history import (
     quality_snapshot_from_report,
 )
 from distill.pipeline.quality_trend import render_quality_trend
-from distill.pipeline.verify_sidecar import parse_verify_sidecar
 from distill.prompts.registry import PROMPT_IDS, parse_prompt_id
 
 _action_id = action_id

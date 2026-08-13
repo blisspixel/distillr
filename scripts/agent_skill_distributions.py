@@ -50,6 +50,7 @@ PLUGIN_DESCRIPTION = (
     "Read, verify, and curate a receipt-backed Distill research corpus, including bounded "
     "active-session worker handoffs."
 )
+AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 
 
 class DistributionError(ValueError):
@@ -228,6 +229,25 @@ def _bundle_manifest(version: str, skill_files: Mapping[PurePosixPath, bytes]) -
     )
 
 
+def _portable_plugin_manifest(version: str) -> dict[str, object]:
+    """Return the vendor-neutral Agent Plugins v1 manifest."""
+
+    return {
+        "$schema": AGENT_PLUGINS_SCHEMA,
+        "name": "distill-corpus",
+        "version": version,
+        "description": PLUGIN_DESCRIPTION,
+        "author": {
+            "name": "Nick Seal",
+            "url": "https://github.com/blisspixel",
+        },
+        "homepage": "https://github.com/blisspixel/distillr",
+        "repository": "https://github.com/blisspixel/distillr",
+        "license": "Apache-2.0",
+        "keywords": ["research", "corpus", "verification", "distill"],
+    }
+
+
 def _codex_manifest(version: str) -> dict[str, object]:
     return {
         "name": "distill-corpus",
@@ -344,8 +364,9 @@ def _plugin_readme(version: str) -> bytes:
     return f"""# Distill Corpus agent plugin
 
 This is the generated, self-contained distribution of the canonical
-`skills/distill-corpus/` Agent Skill for Codex, Claude Code, Grok Build, and
-Gemini CLI. Version: `{version}`.
+`skills/distill-corpus/` Agent Skill. The root `plugin.json` targets the
+vendor-neutral Agent Plugins v1 specification. Compatibility manifests are also
+included for Codex, Claude Code, Grok Build, and Gemini CLI. Version: `{version}`.
 
 Do not edit this directory by hand. Change the canonical skill or the generator,
 then run:
@@ -357,6 +378,11 @@ uv run python scripts/agent_skill_distributions.py --write
 Installing this plugin teaches an already active agent how to work with Distill.
 It does not grant credentials, select a billing route, or prove that host usage
 is included in a subscription.
+
+The portable package is intentionally skill-only. It does not include a root
+`mcp.json`, because installing a documentation skill must not silently activate
+Distill's write-capable or spend-capable MCP tools. Configure `distill-mcp`
+separately with the desired read-only and cost policy when MCP access is needed.
 
 The generated `evals/` suite is compatible with Claude Code's native plugin
 evaluation runner. It is a model-judged behavioral suite, not a deterministic
@@ -373,6 +399,7 @@ def expected_tracked_files(root: Path) -> dict[PurePosixPath, bytes]:
     _, license_bytes = _read_source_payload(root, license_path, label="License")
 
     files: dict[PurePosixPath, bytes] = {
+        PLUGIN_ROOT / "plugin.json": _json_bytes(_portable_plugin_manifest(version)),
         PLUGIN_ROOT / ".codex-plugin/plugin.json": _json_bytes(_codex_manifest(version)),
         PLUGIN_ROOT / ".claude-plugin/plugin.json": _json_bytes(_claude_manifest(version)),
         PLUGIN_ROOT / "gemini-extension.json": _json_bytes(

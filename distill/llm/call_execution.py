@@ -134,9 +134,19 @@ def _provider_reasoning_effort(
     provider_name: str,
     model: str,
 ) -> str | None:
-    if provider_name == "xai" and model.startswith("grok-4.3"):
+    normalized_model = model.strip().lower()
+    if provider_name == "xai" and normalized_model.startswith(("grok-4.5", "grok-4.3")):
         return resolve_xai_reasoning_effort(config, workload_tag)
-    if provider_name == "anthropic" and model.startswith("claude-sonnet-5"):
+    if provider_name == "anthropic" and normalized_model.startswith(
+        (
+            "claude-sonnet-5",
+            "claude-opus-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-mythos-5",
+        )
+    ):
         return configured_anthropic_effort(workload_tag)
     return None
 

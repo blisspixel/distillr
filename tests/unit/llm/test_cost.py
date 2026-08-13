@@ -120,6 +120,7 @@ def test_prefix_matching_for_versioned_model_names() -> None:
 @pytest.mark.parametrize(
     "model,expected_input,expected_output",
     [
+        ("grok-4.5", 2.00, 6.00),
         ("grok-4.3", 1.25, 2.50),
         ("grok-4-1-fast-reasoning", 0.20, 0.50),
         ("grok-4.20-0309-reasoning", 2.00, 6.00),
@@ -130,8 +131,15 @@ def test_prefix_matching_for_versioned_model_names() -> None:
         ("gemini-3.1-pro", 2.00, 12.00),
         ("gemini-3.1-flash", 0.25, 1.50),
         ("claude-sonnet-5", 2.00, 10.00),
+        ("claude-fable-5", 10.00, 50.00),
+        ("claude-mythos-5", 10.00, 50.00),
+        ("claude-opus-5", 5.00, 25.00),
         ("claude-sonnet-4", 3.00, 15.00),
+        ("claude-haiku-4-5", 1.00, 5.00),
         ("claude-haiku-4", 0.80, 4.00),
+        ("gpt-5.6-sol", 5.00, 30.00),
+        ("gpt-5.6-terra", 2.00, 12.00),
+        ("gpt-5.6-luna", 0.20, 1.20),
         ("gpt-4.1", 2.00, 8.00),
         ("gpt-4.1-mini", 0.40, 1.60),
     ],
@@ -181,6 +189,7 @@ def test_transcription_cost_rejects_invalid_duration(duration: object) -> None:
 @pytest.mark.parametrize(
     ("model", "expected_input", "expected_output"),
     [
+        ("claude-opus-5", 5.00, 25.00),
         ("claude-opus-4-8", 5.00, 25.00),
         ("claude-opus-4-7", 5.00, 25.00),
         ("claude-opus-4-6", 5.00, 25.00),

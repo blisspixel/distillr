@@ -23,6 +23,9 @@ covers receipt-backed reading, safe curation, and worker procedure. Install and
 lifecycle commands: [usage.md](usage.md#agent-skill-lifecycle). Distribution
 and host-specific install lines:
 [agent-skill-distribution.md](design/agent-skill-distribution.md).
+The portable Agent Plugins v1 package is deliberately skill-only. It does not
+auto-register this MCP server, because plugin installation alone must not widen
+write or spend authority.
 
 ## Installation
 
@@ -155,8 +158,8 @@ fragment, a custom port, an unsupported host, or a non-channel path.
 
 | Tool | What it does |
 |---|---|
-| `okf_export` | Write a read-only OKF v0.1 bundle under `output/`; returns paths and a short preview, not full payloads |
-| `okf_validate` | Structural OKF bundle validation (read-only; works in `DISTILL_MCP_READ_ONLY=1`) |
+| `okf_export` | Write a read-only OKF v0.2 bundle under `output/`; returns paths and a short preview, not full payloads |
+| `okf_validate` | Structural OKF v0.2 validation, including optional provenance, trust, lifecycle, and attestation family checks (read-only; works in `DISTILL_MCP_READ_ONLY=1`) |
 
 MCP validation is limited to regular `output/okf-*` bundle directories. It
 uses no-follow reads plus entry, file, byte, depth, YAML, link, issue, and

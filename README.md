@@ -37,8 +37,8 @@ distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limi
 ![distill papers CLI demo with synthetic paper titles, progress lines, cost summary, and Markdown corpus artifacts](docs/assets/cli-papers-demo.png)
 
 *Illustrative demo (synthetic titles and paths). Real runs use current arXiv
-results and your configured model route. Mid-sized paper runs on the
-`grok-4.3` default are typically single-digit minutes and well under a dollar.*
+results and your configured model route. Distill estimates the selected route
+before spend; actual cost and duration depend on source size and model output.*
 
 Alternate installers, keys, local models, and updates:
 [`docs/install.md`](docs/install.md). Full command reference:
@@ -58,9 +58,19 @@ a write-time verify gate.
 | X, repos, podcasts, newsletters, local files | `distill ingest <url-or-path>` |
 
 Plus `distill ask` (cited answers from the corpus), `distill audit` (free trust
-report), MCP for agents, and optional recurring profiles. Artifact layout and
-samples: [`docs/outputs.md`](docs/outputs.md). Real example corpus:
+report), and `distill report` (a corpus-first sequential report by default,
+with explicit accordion and Deep Research profiles). MCP and recurring
+profiles expose the same durable corpus to agents. Artifact layout and samples:
+[`docs/outputs.md`](docs/outputs.md). Real example corpus:
 [`examples/`](examples/README.md).
+
+Agent distribution uses one canonical Agent Skill plus an
+[Agent Plugins v1](https://agent-plugins.org/specification) root manifest and
+client compatibility manifests. `distill export <topic> --format okf` produces
+an [OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+projection with portable provenance, bounded receipt copies, lifecycle fields,
+and digest-bound machine-verification events. The native `library/` remains the
+source of truth.
 
 How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 [`docs/positioning.md`](docs/positioning.md).
@@ -85,7 +95,7 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 ## Status
 
 Active beta with a broad working surface (sources, discovery, verify, synthesis,
-ask, audit, MCP, dashboard, profiles, bounded workers). Every change still
+ask, audit, MCP, dashboard, profiles, deferred workers). Every change still
 clears the same release gate (95% branch coverage, ruff, pyright, import-linter,
 bandit, pip-audit, supported Python matrix, build provenance). Public contracts
 remain open to evidence-backed improvement; pin versions if you integrate on

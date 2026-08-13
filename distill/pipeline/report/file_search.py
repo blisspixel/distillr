@@ -24,6 +24,7 @@ __all__ = [
     "cleanup_stores",
     "create_research_store",
     "delete_store",
+    "gather_corpus_documents",
     "list_stores",
 ]
 
@@ -430,3 +431,14 @@ def _gather_files(  # noqa: C901 - legacy orchestration kept intact
                 )
 
     return files
+
+
+def gather_corpus_documents(
+    topic: str,
+    config: DistillConfig,
+    scope: str = "topic",
+    channel_name: str | None = None,
+) -> list[tuple[str, str]]:
+    """Gather bounded local corpus documents without creating remote resources."""
+
+    return _gather_files(topic, config, scope, channel_name)

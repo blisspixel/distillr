@@ -88,11 +88,36 @@ be moved to `CHANGELOG.md` on next release).
 
 ### 0. OKF interop and loop-ready stewardship
 
-- [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.1 bundle with generated `index.md`, `log.md`, `type` frontmatter, standard Markdown links, citations, and provenance-preserving references back to receipts and verify sidecars. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
-- [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, structurally valid reserved files, and link warnings. Follow OKF's permissive consumer posture: broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
+- [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.2 bundle with generated `index.md`, date-grouped `log.md`, standard `generated` and `sources` frontmatter, receipt copies, Markdown links, lifecycle fields, and truthful verification projection. Clean sidecars become `verified` only when they have usable coverage and bind to the exact artifact digest; flagged, invalid, incomplete, and stale sidecars remain audit receipts without elevating trust. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
+- [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, v0.2 provenance/trust/lifecycle family shapes, Attested Computation runtime, reserved-file structure, and link warnings. Follow OKF's permissive consumer posture: missing optional fields and broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
 - [x] **Loop-readable next-action plans.** `distill audit <topic|all> --next-actions --json` emits bounded actions with ids, exact commands, approval class, write scope, loop metadata, and verifier/stop condition. The first shipped surface covers broken links, missing orientation, prompt staleness with routable sources, synthesis freshness, coverage gaps, missing corpus synthesis, diffs, and trends. This is rule-owned structure over existing findings, not a semantic priority scorer.
 - [x] **No scheduler inside Distill.** Documented the contract for Codex, Claude Code, Grok Build, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run, where to run it, how to gate spend, and when to stop.
 - [x] **Loop contract fixtures.** Added a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.
+
+### 0a. Report profiles and document-level quality
+
+- [x] **One report facade with explicit profiles.** `distill report` defaults to
+  `corpus-report`, which writes from existing syntheses, insights, and receipt
+  paths without mandatory Gemini spend. `accordion` adds a Gemini Deep Research
+  dossier before the same ordered writer, and `deep-research` preserves the
+  single-provider path. Profile-aware estimates run before provider work and
+  price a proven local writer at zero direct API cost.
+- [x] **Sequential report spine.** One-section writing, retry and refusal,
+  progress, batch policy, full-document review, and ordered rewrites are
+  separate functions. Section writing remains sequential by design, carries
+  recent-section context, and stops after three consecutive failures.
+- [x] **Post-assembly quality and structural refusal.** QA reviews the complete
+  document for contradictions, near duplicates, source independence, and
+  terminology drift. Failed sections are rewritten in order with full-report
+  context, then reassembled. A final structural audit refuses unresolved
+  numbered citations and missing, duplicated, or reordered headings.
+- [x] **Versioned section data.** Section copy lives in strict versioned JSON.
+  Typed Python owns schema validation, profile selection, and scope rules.
+- [ ] **Bounded ingest concurrency remains forward work.** Current paper and
+  video batch loops remain sequential. The first safe fan-out must isolate
+  per-item writes and progress, serialize shared state, and make budget
+  authorization atomic before concurrent model calls. Report chapters are not
+  a concurrency target.
 
 ### 0b. MCP 2026-07-28 compatibility spike
 
@@ -182,9 +207,12 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   estimate exceeds the configured `eval` workflow cap. Saved preview replay and
   freshly ranked `distill discover` ingest plans now refuse before ingest when
   their projected ingest estimate exceeds the configured `discover` cap.
-  `distill report` and `distill research-brief` now refuse before the Gemini
-  Deep Research call when their known projected spend exceeds the configured
-  workflow cap. `distill ask` now refuses after corpus retrieval but before
+  `distill report` now refuses on a profile-aware projection before its first
+  provider call. The default corpus profile prices its resolved writer route;
+  accordion prices Gemini Deep Research plus ordered writing and QA; the
+  deep-research profile prices one Gemini job. `distill research-brief` still
+  refuses before its Gemini Deep Research call. `distill ask` now refuses
+  after corpus retrieval but before
   the QA model call when the bounded excerpt projection exceeds the configured
   `ask` cap, while no-coverage asks remain free. `distill site` and
   `distill site-batch` now refuse before model preflight when the resolved
@@ -431,10 +459,13 @@ per unit of time and cost, not language-level throughput in isolation.
   second. A subprocess regression test keeps those libraries off the import
   path. Remaining cold-start cost is config-model construction and
   CLI-framework import; a cross-platform published number is still owed.
-- [ ] **Bounded concurrency where safe.** Parallelize only after URL pinning,
-  cancellation, provider limits, local-model contention, cost accounting,
-  write scopes, and external serialization are explicit and tested. Record
-  queue time and contention rather than hiding them behind aggregate wall time.
+- [ ] **Bounded concurrency where safe.** Current paper and video batch loops
+  are sequential. Parallelize independent capture and analysis only after URL
+  pinning, cancellation, provider limits, local-model contention, atomic budget
+  authorization, isolated per-item writes and progress, shared-state
+  serialization, and failure isolation are explicit and tested. Record queue
+  time and contention rather than hiding them behind aggregate wall time.
+  Sequential report sections and ordered report rewrites stay out of scope.
 - [ ] **Conditional Rust spike.** Start only if a representative profile still
   shows a narrow deterministic seam consuming at least 10 percent of workflow
   time and 250 ms p95, or violating an explicit memory, safety, or reliability
@@ -522,7 +553,7 @@ controls token spend as the corpus grows. See [`architecture.md#context-engineer
 for the principles these items derive from.
 
 - [~] **Just-in-time MCP context (paths-not-payloads)** - *promoted into the agent-legible 0.9 pass (see `../ROADMAP.md`); current status: `find_insights` (ranked path/preview/score) + `read_insight(path, section?)` are shipped and the default shape; `list_contested` is folded into `find_concepts(contested_only=True)`; the current tool count is maintained in `mcp.md`; remaining work is collapsing overlapping action tools.* Explicit resource and artifact reads may still return a requested full body, but query-first tools no longer make that the default. Anthropic's published example reduced a comparable workflow from ~150K to ~2K tokens (98.7% saving) by switching tool returns from raw payloads to structured summaries plus paths. At ~500-1,000 schema tokens per always-loaded tool, the remaining consolidation matters as much as response shape.
-- [~] **Compaction in the 4-phase report pipeline.** High-recall compaction with an optional precision pass now reduces report context between phases while preserving named entities and quantitative claims, and per-prompt telemetry exposes the result. Remaining work is production-shaped before/after measurement and provider-native opaque continuation items where supported, with no loss of cross-section coherence.
+- [~] **Compaction in the profiled sequential report pipeline.** Bounded corpus hydration and recent-section excerpts reduce report context while preserving continuity, and per-prompt telemetry exposes the result. Remaining work is production-shaped before/after measurement and provider-native opaque continuation items where supported, with no loss of cross-section coherence.
 - [ ] **Effective-context regression tests.** Add a small fixture suite that runs
   paper-analysis / synthesis / report prompts against representative long
   inputs and asserts the output covers known mid-document evidence, edge

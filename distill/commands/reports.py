@@ -1,7 +1,7 @@
 # pyright: strict
 """The `distill report` + `distill export` commands.
 
-report runs the 4-phase Deep Research pipeline into a topic/channel report;
+report runs an explicit corpus, accordion, or Deep Research profile;
 export packages a topic into a Word document or a portable corpus zip (the
 deepr/bundle formats). Reports-panel verbs. Registered via register() from
 distill.cli.
@@ -36,9 +36,15 @@ from distill.library import Library
 from distill.library.citations import collect_paper_citations, render_citations
 from distill.library.okf import export_okf_bundle
 from distill.library.paths import find_artifact
-from distill.llm.cost_policy import require_route_allowed
-from distill.pipeline.costs import BudgetExceededError, report_deep_research_estimate
-from distill.pipeline.report.deep_research import run_deep_research
+from distill.llm.cost_policy import (
+    LOCAL_PROVIDER_NAMES,
+    local_provider_endpoint,
+    require_route_allowed,
+)
+from distill.llm.router import RouterConfig
+from distill.pipeline.costs import BudgetExceededError, report_profile_estimate
+from distill.pipeline.report.facade import ReportProfileName, run_report
+from distill.pipeline.report.profiles import profile_requires_gemini
 from distill.pipeline.summary import RunSummary, display_summary
 
 if TYPE_CHECKING:
@@ -198,6 +204,11 @@ def report(  # noqa: C901 - legacy, will refactor
     all_topics: bool = typer.Option(False, "--all", help="Report on entire library"),
     focus: str | None = typer.Option(None, "--focus", "-f", help="Custom research focus"),
     test: bool = typer.Option(False, "--test", "-t", help="Test mode (cheaper, faster)"),
+    profile: ReportProfileName = typer.Option(
+        ReportProfileName.CORPUS_REPORT,
+        "--profile",
+        help="Report path: corpus-report, accordion, or deep-research",
+    ),
     legacy: bool = typer.Option(
         False, "--legacy", help="Use single-shot Deep Research (no section writing)"
     ),
@@ -213,7 +224,9 @@ def report(  # noqa: C901 - legacy, will refactor
 ):
     """Generate a strategic intelligence report.
 
-    Default: 4-phase (research + section writing + assembly + QA review).
+    Default: corpus-first sequential writing with full-document QA.
+    Use --profile accordion for Gemini research plus sequential writing.
+    Use --profile deep-research for a single Gemini research report.
     Use --legacy for single-shot Deep Research.
     Use --research-only to run only Phase 1.
     Use --no-qa to skip the QA review.
@@ -221,14 +234,25 @@ def report(  # noqa: C901 - legacy, will refactor
     Examples:
       distill report ai
       distill report ai --focus "migration risks"
-      distill report ai --research-only
+      distill report ai --profile accordion --research-only
     """
     config = get_config()
     if topic:
         lib = Library(config)
         topic, channel = _resolve_required_topic_for_channel(lib, topic, channel)
 
-    if not config.gemini_api_key:
+    selected_profile = ReportProfileName.DEEP_RESEARCH if legacy else profile
+    if legacy and profile is not ReportProfileName.CORPUS_REPORT:
+        console.print("[red]Use either --legacy or --profile, not both[/red]")
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+    if research_only and selected_profile is not ReportProfileName.ACCORDION:
+        console.print("[red]--research-only requires --profile accordion[/red]")
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+    if selected_profile is ReportProfileName.DEEP_RESEARCH and (sections_filter or no_qa):
+        console.print("[red]--sections and --no-qa require a sequential report profile[/red]")
+        raise typer.Exit(code=ExitCode.USAGE_ERROR)
+
+    if profile_requires_gemini(selected_profile) and not config.gemini_api_key:
         console.print("[red]GEMINI_API_KEY required for deep research[/red]")
         console.print("[dim]Get one at: https://aistudio.google.com/apikey[/dim]")
         raise typer.Exit(code=ExitCode.CONFIG_ERROR)
@@ -237,11 +261,22 @@ def report(  # noqa: C901 - legacy, will refactor
         console.print("[red]Specify a topic or use --all[/red]")
         raise typer.Exit(code=ExitCode.USAGE_ERROR)
 
-    require_route_allowed(
-        cost_mode=config.distill_cost_mode,
-        provider="gemini",
-        workload="report",
-    )
+    router = RouterConfig(cost_mode=config.distill_cost_mode)
+    if profile_requires_gemini(selected_profile):
+        require_route_allowed(
+            cost_mode=config.distill_cost_mode,
+            provider="gemini",
+            workload="report",
+        )
+    else:
+        provider, _ = router.resolve("accordion")
+        endpoint = local_provider_endpoint(provider) if provider in LOCAL_PROVIDER_NAMES else None
+        require_route_allowed(
+            cost_mode=config.distill_cost_mode,
+            provider=provider,
+            workload="report",
+            endpoint=endpoint,
+        )
 
     scope = "all" if all_topics else ("channel" if channel else "topic")
     scope_label = (
@@ -249,10 +284,13 @@ def report(  # noqa: C901 - legacy, will refactor
         if all_topics
         else (f"channel: {channel}" if channel else f"topic: {topic}")
     )
-    method = "Legacy (single-shot)" if legacy else "Accordion (4-phase)"
+    method = selected_profile.value
 
-    projected_cost = report_deep_research_estimate(
-        include_section_writing=not (legacy or research_only)
+    projected_cost = report_profile_estimate(
+        selected_profile.value,
+        research_only=research_only,
+        skip_qa=no_qa,
+        router_config=router,
     )
     enforce_projected_workflow_budget(config, "report", projected_cost)
 
@@ -260,9 +298,9 @@ def report(  # noqa: C901 - legacy, will refactor
     summary = RunSummary(command="report")
     summary.estimated_cost = projected_cost
     if topic:
-        summary.set_metadata(topic=topic, workflow="report")
+        summary.set_metadata(topic=topic, workflow="report", profile=selected_profile.value)
     elif all_topics:
-        summary.set_metadata(topic="all", workflow="report")
+        summary.set_metadata(topic="all", workflow="report", profile=selected_profile.value)
 
     console.print(f"\n[bold]Report: {scope_label}[/bold]")
     console.print(f"[dim]Method: {method}[/dim]")
@@ -272,43 +310,31 @@ def report(  # noqa: C901 - legacy, will refactor
         console.print(f"[dim]Focus: {focus}[/dim]")
 
     try:
-        if legacy:
-            # Original single-shot deep research
-            result = run_deep_research(
-                topic=topic or "all",
-                config=config,
-                scope=scope,
-                channel_name=channel,
-                focus=focus,
-                test=test,
-                tracker=tracker,
-            )
-        else:
-            # Accordion method
-            from distill.pipeline.report.accordion import run_accordion_research
-
-            filter_list = (
-                [s.strip() for s in sections_filter.split(",")] if sections_filter else None
-            )
-
-            result = run_accordion_research(
-                topic=topic or "all",
-                config=config,
-                scope=scope,
-                channel_name=channel,
-                focus=focus,
-                test=test,
-                dossier_only=research_only,
-                sections=filter_list,
-                tracker=tracker,
-                skip_qa=no_qa,
-            )
+        filter_list = [s.strip() for s in sections_filter.split(",")] if sections_filter else None
+        result = run_report(
+            topic=topic or "all",
+            config=config,
+            profile=selected_profile,
+            scope=scope,
+            channel_name=channel,
+            focus=focus,
+            test=test,
+            research_only=research_only,
+            sections=filter_list,
+            tracker=tracker,
+            skip_qa=no_qa,
+        )
     except BudgetExceededError:
         save_command_cost(
             config,
             "report",
             tracker,
-            metadata={"topic": topic or "all", "workflow": "report", "scope": scope},
+            metadata={
+                "topic": topic or "all",
+                "workflow": "report",
+                "scope": scope,
+                "profile": selected_profile.value,
+            },
         )
         raise
 

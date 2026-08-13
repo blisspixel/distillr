@@ -7,14 +7,14 @@ How Distill works under the hood. Read this if you're contributing, debugging, o
 ```
   Discover (optional)         Source inputs                Capture               Per-item analysis         Synthesis               Report / briefing / synthesis
  ┌──────────────────┐       ┌──────────────────┐     ┌────────────────┐     ┌──────────────────────┐    ┌────────────────┐   ┌─────────────────────────────────┐
- │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.3             │    │ Per-channel    │   │ distill report                  │
- │   goal → queries │──────▶│ YouTube search   │ ──▶ │ YouTube cap.   │ ──▶ │  2-pass full video   │─┐  │ synthesis      │   │  Gemini DR + Grok 4-phase       │
+ │ distill discover │       │ YouTube channels │     │ yt-dlp         │     │ grok-4.5             │    │ Per-channel    │   │ distill report                  │
+ │   goal → queries │──────▶│ YouTube search   │ ──▶ │ YouTube cap.   │ ──▶ │  2-pass full video   │─┐  │ synthesis      │   │  corpus / accordion / DR profiles│
  │   goal rerank    │       │ arXiv search     │     │ Playwright     │     │  1-pass Short        │ │  │ Per-topic      │   │                                 │
  │   cross-source   │       │ Website seeds    │     │ pypdf (papers) │     │ configured route     │ │─▶│ synthesis      │─▶ │ distill research-brief          │
  │   shortlist      │       │ Single URL/paper │     │ Whisper ladder │     │  per-page / per-paper│ │  │ Mixed-source   │   │  Gemini Deep Research (grounded)│
  └──────────────────┘       └──────────────────┘     └────────────────┘     └──────────────────────┘─┘  │ corpus synth.  │   │                                 │
          │                          │                       │                          │                 └────────────────┘   │ distill synthesize              │
-         │                          ▼                       ▼                          ▼                                      │  grok-4.3 single-call corpus    │
+         │                          ▼                       ▼                          ▼                                      │  grok-4.5 single-call corpus    │
          │                  library/topics/<topic>/…  <slug>_Transcript.txt /                                              └─────────────────────────────────┘
          │                  (all artifacts as         <slug>_Content.md / <slug>_Paper.md                                                   │
          │                   frontmatter markdown)    + metadata.json +                                                                        ▼
@@ -96,11 +96,28 @@ asked for. `discover` keeps `balanced` as its default, unchanged since 0.8.12.
 
 ## How reports get built
 
-A single LLM call cannot sustain analytical depth across a long document - it compresses, generalizes, and runs out of steam. Distill's report pipeline splits gathering facts from writing prose, then writes section-by-section with full context.
+A single public facade exposes three report profiles. The default is
+`corpus-report`; `accordion` is the explicit depth path; `deep-research` keeps
+the single-provider path. The section spine stays sequential because each
+section needs to learn from the report written before it.
 
-### Phase 1: Research (Gemini Deep Research)
+Profile definitions are data. Versioned JSON owns section ids, titles,
+positions, voices, and instructions. Python validates that schema strictly,
+applies scope-specific replacement rules, and owns orchestration.
 
-Upload all insights and syntheses to a File Search store, then ask Deep Research (`deep-research-preview-04-2026`, built on Gemini 3.1 Pro) to validate, cross-reference, and extend using web sources. The output is raw structured facts across 8 categories: validated announcements, market data, competitive positioning, enterprise adoption, pricing/economics, corrections, coverage gaps, and forward signals.
+### Research material
+
+The default corpus profile gathers existing syntheses, insights, and receipt
+paths. It prioritizes higher-level syntheses and applies a bounded context
+limit. It neither performs web search nor claims that its evidence was
+independently validated by Deep Research.
+
+The accordion profile uploads corpus artifacts to a File Search store, then
+asks Gemini Deep Research (`deep-research-preview-04-2026`) to validate,
+cross-reference, and extend them using web sources. Its dossier covers
+validated announcements, market data, competitive positioning, enterprise
+adoption, pricing and economics, corrections, coverage gaps, and forward
+signals.
 
 File submission is not treated as indexing success. Only upload operations that
 reach a successful terminal state count as grounded documents, and a zero-count
@@ -111,15 +128,20 @@ the final model output. Failed or timed-out uploads are excluded from the
 grounding count, and missing or partial response evidence fails closed instead
 of being described as grounded corpus use.
 
-Citations must reference primary sources (not Wikipedia, not numbered `[cite: N]` formats). Creator estimates are explicitly tagged as such, never promoted to confirmed facts.
+Citations must reference primary sources, not Wikipedia or unresolved numbered
+handles. Creator estimates are explicitly tagged as such and never promoted to
+confirmed facts.
 
-### Phase 2: Section writing (grok-4.3)
+### Sequential section writing
 
-Sections are written sequentially, adapting to scope (single-channel vs multi-channel section lists). Each section receives:
+The configured `accordion` workload route writes six corpus sections or ten
+strategic accordion sections. Before a Deep Research job starts, Distill also
+preflights the writer route so a missing second-provider key cannot fail only
+after the dossier has already incurred spend. Each section receives:
 
-- The full research output
+- The bounded corpus material or full research dossier
 - Tagged source material relevant to that section (e.g. vendor-specific insights for the Competitive Battleground)
-- All previous sections for dedup (recent sections get 500 words of context, older get 150)
+- The last three previous sections for continuity and deduplication, with a 500-word excerpt from the newest and 150-word excerpts from the other two
 - Position guidance (opening / middle / closing tone)
 - Voice guidance matching the section type:
   - **Reference** sections (Landscape, Gaps): factual, tables, no sales language
@@ -127,28 +149,24 @@ Sections are written sequentially, adapting to scope (single-channel vs multi-ch
   - **Actionable** sections (Executive Briefing, Playbook, Synthesis): direct recommendations
 - Temperature control: 0.3 for reference, 0.5 for analytical, 0.6 for actionable
 
-A 3-consecutive-failure circuit breaker prevents wasting API calls if something goes wrong.
+A three-consecutive-failure circuit breaker stops the remaining section calls
+when a route or prompt repeatedly fails. The orchestration separates one-section
+writing, retry, refusal, progress, and batch policy without making report
+chapters independent.
 
-### Phase 3: Assembly
+### Assembly and document-wide QA
 
-Sections get merged with header metadata, a table of contents, and section dividers. Any surviving numbered citation artifacts and word-count metadata are stripped.
+Sections are merged with header metadata, a table of contents, and section
+dividers. The QA reviewer receives the research material and complete assembled
+report. It checks source support, source independence, contradictions,
+near-duplicate claims, terminology consistency, cross-section repetition,
+confidence labels, and voice.
 
-### Phase 4: QA review (grok-4.3)
-
-Read research + assembled report together. Score each section (PASS / FLAG / FAIL) checking for:
-
-- Hallucinated claims - statistics or data not present in the research dossier (most critical check)
-- Numbered citations - `[cite: N]` format that should be descriptive references
-- Wikipedia as source - should cite primary sources
-- Creator opinions labeled as facts - creator estimates labeled `[Confirmed]` instead of `[Estimated]`
-- Inherited bias - sections that amplify creator bullishness/bearishness without counterweight
-- Cross-section repetition - same facts restated instead of cross-referenced
-- Wall-of-text paragraphs - paragraphs over ~80 words that need breaking up
-- Missing confidence labels
-- Contradictions between sections or with the research
-- Voice drift - reference sections that sound like sales pitches, or vice versa
-
-Any section that scores FAIL gets automatically rewritten with QA feedback injected. One retry per section max. Then re-assemble and export to both Markdown and DOCX.
+Failed sections are rewritten once, in report order, with the full assembled
+report and section-specific feedback. If a rewrite occurs, Distill reassembles
+the document. A final deterministic audit handles only structural ground truth:
+it refuses unresolved numbered citations and missing, duplicated, or reordered
+section headings. Semantic quality remains model-owned.
 
 ## Key design decisions
 
@@ -186,10 +204,12 @@ xAI model choice is separated by workload, overridable via `.env`:
 
 | Workload | Default | Why |
 |---|---|---|
-| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.3` ($1.25/$2.50 per 1M) | High volume, good quality at low cost |
-| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.3` ($1.25/$2.50 per 1M) | Same model handles both tiers since 0.3.1 |
+| Bulk YouTube analysis, reranking, synthesis, briefs | `grok-4.5` ($2/$6 per 1M) | Current xAI default; configurable reasoning |
+| Website/page distillation, paper analysis, multi-topic deep synthesis | `grok-4.5` ($2/$6 per 1M) | Current xAI default with a 500K context window |
 
-Gemini Deep Research (`deep-research-preview-04-2026`) handles report Phase 1 and `distill research-brief`.
+Gemini Deep Research (`deep-research-preview-04-2026`) handles the accordion
+dossier, the `deep-research` report profile, and `distill research-brief`. The
+default corpus report does not require it.
 
 See [cost.md](cost.md) for the full cost model.
 
@@ -337,7 +357,7 @@ Distill treats the prompt context window as a scarce, actively managed resource 
 
 **Just-in-time hydration over preloading.** `distill discover` pulls papers + videos *against a goal* and reranks before ingesting; `distill papers` expands and reranks before per-paper analysis; channel watches load only delta videos since the last run. The system never asks "load everything for this topic and let the model figure it out" - it asks "what's the smallest sufficient set for this query?" This is the "Select" pillar.
 
-**Workload-tuned model routing trades fidelity against context budget.** Routing is by workload tag, not a single hard-coded model: analysis, synthesis, site/paper, and report-section workloads each resolve through `distill/llm/router.py`. On the cloud floor those tags currently all resolve to `grok-4.3` (1M-token window; the cheaper grok-4-fast tiers retired 2026-05-15 and now redirect to it), while report Phase 1 routes to Gemini Deep Research for web-grounded retrieval. Anthropic `claude-sonnet-5` is also wired as an explicit opt-in metered route with a 1M-token window, but it is not a calibrated default until `distill eval` proves it for a workload. Keeping the tags distinct even when they collapse to one cloud model is deliberate: the routing seam is where a local model or a different provider can take a specific workload, such as bulk transcripts on local compute or harder mid-length synthesis on cloud, so each workload gets the model whose effective context window and cost fit it best, not the largest claimed window. The cross-provider, cost-aware version of that choice is what `distill eval` measures (see [`../ROADMAP.md`](../ROADMAP.md), "Looking beyond 1.0").
+**Workload-tuned model routing trades fidelity against context budget.** Routing is by workload tag, not a single hard-coded model: analysis, synthesis, site/paper, and report-section workloads each resolve through `distill/llm/router.py`. The current xAI defaults resolve to `grok-4.5` with a 500K-token context window; existing model overrides remain valid. The accordion and deep-research profiles route their research stage to Gemini for web-grounded retrieval, while the default report starts from local corpus artifacts. Anthropic `claude-sonnet-5` is also wired as an explicit opt-in metered route with a 1M-token window, but it is not a calibrated default until `distill eval` proves it for a workload. Keeping the tags distinct even when they collapse to one cloud model is deliberate: the routing seam is where a local model or a different provider can take a specific workload, such as bulk transcripts on local compute or harder mid-length synthesis on cloud. The cross-provider, cost-aware version of that choice is what `distill eval` measures (see [`../ROADMAP.md`](../ROADMAP.md), "Looking beyond 1.0").
 
 **Confidence labels and source tagging keep provenance in-band.** `[Confirmed]` / `[Reported]` / `[Estimated]` / `[Speculated]` / `[Analysis]` aren't decorative - they're how downstream prompts (synthesis, report, briefing) avoid laundering uncertainty across handoffs. This is the "Provenance" criterion from Vishnyakova's production-grade context-engineering rubric.
 
@@ -347,8 +367,8 @@ working first implementations:
 1. MCP query tools default to paths, bounded previews, and explicit drill-down
    reads. Full bodies remain available only when the caller asks for a specific
    artifact or resource. Further action-tool consolidation remains roadmap work.
-2. The 4-phase report pipeline uses high-recall compaction and an optional
-   precision pass between phases. Prompt telemetry makes its token cost visible.
+2. The sequential report spine uses bounded corpus hydration plus compact
+   excerpts from recent sections. Prompt telemetry makes its token cost visible.
    Provider-native opaque continuation items and further measured compaction
    remain roadmap work.
 

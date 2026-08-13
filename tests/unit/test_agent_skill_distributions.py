@@ -105,6 +105,28 @@ def test_generated_plugin_contains_exact_canonical_skill() -> None:
     assert b'"name": "distillr"' in expected[PurePosixPath("gemini-extension.json")]
 
 
+def test_portable_plugin_manifest_targets_agent_plugins_v1() -> None:
+    expected = GENERATOR.expected_tracked_files(ROOT)
+    manifest = json.loads(expected[PurePosixPath("plugins/distill-corpus/plugin.json")])
+
+    assert manifest == {
+        "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+        "name": "distill-corpus",
+        "version": VERSION,
+        "description": GENERATOR.PLUGIN_DESCRIPTION,
+        "author": {
+            "name": "Nick Seal",
+            "url": "https://github.com/blisspixel",
+        },
+        "homepage": "https://github.com/blisspixel/distillr",
+        "repository": "https://github.com/blisspixel/distillr",
+        "license": "Apache-2.0",
+        "keywords": ["research", "corpus", "verification", "distill"],
+    }
+    assert "skills" not in manifest
+    assert PurePosixPath("plugins/distill-corpus/mcp.json") not in expected
+
+
 def test_write_repairs_drift_and_removes_unexpected_plugin_files(tmp_path: Path) -> None:
     root = _minimal_root(tmp_path)
     GENERATOR.write_tracked(root)
@@ -242,6 +264,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
         assert all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in archive.infolist())
 
     plugin_payloads = _archive_payloads(plugin_path)
+    assert "distill-corpus/plugin.json" in plugin_payloads
     assert "distill-corpus/.codex-plugin/plugin.json" in plugin_payloads
     assert "distill-corpus/.claude-plugin/plugin.json" in plugin_payloads
     assert "distill-corpus/gemini-extension.json" in plugin_payloads

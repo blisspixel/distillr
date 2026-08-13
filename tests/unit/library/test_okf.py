@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 
 import distill.library.okf as okf_module
+import distill.library.okf_v02 as okf_v02_module
 from distill.config import DistillConfig
+from distill.library.insights import insight_content_sha256
 from distill.library.okf import (
     OkfValidationLimits,
     _display_path,
@@ -69,6 +71,115 @@ class TestValidateOkfBundle:
         _write(bundle / "index.md", "# Index\n")
         _write(bundle / "log.md", "# Log\n")
         _write(bundle / "concept.md", "---\ntype: [broken\n---\n\n# Concept\n")
+
+        result = validate_okf_bundle(bundle)
+
+        assert not result.ok
+        assert any("Invalid YAML" in issue.message for issue in result.errors)
+
+    def test_accepts_valid_v02_trust_provenance_and_lifecycle_fields(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", '---\nokf_version: "0.2"\n---\n\n# Index\n')
+        _write(bundle / "log.md", "# Directory Update Log\n\n## 2026-08-12\n\n* Updated.\n")
+        _write(
+            bundle / "concept.md",
+            "---\n"
+            "type: Reference\n"
+            "generated: {by: distillr/1.0.0, at: 2026-08-12T10:00:00Z}\n"
+            "verified: {by: process:distill-verify, at: 2026-08-12T10:01:00Z}\n"
+            "sources: [{id: source, resource: https://example.com}]\n"
+            "status: stable\n"
+            "stale_after: 2026-12-31\n"
+            "---\n\n# Concept\n",
+        )
+
+        result = validate_okf_bundle(bundle)
+
+        assert result.ok
+        assert result.warnings == ()
+
+    def test_v02_optional_family_shape_problems_are_warnings(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", "# Index\n")
+        _write(bundle / "log.md", "# Directory Update Log\n")
+        _write(
+            bundle / "concept.md",
+            "---\n"
+            "type: Reference\n"
+            "generated: {at: yesterday}\n"
+            "verified: [{by: process:x}]\n"
+            "sources: [{title: Missing resource}]\n"
+            "status: unknown\n"
+            "stale_after: P7D\n"
+            "---\n",
+        )
+
+        result = validate_okf_bundle(bundle)
+
+        assert result.ok
+        messages = [issue.message for issue in result.warnings]
+        assert any("generated" in message for message in messages)
+        assert any("verified" in message for message in messages)
+        assert any("sources" in message for message in messages)
+        assert any("status" in message for message in messages)
+        assert any("stale_after" in message for message in messages)
+
+    def test_attested_computation_requires_runtime(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "concept.md", "---\ntype: Attested Computation\n---\n")
+
+        result = validate_okf_bundle(bundle)
+
+        assert not result.ok
+        assert any("runtime" in issue.message for issue in result.errors)
+
+    def test_log_entries_require_iso_date_groups(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "log.md", "# Directory Update Log\n\n* Ungrouped update.\n")
+
+        result = validate_okf_bundle(bundle)
+
+        assert not result.ok
+        assert any("ISO date headings" in issue.message for issue in result.errors)
+
+    def test_v02_reserved_and_family_edge_shapes_are_reported(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "index.md", '---\nokf_version: "0.1"\n---\n\n# Index\n')
+        _write(
+            bundle / "nested" / "index.md",
+            '---\nokf_version: "0.2"\n---\n\n# Nested index\n',
+        )
+        _write(
+            bundle / "log.md",
+            "---\ntitle: Legacy\n---\n\n# Directory Update Log\n\n## not-a-date\n",
+        )
+        _write(
+            bundle / "concept.md",
+            "---\n"
+            "type: Attested Computation\n"
+            "runtime: python\n"
+            "generated: []\n"
+            "verified: {by: process:test, at: not-a-date}\n"
+            'stale_after: "2026-02-31"\n'
+            "---\n",
+        )
+
+        result = validate_okf_bundle(bundle)
+
+        assert not result.ok
+        messages = [issue.message for issue in (*result.errors, *result.warnings)]
+        assert any("targets 0.2" in message for message in messages)
+        assert any("bundle-root index" in message for message in messages)
+        assert any("log.md should not have frontmatter" in message for message in messages)
+        assert any("non-date section" in message for message in messages)
+        assert any("generated" in message for message in messages)
+        assert any("verified" in message for message in messages)
+        assert any("stale_after" in message for message in messages)
+        assert not any("must include runtime" in message for message in messages)
+
+    def test_invalid_yaml_timestamp_is_an_error_instead_of_crashing(self, tmp_path: Path) -> None:
+        bundle = tmp_path / "bundle"
+        _write(bundle / "concept.md", "---\ntype: Reference\nstale_after: 2026-02-31\n---\n")
 
         result = validate_okf_bundle(bundle)
 
@@ -192,7 +303,13 @@ class TestExportOkfBundle:
         text = exported.read_text(encoding="utf-8")
         assert 'type: "Source Insight"' in text
         assert 'resource: "https://example.com/watch"' in text
-        assert "Distill source artifact" in text
+        assert "Native Distill artifact" in text
+        assert 'generated: {"at":' in text
+        assert 'sources: [{"id": "source-url"' in text
+        assert "timestamp:" not in text
+        assert "# Citations" not in text
+        index = (result.output_dir / "index.md").read_text(encoding="utf-8")
+        assert 'okf_version: "0.2"' in index
 
     def test_exports_concept_and_entity_playbook_types(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -530,7 +647,9 @@ class TestExportEdgeCases:
         with pytest.raises(FileNotFoundError):
             export_okf_bundle(config, "does-not-exist")
 
-    def test_render_includes_native_type_and_verify_sidecar(self, tmp_path: Path) -> None:
+    def test_render_preserves_invalid_sidecar_without_claiming_verification(
+        self, tmp_path: Path
+    ) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
         topic_dir = config.topic_dir("ai")
         _write(
@@ -545,8 +664,166 @@ class TestExportEdgeCases:
             encoding="utf-8"
         )
         assert 'native_type: "insights"' in exported  # dump quotes string values
-        assert "verify_sidecar:" in exported
-        assert "Verify sidecar:" in exported  # citation line
+        assert 'distill_verification: {"receipt":' in exported
+        assert '"status": "invalid"' in exported
+        assert "verified:" not in exported
+        assert "Verification receipt:" in exported
+        copied = result.output_dir / "papers" / "p" / "p_Insights_Verify.json"
+        assert copied.read_text(encoding="utf-8") == "{}"
+        assert result.files_written == 5
+
+    def test_clean_bound_sidecar_projects_machine_verification(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        topic_dir = config.topic_dir("ai")
+        insight = topic_dir / "local" / "doc" / "doc_Insights.md"
+        receipt = insight.with_name("doc_Content.txt")
+        _write(
+            insight,
+            "---\n"
+            "type: insights\n"
+            "source_receipt: doc_Content.txt\n"
+            "generated_at: 2026-08-11T09:00:00Z\n"
+            "model: model-test\n"
+            "status: stable\n"
+            "stale_after: 2026-12-31\n"
+            "---\n\nBody 42.\n",
+        )
+        _write(receipt, "Receipt 42.\n")
+        payload = {
+            "schema_version": 3,
+            "mode": "warn",
+            "checked": 1,
+            "supported": 1,
+            "unsupported": [],
+            "insight": insight.name,
+            "source": receipt.name,
+            "generated_at": "2026-08-12T10:00:00Z",
+            "insight_sha256": insight_content_sha256(insight.read_text(encoding="utf-8")),
+        }
+        _write(insight.with_name("doc_Insights_Verify.json"), json.dumps(payload))
+
+        result = export_okf_bundle(config, "ai")
+
+        exported = (result.output_dir / "local" / "doc" / insight.name).read_text(encoding="utf-8")
+        assert 'verified: [{"at": "2026-08-12T10:00:00Z"' in exported
+        assert '"by": "process:distill-verify"' in exported
+        assert '"status": "passed"' in exported
+        assert 'native_generated_at: "2026-08-11T09:00:00Z"' in exported
+        assert 'native_model: "model-test"' in exported
+        assert 'status: "stable"' in exported
+        assert 'stale_after: "2026-12-31"' in exported
+        assert '"resource": "/local/doc/doc_Content.txt"' in exported
+        assert (result.output_dir / "local" / "doc" / receipt.name).read_text(
+            encoding="utf-8"
+        ) == "Receipt 42.\n"
+
+    def test_flagged_sidecar_never_projects_verified(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        _write(insight, "Body 99.\n")
+        payload = {
+            "schema_version": 3,
+            "mode": "warn",
+            "checked": 1,
+            "supported": 0,
+            "unsupported": [{"token": "99", "kind": "integer", "context": "Body 99."}],
+            "insight": insight.name,
+            "source": "receipt.txt",
+            "generated_at": "2026-08-12T10:00:00Z",
+            "insight_sha256": insight_content_sha256(insight.read_text(encoding="utf-8")),
+        }
+        _write(insight.with_name("doc_Insights_Verify.json"), json.dumps(payload))
+
+        result = export_okf_bundle(config, "ai")
+
+        exported = (result.output_dir / insight.name).read_text(encoding="utf-8")
+        assert '"status": "flagged"' in exported
+        assert "verified:" not in exported
+
+    def test_stale_digest_sidecar_is_unbound_and_never_verified(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        _write(insight, "Current body 42.\n")
+        payload = {
+            "schema_version": 3,
+            "mode": "warn",
+            "checked": 1,
+            "supported": 1,
+            "unsupported": [],
+            "insight": insight.name,
+            "source": "receipt.txt",
+            "generated_at": "2026-08-12T10:00:00Z",
+            "insight_sha256": "0" * 64,
+        }
+        _write(insight.with_name("doc_Insights_Verify.json"), json.dumps(payload))
+
+        result = export_okf_bundle(config, "ai")
+
+        exported = (result.output_dir / insight.name).read_text(encoding="utf-8")
+        assert '"status": "unbound"' in exported
+        assert "verified:" not in exported
+
+    @pytest.mark.parametrize(
+        ("sidecar_text", "expected_status"),
+        [
+            ("[", "invalid"),
+            ("[]", "invalid"),
+            (
+                json.dumps(
+                    {
+                        "schema_version": 3,
+                        "mode": "warn",
+                        "checked": 0,
+                        "supported": 0,
+                        "unsupported": [],
+                        "insight": "doc_Insights.md",
+                        "source": "receipt.txt",
+                        "generated_at": "2026-08-12T10:00:00Z",
+                    }
+                ),
+                "incomplete",
+            ),
+        ],
+    )
+    def test_unusable_sidecars_remain_receipts(
+        self,
+        tmp_path: Path,
+        sidecar_text: str,
+        expected_status: str,
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        _write(insight, "Body.\n")
+        _write(insight.with_name("doc_Insights_Verify.json"), sidecar_text)
+
+        result = export_okf_bundle(config, "ai")
+
+        exported = (result.output_dir / insight.name).read_text(encoding="utf-8")
+        assert f'"status": "{expected_status}"' in exported
+        assert "verified:" not in exported
+
+    def test_clean_bound_sidecar_with_invalid_time_is_not_verified(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        _write(insight, "Body 42.\n")
+        payload = {
+            "schema_version": 3,
+            "mode": "warn",
+            "checked": 1,
+            "supported": 1,
+            "unsupported": [],
+            "insight": insight.name,
+            "source": "receipt.txt",
+            "generated_at": "not-a-date",
+            "insight_sha256": insight_content_sha256(insight.read_text(encoding="utf-8")),
+        }
+        _write(insight.with_name("doc_Insights_Verify.json"), json.dumps(payload))
+
+        result = export_okf_bundle(config, "ai")
+
+        exported = (result.output_dir / insight.name).read_text(encoding="utf-8")
+        assert '"status": "invalid"' in exported
+        assert "verified:" not in exported
 
     def test_topic_without_concept_markdown_writes_empty_index(self, tmp_path: Path) -> None:
         config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -677,6 +954,41 @@ class TestExportEdgeCases:
         assert marker.read_text(encoding="utf-8") == "preserve me"
         assert not (prior_output / "concepts" / "leak.md").exists()
 
+    def test_export_rejects_symlinked_verification_sidecar(self, tmp_path: Path) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        _write(insight, "Body.\n")
+        outside = tmp_path / "outside.json"
+        _write(outside, "{}")
+        sidecar = insight.with_name("doc_Insights_Verify.json")
+        try:
+            sidecar.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        with pytest.raises(ValueError, match="unsafe OKF verification sidecar"):
+            export_okf_bundle(config, "ai")
+
+    def test_export_rejects_unreadable_verification_sidecar(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config = DistillConfig(distill_output_dir=tmp_path / "library")
+        insight = config.topic_dir("ai") / "doc_Insights.md"
+        sidecar = insight.with_name("doc_Insights_Verify.json")
+        _write(insight, "Body.\n")
+        _write(sidecar, "{}")
+        real_read = okf_v02_module.read_confined_text
+
+        def refuse_sidecar(path: Path, root: Path, *, max_bytes: int) -> str | None:
+            if path == sidecar:
+                return None
+            return real_read(path, root, max_bytes=max_bytes)
+
+        monkeypatch.setattr(okf_v02_module, "read_confined_text", refuse_sidecar)
+
+        with pytest.raises(ValueError, match="unreadable OKF verification sidecar"):
+            export_okf_bundle(config, "ai")
+
     def test_export_rejects_oversized_source_without_replacing_prior_output(
         self, tmp_path: Path
     ) -> None:
@@ -798,6 +1110,88 @@ class TestWikilinkRewrite:
 
 
 class TestSmallHelpers:
+    def test_merge_supplemental_files_rejects_conflicting_content(self, tmp_path: Path) -> None:
+        relative = Path("receipt.txt")
+        first = okf_v02_module.SupplementalFile(tmp_path / "a.txt", relative, "first")
+        second = okf_v02_module.SupplementalFile(tmp_path / "b.txt", relative, "second")
+        collected: dict[Path, str] = {}
+
+        okf_v02_module.merge_supplemental_files(collected, (first,))
+
+        with pytest.raises(ValueError, match="Conflicting OKF supplemental file"):
+            okf_v02_module.merge_supplemental_files(collected, (second,))
+
+    @pytest.mark.parametrize(
+        "receipt_name",
+        ["../outside.txt", ".secret", "index.md", "log.md", "llms.txt", "folder/file.txt"],
+    )
+    def test_receipt_candidate_rejects_unsafe_or_reserved_names(
+        self, tmp_path: Path, receipt_name: str
+    ) -> None:
+        source = tmp_path / "source.md"
+        _write(source, "Source.\n")
+
+        assert okf_v02_module.receipt_candidate(tmp_path, source, receipt_name) is None
+
+    def test_okf_sources_tolerates_missing_receipt_mtime(self, tmp_path: Path, monkeypatch) -> None:
+        source = tmp_path / "source.md"
+        receipt = tmp_path / "receipt.txt"
+        _write(source, "Source.\n")
+        _write(receipt, "Receipt.\n")
+
+        class BrokenTimestamp:
+            @classmethod
+            def fromtimestamp(cls, *_args, **_kwargs):
+                raise OSError("mtime unavailable")
+
+        monkeypatch.setattr(okf_v02_module, "datetime", BrokenTimestamp)
+
+        sources, supplemental = okf_v02_module.collect_okf_sources(
+            source_root=tmp_path,
+            source_file=source,
+            source_files=frozenset({source}),
+            native_meta={"source_receipt": receipt.name},
+            source_url="",
+            title="Source",
+            verification=None,
+        )
+
+        assert sources == [
+            {
+                "id": "source-receipt",
+                "resource": "/receipt.txt",
+                "title": "receipt.txt",
+            }
+        ]
+        assert supplemental[0].content == "Receipt.\n"
+
+    def test_okf_sources_refuses_unreadable_non_markdown_receipt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        source = tmp_path / "source.md"
+        receipt = tmp_path / "receipt.txt"
+        _write(source, "Source.\n")
+        _write(receipt, "Receipt.\n")
+        real_read = okf_v02_module.read_confined_text
+
+        def refuse_receipt(path: Path, root: Path, *, max_bytes: int) -> str | None:
+            if path == receipt:
+                return None
+            return real_read(path, root, max_bytes=max_bytes)
+
+        monkeypatch.setattr(okf_v02_module, "read_confined_text", refuse_receipt)
+
+        with pytest.raises(ValueError, match="unreadable OKF source receipt"):
+            okf_v02_module.collect_okf_sources(
+                source_root=tmp_path,
+                source_file=source,
+                source_files=frozenset({source}),
+                native_meta={"source_receipt": receipt.name},
+                source_url="",
+                title="Source",
+                verification=None,
+            )
+
     def test_verify_sidecar_for_finds_sibling(self, tmp_path: Path) -> None:
         source = tmp_path / "x_Insights.md"
         source.write_text("x", encoding="utf-8")

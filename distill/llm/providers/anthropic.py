@@ -30,6 +30,7 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 # and older still accept sampling, so a plain prefix list keeps the boundary exact.
 _NO_CUSTOM_SAMPLING_PREFIXES: tuple[str, ...] = (
     "claude-sonnet-5",
+    "claude-opus-5",
     "claude-opus-4-7",
     "claude-opus-4-8",
     "claude-fable-5",

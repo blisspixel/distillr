@@ -37,8 +37,8 @@ def run_scope_report(
 
     console.print("\n[bold cyan]Generating report...[/bold cyan]")
     from distill.commands import _helpers as helpers
-    from distill.pipeline.report.accordion import run_accordion_research
     from distill.pipeline.report.deep_research import _get_report_path
+    from distill.pipeline.report.facade import ReportProfileName, run_report
 
     start_entry_count = len(tracker.entries)
     start_gemini_queries = tracker.gemini_queries
@@ -61,7 +61,8 @@ def run_scope_report(
         start_entry_count=start_entry_count,
         start_gemini_queries=start_gemini_queries,
         metadata=report_metadata,
-        run_accordion_research=run_accordion_research,
+        run_accordion_research=run_report,
+        profile=ReportProfileName.ACCORDION,
     )
 
     if not result:
@@ -134,6 +135,7 @@ def _run_accordion_report_with_budget_log(
     start_gemini_queries: int,
     metadata: dict[str, str],
     run_accordion_research: Callable[..., str | None],
+    profile: object | None = None,
 ) -> str | None:
     """Run report research and persist its tracker delta on every exit."""
     try:
@@ -145,6 +147,7 @@ def _run_accordion_report_with_budget_log(
             test=test,
             tracker=tracker,
             focus=focus,
+            **({"profile": profile} if profile is not None else {}),
         )
     except BudgetExceededError as exc:
         if summary is not None:

@@ -156,6 +156,30 @@ def test_known_workload_resolves_correctly() -> None:
     mock_prov.call.assert_called_once()
 
 
+def test_legacy_report_model_env_maps_to_router_when_new_override_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.delenv("DISTILL_ACCORDION_MODEL", raising=False)
+    monkeypatch.setenv("ACCORDION_SECTION_MODEL", "grok-4.3")
+
+    assert RouterConfig().resolve("accordion") == ("xai", "grok-4.3")
+
+
+def test_new_report_model_env_wins_over_legacy_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+    monkeypatch.setenv("DISTILL_ACCORDION_MODEL", "grok-4.5")
+    monkeypatch.setenv("ACCORDION_SECTION_MODEL", "grok-4.3")
+
+    assert RouterConfig().resolve("accordion") == ("xai", "grok-4.5")
+
+
 def test_call_succeeds_inside_running_event_loop() -> None:
     """Regression: ``call`` must work when invoked from an already-running event
     loop (the async MCP server path drives sync pipeline code that calls the
@@ -440,16 +464,29 @@ def test_anthropic_missing_key_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
-def test_anthropic_sonnet5_configured_effort_is_forwarded(
+@pytest.mark.parametrize(
+    "model",
+    [
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-fable-5",
+        "claude-mythos-5",
+        "CLAUDE-OPUS-5",
+    ],
+)
+def test_anthropic_adaptive_model_configured_effort_is_forwarded(
     monkeypatch: pytest.MonkeyPatch,
+    model: str,
 ) -> None:
     monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "xhigh")
     config = RouterConfig(
         provider="anthropic",
         anthropic_api_key="test-anthropic",
-        model="claude-sonnet-5",
+        model=model,
     )
-    mock_prov = _mock_provider(model="claude-sonnet-5")
+    mock_prov = _mock_provider(model=model)
 
     with patch("distill.llm.router._get_provider", return_value=mock_prov):
         call(config, "analysis", "test prompt")
@@ -521,9 +558,9 @@ def test_retired_model_resolution_warns_and_replaces(caplog: Any) -> None:
         provider_name, model_id = config.resolve("analysis")
 
     assert provider_name == "xai"
-    assert model_id == "grok-4.3"
+    assert model_id == "grok-4.5"
     assert "grok-3" in caplog.text
-    assert "grok-4.3" in caplog.text
+    assert "grok-4.5" in caplog.text
 
 
 @pytest.mark.parametrize(

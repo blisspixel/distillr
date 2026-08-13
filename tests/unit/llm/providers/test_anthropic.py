@@ -230,6 +230,7 @@ def test_permanent_http_error_does_not_retry(monkeypatch: pytest.MonkeyPatch) ->
     "model",
     [
         "claude-sonnet-5",
+        "claude-opus-5",
         "claude-opus-4-7",
         "claude-opus-4-8",
         "claude-fable-5",

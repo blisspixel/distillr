@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "strategic-intelligence": {
+      "sections": [
+        {
+          "id": "executive_briefing",
+          "title": "Executive Briefing",
+          "position": "opening",
+          "voice": "actionable",
+          "multi_channel_only": false,
+          "instructions": "Lead with the 3-5 most consequential findings from this research period. Write for a time-pressed executive who needs the 'so what' immediately. Each finding should be 2-3 sentences: what happened, why it matters, what to do. Use bullet points or numbered findings, not dense paragraphs. Do not summarize the report structure. Deliver intelligence.",
+          "dossier_focus": null
+        },
+        {
+          "id": "validated_landscape",
+          "title": "The Validated Technology Landscape",
+          "position": "middle",
+          "voice": "reference",
+          "multi_channel_only": false,
+          "instructions": "Map every major product launch, GA release, preview announcement, and capability update from the research period. This is a reference section, not a sales pitch. Use a consistent format for each entry: Product or Feature, Vendor, Date, Status, Pricing. Use Markdown tables for vendor comparisons where helpful. Group by vendor: Microsoft or Azure, Google Cloud, AWS, NVIDIA, OpenAI, Anthropic, and others. Be exhaustive and factual. Let the data speak, with no urgency language.",
+          "dossier_focus": ["validated_announcements", "market_data"]
+        },
+        {
+          "id": "vendor_battleground",
+          "title": "Vendor Competitive Battleground",
+          "position": "middle",
+          "voice": "analytical",
+          "multi_channel_only": false,
+          "instructions": "Analyze the competitive dynamics across Microsoft or Azure, Google Cloud, AWS, and NVIDIA. For each vendor, cover current strategic posture, recent wins and losses, where it is investing, and what it is de-emphasizing. Identify the 2-3 most significant competitive shifts. Include specific evidence such as partnership announcements, pricing moves, and customer wins. Call out vendor marketing claims that do not match reality. End with a summary table comparing vendor strengths and weaknesses.",
+          "dossier_focus": ["competitive_positioning", "market_data"]
+        },
+        {
+          "id": "enterprise_reality",
+          "title": "Enterprise Adoption Reality Check",
+          "position": "middle",
+          "voice": "analytical",
+          "multi_channel_only": false,
+          "instructions": "Explain what enterprises are actually doing with AI now. Separate production deployments from proofs of concept and vaporware. Cover which use cases generate real ROI, what is failing, and where vendor promises diverge from customer reality. Include specific adoption data, case studies, and earnings call mentions. Address pricing and economics, including actual workload costs and the TCO evidence.",
+          "dossier_focus": ["enterprise_adoption", "pricing_economics"]
+        },
+        {
+          "id": "corrections_nuances",
+          "title": "Corrections, Nuances, and Hype Check",
+          "position": "middle",
+          "voice": "analytical",
+          "multi_channel_only": false,
+          "instructions": "Use a structured format for each correction: Claim, Reality, and Source. Flag claims that are technically true but misleading. Be specific about which source made the claim and what the evidence shows. Keep the tone neutral and factual. Present corrections as clarifications, not attacks.",
+          "dossier_focus": ["corrections_contradictions"]
+        },
+        {
+          "id": "creator_consensus",
+          "title": "Creator Consensus and Contrarian Views",
+          "position": "middle",
+          "voice": "analytical",
+          "multi_channel_only": false,
+          "instructions": "Analyze where the creators agree and disagree. Convergence across independent creators is a stronger signal, while disagreement reveals uncertainty. For each major theme, identify who agrees, who disagrees, and what evidence supports each position. Distinguish independent corroboration from repetition of the same originating claim. Use channel synthesis data heavily.",
+          "dossier_focus": ["gaps_coverage"]
+        },
+        {
+          "id": "gaps_blindspots",
+          "title": "Coverage Gaps and Blind Spots",
+          "position": "middle",
+          "voice": "reference",
+          "multi_channel_only": false,
+          "instructions": "Identify important developments the corpus did not cover and topics it systematically under-covers. Consider regulatory changes, enterprise developments, infrastructure and operations, security, and international developments. For each gap, state what happened, why it matters, and where to find more information. Use bullets or a table. Keep this section factual.",
+          "dossier_focus": ["gaps_coverage", "forward_signals"]
+        },
+        {
+          "id": "predictions_timeline",
+          "title": "Predictions and 90-Day Outlook",
+          "position": "middle",
+          "voice": "analytical",
+          "multi_channel_only": false,
+          "instructions": "Describe what is likely in the next 90 days. Use one subsection per prediction with Confidence, Evidence, and What to Watch. Evaluate source predictions and distinguish well-supported forecasts from wishful thinking. End with a table of predictions ranked by confidence.",
+          "dossier_focus": ["forward_signals"]
+        },
+        {
+          "id": "customer_playbook",
+          "title": "Customer Conversation Playbook",
+          "position": "closing",
+          "voice": "actionable",
+          "multi_channel_only": false,
+          "instructions": "For a pre-sales architect who takes customer calls daily, provide 3-5 specific scenarios with clear headers. For each, include the customer question, key response points as bullets, and one closing line. Keep each scenario to 150-200 words. Reference earlier sections by name instead of restating evidence. Make the guidance concrete and scannable.",
+          "dossier_focus": null
+        },
+        {
+          "id": "strategic_synthesis",
+          "title": "Strategic Synthesis",
+          "position": "closing",
+          "voice": "actionable",
+          "multi_channel_only": false,
+          "instructions": "Tie the report together through 3-5 evidence-backed themes. Explain what a pre-sales architect should internalize from this research period. Connect vendors, enterprise adoption, source insights, and market data. End with the single most important takeaway that should change customer conversations over the next 90 days.",
+          "dossier_focus": null
+        }
+      ],
+      "single_channel_replacement": {
+        "replace_id": "creator_consensus",
+        "section": {
+          "id": "creator_accuracy",
+          "title": "Creator Signal vs. Noise",
+          "position": "middle",
+          "voice": "analytical",
+          "instructions": "Evaluate this creator's track record across the corpus. Identify where the creator was right, wrong, or early on a real trend. Describe systematic biases such as hype, vendor preference, or excessive pessimism. Rate reliability by subject area and state what readers should cross-check.",
+          "dossier_focus": ["corrections_contradictions", "gaps_coverage"]
+        }
+      }
+    },
+    "corpus-research": {
+      "sections": [
+        {
+          "id": "executive_synthesis",
+          "title": "Executive Synthesis",
+          "position": "opening",
+          "voice": "actionable",
+          "instructions": "Lead with the 3-5 findings that most affect the research goal. For each finding, state the evidence, its confidence, and why it changes a decision or understanding. Do not describe the report structure.",
+          "dossier_focus": null
+        },
+        {
+          "id": "evidence_map",
+          "title": "Evidence Map and Key Findings",
+          "position": "middle",
+          "voice": "reference",
+          "instructions": "Organize the strongest findings by theme. Trace each load-bearing claim to named corpus artifacts or receipt paths. Distinguish direct evidence, source interpretation, and report analysis. Prefer tables when they make source support easier to audit.",
+          "dossier_focus": null
+        },
+        {
+          "id": "convergence_disagreement",
+          "title": "Source Convergence and Disagreement",
+          "position": "middle",
+          "voice": "analytical",
+          "instructions": "Show where independent sources converge, where they disagree, and where apparent agreement comes from a shared originating source. Explain the strongest interpretation of each side before assessing the evidence.",
+          "dossier_focus": null
+        },
+        {
+          "id": "contradictions_uncertainty",
+          "title": "Contradictions, Uncertainty, and Gaps",
+          "position": "middle",
+          "voice": "analytical",
+          "instructions": "Identify contradictions, unsupported claims, outdated material, unresolved questions, and important corpus gaps. Do not force resolution where the evidence is insufficient. State what additional evidence would change the assessment.",
+          "dossier_focus": null
+        },
+        {
+          "id": "implications",
+          "title": "Implications",
+          "position": "middle",
+          "voice": "analytical",
+          "instructions": "Explain what the evidence means for the research goal. Separate direct implications from inference and speculation. Cross-reference earlier sections instead of repeating their facts.",
+          "dossier_focus": null
+        },
+        {
+          "id": "recommendations_next",
+          "title": "Recommendations and Next Questions",
+          "position": "closing",
+          "voice": "actionable",
+          "instructions": "Provide prioritized, evidence-backed recommendations. For each recommendation, state the supporting evidence, confidence, tradeoff, and next verification step. End with the most valuable questions for the next research cycle.",
+          "dossier_focus": null
+        }
+      ],
+      "single_channel_replacement": null
+    }
+  }
+}

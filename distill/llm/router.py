@@ -91,8 +91,8 @@ class RouterConfig(BaseSettings):
     # DISTILL_COST_MODE: auto | no-metered | paid-ok
     cost_mode: CostMode = "auto"
     # Tier defaults
-    fast_model: str = "grok-4.3"
-    premium_model: str = "grok-4.3"
+    fast_model: str = "grok-4.5"
+    premium_model: str = "grok-4.5"
 
     # Per-workload model overrides (empty = use tier default)
     analysis_model: str = ""
@@ -138,18 +138,25 @@ class RouterConfig(BaseSettings):
 
     @model_validator(mode="before")
     @classmethod
-    def _populate_api_keys_from_env(cls, data: Any) -> Any:
-        """Read API keys from their canonical (non-prefixed) env var names."""
+    def _populate_compatibility_env(cls, data: Any) -> Any:
+        """Read canonical keys and supported legacy model aliases from the environment."""
         if not isinstance(data, dict):
             return data
-        key_env_map = {
+        compatibility_env_map = {
             "xai_api_key": "XAI_API_KEY",
             "gemini_api_key": "GEMINI_API_KEY",
             "anthropic_api_key": "ANTHROPIC_API_KEY",
             "openai_api_key": "OPENAI_API_KEY",
+            "fast_model": "XAI_FAST_MODEL",
+            "premium_model": "XAI_PREMIUM_MODEL",
+            "analysis_model": "XAI_ANALYSIS_MODEL",
+            "rerank_model": "XAI_RERANK_MODEL",
+            "synthesis_model": "XAI_SYNTHESIS_MODEL",
+            "site_model": "XAI_SITE_MODEL",
+            "accordion_model": "ACCORDION_SECTION_MODEL",
         }
         dotenv_vals: dict[str, str | None] = {}
-        for field_name, env_name in key_env_map.items():
+        for field_name, env_name in compatibility_env_map.items():
             if field_name not in data:  # Only populate if not explicitly provided
                 env_val = os.environ.get(env_name, "")
                 if not env_val:

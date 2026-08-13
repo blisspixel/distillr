@@ -49,7 +49,7 @@ PROVIDER_HELP: dict[str, str] = {
 }
 
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
-    "xai": "grok-4.3",
+    "xai": "grok-4.5",
     "gemini": "gemini-3.6-flash",
     "anthropic": "claude-sonnet-5",
 }

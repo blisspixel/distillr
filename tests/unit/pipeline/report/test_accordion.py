@@ -1,6 +1,7 @@
 """Tests for the accordion method -- prompts, orchestrator, and assembly."""
 
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,8 +18,6 @@ from distill.pipeline.report.accordion import (
     _extract_section_feedback,
     _gather_tagged_materials,
     _get_research_path,
-    _load_syntheses,
-    _load_tagged_insights,
     _normalize_qa_title,
     _parse_qa_failures,
     _run_dossier_phase,
@@ -26,7 +25,15 @@ from distill.pipeline.report.accordion import (
     _scope_label,
     _unresolved_numbered_citation_reason,
     _write_sections,
+    audit_assembled_report,
+    report_router_config,
     run_accordion_research,
+)
+from distill.pipeline.report.materials import (
+    load_syntheses as _load_syntheses,
+)
+from distill.pipeline.report.materials import (
+    load_tagged_insights as _load_tagged_insights,
 )
 from distill.prompts.report import (
     REPORT_SECTIONS,
@@ -34,6 +41,39 @@ from distill.prompts.report import (
     get_active_sections,
     section_prompt,
 )
+
+
+class TestAssembledReportAudit:
+    sections: ClassVar = [
+        {"id": "one", "title": "One", "content": "body", "word_count": 1},
+        {"id": "two", "title": "Two", "content": "body", "word_count": 1},
+    ]
+
+    def test_accepts_ordered_unique_headings(self):
+        audit_assembled_report("# Report\n\n## One\nbody\n\n## Two\nbody", self.sections)
+
+    def test_refuses_unresolved_numbered_citation(self):
+        with pytest.raises(ValueError, match="assembled report refused"):
+            audit_assembled_report(
+                "# Report\n\n## One\n[cite: 1]\n\n## Two\nbody",
+                self.sections,
+            )
+
+    def test_refuses_missing_or_duplicate_heading(self):
+        with pytest.raises(ValueError, match="must contain one heading"):
+            audit_assembled_report("## One\nbody\n## One\nbody\n## Two\nbody", self.sections)
+
+    def test_refuses_reordered_spine(self):
+        with pytest.raises(ValueError, match="section order"):
+            audit_assembled_report("## Two\nbody\n## One\nbody", self.sections)
+
+    def test_exact_heading_match_allows_prefix_titles(self):
+        sections = [
+            {"id": "one", "title": "One", "content": "body", "word_count": 1},
+            {"id": "two", "title": "One More", "content": "body", "word_count": 1},
+        ]
+        audit_assembled_report("## One\nbody\n## One More\nbody", sections)
+
 
 # ─── Prompt Tests ────────────────────────────────────────────────────
 
@@ -267,6 +307,25 @@ class TestAssembly:
         ]
         result = _assemble_report("ai", config, "topic", None, sections)
         assert "Accordion method" in result
+
+    def test_corpus_presentation_is_domain_neutral(self, config):
+        sections = [
+            {"id": "evidence", "title": "Evidence", "content": "content", "word_count": 1},
+        ]
+
+        result = _assemble_report(
+            "history",
+            config,
+            "topic",
+            None,
+            sections,
+            method_label="Corpus report",
+            report_title="Research Report",
+            show_video_coverage=False,
+        )
+
+        assert "# Research Report: HISTORY" in result
+        assert "videos analyzed" not in result
 
 
 class TestScopeLabel:
@@ -1128,6 +1187,23 @@ class TestDossierPhase:
 
 
 class TestAccordionRun:
+    def test_report_router_uses_programmatic_model_configuration(self, config):
+        config.xai_fast_model = "grok-fast-custom"
+        config.xai_premium_model = "grok-premium-custom"
+        config.xai_analysis_model = "grok-analysis-custom"
+        config.xai_rerank_model = "grok-rerank-custom"
+        config.xai_synthesis_model = "grok-synthesis-custom"
+        config.xai_site_model = "grok-site-custom"
+        config.accordion_section_model = "grok-report-custom"
+
+        router = report_router_config(config)
+
+        assert router.resolve("analysis") == ("xai", "grok-analysis-custom")
+        assert router.resolve("rerank") == ("xai", "grok-rerank-custom")
+        assert router.resolve("synthesis") == ("xai", "grok-synthesis-custom")
+        assert router.resolve("site") == ("xai", "grok-site-custom")
+        assert router.resolve("accordion") == ("xai", "grok-report-custom")
+
     def test_no_metered_refuses_before_dossier_phase(self, config, monkeypatch):
         config.distill_cost_mode = "no-metered"
         dossier_phase = MagicMock(side_effect=AssertionError("dossier started"))

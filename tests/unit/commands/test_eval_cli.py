@@ -32,7 +32,7 @@ def _rows():
             pairwise_winrate=winrate,
         )
 
-    return [row("grok-4.3", 0.95, 0.03, None), row("qwen3.5:27b", 0.91, 0.0, 0.6)]
+    return [row("grok-4.5", 0.95, 0.06, None), row("qwen3.5:27b", 0.91, 0.0, 0.6)]
 
 
 def _patch_eval(monkeypatch):
@@ -44,7 +44,7 @@ def _patch_eval(monkeypatch):
 def test_eval_runs_and_recommends(mock_config, monkeypatch):
     _patch_eval(monkeypatch)
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5,qwen3.5:27b", "--yes"]
     )
     assert result.exit_code == 0, result.output
     assert "Model eval" in result.output
@@ -67,7 +67,7 @@ def test_eval_adds_anchor_to_models_and_writes_report(mock_config, monkeypatch):
             "--models",
             "qwen3.5:27b",
             "--anchor",
-            "grok-4.3",
+            "grok-4.5",
             "--yes",
             "--report",
         ],
@@ -87,9 +87,9 @@ def test_eval_warns_when_judge_shares_anchor_family(mock_config, monkeypatch):
             "--workload",
             "paper",
             "--models",
-            "grok-4.3,qwen3.5:27b",
+            "grok-4.5,qwen3.5:27b",
             "--judge",
-            "grok-4.3",
+            "grok-4.5",
             "--yes",
         ],
     )
@@ -122,12 +122,12 @@ def test_eval_skips_local_model_that_exceeds_vram(mock_config, monkeypatch):
 
     monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3,huge:70b", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5,huge:70b", "--yes"]
     )
     assert result.exit_code == 0, result.output
     assert "exceeds your 24GB VRAM" in result.output
     assert "huge:70b" not in captured["models"]  # skipped — would spill to CPU
-    assert "grok-4.3" in captured["models"]
+    assert "grok-4.5" in captured["models"]
 
 
 def test_eval_allow_oversized_keeps_the_model(mock_config, monkeypatch):
@@ -147,7 +147,7 @@ def test_eval_allow_oversized_keeps_the_model(mock_config, monkeypatch):
             "--workload",
             "paper",
             "--models",
-            "grok-4.3,huge:70b",
+            "grok-4.5,huge:70b",
             "--allow-oversized",
             "--yes",
         ],
@@ -169,7 +169,7 @@ def test_eval_notes_cpu_when_no_gpu_and_local_requested(mock_config, monkeypatch
     _mock_no_gpu(monkeypatch)
     _patch_eval(monkeypatch)
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3,qwen3.5:27b", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5,qwen3.5:27b", "--yes"]
     )
     assert result.exit_code == 0, result.output
     assert "run on CPU" in result.output  # local requested, no GPU -> informed, not blocked
@@ -179,7 +179,7 @@ def test_eval_no_cpu_note_when_cloud_only(mock_config, monkeypatch):
     _mock_no_gpu(monkeypatch)
     _patch_eval(monkeypatch)
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5", "--yes"]
     )
     assert result.exit_code == 0, result.output
     assert "run on CPU" not in result.output  # cloud-only is unaffected by GPU absence
@@ -258,7 +258,7 @@ def test_eval_rejects_unknown_workload(mock_config):
 
 
 def test_eval_auto_models_defaults_to_cloud(mock_config, monkeypatch):
-    # No --models: with an XAI key the default resolves to grok-4.3.
+    # No --models: with an XAI key the default resolves to grok-4.5.
     _patch_eval(monkeypatch)
     captured = {}
     import distill.eval as eval_pkg
@@ -270,7 +270,7 @@ def test_eval_auto_models_defaults_to_cloud(mock_config, monkeypatch):
     monkeypatch.setattr(eval_pkg, "run_model_eval", fake_run)
     result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--yes"])
     assert result.exit_code == 0, result.output
-    assert "grok-4.3" in captured["models"]
+    assert "grok-4.5" in captured["models"]
 
 
 def test_eval_no_models_available_errors(tmp_path, monkeypatch):
@@ -308,7 +308,7 @@ def test_eval_auto_judge_picks_cross_family_cloud(mock_config, monkeypatch):
         ],
     )
     assert result.exit_code == 0, result.output
-    assert captured["judge"] == "grok-4.3"
+    assert captured["judge"] == "grok-4.5"
 
 
 def test_eval_errors_when_no_fixtures(mock_config, monkeypatch):
@@ -316,7 +316,7 @@ def test_eval_errors_when_no_fixtures(mock_config, monkeypatch):
 
     monkeypatch.setattr(eval_pkg, "load_fixtures", lambda _w: [])
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5", "--yes"]
     )
     assert result.exit_code == 1
     assert "No fixtures" in result.output
@@ -331,7 +331,7 @@ def test_eval_unpriced_route_human(mock_config, monkeypatch):
 
     monkeypatch.setattr(eval_pkg, "estimate_eval_cost", _raise)
     result = runner.invoke(
-        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+        cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5", "--yes"]
     )
     assert result.exit_code == 3
     assert "no price for route" in result.output
@@ -348,7 +348,7 @@ def test_eval_unpriced_route_json(mock_config, monkeypatch):
 
     monkeypatch.setattr(eval_pkg, "estimate_eval_cost", _raise)
     result = runner.invoke(
-        cli.app, ["--json", "eval", "--workload", "paper", "--models", "grok-4.3", "--yes"]
+        cli.app, ["--json", "eval", "--workload", "paper", "--models", "grok-4.5", "--yes"]
     )
     assert result.exit_code == 3
     payload = json.loads(result.stdout)
@@ -359,7 +359,7 @@ def test_eval_unpriced_route_json(mock_config, monkeypatch):
 def test_eval_aborts_when_confirm_declined(mock_config, monkeypatch):
     _patch_eval(monkeypatch)
     monkeypatch.setattr(_eval, "_tty_confirm", lambda *_a, **_k: False)
-    result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--models", "grok-4.3"])
+    result = runner.invoke(cli.app, ["eval", "--workload", "paper", "--models", "grok-4.5"])
     assert result.exit_code == 0
     assert "Aborted" in result.output
 
@@ -404,7 +404,7 @@ def test_eval_refuses_projected_spend_before_model_run(mock_config, monkeypatch)
     with pytest.raises(ProjectedBudgetExceededError) as raised:
         runner.invoke(
             cli.app,
-            ["eval", "--workload", "paper", "--models", "grok-4.3", "--yes"],
+            ["eval", "--workload", "paper", "--models", "grok-4.5", "--yes"],
             catch_exceptions=False,
         )
 

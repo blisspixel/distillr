@@ -63,13 +63,13 @@ from distill.library.paths import (
     strip_frontmatter,
     write_text_artifact,
 )
+from distill.library.verify_sidecar import VERIFY_SCHEMA_VERSION, EntailmentStatus
 from distill.pipeline.verify_entailment import (
     EntailmentChecker,
     EntailmentReport,
     evaluate_entailment,
     load_default_checker,
 )
-from distill.pipeline.verify_sidecar import VERIFY_SCHEMA_VERSION, EntailmentStatus
 
 __all__ = [
     "EntailmentStatus",

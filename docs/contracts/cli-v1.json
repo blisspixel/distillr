@@ -4280,6 +4280,28 @@
         },
         {
           "count": false,
+          "default": "corpus-report",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "profile",
+          "names": [
+            "--profile"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "case_sensitive": true,
+            "choices": [
+              "corpus-report",
+              "accordion",
+              "deep-research"
+            ],
+            "name": "choice"
+          }
+        },
+        {
+          "count": false,
           "default": false,
           "flag_value": null,
           "is_flag": true,

@@ -24,6 +24,7 @@ __all__ = [
 
 # Known cloud context windows (documented values, in tokens)
 CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
+    "grok-4.5": 500_000,
     "grok-4.3": 1_000_000,
     "grok-4.20-non-reasoning": 131_072,
     "grok-4.20-0309-reasoning": 131_072,
@@ -33,14 +34,21 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "gemini-3.5-flash-lite": 1_000_000,
     "gemini-3.1-pro": 1_000_000,
     "gemini-3.1-flash": 1_000_000,
-    # Opus 4.6/4.7/4.8 are 1M-context. Without these entries an Opus route fell
-    # back to DEFAULT_CONTEXT_WINDOW (4096) and over-chunked every long input.
+    "claude-fable-5": 1_000_000,
+    "claude-mythos-5": 1_000_000,
+    "claude-opus-5": 1_000_000,
+    # Recent Opus 4 releases are also 1M-context. Without these entries an Opus
+    # route falls back to DEFAULT_CONTEXT_WINDOW (4096) and over-chunks input.
     "claude-opus-4-8": 1_000_000,
     "claude-opus-4-7": 1_000_000,
     "claude-opus-4-6": 1_000_000,
     "claude-sonnet-5": 1_000_000,
     "claude-sonnet-4": 200_000,
+    "claude-haiku-4-5": 200_000,
     "claude-haiku-4": 200_000,
+    "gpt-5.6-sol": 1_050_000,
+    "gpt-5.6-terra": 1_050_000,
+    "gpt-5.6-luna": 1_050_000,
     "gpt-4.1": 1_000_000,
     "gpt-4.1-mini": 128_000,
 }

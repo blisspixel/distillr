@@ -599,7 +599,7 @@ class TestResearchCommand:
         _cli_impl.get_config = lambda: config
         _reports.get_config = lambda: config
         try:
-            result = runner.invoke(cli.app, ["report", "ai"])
+            result = runner.invoke(cli.app, ["report", "ai", "--profile", "accordion"])
             assert result.exit_code == int(ExitCode.CONFIG_ERROR)
         finally:
             cli.get_config = original

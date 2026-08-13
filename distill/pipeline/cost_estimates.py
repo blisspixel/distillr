@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ACCORDION_GROK_ESTIMATE",
+    "CORPUS_REPORT_ESTIMATE",
     "CostCalibration",
     "CostEstimate",
     "estimate_ask_workflow_cost",
@@ -32,9 +33,14 @@ __all__ = [
     "estimate_video_workflow_cost",
     "load_cost_calibration",
     "report_deep_research_estimate",
+    "report_profile_estimate",
 ]
 
-ACCORDION_GROK_ESTIMATE: float = 0.05
+# Report estimates include all sequential section inputs and outputs, one
+# full-document QA review, and one likely section rewrite. They are registry
+# backed so a default-model price change is visible in dry-run projections.
+ACCORDION_GROK_ESTIMATE: float = compute_cost(DEFAULT_MODEL, 360_000, 30_000)
+CORPUS_REPORT_ESTIMATE: float = compute_cost(DEFAULT_MODEL, 420_000, 25_000)
 
 # Representative input and output token volumes for one ingested unit. These
 # registry-backed estimates track the configured default model rather than a
@@ -559,3 +565,54 @@ def report_deep_research_estimate(*, include_section_writing: bool = True) -> fl
     if include_section_writing:
         total += ACCORDION_GROK_ESTIMATE
     return total
+
+
+def report_profile_estimate(
+    profile: str,
+    *,
+    research_only: bool = False,
+    skip_qa: bool = False,
+    router_config: RouterConfig | None = None,
+) -> float:
+    """Estimate one canonical report profile before any provider call."""
+
+    normalized = profile.strip().casefold().replace("_", "-")
+    if normalized in {"deep-research", "legacy"}:
+        return deep_research_query_cost()
+    if normalized == "accordion":
+        if research_only:
+            return deep_research_query_cost()
+        generation = _report_generation_estimate(
+            input_tokens=360_000,
+            output_tokens=30_000,
+            default=ACCORDION_GROK_ESTIMATE,
+            router_config=router_config,
+        ) * (0.85 if skip_qa else 1.0)
+        return deep_research_query_cost() + generation
+    if normalized in {"corpus", "corpus-report"}:
+        if research_only:
+            raise ValueError("research_only is not supported by corpus-report")
+        generation = _report_generation_estimate(
+            input_tokens=420_000,
+            output_tokens=25_000,
+            default=CORPUS_REPORT_ESTIMATE,
+            router_config=router_config,
+        )
+        return generation * (0.85 if skip_qa else 1.0)
+    raise ValueError(f"unknown report profile: {profile}")
+
+
+def _report_generation_estimate(
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    default: float,
+    router_config: RouterConfig | None,
+) -> float:
+    if router_config is None:
+        return default
+    return _routed_model_cost(
+        "accordion",
+        router_config,
+        lambda model: compute_cost(model, input_tokens, output_tokens),
+    )

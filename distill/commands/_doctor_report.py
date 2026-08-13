@@ -263,7 +263,7 @@ def _doctor_local_inference_section(  # noqa: C901
         if ollama_models:
             console.print(
                 f"  Compare local vs cloud (local is free):  "
-                f"[cyan]distill eval --models grok-4.3,{escape(ollama_models[0])}[/cyan]"
+                f"[cyan]distill eval --models grok-4.5,{escape(ollama_models[0])}[/cyan]"
             )
     elif local_model_ready:
         console.print(

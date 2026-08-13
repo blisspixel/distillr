@@ -1676,8 +1676,8 @@ def test_stage_cost_tracks_default_model_pricing():
     # at the default model — i.e. it tracks the model, never a hard-coded rate.
     tin, tout = _STAGE_TOKENS["video_full"]
     assert estimate_stage_cost("video_full") == compute_cost(DEFAULT_MODEL, tin, tout)
-    # grok-4.3 default ($1.25 / $2.50): 13k in + 6k out = $0.03125.
-    assert round(estimate_stage_cost("video_full"), 5) == 0.03125
+    # grok-4.5 default ($2 / $6): 13k in + 6k out = $0.062.
+    assert round(estimate_stage_cost("video_full"), 5) == 0.062
 
 
 # ---- metadata-aware, self-calibrating discover estimate (0.9.1) ------------

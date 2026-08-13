@@ -379,6 +379,36 @@ def test_human_read_prompts_carry_register_rules():
     assert REGISTER_RULES in sec
 
 
+def test_report_prompts_accept_domain_neutral_presentation():
+    from distill.prompts.report import REPORT_SECTIONS, fix_prompt, qa_prompt, section_prompt
+
+    section = section_prompt(
+        section=REPORT_SECTIONS[0],
+        topic="history",
+        research_dossier="evidence",
+        previous_sections=[],
+        section_index=0,
+        total_sections=1,
+        report_title="Research Report",
+        writer_role="a senior research analyst",
+    )
+    qa = qa_prompt("history", "evidence", "report", report_title="Research Report")
+    fix = fix_prompt(
+        REPORT_SECTIONS[0],
+        "history",
+        "evidence",
+        "feedback",
+        "original",
+        report_title="Research Report",
+        writer_role="a senior research analyst",
+    )
+
+    assert "a senior research analyst" in section
+    assert "comprehensive Research Report" in section
+    assert "reviewing a Research Report" in qa
+    assert "a senior research analyst rewriting one section" in fix
+
+
 def test_synthesis_register_styles():
     from distill.prompts.synthesis import (
         STYLE_GUIDANCE,

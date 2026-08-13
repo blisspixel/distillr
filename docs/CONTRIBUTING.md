@@ -111,8 +111,9 @@ uv config, ruff config, bandit config, pyright config, and the import-linter con
 - `docs/` - long-form documentation; `docs/briefing-contexts/TEMPLATE.md` is the starting point for briefing prompts
 - `skills/distill-corpus/` - the only hand-edited Agent Skill source
 - `evals/distill-corpus/` - hand-edited model-judged plugin behavior cases
-- `plugins/distill-corpus/` - generated multi-client plugin; regenerate it
-  with `uv run python scripts/agent_skill_distributions.py --write`
+- `plugins/distill-corpus/` - generated Agent Plugins v1 package plus client
+  compatibility manifests; regenerate it with
+  `uv run python scripts/agent_skill_distributions.py --write`
 - `distill/resources/agent-skills/` - generated, integrity-manifested wheel
   copy used by `distill skill`; never edit it directly
 - `configs/` - sample config files for site batches (`example_seeds.json`) and other inputs

@@ -79,21 +79,47 @@ class TestReportCommand:
         config.gemini_api_key = ""
         self._patch_common(monkeypatch, config)
 
-        result = runner.invoke(cli.app, ["report", "ai"])
+        result = runner.invoke(cli.app, ["report", "ai", "--profile", "accordion"])
 
         assert result.exit_code == int(ExitCode.CONFIG_ERROR)
         assert "GEMINI_API_KEY" in result.output
 
-    def test_refuses_projected_report_budget_before_deep_research(self, tmp_path, monkeypatch):
+    def test_default_corpus_profile_does_not_require_gemini_key(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.gemini_api_key = ""
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        report_run = MagicMock(return_value=None)
+        monkeypatch.setattr(reports_mod, "run_report", report_run)
+
+        result = runner.invoke(cli.app, ["report", "ai"])
+
+        assert result.exit_code == 1
+        report_run.assert_called_once()
+
+    def test_local_corpus_profile_runs_under_no_metered(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        config.distill_cost_mode = "no-metered"
+        _seed_topic(config)
+        self._patch_common(monkeypatch, config)
+        monkeypatch.setenv("DISTILL_PROVIDER", "ollama")
+        monkeypatch.setenv("DISTILL_MODEL", "qwen3:8b")
+        report_run = MagicMock(return_value=None)
+        monkeypatch.setattr(reports_mod, "run_report", report_run)
+
+        result = runner.invoke(cli.app, ["report", "ai"])
+
+        assert result.exit_code == 1
+        report_run.assert_called_once()
+
+    def test_refuses_projected_report_budget_before_writer(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         config.distill_cost_workflow_budgets = "report=0.0001"
         _seed_topic(config)
         self._patch_common(monkeypatch, config)
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
         run_report = MagicMock(return_value="# Should not run")
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            run_report,
-        )
+        monkeypatch.setattr(reports_mod, "run_report", run_report)
 
         result = runner.invoke(cli.app, ["report", "ai"])
 
@@ -109,15 +135,11 @@ class TestReportCommand:
         config.distill_cost_mode = "no-metered"
         _seed_topic(config)
         self._patch_common(monkeypatch, config)
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
         accordion_report = MagicMock(return_value="# Should not run")
-        legacy_report = MagicMock(return_value="# Should not run")
         accordion_client = MagicMock(side_effect=AssertionError("client constructed"))
         legacy_client = MagicMock(side_effect=AssertionError("client constructed"))
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            accordion_report,
-        )
-        monkeypatch.setattr(reports_mod, "run_deep_research", legacy_report)
+        monkeypatch.setattr(reports_mod, "run_report", accordion_report)
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", accordion_client)
         monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", legacy_client)
 
@@ -127,7 +149,6 @@ class TestReportCommand:
         assert isinstance(result.exception, CostPolicyError)
         assert "Route blocked by no-metered cost policy" in str(result.exception)
         accordion_report.assert_not_called()
-        legacy_report.assert_not_called()
         accordion_client.assert_not_called()
         legacy_client.assert_not_called()
 
@@ -138,10 +159,7 @@ class TestReportCommand:
         _seed_topic(config)
         self._patch_common(monkeypatch, config)
         run_report = MagicMock(return_value=None)
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            run_report,
-        )
+        monkeypatch.setattr(reports_mod, "run_report", run_report)
 
         result = runner.invoke(cli.app, ["report", "ai"])
 
@@ -159,10 +177,7 @@ class TestReportCommand:
             kwargs["tracker"].record_gemini_query("deep-research-preview-04-2026")
             raise AssertionError("record_gemini_query should have raised")
 
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            cross_budget,
-        )
+        monkeypatch.setattr(reports_mod, "run_report", cross_budget)
 
         result = runner.invoke(cli.app, ["report", "ai"])
 
@@ -177,6 +192,7 @@ class TestReportCommand:
             "topic": "ai",
             "workflow": "report",
             "scope": "topic",
+            "profile": "corpus-report",
         }
 
     def test_accordion_report_success(self, tmp_path, monkeypatch):
@@ -187,8 +203,7 @@ class TestReportCommand:
         report_md.parent.mkdir(parents=True, exist_ok=True)
         report_md.write_text("# Strategic report", encoding="utf-8")
         monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: "# Strategic report\n\nBody",
+            reports_mod, "run_report", lambda **kwargs: "# Strategic report\n\nBody"
         )
         monkeypatch.setattr(reports_mod, "markdown_to_docx", lambda *args, **kwargs: None)
         monkeypatch.setattr(
@@ -198,7 +213,18 @@ class TestReportCommand:
 
         result = runner.invoke(
             cli.app,
-            ["report", "ai", "--focus", "risks", "--test", "--no-qa", "--sections", "exec,risks"],
+            [
+                "report",
+                "ai",
+                "--profile",
+                "accordion",
+                "--focus",
+                "risks",
+                "--test",
+                "--no-qa",
+                "--sections",
+                "exec,risks",
+            ],
         )
 
         assert result.exit_code == 0
@@ -213,17 +239,13 @@ class TestReportCommand:
         report_md = artifact_path(config.topic_dir("ai"), "report", identity="ai")
         report_md.parent.mkdir(parents=True, exist_ok=True)
         report_md.write_text("# Legacy report", encoding="utf-8")
-        monkeypatch.setattr(
-            reports_mod,
-            "run_deep_research",
-            lambda **kwargs: "# Legacy report\n\nBody",
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: "# Legacy report\n\nBody")
         monkeypatch.setattr("distill.library.export.export_report", lambda *args, **kwargs: None)
 
         result = runner.invoke(cli.app, ["report", "ai", "--legacy"])
 
         assert result.exit_code == 0
-        assert "Legacy (single-shot)" in result.output
+        assert "deep-research" in result.output
 
     def test_research_only_skips_docx_export(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -232,10 +254,7 @@ class TestReportCommand:
         report_md = artifact_path(config.topic_dir("ai"), "report", identity="ai")
         report_md.parent.mkdir(parents=True, exist_ok=True)
         report_md.write_text("# Research only", encoding="utf-8")
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: "# Research only\n",
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: "# Research only\n")
         docx_called = {"value": False}
         monkeypatch.setattr(
             reports_mod,
@@ -243,7 +262,9 @@ class TestReportCommand:
             lambda *args, **kwargs: docx_called.__setitem__("value", True),
         )
 
-        result = runner.invoke(cli.app, ["report", "ai", "--research-only"])
+        result = runner.invoke(
+            cli.app, ["report", "ai", "--profile", "accordion", "--research-only"]
+        )
 
         assert result.exit_code == 0
         assert docx_called["value"] is False
@@ -251,10 +272,7 @@ class TestReportCommand:
     def test_report_all_topics_metadata(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: None,
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: None)
 
         result = runner.invoke(cli.app, ["report", "--all"])
 
@@ -270,10 +288,7 @@ class TestReportCommand:
         )
         report_md.parent.mkdir(parents=True, exist_ok=True)
         report_md.write_text("# Channel report", encoding="utf-8")
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: "# Channel report\n",
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: "# Channel report\n")
         monkeypatch.setattr(reports_mod, "markdown_to_docx", lambda *args, **kwargs: None)
         monkeypatch.setattr("distill.library.export.export_report", lambda *args, **kwargs: None)
 
@@ -290,10 +305,7 @@ class TestReportCommand:
         report_md = artifact_path(config.topic_dir("ai"), "report", identity="ai")
         report_md.parent.mkdir(parents=True, exist_ok=True)
         report_md.write_text("# Strategic report", encoding="utf-8")
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: "# Strategic report\n",
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: "# Strategic report\n")
         monkeypatch.setattr(
             "distill.library.export.export_report",
             MagicMock(side_effect=RuntimeError("fancy docx fail")),
@@ -313,10 +325,7 @@ class TestReportCommand:
         config = _config(tmp_path)
         _seed_topic(config)
         self._patch_common(monkeypatch, config)
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.run_accordion_research",
-            lambda **kwargs: None,
-        )
+        monkeypatch.setattr(reports_mod, "run_report", lambda **kwargs: None)
 
         result = runner.invoke(cli.app, ["report", "ai"])
 
