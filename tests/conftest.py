@@ -2,7 +2,11 @@
 
 import json
 import os
+import socket
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from ipaddress import ip_address
+from typing import Any
 
 import pytest
 from hypothesis import HealthCheck
@@ -13,10 +17,48 @@ from distill.config import DistillConfig
 _CLOUD_CREDENTIAL_ENV_VARS = (
     "XAI_API_KEY",
     "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
 )
 _INERT_TEST_CREDENTIAL = "distill-test-credential"
+
+
+def _is_loopback_host(value: object) -> bool:
+    """Return whether one socket host is explicitly confined to loopback."""
+
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("ascii")
+        except UnicodeDecodeError:
+            return False
+    if not isinstance(value, str):
+        return False
+    host = value.strip().casefold().rstrip(".")
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        return ip_address(host.split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False
+
+
+def _guarded_socket_method[SocketResult](
+    original: Callable[[socket.socket, Any], SocketResult],
+    operation: str,
+) -> Callable[[socket.socket, Any], SocketResult]:
+    """Wrap connect methods so ordinary tests cannot reach public services."""
+
+    def guarded(sock: socket.socket, address: Any) -> SocketResult:
+        if isinstance(address, tuple) and address and not _is_loopback_host(address[0]):
+            raise OSError(
+                f"public network disabled during tests: {operation} to {address[0]!r}; "
+                "mark an explicit live_network test and opt in with DISTILL_ALLOW_LIVE_TESTS=1"
+            )
+        return original(sock, address)
+
+    return guarded
+
 
 # Hypothesis's default 200ms per-example deadline measures wall clock, which
 # under coverage instrumentation on a loaded machine (OneDrive sync, parallel
@@ -37,8 +79,8 @@ _hypothesis_settings.load_profile("distill")
 
 
 @pytest.fixture(autouse=True)
-def _isolate_cloud_credentials(monkeypatch, request):
-    """Keep local tests deterministic and unable to inherit billable credentials."""
+def _enforce_default_test_boundaries(monkeypatch, request):
+    """Keep default tests deterministic, local-only, and unable to spend."""
 
     if request.node.get_closest_marker("live_network") is not None:
         if os.environ.get("DISTILL_ALLOW_LIVE_TESTS") != "1":
@@ -46,6 +88,16 @@ def _isolate_cloud_credentials(monkeypatch, request):
         return
     for name in _CLOUD_CREDENTIAL_ENV_VARS:
         monkeypatch.setenv(name, _INERT_TEST_CREDENTIAL)
+    monkeypatch.setattr(
+        socket.socket,
+        "connect",
+        _guarded_socket_method(socket.socket.connect, "connect"),
+    )
+    monkeypatch.setattr(
+        socket.socket,
+        "connect_ex",
+        _guarded_socket_method(socket.socket.connect_ex, "connect_ex"),
+    )
 
 
 def _recent(days_ago: int = 1) -> str:

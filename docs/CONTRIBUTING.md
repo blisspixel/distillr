@@ -26,7 +26,9 @@ uv run distill doctor
 You only need `XAI_API_KEY` and `GEMINI_API_KEY` for live end-to-end runs. The
 default test suite does not hit real APIs: offline integration tests use local
 fixtures and mock LLMs, while the `live_network` marker selects opt-in live
-network tests.
+network tests. The default suite replaces cloud credentials with inert values
+and refuses non-loopback socket connections at the pytest boundary. A missing
+mock therefore fails locally instead of reaching a public or billable service.
 
 ## Running tests
 

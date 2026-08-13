@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- The locked Pyright quality gate now uses 1.1.411.
+
+### Security
+
+- Default pytest runs now replace Google API credentials alongside the other
+  cloud keys and refuse non-loopback socket connections. Tests that genuinely
+  require public services remain excluded by default behind the explicit
+  `live_network` marker and `DISTILL_ALLOW_LIVE_TESTS=1` opt-in.
+
 ## 0.19.51 - 2026-08-13
 
 Corpus-to-report and interoperability refinement release. Adds a corpus-first
