@@ -13,6 +13,13 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_PLUGINS_SCHEMA_SHA256 = "0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883"
 
 
+def _portable_text_sha256(payload: bytes) -> str:
+    """Hash text content after platform-independent newline normalization."""
+
+    normalized = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(normalized).hexdigest()
+
+
 def _load_distribution_generator() -> ModuleType:
     path = ROOT / "scripts/agent_skill_distributions.py"
     spec = importlib.util.spec_from_file_location("interop_distribution_generator", path)
@@ -32,7 +39,11 @@ def test_interoperability_baselines_match_code_and_immutable_schema() -> None:
         "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
     )
     assert OKF_VERSION == "0.2"
-    assert hashlib.sha256(schema_path.read_bytes()).hexdigest() == AGENT_PLUGINS_SCHEMA_SHA256
+    schema_payload = schema_path.read_bytes()
+    assert _portable_text_sha256(schema_payload) == AGENT_PLUGINS_SCHEMA_SHA256
+    assert _portable_text_sha256(schema_payload.replace(b"\n", b"\r\n")) == (
+        AGENT_PLUGINS_SCHEMA_SHA256
+    )
 
 
 def test_public_docs_state_exact_portable_boundaries() -> None:
