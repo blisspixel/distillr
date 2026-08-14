@@ -60,7 +60,7 @@ def deferred_usage_attempt(
         )
         model = "agent"
         provider_name = "agent"
-        provider_type = "cloud"
+        provider_type = "host-managed"
         usage_source = "conservative"
     else:
         if submission.input_tokens is None:

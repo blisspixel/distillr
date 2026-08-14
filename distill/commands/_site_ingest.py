@@ -350,7 +350,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 previous_metadata = json_object(
                     json.loads(metadata_path.read_text(encoding="utf-8"))
                 )
-            except (OSError, json.JSONDecodeError):
+            except (OSError, RecursionError, UnicodeError, ValueError):
                 previous_metadata = {}
         page_meta = page_obj.metadata()
         page_meta["content_hash"] = page_content_hash

@@ -39,7 +39,7 @@ def corpus_library_stats(
                         continue
                     try:
                         raw: object = json.loads(metadata_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
+                    except (OSError, RecursionError, UnicodeError, ValueError):
                         continue
                     if not isinstance(raw, dict):
                         continue

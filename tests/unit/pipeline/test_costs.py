@@ -671,6 +671,7 @@ def test_host_managed_usage_has_unavailable_external_cost(tmp_path, monkeypatch)
         "transcription_calls": 0,
         "metered_transcription_calls": 0,
         "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0,
     }
     assert rows[0]["by_route_class"]["host-managed"]["calls"] == 1
 
@@ -1587,6 +1588,54 @@ def test_unbudgeted_unknown_metered_model_marks_external_cost_unavailable():
     assert tracker.summary_dict()["external_cost_status"] == "unavailable"
 
 
+def test_unpriced_cloud_model_on_adapter_name_is_unavailable_not_grok():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            model="gpt-5.1-codex",
+            provider_name="codex",
+            provider_type="cloud",
+        )
+    )
+
+    assert tracker.entries[0].external_cost_unavailable is True
+    assert tracker.total_cost == 0.0
+    assert tracker.summary_dict()["external_cost_status"] == "unavailable"
+
+
+def test_deep_research_chat_row_is_unavailable_not_placeholder_actual():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=10,
+            completion_tokens=10,
+            model="deep-research-preview-04-2026",
+            provider_name="gemini",
+            provider_type="cloud",
+        )
+    )
+
+    assert tracker.entries[0].external_cost_unavailable is True
+    assert tracker.total_cost == 0.0
+    assert "external cost unavailable" in tracker.format_cost()
+
+
+def test_budgeted_deep_research_chat_row_fails_closed():
+    tracker = CostTracker(budget=10.0)
+    projected = TokenUsage(
+        prompt_tokens=10,
+        completion_tokens=10,
+        model="deep-research-preview-04-2026",
+        provider_name="gemini",
+        provider_type="cloud",
+    )
+
+    with pytest.raises(CostPolicyError, match="no verified price"):
+        tracker.authorize_token_usage(projected)
+
+
 def test_token_usage_authorization_includes_existing_spend_without_mutation():
     tracker = CostTracker(budget=0.003)
     existing = TokenUsage(prompt_tokens=1_000, model="grok-4.3")
@@ -1760,6 +1809,14 @@ def test_concurrent_child_authorization_uses_parent_budget():
     assert parent.entries == []
 
 
+def test_concurrent_child_reserve_budget_delegates_to_parent():
+    parent = CostTracker(budget=0.001)
+    child = parent.concurrent_child()
+
+    with pytest.raises(ProjectedBudgetExceededError), child.reserve_budget(0.002):
+        pass
+
+
 def test_concurrent_child_fixed_price_usage_is_local_and_written_through():
     parent = CostTracker()
     child = parent.concurrent_child()
@@ -1858,6 +1915,26 @@ def test_record_transcription_rejects_unknown_outcome():
 
     with pytest.raises(ValueError, match="unsupported transcription outcome"):
         tracker.record_transcription("openai", 60.0, outcome="maybe")
+
+
+def test_unknown_transcription_is_not_recorded_as_free():
+    tracker = CostTracker()
+    tracker.record_transcription("future-stt", 3600.0)
+
+    assert tracker.transcriptions[0].external_cost_unavailable is True
+    assert tracker.transcriptions[0].cost == 0.0
+    assert tracker.total_transcription_cost == 0.0
+    assert "external cost unavailable" in tracker.format_cost()
+    assert tracker.summary_dict()["external_cost_status"] == "unavailable"
+
+
+def test_budgeted_unknown_transcription_fails_closed_on_record():
+    tracker = CostTracker(budget=1.0)
+
+    with pytest.raises(CostPolicyError, match="no verified duration price"):
+        tracker.record_transcription("future-stt", 3600.0)
+
+    assert tracker.transcriptions == []
 
 
 def test_estimate_discover_cost():

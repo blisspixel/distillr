@@ -134,6 +134,7 @@ def test_extract_non_list_response_is_safe(tmp_path: Path, rc: RouterConfig) -> 
             rc=rc,
         )
     assert result.claims == []
+    assert result.parsed is False
 
 
 def test_extract_clamps_out_of_range_confidence(tmp_path: Path, rc: RouterConfig) -> None:
@@ -142,6 +143,7 @@ def test_extract_clamps_out_of_range_confidence(tmp_path: Path, rc: RouterConfig
         {"claim_text": "High.", "rhetorical_role": "result", "role_confidence": 5},
         {"claim_text": "Low.", "rhetorical_role": "result", "role_confidence": -2},
         {"claim_text": "Junk.", "rhetorical_role": "result", "role_confidence": "abc"},
+        {"claim_text": "Nan.", "rhetorical_role": "result", "role_confidence": "nan"},
     ]
     with patch("distill.claims.extract.llm_call", return_value=_StubResponse(json.dumps(rows))):
         result = extract_claims_from_insight(
@@ -152,7 +154,7 @@ def test_extract_clamps_out_of_range_confidence(tmp_path: Path, rc: RouterConfig
             rc=rc,
         )
     confs = [c.role_confidence for c in result.claims]
-    assert confs == [1.0, 0.0, 0.5]
+    assert confs == [1.0, 0.0, 0.5, 0.5]
 
 
 def test_extract_missing_file_raises(tmp_path: Path, rc: RouterConfig) -> None:

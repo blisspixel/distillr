@@ -344,7 +344,7 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                         insight_len = len(
                             strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()
                         )
-                    except OSError:
+                    except (OSError, UnicodeError):
                         insight_len = 0
                     if insight_len and insight_len < 250:
                         warnings.append(
@@ -394,7 +394,7 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                             insight_len = len(
                                 strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()
                             )
-                        except OSError:
+                        except (OSError, UnicodeError):
                             insight_len = 0
                         if insight_len and insight_len < 200:
                             warnings.append(
@@ -418,7 +418,7 @@ def collect_corpus_health_warnings(  # noqa: C901 — legacy, will refactor
                         insight_len = len(
                             strip_frontmatter(insights_path.read_text(encoding="utf-8")).strip()
                         )
-                    except OSError:
+                    except (OSError, UnicodeError):
                         insight_len = 0
                     if insight_len and insight_len < 200:
                         warnings.append(

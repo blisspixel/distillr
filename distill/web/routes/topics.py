@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.paths import artifact_exists, find_artifact
+from distill.parsing import LENIENT_LOCAL_JSON_ERRORS, read_local_utf8_text
 
 router = APIRouter()
 
@@ -60,22 +61,17 @@ async def topic_list(request: Request):
 
 
 @router.get("/topics/{topic}")
-async def topic_detail(request: Request, topic: str):  # noqa: C901 — legacy, will refactor
+async def topic_detail(request: Request, topic: str):
     config = request.app.state.config
     templates = request.app.state.templates
     lib = Library(config)
     summary = _topic_summary(config, lib, topic)
     topic_dir = config.topic_dir(topic)
 
-    synthesis = ""
-    synthesis_path = find_artifact(topic_dir, "topic_synthesis", identity=topic)
-    if synthesis_path.exists():
-        synthesis = synthesis_path.read_text(encoding="utf-8")
-
-    brief = ""
-    brief_path = find_artifact(topic_dir, "brief", identity=topic)
-    if brief_path.exists():
-        brief = brief_path.read_text(encoding="utf-8")
+    synthesis = (
+        read_local_utf8_text(find_artifact(topic_dir, "topic_synthesis", identity=topic)) or ""
+    )
+    brief = read_local_utf8_text(find_artifact(topic_dir, "brief", identity=topic)) or ""
 
     # Gather sites
     sites = []
@@ -100,10 +96,12 @@ async def topic_detail(request: Request, topic: str):  # noqa: C901 — legacy, 
             if not paper_dir.is_dir():
                 continue
             meta_path = paper_dir / "metadata.json"
-            meta = {}
-            with contextlib.suppress(OSError, json.JSONDecodeError):
+            meta: dict = {}
+            with contextlib.suppress(*LENIENT_LOCAL_JSON_ERRORS):
                 if meta_path.exists():
-                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    raw = json.loads(meta_path.read_text(encoding="utf-8"))
+                    if isinstance(raw, dict):
+                        meta = raw
             papers.append(
                 {
                     "slug": paper_dir.name,

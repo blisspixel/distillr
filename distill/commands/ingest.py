@@ -14,7 +14,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import typer
-from rich.markup import escape
 
 from distill._console import console
 from distill.commands._helpers import (
@@ -105,8 +104,13 @@ def ingest_cmd(
         try:
             require_local_filesystem_target(url)
         except ValueError as exc:
-            console.print(f"[red]Invalid target: {exc}.[/red]")
-            raise typer.Exit(2) from None
+            exit_with_refusal(
+                f"Invalid target: {exc}.",
+                code=ExitCode.USAGE_ERROR,
+                reason="usage_error",
+                action="ingest",
+                limit={"kind": "target"},
+            )
 
         # Local file path takes precedence: if the target exists on disk, ingest it
         # through the media pipeline (audio/video -> transcript -> insight) or the
@@ -176,12 +180,15 @@ def ingest_cmd(
             )
             return
 
-        console.print(
-            f"[yellow]No dedicated adapter for host {escape(host)!r} yet.[/yellow] "
+        exit_with_refusal(
+            f"No dedicated adapter for host {host!r} yet. "
             "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
-            "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed."
+            "for YouTube, `distill paper` for arXiv, or pass --rss for a podcast feed.",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "host", "value": host},
         )
-        raise typer.Exit(2)
     finally:
         _save_ingest_cost(config, tracker, topic=topic, source_type=source_type)
 
@@ -218,8 +225,13 @@ def _ingest_local(
             local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
         )
     except LocalExtractionError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(2) from None
+        exit_with_refusal(
+            str(exc),
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "local_file"},
+        )
     console.print("")
     console.print(
         f"  [green]Document[/green]  "
@@ -243,12 +255,15 @@ def _ingest_tweet_url(
     force: bool = False,
 ) -> None:
     if not parse_tweet_url(url):
-        displayed_url = escape(url_for_diagnostic(url))
-        console.print(
-            f"[red]Could not parse a tweet id from {displayed_url}.[/red] "
-            "Expected something like https://x.com/<user>/status/<id>."
+        displayed_url = url_for_diagnostic(url)
+        exit_with_refusal(
+            f"Could not parse a tweet id from {displayed_url}. "
+            "Expected something like https://x.com/<user>/status/<id>.",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "tweet_url"},
         )
-        raise typer.Exit(2)
     result = ingest_tweet(
         url,
         topic=topic,
@@ -349,8 +364,13 @@ def _ingest_feed(
             feed=feed,
         )
     except PodcastFetchError as exc:
-        console.print(f"[red]{escape(str(exc))}[/red]")
-        raise typer.Exit(2) from None
+        exit_with_refusal(
+            str(exc),
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "feed"},
+        )
     console.print("")
     console.print(f"  [green]Show[/green]      {result.feed_title}")
     for path in result.episode_paths:
@@ -366,17 +386,25 @@ def _ingest_github(
     url: str, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
 ) -> None:
     if parse_github_url(url) is None:
-        displayed_url = escape(url_for_diagnostic(url))
-        console.print(
-            f"[red]Could not parse an owner/repo from {displayed_url}.[/red] "
-            "Expected something like https://github.com/<owner>/<repo>."
+        displayed_url = url_for_diagnostic(url)
+        exit_with_refusal(
+            f"Could not parse an owner/repo from {displayed_url}. "
+            "Expected something like https://github.com/<owner>/<repo>.",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "github_url"},
         )
-        raise typer.Exit(2)
     try:
         result = ingest_repo(url, topic=topic, config=config, analyze=analyze, tracker=tracker)
     except GitHubFetchError as exc:
-        console.print(f"[red]{escape(str(exc))}[/red]")
-        raise typer.Exit(2) from None
+        exit_with_refusal(
+            str(exc),
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="ingest",
+            limit={"kind": "github_fetch"},
+        )
     console.print("")
     console.print(
         f"  [green]Repo[/green]      "

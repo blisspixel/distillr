@@ -122,14 +122,12 @@ def _is_safe_slug(slug: str) -> bool:
 
     Recovery entry points take ``slug`` from untrusted callers (the MCP
     ``concept_history`` / ``concept_diff`` tools and the CLI). A real note slug
-    is ``[a-z0-9_]``; reject separators, ``..``, drive/UNC, and null bytes so a
-    hostile slug cannot escape the topic dir to read or write arbitrary files.
+    is ``[a-z0-9_]``; reject separators, ``..``, drive/UNC, reserved device
+    names, and null bytes so a hostile slug cannot escape the topic dir.
     """
-    if not slug or "\x00" in slug:
-        return False
-    if "/" in slug or "\\" in slug or ":" in slug or slug in (".", ".."):
-        return False
-    return slug == Path(slug).name
+    from distill.library.paths import is_safe_path_slug
+
+    return is_safe_path_slug(slug)
 
 
 def history_dir_for_slug(topic_dir: Path, slug: str) -> Path:
@@ -294,8 +292,10 @@ def _parse_json_list(value: object) -> list[Any] | None:
     if not isinstance(value, str):
         return None
     try:
-        decoded = json.loads(value)
-    except (json.JSONDecodeError, TypeError):
+        from distill.parsing import strict_json_loads
+
+        decoded = strict_json_loads(value)
+    except (RecursionError, TypeError, ValueError):
         return None
     if isinstance(decoded, list):
         return cast("list[Any]", decoded)

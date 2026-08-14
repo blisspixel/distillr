@@ -212,9 +212,15 @@ def _string_field(item: Mapping[str, object], key: str) -> str:
 
 def _float_field(item: Mapping[str, object], key: str) -> float:
     value = item.get(key, 0.0)
-    if isinstance(value, str | int | float):
-        return float(value)
-    raise TypeError(f"{key} must be number-like")
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
+        raise TypeError(f"{key} must be a finite number")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TypeError(f"{key} must be a finite number") from exc
+    if not math.isfinite(parsed):
+        raise TypeError(f"{key} must be a finite number")
+    return parsed
 
 
 def _heuristic_rank(

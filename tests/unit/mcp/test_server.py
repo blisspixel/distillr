@@ -1284,7 +1284,8 @@ class TestProcessVideoUrl:
 
         assert result["success"] is True
         assert result["channel"] == "Chan"
-        assert result["insights"] == "Useful insight"
+        assert result["insights_path"].endswith("insights.md")
+        assert "insights" not in result
 
 
 class TestGenerateReport:

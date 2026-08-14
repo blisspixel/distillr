@@ -129,6 +129,21 @@ def test_synthesize_site_writes_output(tmp_path):
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "site synthesis"
 
 
+def test_synthesize_site_skips_unreadable_insight(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    good = config.site_page_dir("web", "example.com", "Good Page", "page1")
+    bad = config.site_page_dir("web", "example.com", "Broken Page", "page2")
+    good.mkdir(parents=True, exist_ok=True)
+    bad.mkdir(parents=True, exist_ok=True)
+    (good / "insights.md").write_text("# Insight", encoding="utf-8")
+    (bad / "insights.md").write_bytes(b"\xff\xfe")
+
+    with patch("distill.pipeline.analysis.site.llm_call", _fake_llm_call("site synthesis")):
+        result = synthesize_site("web", "example.com", config)
+
+    assert result == "site synthesis"
+
+
 def test_synthesize_site_skips_non_page_dirs_and_missing_insights(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     pages_dir = config.site_pages_dir("web", "example.com")

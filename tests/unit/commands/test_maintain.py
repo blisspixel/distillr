@@ -822,6 +822,30 @@ def test_migrate_empty_library_and_existing_target_skip(tmp_path, monkeypatch):
     assert "Skipping abc123xyz" in skipped.output
 
 
+def test_migrate_skips_corrupt_metadata_and_renames_valid(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _patch_config(monkeypatch, config)
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@TestCh", "TestCh")
+    bad = config.video_dir("ai", "TestCh", "badmeta")
+    bad.mkdir(parents=True, exist_ok=True)
+    (bad / "metadata.json").write_text("{not-json", encoding="utf-8")
+    old = config.video_dir("ai", "TestCh", "abc123xyz")
+    old.mkdir(parents=True, exist_ok=True)
+    title = "Readable Video"
+    video_id = "abc123xyz"
+    (old / "metadata.json").write_text(
+        json.dumps({"video_id": video_id, "title": title}), encoding="utf-8"
+    )
+
+    result = runner.invoke(app, ["migrate", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert (config.videos_dir("ai", "TestCh") / slugify_title(title, video_id)).is_dir()
+    assert bad.is_dir()
+    assert not (config.videos_dir("ai", "TestCh") / slugify_title(title, "badmeta")).exists()
+
+
 def test_migrate_existing_topic_without_renames_and_rename_errors(tmp_path, monkeypatch):
     config = _config(tmp_path)
     _patch_config(monkeypatch, config)

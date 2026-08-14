@@ -25,6 +25,7 @@ from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm.cost_policy import require_route_allowed
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker
 from distill.pipeline.report._file_search_metadata import metadata_str, read_metadata
@@ -95,11 +96,14 @@ def gather_topic_files(  # noqa: C901 - legacy orchestration kept intact
                     topic,
                     artifact_type,
                 )
+                body = read_local_utf8_text(synth)
+                if body is None:
+                    continue
                 files.append(
                     (
                         f"{label_stem}-{topic}",
                         f"# {label_stem.replace('-', ' ').title()}: {topic}\n"
-                        f"Source: {link}\n\n" + synth.read_text(encoding="utf-8"),
+                        f"Source: {link}\n\n" + body,
                     )
                 )
 
@@ -155,7 +159,8 @@ def _bundle_insights(
         if not item_dir.is_dir():
             continue
         insights_file = find_artifact(item_dir, "insights")
-        if not insights_file.exists():
+        insights_text = read_local_utf8_text(insights_file)
+        if insights_text is None:
             continue
         metadata_file = item_dir / "metadata.json"
         title = item_dir.name
@@ -167,10 +172,7 @@ def _bundle_insights(
             url = metadata_str(meta, "abs_url") or metadata_str(meta, "url")
             source_id = metadata_str(meta, "video_id") or metadata_str(meta, "paper_id", source_id)
         link = emit_wiki_link(title, source_id, "insights")
-        entry = (
-            f"\n\n---\n\n## [{kind}] {title}\nURL: {url}\nSource: {link}\n\n"
-            + insights_file.read_text(encoding="utf-8")
-        )
+        entry = f"\n\n---\n\n## [{kind}] {title}\nURL: {url}\nSource: {link}\n\n" + insights_text
         if chars + len(entry) > MAX_DOC_CHARS and parts:
             bundles.append(
                 (

@@ -91,7 +91,7 @@ def _parse_upload_date(value: str | None) -> datetime | None:
 def _read_json_object(path: Path) -> JsonObject | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return None
     if not isinstance(data, dict):
         return None

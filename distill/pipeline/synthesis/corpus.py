@@ -19,6 +19,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import corpus_synthesis_prompt
@@ -32,20 +33,25 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-_CLAIM_HANDLE_RE = re.compile(r"(?<![A-Za-z0-9_])C(\d+)(?![A-Za-z0-9_])")
+_CITED_CLAIM_GROUP_RE = re.compile(r"[\[(]C\d+(?:\s*,\s*C\d+)*[\])]")
+_CLAIM_HANDLE_RE = re.compile(r"C\d+")
 
 
 def _unknown_claim_handles(synthesis: str, claim_count: int) -> tuple[str, ...]:
-    """Return cited claim handles that are outside the rendered claim set."""
+    """Return cited claim handles that are outside the rendered claim set.
+
+    Only the prompt's citation wrappers count: ``[C3]`` and ``(C1, C7)``.
+    Bare tokens such as ``C4 corpus`` or ``Appendix C2`` are not citations.
+    """
     allowed = {f"C{index}" for index in range(1, claim_count + 1)}
     unknown: list[str] = []
     seen: set[str] = set()
-    for match in _CLAIM_HANDLE_RE.finditer(synthesis):
-        handle = f"C{match.group(1)}"
-        if handle in allowed or handle in seen:
-            continue
-        unknown.append(handle)
-        seen.add(handle)
+    for group in _CITED_CLAIM_GROUP_RE.finditer(synthesis):
+        for handle in _CLAIM_HANDLE_RE.findall(group.group(0)):
+            if handle in allowed or handle in seen:
+                continue
+            unknown.append(handle)
+            seen.add(handle)
     return tuple(unknown)
 
 
@@ -72,7 +78,7 @@ def synthesize_corpus_from_claims(
     and ``two_pass: true`` provenance.
     """
     topic = require_safe_topic_identity(topic)
-    from distill.claims.exports import read_claims
+    from distill.claims.exports import latest_claims, read_claims
     from distill.claims.pipeline import run_claims
     from distill.prompts.claims import (
         CLAIM_SYNTHESIS_PROMPT_ID,
@@ -84,7 +90,7 @@ def synthesize_corpus_from_claims(
     rc = RouterConfig()
 
     run_claims(topic, topic_dir, rc=rc, tracker=tracker, now_iso=now_iso)
-    claims = read_claims(topic_dir)
+    claims = latest_claims(read_claims(topic_dir))
     if not claims:
         logger.info("Two-pass synthesis: no claims extracted for %s", topic)
         return ""
@@ -189,11 +195,12 @@ def _collect_subdir_sections(
     labeled corpus sections, each prefixed with a wikilink to its source."""
     sections: dict[str, str] = {}
     for sub_dir, synth_file in _iter_subdir_artifacts(parent_dir, topic, artifact_type):
+        content = read_local_utf8_text(synth_file)
+        if content is None:
+            continue
         identity = f"{topic}_{sub_dir.name}"
         link = emit_wiki_link(f"{link_title_prefix}: {sub_dir.name}", identity, artifact_type)
-        sections[f"{section_prefix}: {sub_dir.name}"] = f"Source: {link}\n" + synth_file.read_text(
-            encoding="utf-8"
-        )
+        sections[f"{section_prefix}: {sub_dir.name}"] = f"Source: {link}\n" + content
     return sections
 
 
@@ -272,11 +279,10 @@ def synthesize_corpus(
     )
 
     paper_synth = find_artifact(topic_dir, "paper_synthesis", identity=topic)
-    if paper_synth.exists():
+    paper_content = read_local_utf8_text(paper_synth)
+    if paper_content is not None:
         link = emit_wiki_link(f"Paper synthesis: {topic}", topic, "paper_synthesis")
-        source_sections["Paper Synthesis"] = f"Source: {link}\n" + paper_synth.read_text(
-            encoding="utf-8"
-        )
+        source_sections["Paper Synthesis"] = f"Source: {link}\n" + paper_content
 
     source_sections.update(
         _collect_subdir_sections(

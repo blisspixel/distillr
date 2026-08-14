@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from distill.config import DistillConfig
@@ -15,8 +14,10 @@ from distill.pipeline.dashboard_records import JsonObject, json_object
 
 def read_json_object(path: Path) -> JsonObject | None:
     try:
-        return json_object(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError):
+        from distill.parsing import strict_json_loads
+
+        return json_object(strict_json_loads(path.read_text(encoding="utf-8")))
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return None
 
 

@@ -82,3 +82,41 @@ def test_discover_rerank_does_not_duplicate_ranked_seeds(tmp_path):
     sites = [r for r in ranked if r.kind == "site"]
     assert len(sites) == 1
     assert sites[0].final_score == 0.8
+
+
+def test_discover_rerank_rejects_non_finite_scores(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    seeds = [
+        SiteSeed(url="https://vendor-a.com/page", topic="t"),
+        SiteSeed(url="https://vendor-b.com/page", topic="t"),
+    ]
+    payload = {
+        "ranked_items": [
+            {
+                "kind": "site",
+                "identifier": "https://vendor-a.com/page",
+                "final_score": "Infinity",
+                "goal_fit": True,
+                "depth_score": "nan",
+                "complementarity_score": 0.9,
+                "rationale": "poisoned scores must not win",
+            },
+            {
+                "kind": "site",
+                "identifier": "https://vendor-b.com/page",
+                "final_score": 0.81,
+                "goal_fit": 0.8,
+                "depth_score": 0.8,
+                "complementarity_score": 0.8,
+                "rationale": "finite",
+            },
+        ]
+    }
+
+    with patch("distill.pipeline.discovery.llm_call", _llm_returning(payload)):
+        ranked = discover_rerank("goal", [], [], seeds, config, None)
+
+    by_url = {r.identifier: r for r in ranked if r.kind == "site"}
+    assert by_url["https://vendor-a.com/page"].final_score == 0.0
+    assert by_url["https://vendor-b.com/page"].final_score == 0.81
+    assert ranked[0].identifier == "https://vendor-b.com/page"

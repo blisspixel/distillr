@@ -250,7 +250,8 @@ def _run_claims_transaction(
         if claims:
             append_claims(topic_dir, claims)
             summary.claims_added += len(claims)
-        record_extracted_sources(topic_dir, [ref.source_id])
+        if result.parsed:
+            record_extracted_sources(topic_dir, [ref.source_id])
 
     # Count distinct claims, not raw rows: claims.jsonl is append-only, so a
     # --refresh re-appends a source's claims and len(read_claims) would double-

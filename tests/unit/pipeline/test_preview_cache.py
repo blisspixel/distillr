@@ -209,6 +209,25 @@ def test_load_corrupt_snapshot_raises(tmp_path):
         load_preview(cache, "deadbeef00")
 
 
+def test_load_non_finite_preview_scores_raises(tmp_path):
+    cache = preview_cache_dir(tmp_path)
+    snapshot = save_preview(
+        cache,
+        goal="goal",
+        model="",
+        rigor="balanced",
+        items=[_paper_item()],
+        estimate=_estimate(),
+        now_iso=_NOW,
+    )
+    path = cache / f"{snapshot.id}.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["items"][0]["final_score"] = float("nan")
+    path.write_text(json.dumps(payload, allow_nan=True), encoding="utf-8")
+    with pytest.raises(PreviewCacheError, match="unreadable"):
+        load_preview(cache, snapshot.id)
+
+
 def test_load_wrong_shape_snapshot_raises(tmp_path):
     cache = preview_cache_dir(tmp_path)
     cache.mkdir(parents=True)

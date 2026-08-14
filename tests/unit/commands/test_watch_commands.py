@@ -454,6 +454,41 @@ class TestShowLatestInsights:
         watch_mod._show_latest_insights(config, "deals", "Missing")
         assert capsys.readouterr().out == ""
 
+    def test_skips_unreadable_insight_and_shows_readable(self, tmp_path):
+        config = _config(tmp_path)
+        _seed_insight_video(
+            config,
+            topic="deals",
+            channel="WatchMe",
+            video_id="good",
+            title="Readable Insight",
+            upload_date=_recent(1),
+            insights_body="# Title\n\nReadable summary line.",
+        )
+        bad = config.video_dir("deals", "WatchMe", "bad")
+        bad.mkdir(parents=True, exist_ok=True)
+        (bad / "metadata.json").write_text("{not-json", encoding="utf-8")
+        find_artifact(bad, "insights").write_bytes(b"\xff\xfe")
+
+        from io import StringIO
+
+        buffer = StringIO()
+
+        class _PrintConsole:
+            def print(self, *args, **kwargs):
+                buffer.write("".join(str(a) for a in args) + "\n")
+
+        original = watch_mod.console
+        watch_mod.console = _PrintConsole()
+        try:
+            watch_mod._show_latest_insights(config, "deals", "WatchMe", limit=3)
+        finally:
+            watch_mod.console = original
+
+        output = buffer.getvalue()
+        assert "Readable Insight" in output
+        assert "Readable summary line." in output
+
     def test_renders_summary_quick_take_and_fallback(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_insight_video(

@@ -207,7 +207,7 @@ def test_usage_is_accepted_before_pending_task_becomes_visible(tmp_path: Path) -
 
     assert len(emitted) == 1
     assert emitted[0].provider_name == "agent"
-    assert emitted[0].provider_type == "cloud"
+    assert emitted[0].provider_type == "host-managed"
     assert emitted[0].usage_source == "conservative"
     assert emitted[0].input_tokens > 0
     assert emitted[0].output_tokens == 64

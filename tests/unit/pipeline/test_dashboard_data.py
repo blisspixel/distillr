@@ -601,6 +601,21 @@ def test_cost_surfaces_fail_closed_for_invalid_values_and_overflow():
     )
 
 
+def test_topic_spend_fails_closed_when_external_cost_is_unavailable():
+    now = datetime.now().isoformat()
+    entries = [
+        {
+            "timestamp": now,
+            "actual_cost": 1.25,
+            "external_cost_status": "unavailable",
+            "metadata": {"topic": "ai"},
+        }
+    ]
+
+    assert topic_spend_last_days(entries, "ai") is None
+    assert topic_recent_costs(entries, "ai") is None
+
+
 def test_topic_watch_estimation_helpers(config):
     lib = Library(config)
     lib.add_to_topic_watchlist(

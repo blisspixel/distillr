@@ -83,6 +83,24 @@ def test_synthesize_channel_saves_output(tmp_path):
     assert strip_frontmatter(output.read_text(encoding="utf-8")) == "channel synthesis"
 
 
+def test_synthesize_topic_skips_unreadable_channel_synthesis(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    good = config.channel_dir("ai", "CreatorOne")
+    bad = config.channel_dir("ai", "CreatorTwo")
+    extra = config.channel_dir("ai", "CreatorThree")
+    good.mkdir(parents=True, exist_ok=True)
+    bad.mkdir(parents=True, exist_ok=True)
+    extra.mkdir(parents=True, exist_ok=True)
+    (good / "synthesis.md").write_text("# Good", encoding="utf-8")
+    (bad / "synthesis.md").write_bytes(b"\xff\xfe")
+    (extra / "synthesis.md").write_text("# Extra", encoding="utf-8")
+
+    with patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("topic synthesis")):
+        result = synthesize_topic("ai", config)
+
+    assert result == "topic synthesis"
+
+
 def test_synthesize_topic_skips_with_single_channel(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     channel_dir = config.channel_dir("ai", "CreatorOne")
@@ -265,6 +283,22 @@ def test_synthesize_channel_strict_refuses_without_publishing_candidate_sidecar(
     )
     sidecar = channel_dir / "ai_Creator_Verify.json"
     assert not sidecar.exists()
+
+
+def test_synthesize_channel_skips_unreadable_insight(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    videos_dir = config.channel_dir("ai", "Creator") / "videos"
+    good = videos_dir / "good"
+    bad = videos_dir / "bad"
+    good.mkdir(parents=True, exist_ok=True)
+    bad.mkdir(parents=True, exist_ok=True)
+    (good / "insights.md").write_text("# Good insight", encoding="utf-8")
+    (bad / "insights.md").write_bytes(b"\xff\xfe")
+
+    with patch("distill.pipeline.synthesis.topic.llm_call", _fake_llm_call("synth")):
+        result = synthesize_channel("ai", "Creator", config)
+
+    assert result == "synth"
 
 
 def test_synthesize_channel_video_link_bad_metadata(tmp_path):

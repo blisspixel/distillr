@@ -331,6 +331,17 @@ def has_known_pricing(model: str) -> bool:
     return _resolve_known_pricing(model) is not None
 
 
+def is_nonbinding_planning_price(model: str) -> bool:
+    """Return whether *model* is a planning placeholder, not a token price.
+
+    Gemini Deep Research aliases stay in the registry for estimates and
+    display. They must not authorize or ledger a hard dollar amount.
+    """
+
+    rates = _resolve_known_pricing(model)
+    return rates is not None and "per_query" in rates
+
+
 def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     normalized = model.strip().lower()
     if not normalized:

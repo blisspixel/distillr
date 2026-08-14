@@ -6,6 +6,7 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 
 from distill.library.paths import find_artifact
+from distill.parsing import LENIENT_LOCAL_JSON_ERRORS, read_local_utf8_text
 
 router = APIRouter()
 
@@ -21,21 +22,16 @@ async def video_detail(request: Request, topic: str, channel: str, slug: str):
     vid_dir = (base / slug).resolve()
     if vid_dir != base and base not in vid_dir.parents:
         raise HTTPException(status_code=404)
-    meta = {}
+    meta: dict = {}
     meta_path = vid_dir / "metadata.json"
-    with contextlib.suppress(OSError, json.JSONDecodeError):
+    with contextlib.suppress(*LENIENT_LOCAL_JSON_ERRORS):
         if meta_path.exists():
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            raw = json.loads(meta_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                meta = raw
 
-    insights = ""
-    insights_path = find_artifact(vid_dir, "insights")
-    if insights_path.exists():
-        insights = insights_path.read_text(encoding="utf-8")
-
-    transcript = ""
-    transcript_path = find_artifact(vid_dir, "transcript", extension="txt")
-    if transcript_path.exists():
-        transcript = transcript_path.read_text(encoding="utf-8")
+    insights = read_local_utf8_text(find_artifact(vid_dir, "insights")) or ""
+    transcript = read_local_utf8_text(find_artifact(vid_dir, "transcript", extension="txt")) or ""
 
     return templates.TemplateResponse(
         request,

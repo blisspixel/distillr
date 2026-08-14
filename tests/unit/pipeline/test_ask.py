@@ -267,12 +267,26 @@ class TestAsk:
 
         assert result.saved_insight_path is None
         assert "refused" in result.save_refused_reason
-        # The Answer.md + sidecar still exist so the refusal is inspectable.
+
+    def test_save_verifies_question_heading_not_only_model_span(self, config, monkeypatch):
+        _seed_corpus(config)
+        _llm(monkeypatch, GROUNDED)
+
+        result = ask_mod.ask_corpus(
+            "Did the 2024 run hit 95% on ImageNet?",
+            topic="t",
+            config=config,
+            save=True,
+        )
+
+        assert result.saved_insight_path is None
+        assert "refused" in result.save_refused_reason
         assert result.answer_path is not None and result.answer_path.exists()
         sidecar = json.loads(
             next(result.answer_path.parent.glob("*_Verify.json")).read_text(encoding="utf-8")
         )
-        assert sidecar["unsupported"][0]["token"] == "0.999"
+        unsupported = {row["token"] for row in sidecar["unsupported"]}
+        assert {"2024", "95%"} <= unsupported
 
     def test_save_refused_on_unknown_source_citation(self, config, monkeypatch):
         _seed_corpus(config)

@@ -313,10 +313,11 @@ def ask_corpus(
         estimated_cost=projected_cost,
     )
 
-    # Verify the answer's numbers against the retrieved bodies (the receipts).
+    # Verify the artifact that will be written or promoted, including the
+    # question heading, not only the raw model span.
     outcome = run_verify_hook(
         answers_dir,
-        answer,
+        answer_md,
         receipt,
         mode="strict" if save else "warn",
         identity=slug,

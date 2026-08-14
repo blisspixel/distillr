@@ -574,8 +574,6 @@ def test_papers_query_fallback_persists_lens_and_warns_on_model_fallback(paper_c
 
     assert result.exit_code == 0, result.output
     assert observed == {
-        "topic": "research",
-        "lens": "research",
         "search_query": "verified research",
         "search_limit": 10,
         "search_sort": "relevance",

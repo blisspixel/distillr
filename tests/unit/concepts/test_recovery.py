@@ -727,6 +727,10 @@ body
         assert fields["sources"] == []
         assert fields["contested"] is True
 
+    def test_oversized_json_integer_list_falls_back(self) -> None:
+        fields = recovery.parse_note_fields(f"---\nsources: [{'9' * 200}]\n---\nbody\n")
+        assert fields["sources"] == []
+
 
 # ---- diffing ---------------------------------------------------------------
 
@@ -1184,6 +1188,9 @@ def test_is_safe_slug_rejects_bad():
     assert not recovery._is_safe_slug(".")
     assert not recovery._is_safe_slug("..")
     assert not recovery._is_safe_slug("a\x00b")
+    assert not recovery._is_safe_slug("con")
+    assert not recovery._is_safe_slug("CON.md")
+    assert not recovery._is_safe_slug("aux")
     assert recovery._is_safe_slug("rotational_embedding")
 
 

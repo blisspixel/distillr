@@ -18,7 +18,7 @@ import typer
 
 import distill.cli_shared as cli_shared
 from distill._console import console
-from distill.cli_shared import SHORTS_THRESHOLD
+from distill.cli_shared import is_youtube_short
 from distill.cli_shared import require_model as _require_model
 from distill.commands._helpers import (
     _complete_topics,
@@ -95,7 +95,10 @@ def _resolve_resynthesis_scope(
 def _read_metadata(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, RecursionError, UnicodeError, ValueError):
+        return {}
     if isinstance(data, dict):
         return cast("dict[str, Any]", data)
     return {}
@@ -334,7 +337,7 @@ def reanalyze(  # noqa: C901 — legacy, will refactor
                 continue
             meta = _read_metadata(meta_file)
             duration = _metadata_int(meta, "duration")
-            is_short = duration <= SHORTS_THRESHOLD
+            is_short = is_youtube_short(duration)
             all_videos.append((ch.name, d, meta, is_short))
 
     # --deep: only upgrade scan-analyzed videos to full 2-pass

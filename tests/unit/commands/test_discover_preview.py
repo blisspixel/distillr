@@ -139,6 +139,17 @@ def test_topic_create_replays_saved_set_and_saves_exact_profile(mock_config, mon
     assert profile["shorts"] is True
 
 
+def test_from_preview_without_yes_does_not_write_intent(mock_config, monkeypatch):
+    preview_id = _seed_preview(mock_config)
+    monkeypatch.setattr(_discover, "_discover_ingest_set", lambda **kwargs: None)
+
+    result = runner.invoke(cli.app, ["discover", "--from-preview", preview_id, "--topic", "t"])
+
+    assert result.exit_code == 0, result.output
+    assert load_intent(mock_config.topic_dir("t")) is None
+    assert load_topic_goals(mock_config.library_dir) == {}
+
+
 def test_from_preview_unknown_id_errors(mock_config):
     result = runner.invoke(cli.app, ["discover", "--from-preview", "abcabc1234", "--topic", "t"])
     assert result.exit_code == 1
@@ -149,6 +160,17 @@ def test_from_preview_rejects_combination_with_preview(mock_config):
     result = runner.invoke(cli.app, ["discover", "--from-preview", "abcabc1234", "--preview"])
     assert result.exit_code == 1
     assert "can't combine" in result.output
+
+
+def test_preview_does_not_write_goal_watch_state(mock_config, monkeypatch):
+    _patch_discover_pipeline(monkeypatch)
+    result = runner.invoke(
+        cli.app,
+        ["discover", "compose music", "--topic", "fresh", "--preview"],
+    )
+    assert result.exit_code == 0, result.output
+    assert load_topic_goals(mock_config.library_dir) == {}
+    assert load_intent(mock_config.topic_dir("fresh")) is None
 
 
 def test_from_preview_refuses_projected_spend_before_ingest(mock_config, monkeypatch):

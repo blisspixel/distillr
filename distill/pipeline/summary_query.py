@@ -140,7 +140,7 @@ def summarize_query(
     key = hashlib.sha256(f"{topic}|{query}|{max_tokens}|{revision}".encode()).hexdigest()[:20]
     cache_file = _cache_path(config, key)
     if cache_file.exists():
-        with suppress(OSError, json.JSONDecodeError, ValueError):
+        with suppress(OSError, RecursionError, UnicodeError, ValueError):
             cached_summary = _load_cached_summary(cache_file, stems)
             if cached_summary is not None:
                 return cached_summary

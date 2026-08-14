@@ -23,6 +23,7 @@ from distill.llm.cost import (
     compute_cost,
     deep_research_query_cost,
     get_pricing,
+    is_nonbinding_planning_price,
     pricing_source_for_model,
     transcription_cost,
 )
@@ -88,6 +89,13 @@ def test_unknown_model_falls_back_to_default(caplog: Any) -> None:
     assert result == PRICING[DEFAULT_MODEL]
     assert "totally-unknown-model-xyz" in caplog.text
     assert DEFAULT_MODEL in caplog.text
+
+
+def test_deep_research_aliases_are_nonbinding_planning_prices() -> None:
+    assert is_nonbinding_planning_price("deep-research-preview-04-2026")
+    assert is_nonbinding_planning_price("deep-research-max-preview-04-2026")
+    assert not is_nonbinding_planning_price("grok-4.6")
+    assert not is_nonbinding_planning_price("unknown-model")
 
 
 def test_deep_research_max_variant_not_shadowed_by_standard_alias() -> None:

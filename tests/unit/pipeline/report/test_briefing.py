@@ -72,6 +72,23 @@ def test_generate_topic_brief_uses_video_metadata_in_source_link(tmp_path):
     assert "Great Talk" in captured["prompt"]
 
 
+def test_generate_topic_brief_skips_unreadable_insight(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic_dir = config.topic_dir("fabric")
+    good = topic_dir / "channels" / "Creator" / "videos" / "good"
+    bad = topic_dir / "channels" / "Creator" / "videos" / "bad"
+    good.mkdir(parents=True, exist_ok=True)
+    bad.mkdir(parents=True, exist_ok=True)
+    (good / "insights.md").write_text("# Good insight", encoding="utf-8")
+    (bad / "insights.md").write_bytes(b"\xff\xfe")
+    (bad / "metadata.json").write_text("[" * 2000 + "]" * 2000, encoding="utf-8")
+
+    with patch("distill.pipeline.report.briefing.llm_call", _fake_llm_call("# Brief")):
+        result = generate_topic_brief("fabric", config)
+
+    assert result == find_artifact(topic_dir, "brief", identity="fabric")
+
+
 def test_generate_topic_brief_uses_corpus_synthesis_fallback(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic_dir = config.topic_dir("fabric")

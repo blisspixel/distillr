@@ -820,7 +820,10 @@ def migrate(  # noqa: C901 — legacy, will refactor
                 meta_file = vid_dir / "metadata.json"
                 if not meta_file.exists():
                     continue
-                meta = _dict_or_empty(json.loads(meta_file.read_text(encoding="utf-8")))
+                try:
+                    meta = _dict_or_empty(json.loads(meta_file.read_text(encoding="utf-8")))
+                except (OSError, RecursionError, UnicodeError, ValueError):
+                    continue
                 video_id = meta.get("video_id", "")
                 title = meta.get("title", "")
                 if not isinstance(title, str) or not isinstance(video_id, str):

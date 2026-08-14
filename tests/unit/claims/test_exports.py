@@ -13,6 +13,7 @@ from distill.claims.exports import (
     already_extracted_source_ids,
     append_claims,
     claims_jsonl_path,
+    latest_claims,
     read_claims,
     read_extracted_sources,
     record_extracted_sources,
@@ -34,6 +35,25 @@ def _claim(source_id: str, text: str, role: ClaimRole = ClaimRole.RESULT) -> Cla
         role_confidence=0.7,
         extracted_at="2026-05-30T00:00:00Z",
     )
+
+
+def test_latest_claims_keeps_newest_row_per_id() -> None:
+    first = _claim("S1", "Accuracy is 72.6%.")
+    refreshed = Claim(
+        claim_id=first.claim_id,
+        source_id=first.source_id,
+        artifact_path=first.artifact_path,
+        claim_text="Accuracy is 80.1%.",
+        rhetorical_role=ClaimRole.RESULT,
+        role_confidence=0.9,
+        extracted_at="2026-08-01T00:00:00Z",
+    )
+    other = _claim("S2", "The method uses rotary embeddings.")
+
+    merged = latest_claims([first, other, refreshed])
+
+    assert [claim.claim_id for claim in merged] == [first.claim_id, other.claim_id]
+    assert merged[0].claim_text == "Accuracy is 80.1%."
 
 
 def test_read_claims_fails_closed_on_non_object_or_malformed_rows(tmp_path: Path) -> None:

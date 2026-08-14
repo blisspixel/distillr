@@ -462,17 +462,26 @@ class CostTracker:
         if outcome not in {"completed", "failed"}:
             raise ValueError(f"unsupported transcription outcome: {outcome}")
         duration = normalize_transcription_duration(duration_s)
+        known = has_known_transcription_pricing(provider)
+        if self.budget is not None and not known:
+            raise CostPolicyError(
+                f"Budget cannot record transcription provider '{provider}' because "
+                "Distill has no verified duration price for it."
+            )
+        cost = transcription_cost(provider, duration) if known else 0.0
         with self._lock:
             self.transcriptions.append(
                 TranscriptionUsage(
                     provider=provider,
                     model=model,
                     duration_s=duration,
-                    cost=transcription_cost(provider, duration),
+                    cost=cost,
                     outcome=outcome,
+                    external_cost_unavailable=not known,
                 )
             )
-            self._consume_active_reservation(transcription_cost(provider, duration))
+            if known:
+                self._consume_active_reservation(cost)
             self._check_budget()
 
     @property
@@ -540,8 +549,10 @@ class CostTracker:
         total = self.total_cost
         direct_cost = f"${total:.4f}" if total < 0.01 else f"${total:.2f}"
         with self._lock:
-            if self.gemini_queries or any(
-                entry.external_cost_unavailable for entry in self.entries
+            if (
+                self.gemini_queries
+                or any(entry.external_cost_unavailable for entry in self.entries)
+                or any(row.external_cost_unavailable for row in self.transcriptions)
             ):
                 return f"{direct_cost} direct; external cost unavailable"
         return direct_cost
@@ -563,10 +574,14 @@ class CostTracker:
         host_managed_calls = sum(
             1 for entry in self.entries if entry.provider_type == "host-managed"
         )
-        unknown_external_cost_calls = self.gemini_queries + sum(
-            1
-            for entry in self.entries
-            if entry.external_cost_unavailable and entry.provider_type != "host-managed"
+        unknown_external_cost_calls = (
+            self.gemini_queries
+            + sum(
+                1
+                for entry in self.entries
+                if entry.external_cost_unavailable and entry.provider_type != "host-managed"
+            )
+            + sum(1 for row in self.transcriptions if row.external_cost_unavailable)
         )
         for entry in self.entries:
             model_summary = by_model.setdefault(
@@ -650,6 +665,11 @@ class _ConcurrentCostTracker(CostTracker):
     def record(self, usage: TokenUsage) -> None:
         super().record(usage)
         self._parent.record(usage)
+
+    @contextmanager
+    def reserve_budget(self, projected_cost: float) -> Generator[None, None, None]:
+        with self._parent.reserve_budget(projected_cost):
+            yield
 
     def authorize_token_usage(self, usage: TokenUsage) -> None:
         self._parent.authorize_token_usage(usage)
@@ -753,7 +773,11 @@ def save_run_log(
         for row in tracker.entries
         if row.external_cost_unavailable and row.provider_type != "host-managed"
     )
-    unknown_external_cost_calls = unknown_external_llm_calls + tracker.gemini_queries
+    unknown_external_cost_calls = (
+        unknown_external_llm_calls
+        + tracker.gemini_queries
+        + sum(1 for row in tracker.transcriptions if row.external_cost_unavailable)
+    )
     entry = {
         "timestamp": datetime.now().isoformat(),
         "run_id": tracker.run_id or current_run_id(),
@@ -855,8 +879,15 @@ def save_run_log(
             for outcome in sorted(set(tracker.gemini_query_outcomes))
         },
         "transcription_calls": len(tracker.transcriptions),
-        "metered_transcription_calls": sum(1 for t in tracker.transcriptions if t.cost > 0),
-        "no_metered_transcription_calls": sum(1 for t in tracker.transcriptions if t.cost == 0),
+        "metered_transcription_calls": sum(
+            1 for t in tracker.transcriptions if t.cost > 0 and not t.external_cost_unavailable
+        ),
+        "no_metered_transcription_calls": sum(
+            1 for t in tracker.transcriptions if t.cost == 0 and not t.external_cost_unavailable
+        ),
+        "unknown_external_cost_transcription_calls": sum(
+            1 for t in tracker.transcriptions if t.external_cost_unavailable
+        ),
     }
 
     serialized = json.dumps(entry, allow_nan=False)

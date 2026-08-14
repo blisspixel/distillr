@@ -20,6 +20,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import LENIENT_LOCAL_JSON_ERRORS, read_local_utf8_text
 from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 def _read_video_metadata(meta_file: Path) -> tuple[str | None, str | None]:
     try:
         raw_meta: object = json.loads(meta_file.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except LENIENT_LOCAL_JSON_ERRORS:
         logger.debug("failed to read video metadata from %s", meta_file, exc_info=True)
         return None, None
     if not isinstance(raw_meta, dict):
@@ -61,8 +62,8 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
     synthesis_context = ""
     for artifact_type in ("topic_synthesis", "corpus_synthesis", "paper_synthesis"):
         synth_file = find_artifact(topic_dir, artifact_type, identity=topic)
-        if synth_file.exists():
-            synthesis_context = synth_file.read_text(encoding="utf-8")
+        synthesis_context = read_local_utf8_text(synth_file) or ""
+        if synthesis_context:
             break
 
     insight_parts: list[str] = []
@@ -84,10 +85,12 @@ def generate_topic_brief(  # noqa: C901 - legacy orchestration kept intact
                         meta_title, meta_source_id = _read_video_metadata(meta_file)
                         title = meta_title or title
                         source_id = meta_source_id or source_id
+                    content = read_local_utf8_text(insight_file)
+                    if content is None:
+                        continue
                     link = emit_wiki_link(title, source_id, "insights")
                     insight_parts.append(
-                        f"## {channel_dir.name} / {video_dir.name}\nSource: {link}\n"
-                        + insight_file.read_text(encoding="utf-8")
+                        f"## {channel_dir.name} / {video_dir.name}\nSource: {link}\n" + content
                     )
                     included_insights.add(insight_file)
                 if len(insight_parts) >= 6:

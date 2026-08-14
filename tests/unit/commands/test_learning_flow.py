@@ -198,7 +198,7 @@ def test_run_learning_command_requires_a_model(tmp_path, monkeypatch):
             process_learning_selection=lambda *args, **kwargs: None,
         )
 
-    assert excinfo.value.exit_code == 1
+    assert excinfo.value.exit_code == 3
 
 
 def test_run_learning_command_processes_selected_items(config):

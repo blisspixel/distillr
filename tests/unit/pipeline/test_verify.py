@@ -291,6 +291,39 @@ def test_paper_write_strict_clean_insight_is_written(tmp_path):
     assert list(paper_dir.glob("*_Insights.md"))
 
 
+def test_paper_write_strict_refuse_does_not_rebind_existing_sidecar(tmp_path):
+    from distill.commands._paper_artifacts import write_paper_artifacts
+    from distill.config import DistillConfig
+    from distill.ingestors.papers.arxiv import PaperRecord
+
+    config = DistillConfig(
+        xai_api_key="t", distill_output_dir=tmp_path / "library", distill_verify="strict"
+    )
+    record = PaperRecord(paper_id="2601.00005v1", title="T5", abstract="a")
+    paper_dir = write_paper_artifacts(
+        "tkg",
+        record,
+        config,
+        insights="- Reaches 72.6 MRR.",
+        document="reaches 72.6 MRR.",
+    )
+    sidecar = next(paper_dir.glob("*_Verify.json"))
+    insight = next(paper_dir.glob("*_Insights.md"))
+    old_sidecar = sidecar.read_bytes()
+    old_insight = insight.read_text(encoding="utf-8")
+
+    write_paper_artifacts(
+        "tkg",
+        record,
+        config,
+        insights="- Reaches 99.9 MRR.",
+        document="reaches 80.1 MRR now.",
+    )
+
+    assert insight.read_text(encoding="utf-8") == old_insight
+    assert sidecar.read_bytes() == old_sidecar
+
+
 def test_local_ingest_strict_refuses_insight(tmp_path, monkeypatch):
     """The local-file emit path honors strict refusal end to end."""
     from distill.config import DistillConfig

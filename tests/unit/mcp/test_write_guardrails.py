@@ -221,6 +221,29 @@ class TestToolWiring:
         result = json.loads(process_video_url("https://youtube.com/watch?v=x"))
         assert result["status"] == "domain_not_allowed"
 
+    def test_process_video_url_normalizes_short_links_for_allowlist(self, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        from distill.mcp.tools.topics import process_video_url
+
+        config = DistillConfig(xai_api_key="t", distill_mcp_ingest_allowlist="youtube.com")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        monkeypatch.setattr(
+            "distill.ingestors.youtube.discovery.get_video_info",
+            lambda url: None,
+        )
+        result = process_video_url("https://youtu.be/abcdefghijk")
+        assert "domain_not_allowed" not in result
+        assert "Could not get video info" in result
+
+    def test_process_video_url_refuses_non_youtube_url(self, monkeypatch):
+        monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
+        from distill.mcp.tools.topics import process_video_url
+
+        config = DistillConfig(xai_api_key="t", distill_mcp_ingest_allowlist="learn.microsoft.com")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+        result = json.loads(process_video_url("https://learn.microsoft.com/video"))
+        assert result["status"] == "usage_error"
+
     def test_watch_add_refuses_off_list_host(self, monkeypatch):
         monkeypatch.delenv("DISTILL_MCP_READ_ONLY", raising=False)
         from distill.mcp.tools.watch import watch_add

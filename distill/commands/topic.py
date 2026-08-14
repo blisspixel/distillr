@@ -137,7 +137,7 @@ def _load_topic_profile(config: DistillConfig, topic: str) -> dict[str, object] 
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return None
     if not isinstance(data, dict):
         return None

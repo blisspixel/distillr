@@ -8,16 +8,17 @@ import json
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
 from distill.mcp.server import (
+    agent_visible_path,
     capped_tracker,
     cost_summary,
     library,
     load_config,
     mcp,
     refuse_if_host_not_allowed,
-    strip_frontmatter,
     write_tool,
     write_tool_annotations,
 )
+from distill.youtube_urls import normalize_youtube_video_url
 
 __all__: list[str] = []
 
@@ -35,14 +36,25 @@ def process_video_url(url: str, topic: str = "ai") -> str:
     from distill.ingestors.youtube.discovery import get_video_info, resolve_channel_name
     from distill.pipeline.summary import RunSummary
 
-    refusal = refuse_if_host_not_allowed(url, action="process_video_url")
+    canonical = normalize_youtube_video_url(url)
+    if not canonical:
+        return json.dumps(
+            {
+                "status": "usage_error",
+                "error": "URL is not a supported YouTube video URL.",
+                "action": "process_video_url",
+                "phase": "gate.usage",
+            },
+            indent=2,
+        )
+    refusal = refuse_if_host_not_allowed(canonical, action="process_video_url")
     if refusal is not None:
         return refusal
     config = load_config()
     if not model_available():
         return "Error: No model configured (set a cloud key or DISTILL_PROVIDER)."
 
-    info = get_video_info(url)
+    info = get_video_info(canonical)
     if not info:
         return "Error: Could not get video info. Check the URL."
 
@@ -68,6 +80,6 @@ def process_video_url(url: str, topic: str = "ai") -> str:
             "insights",
         )
         if insights_file.exists():
-            result["insights"] = strip_frontmatter(insights_file.read_text(encoding="utf-8"))
+            result["insights_path"] = agent_visible_path(config.library_dir, insights_file)
 
     return json.dumps(result, indent=2)

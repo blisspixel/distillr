@@ -30,6 +30,7 @@ __all__ = [
     "claims_jsonl_path",
     "ensure_claim_store_append_capacity",
     "ensure_extracted_sources_capacity",
+    "latest_claims",
     "read_claims",
     "read_extracted_sources",
     "record_extracted_sources",
@@ -150,6 +151,23 @@ def read_claims(topic_dir: Path) -> list[Claim]:
     """Read a complete bounded claim history, returning empty only if missing."""
 
     return _read_claim_history(topic_dir)
+
+
+def latest_claims(claims: Iterable[Claim]) -> list[Claim]:
+    """Return the newest row per ``claim_id``, preserving first-seen order.
+
+    ``refresh`` re-appends extraction rows. Synthesis and its receipt must
+    cite each assertion once, or a later pass can treat two copies as
+    independent corroboration.
+    """
+
+    latest: dict[str, Claim] = {}
+    order: list[str] = []
+    for claim in claims:
+        if claim.claim_id not in latest:
+            order.append(claim.claim_id)
+        latest[claim.claim_id] = claim
+    return [latest[claim_id] for claim_id in order]
 
 
 def ensure_claim_store_append_capacity(topic_dir: Path) -> None:

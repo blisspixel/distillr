@@ -19,6 +19,7 @@ from distill.library.paths import (
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import LENIENT_LOCAL_JSON_ERRORS, read_local_utf8_text
 from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import (
@@ -51,7 +52,7 @@ def _video_link_header(video_dir: Path) -> str:
                 metadata = cast(Mapping[str, object], meta)
                 title = _metadata_string(metadata.get("title"), title)
                 source_id = _metadata_string(metadata.get("video_id"), source_id)
-        except (json.JSONDecodeError, OSError) as exc:
+        except LENIENT_LOCAL_JSON_ERRORS as exc:
             logger.debug("video metadata skipped for %s: %s", video_dir, exc)
     return emit_wiki_link(title, source_id, "insights")
 
@@ -63,10 +64,11 @@ def _gather_video_insights(videos_dir: Path) -> str:
         if not video_dir.is_dir():
             continue
         path = find_artifact(video_dir, "insights")
-        if not path.exists():
+        content = read_local_utf8_text(path)
+        if content is None:
             continue
         link = _video_link_header(video_dir)
-        parts.append(f"\n\n---\nSource: {link}\n{path.read_text(encoding='utf-8')}")
+        parts.append(f"\n\n---\nSource: {link}\n{content}")
     return "".join(parts)
 
 
@@ -86,7 +88,7 @@ def synthesize_channel(
         return ""
 
     context_file = channel_dir / "channel_context.md"
-    channel_context = context_file.read_text(encoding="utf-8") if context_file.exists() else ""
+    channel_context = read_local_utf8_text(context_file) or ""
 
     all_insights = _gather_video_insights(videos_dir)
     if not all_insights:
@@ -166,10 +168,11 @@ def _gather_channel_syntheses(topic: str, channels_dir: Path) -> dict[str, str]:
             continue
         identity = f"{topic}_{channel_dir.name}"
         synth_file = find_artifact(channel_dir, "synthesis", identity=identity)
-        if not synth_file.exists():
+        content = read_local_utf8_text(synth_file)
+        if content is None:
             continue
         link = emit_wiki_link(f"Channel synthesis: {channel_dir.name}", identity, "synthesis")
-        syntheses[channel_dir.name] = f"Source: {link}\n" + synth_file.read_text(encoding="utf-8")
+        syntheses[channel_dir.name] = f"Source: {link}\n" + content
     return syntheses
 
 

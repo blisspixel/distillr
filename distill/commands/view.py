@@ -29,7 +29,7 @@ from distill.commands._helpers import (
 from distill.commands._helpers import duration_str as _duration_str
 from distill.commands._helpers import file_link as _file_link
 from distill.commands._helpers import format_date as _format_date
-from distill.commands._json import ExitCode
+from distill.commands._json import ExitCode, exit_with_refusal
 from distill.commands._json import emit_json as _emit_json
 from distill.commands._json import json_mode_active as _json_mode_active
 from distill.commands._topic_changes import (
@@ -90,6 +90,8 @@ from distill.parsing import parse_ascii_uint
 from distill.pipeline.costs import BudgetExceededError, estimate_synthesis_workflow_cost
 from distill.pipeline.dashboard_records import JsonObject
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
+
+_SHOW_WHAT = frozenset({"insights", "transcript", "metadata"})
 
 __all__ = [
     "add",
@@ -371,6 +373,14 @@ def show(  # noqa: C901 — legacy, will refactor
     ),
 ) -> None:
     """Read insights or transcript for a specific video."""
+    if what not in _SHOW_WHAT:
+        exit_with_refusal(
+            f"Invalid --what={what}. Valid options: insights, transcript, metadata",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="show",
+            limit={"kind": "what", "value": what},
+        )
     config = get_config()
     lib = Library(config)
 

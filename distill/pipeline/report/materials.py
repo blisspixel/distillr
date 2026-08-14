@@ -11,6 +11,7 @@ from typing import Any, cast
 from distill.config import DistillConfig
 from distill.library.paths import find_artifact
 from distill.library.wikilinks import emit_wiki_link
+from distill.parsing import read_local_utf8_text
 
 logger = logging.getLogger(__name__)
 
@@ -71,19 +72,20 @@ def load_syntheses(
             "synthesis",
             identity=f"{current_topic}_{channel}",
         )
-        if synth_file.exists():
-            link = emit_wiki_link(
-                f"Channel synthesis: {channel}",
-                f"{current_topic}_{channel}",
-                "synthesis",
-            )
-            body = synth_file.read_text(encoding="utf-8")
-            parts.append(f"### {channel} Channel Synthesis\nSource: {link}\n{body}")
+        body = read_local_utf8_text(synth_file)
+        if body is None:
+            continue
+        link = emit_wiki_link(
+            f"Channel synthesis: {channel}",
+            f"{current_topic}_{channel}",
+            "synthesis",
+        )
+        parts.append(f"### {channel} Channel Synthesis\nSource: {link}\n{body}")
 
     topic_synth = find_artifact(config.topic_dir(topic), "topic_synthesis", identity=topic)
-    if topic_synth.exists():
+    body = read_local_utf8_text(topic_synth)
+    if body is not None:
         link = emit_wiki_link(f"Topic synthesis: {topic}", topic, "topic_synthesis")
-        body = topic_synth.read_text(encoding="utf-8")
         parts.append(f"### Topic Synthesis: {topic}\nSource: {link}\n{body}")
     return "\n\n".join(parts) if parts else ""
 
@@ -110,9 +112,9 @@ def load_tagged_insights(
             if not video_dir.is_dir():
                 continue
             insights_file = find_artifact(video_dir, "insights")
-            if not insights_file.exists():
+            content = read_local_utf8_text(insights_file)
+            if content is None:
                 continue
-            content = insights_file.read_text(encoding="utf-8")
             if not any(keyword in content.lower() for keyword in keywords_lower):
                 continue
             title, source_id = read_video_metadata_title_and_id(
@@ -167,7 +169,7 @@ def read_video_metadata_title_and_id(meta_file: Path, fallback: str) -> tuple[st
         return fallback, fallback
     try:
         raw = json.loads(meta_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, RecursionError, UnicodeError, ValueError) as exc:
         logger.debug("Ignoring unreadable video metadata at %s: %s", meta_file, exc)
         return fallback, fallback
     if not isinstance(raw, dict):

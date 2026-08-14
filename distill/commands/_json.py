@@ -24,6 +24,8 @@ __all__ = [
     "json_mode_active",
     "loop_refusal_fields",
     "phase_for_exit_code",
+    "register_json_mode_reset",
+    "reset_json_mode",
     "set_json_active",
 ]
 
@@ -113,6 +115,21 @@ def set_json_active(enabled: bool) -> None:
     app callback). Resets every run, so a reused process never leaks state."""
     global _json_active
     _json_active = enabled
+
+
+def reset_json_mode() -> None:
+    """Restore human-mode stdout after a CLI invocation finishes."""
+    from distill._console import set_json_mode
+
+    set_json_mode(False)
+    set_json_active(False)
+
+
+def register_json_mode_reset(ctx: object) -> None:
+    """Reset JSON mode when a Click/Typer context closes."""
+    closer = getattr(ctx, "call_on_close", None)
+    if callable(closer):
+        closer(reset_json_mode)
 
 
 def json_mode_active() -> bool:

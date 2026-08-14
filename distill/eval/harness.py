@@ -587,7 +587,7 @@ def _load_json(cache_dir: Path | None, key: str) -> dict | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return None
     # Only object-shaped entries are usable cache rows; a valid-JSON list/scalar
     # would crash callers that do ``cached[...]`` / ``cached.get(...)``.

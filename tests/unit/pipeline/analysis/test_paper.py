@@ -45,6 +45,21 @@ def test_analyze_paper_builds_frontmatter(tmp_path):
     assert tracker.entries[0].call_type == "paper"
 
 
+def test_synthesize_papers_skips_unreadable_insight(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    good = config.paper_dir("papers", "Good Paper", "2602.12670")
+    bad = config.paper_dir("papers", "Broken Paper", "2602.12671")
+    good.mkdir(parents=True, exist_ok=True)
+    bad.mkdir(parents=True, exist_ok=True)
+    (good / "insights.md").write_text("# Insight", encoding="utf-8")
+    (bad / "insights.md").write_bytes(b"\xff\xfe")
+
+    with patch("distill.pipeline.analysis.paper.llm_call", _fake_llm_call("paper synthesis")):
+        result = synthesize_papers("papers", config)
+
+    assert result == "paper synthesis"
+
+
 def test_synthesize_papers_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     paper_dir = config.paper_dir("papers", "Agent Memory Systems", "2602.12670")

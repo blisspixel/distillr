@@ -119,6 +119,18 @@ def test_run_claims_does_not_reextract_zero_claim_source(tmp_path: Path, rc: Rou
     assert s2.insights_extracted == 0
 
 
+def test_run_claims_does_not_complete_unparsed_response(tmp_path: Path, rc: RouterConfig) -> None:
+    _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
+    side = _responses("sorry, here is prose instead of claims")
+    with patch("distill.claims.extract.llm_call", side_effect=side) as mock_llm:
+        first = run_claims(tmp_path, tmp_path, rc=rc, now_iso="2026-05-30T00:00:00Z")
+        assert mock_llm.call_count == 1
+        assert first.claims_added == 0
+        second = run_claims(tmp_path, tmp_path, rc=rc, now_iso="2026-05-30T00:00:00Z")
+        assert mock_llm.call_count == 2
+    assert second.insights_extracted == 1
+
+
 def test_run_claims_refresh_reextracts(tmp_path: Path, rc: RouterConfig) -> None:
     _make_insight(tmp_path, source_type="papers", slug="pa", source_id="p1")
     side = _responses(

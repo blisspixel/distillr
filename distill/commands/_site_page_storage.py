@@ -75,7 +75,7 @@ def _owner_matches(
         return False
     try:
         owner = _mapping(json.loads(raw))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError, ValueError):
         return False
     if owner is None or owner.get("source_type") != _SOURCE_TYPE:
         return False
@@ -112,7 +112,7 @@ def _legacy_metadata_matches(page_dir: Path, pages_dir: Path, source_url: str) -
         return False
     try:
         metadata = _mapping(json.loads(raw))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError, ValueError):
         return False
     if metadata is None:
         return False
@@ -245,7 +245,7 @@ def remove_absent_attachments(page_dir: Path) -> None:
     if raw is not None:
         try:
             value: object = json.loads(raw)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError, ValueError):
             value = None
         records = cast("list[object]", value) if isinstance(value, list) else []
         if len(records) <= _MAX_ATTACHMENT_RECORDS:

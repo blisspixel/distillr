@@ -119,8 +119,10 @@ def load_intent(topic_dir: Path) -> CorpusIntent | None:
     if not path.exists():
         return None
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        from distill.parsing import strict_json_loads
+
+        raw = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, RecursionError, UnicodeError, ValueError) as exc:
         logger.debug("Ignoring unreadable intent at %s: %s", path, exc)
         return None
     if not isinstance(raw, dict):

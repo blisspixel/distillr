@@ -38,7 +38,7 @@ def load_topic_goals(library_dir: Path) -> dict[str, dict[str, Any]]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return {}
     return cast("dict[str, dict[str, Any]]", data) if isinstance(data, dict) else {}
 

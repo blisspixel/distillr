@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -59,7 +60,7 @@ def claim_id_for(source_id: str, claim_text: str) -> str:
 class ClaimExtractionResult:
     """What one extraction LLM call produced: parsed claims plus provenance."""
 
-    __slots__ = ("claims", "model", "prompt_id", "skipped_rows")
+    __slots__ = ("claims", "model", "parsed", "prompt_id", "skipped_rows")
 
     def __init__(
         self,
@@ -67,11 +68,14 @@ class ClaimExtractionResult:
         model: str,
         prompt_id: str,
         skipped_rows: list[str],
+        *,
+        parsed: bool = True,
     ) -> None:
         self.claims = claims
         self.model = model
         self.prompt_id = prompt_id
         self.skipped_rows = skipped_rows
+        self.parsed = parsed
 
     @property
     def provenance(self) -> dict[str, str]:
@@ -83,6 +87,8 @@ def _clamp_confidence(value: Any) -> float:
     try:
         conf = float(value)
     except (TypeError, ValueError):
+        return 0.5
+    if not math.isfinite(conf):
         return 0.5
     return max(0.0, min(1.0, conf))
 
@@ -184,7 +190,11 @@ def extract_claims_from_insight(
             type(parsed).__name__,
         )
         return ClaimExtractionResult(
-            [], response.model, CLAIM_EXTRACTION_PROMPT_ID, [response.text[:200]]
+            [],
+            response.model,
+            CLAIM_EXTRACTION_PROMPT_ID,
+            [response.text[:200]],
+            parsed=False,
         )
 
     claims: list[Claim] = []

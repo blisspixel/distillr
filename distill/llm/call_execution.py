@@ -165,18 +165,33 @@ def _run_provider_call(
 ) -> LLM_Response:
     usage_authorizer = options.usage_authorizer
     usage_reservation = options.usage_reservation
-    strict_budget = (
-        provider_name in _DIRECT_METERED_PROVIDERS
-        and usage_authorizer is not None
-        and usage_reservation is not None
-    )
-    if not strict_budget:
+    budgeted = usage_authorizer is not None and usage_reservation is not None
+    if not budgeted:
         return _run_admitted_provider_call(
             options,
             provider_name,
             model,
             strict_budget=False,
         )
+    if provider_name not in _DIRECT_METERED_PROVIDERS:
+        if classify_provider(provider_name) == "local":
+            return _run_admitted_provider_call(
+                options,
+                provider_name,
+                model,
+                strict_budget=False,
+            )
+        assert usage_authorizer is not None  # nosec B101
+        usage_authorizer(
+            projected_usage_attempt(
+                prompt=options.prompt,
+                max_tokens=options.max_tokens,
+                model=model,
+                provider_name=provider_name,
+                provider_type="unknown",
+            )
+        )
+        raise RuntimeError("budgeted non-direct route must fail closed before provider contact")
 
     assert usage_authorizer is not None  # nosec B101
     assert usage_reservation is not None  # nosec B101

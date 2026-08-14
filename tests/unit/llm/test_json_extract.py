@@ -28,6 +28,13 @@ def test_extract_json_rejects_non_finite_constants() -> None:
     assert extract_json('{"score": 1e308}') == {"score": 1e308}
 
 
+def test_extract_json_rejects_oversized_integers() -> None:
+    # json.loads without a digit bound accepts huge integers; float() then
+    # overflows to inf and poisons rerank sorts. Fail closed instead.
+    assert extract_json('{"score": ' + ("1" + "0" * 120) + "}") is None
+    assert extract_json("[1, 2, 3]") == [1, 2, 3]
+
+
 class TestDirectParse:
     """Strategy 1: text is already valid JSON."""
 

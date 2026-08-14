@@ -44,6 +44,7 @@ __all__ = [
     "dump_frontmatter",
     "extract_frontmatter",
     "find_artifact",
+    "is_safe_path_slug",
     "legacy_artifact_path",
     "provenance_frontmatter",
     "read_artifact",
@@ -298,6 +299,21 @@ def provenance_frontmatter(provenance: ProvenanceFields) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def is_safe_path_slug(slug: str) -> bool:
+    """Return whether ``slug`` is one safe directory or note component.
+
+    Rejects traversal, drive letters, null bytes, and Windows reserved
+    device names (including ``con.md``). Callers still confine the parent.
+    """
+    if not slug or "\x00" in slug:
+        return False
+    if "/" in slug or "\\" in slug or ":" in slug or slug in {".", ".."}:
+        return False
+    if slug.casefold().partition(".")[0] in _WINDOWS_RESERVED_NAMES:
+        return False
+    return slug == Path(slug).name
+
+
 def _is_single_path_component(value: str) -> bool:
     """A sanitized name must stay within one directory level.
 
@@ -423,7 +439,7 @@ def resolve_slug_collision(
                     if isinstance(raw_meta, Mapping)
                     else None
                 )
-            except (OSError, ValueError):
+            except (OSError, RecursionError, UnicodeError, ValueError):
                 meta = None
             if (
                 meta is not None

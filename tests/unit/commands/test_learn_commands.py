@@ -163,7 +163,7 @@ class TestResearchBrief:
             ["research-brief", "--topic", "ai", "--name", "demo", "--context", "Brief me"],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == 3
         assert "GEMINI_API_KEY" in result.output
 
     def test_refuses_projected_research_brief_budget_before_deep_research(

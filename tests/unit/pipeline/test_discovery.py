@@ -168,6 +168,29 @@ def test_discover_fetch_videos_dedupes_filters_and_enriches(monkeypatch):
     assert enrich_calls == [1]
 
 
+def test_discover_fetch_videos_keeps_unknown_duration_when_excluding_shorts():
+    video_short = VideoInfo("v1", "Short", "20260420", 30, "https://youtube.com/watch?v=v1")
+    video_unknown = VideoInfo("v2", "Live", "20260421", 0, "https://youtube.com/watch?v=v2")
+    video_full = VideoInfo("v3", "Full", "20260421", 900, "https://youtube.com/watch?v=v3")
+
+    result = discover.discover_fetch_videos(
+        ["alpha"],
+        effective_days=3,
+        candidate_cap=20,
+        shorts=False,
+        search_youtube_results=lambda query, days, hours, limit: [
+            video_short,
+            video_unknown,
+            video_full,
+        ],
+        dedupe_candidates=lambda videos: videos,
+        enrich_videos=lambda videos, max_videos=None: videos,
+        filter_recent_candidates=lambda videos, effective_days, hours=None: videos,
+    )
+
+    assert [item.video_id for item in result] == ["v2", "v3"]
+
+
 def test_video_content_stats_formats_full_videos_shorts_and_duration():
     videos = [
         VideoInfo("v1", "Full", "20260421", 3600, "https://youtube.com/watch?v=v1"),

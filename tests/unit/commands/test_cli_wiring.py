@@ -1402,7 +1402,7 @@ class TestReadCommands:
 
         result = runner.invoke(cli.app, ["show", "ai", "1", "--what", "unknown"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 2
         assert "Invalid --what" in result.output
 
 
@@ -3195,7 +3195,7 @@ class TestShowChannelNameArg:
     def test_show_invalid_what(self, mock_config_with_library):
         _populate_videos(mock_config_with_library, "ai", "TestCh")
         result = runner.invoke(cli.app, ["show", "ai", "1", "-w", "garbage"])
-        assert result.exit_code == 0
+        assert result.exit_code == 2
         assert "Invalid" in result.output
 
     def test_show_no_insights(self, mock_config_with_library):

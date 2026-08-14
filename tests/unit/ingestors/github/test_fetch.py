@@ -143,3 +143,16 @@ class TestFetchRepo:
         monkeypatch.setenv("GITHUB_TOKEN", "tok123")
         fetch_repo("o", "r")
         assert seen["auth"] == "Bearer tok123"
+
+    def test_malformed_counts_do_not_crash(self, monkeypatch):
+        meta = dict(_META)
+        meta["stargazers_count"] = "1,234"
+        meta["forks_count"] = True
+        meta["open_issues_count"] = -3
+        _fake_api(monkeypatch, {"/repos/o/r": meta})
+
+        record = fetch_repo("o", "r")
+
+        assert record.stars == 0
+        assert record.forks == 0
+        assert record.open_issues == 0

@@ -13,10 +13,11 @@ from distill.ingestors.papers.arxiv import PaperRecord, build_paper_document
 from distill.library.paths import (
     artifact_filename,
     base_frontmatter,
+    find_artifact,
     tags_for,
     write_markdown_artifact,
 )
-from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+from distill.pipeline.verify import resolve_verify_mode, run_verify_hook, write_verify_sidecar
 
 __all__ = ["write_paper_artifacts"]
 
@@ -56,8 +57,12 @@ def write_paper_artifacts(
         },
     )
     write_markdown_artifact(paper_dir, "paper", paper_doc, frontmatter=paper_frontmatter)
+    existing_insights = find_artifact(paper_dir, "insights")
+    has_existing_insights = existing_insights.exists() and existing_insights.stat().st_size > 0
     # Write-time verify hook: ground insight numeric claims against the paper
-    # text receipt before committing it. Strict mode refuses the write.
+    # text receipt before committing it. Strict mode refuses the write. When
+    # an earlier insight already exists, defer the sidecar so a refusal cannot
+    # rebind the previous file's verification record.
     outcome = run_verify_hook(
         paper_dir,
         insights,
@@ -65,6 +70,7 @@ def write_paper_artifacts(
         mode=resolve_verify_mode(config.distill_verify),
         insight_name=artifact_filename(paper_dir.name, "insights"),
         source_name=artifact_filename(paper_dir.name, "paper"),
+        publish_sidecar=not has_existing_insights,
     )
     if outcome is not None and outcome.has_flags:
         style = "red" if outcome.refused else "yellow"
@@ -72,7 +78,7 @@ def write_paper_artifacts(
     if outcome is not None and outcome.refused:
         return paper_dir
 
-    write_markdown_artifact(
+    insights_path = write_markdown_artifact(
         paper_dir,
         "insights",
         insights,
@@ -83,4 +89,17 @@ def write_paper_artifacts(
             "legacy_filename": "insights.md",
         },
     )
+    if has_existing_insights and outcome is not None:
+        from distill.library.insights import insight_content_sha256
+
+        write_verify_sidecar(
+            paper_dir,
+            outcome.report,
+            insight_name=insights_path.name,
+            insight_sha256=insight_content_sha256(insights_path.read_text(encoding="utf-8")),
+            source_name=artifact_filename(paper_dir.name, "paper"),
+            entailment=outcome.entailment,
+            entailment_status=outcome.entailment_status,
+            entailment_reason=outcome.entailment_reason,
+        )
     return paper_dir

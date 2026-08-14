@@ -196,7 +196,7 @@ def _completed_paper_artifacts(
     for metadata_path in sorted(papers_dir.glob("*/metadata.json")):
         try:
             raw_metadata: object = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, RecursionError, UnicodeError, ValueError):
             continue
         if not isinstance(raw_metadata, dict):
             continue
@@ -359,8 +359,6 @@ def papers(  # noqa: C901 — legacy, will refactor
         enforce_projected_workflow_budget(config, "papers", projected_limit_cost)
     _require_model()
     tracker = budgeted_cost_tracker(config, "papers")
-    if lens:
-        _persist_lens(config, topic_name, query, lens)
     summary = RunSummary(command="papers")
     summary.set_metadata(topic=topic_name, workflow="papers", source_type="paper")
 
@@ -451,6 +449,9 @@ def papers(  # noqa: C901 — legacy, will refactor
             preview=True,
         )
         return
+
+    if lens:
+        _persist_lens(config, topic_name, query, lens)
 
     records = [item.paper for item in ranked]
     projected_cost = estimate_paper_workflow_cost(

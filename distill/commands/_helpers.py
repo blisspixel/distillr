@@ -42,8 +42,11 @@ from distill.library.paths import (
     tags_for,
     write_markdown_artifact,
 )
+from distill.parsing import read_local_utf8_text
 from distill.config import DistillConfig
 from distill.target_safety import is_http_url, require_local_filesystem_target
+from distill.commands._provider_guard import require_api_key, require_model
+from distill.youtube_urls import SHORTS_THRESHOLD, is_youtube_short
 from distill.commands._report_helpers import run_scope_report
 from distill.commands._formatting import (
     duration_str,
@@ -116,6 +119,7 @@ __all__ = [
     "format_date",
     "get_config",
     "invoke_command",
+    "is_youtube_short",
     "output_path",
     "print_markdown_safely",
     "print_text_safely",
@@ -139,11 +143,6 @@ __all__ = [
     "tty_prompt",
     "write_video_metadata",
 ]
-
-# Shorts are <=3 minutes; use lightweight single-pass analysis.
-# YouTube Shorts are nominally <=60s but metadata often reports 75-95s.
-# Anything under 3 minutes is too thin for 2-pass deep analysis.
-SHORTS_THRESHOLD = 180
 
 logger = logging.getLogger(__name__)
 
@@ -289,8 +288,15 @@ def _apply_verify_override(verify: str) -> None:
         return
     value = verify.strip().lower()
     if value not in {"warn", "strict", "off"}:
-        console.print(f"[red]Unknown --verify '{verify}'.[/red] Choose: warn, strict, off.")
-        raise typer.Exit(1)
+        from distill.commands._json import ExitCode, exit_with_refusal
+
+        exit_with_refusal(
+            f"Unknown --verify '{verify}'. Choose: warn, strict, off.",
+            code=ExitCode.USAGE_ERROR,
+            reason="usage_error",
+            action="verify",
+            limit={"kind": "verify_mode", "value": verify},
+        )
     os.environ["DISTILL_VERIFY"] = value
 
 
@@ -337,7 +343,7 @@ def _apply_output_mode(
 ) -> bool:
     """Apply global output options and return the effective debug flag."""
     from distill._console import set_json_mode, set_verbosity
-    from distill.commands._json import set_json_active
+    from distill.commands._json import register_json_mode_reset, set_json_active
 
     # Route the console to stderr before validating anything: these calls used to
     # run after the --quiet/--verbose and --provider checks, so in --json mode a
@@ -347,6 +353,7 @@ def _apply_output_mode(
     # swallow the very validation errors below.
     set_json_mode(json_output)
     set_json_active(json_output)
+    register_json_mode_reset(ctx)
 
     from distill.commands._json import emit_json_refusal, json_mode_active
 
@@ -544,35 +551,6 @@ def topic_from_query(query: str) -> str:
     return "research" if slug == "untitled" else slug
 
 
-def require_api_key(value: str | object, message: str) -> None:
-    if not value:
-        console.print(f"[red]{message}[/red]")
-        raise typer.Exit(1)
-
-
-def require_model(workload: str = "", hint: str = "") -> None:
-    """Exit cleanly unless a model is configured for ``workload``.
-
-    The "use what they have" replacement for ``require_api_key(config.xai_api_key,
-    ...)``: a keyless local provider (Ollama / LM Studio) satisfies it, so a
-    local-only user is not blocked from a workload their own model can serve. Only
-    use ``require_api_key`` directly where a *specific* cloud key is genuinely
-    required (e.g. Grok speech-to-text, a grok-only eval judge).
-    """
-    from distill.llm.availability import model_available
-
-    if model_available(workload):
-        return
-    target = f" for {workload}" if workload else ""
-    extra = f" {hint}" if hint else ""
-    console.print(
-        f"[red]No model configured{target}.[/red] Set a cloud key "
-        f"(XAI_API_KEY / GEMINI_API_KEY) or a local provider (DISTILL_PROVIDER=ollama)."
-        f"{extra}"
-    )
-    raise typer.Exit(1)
-
-
 def strip_frontmatter(content: str) -> str:
     if content.startswith("---"):
         parts = content.split("---", 2)
@@ -768,7 +746,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
     vid_dir = video_dir or config.video_dir_slug(topic, channel_name, video.title, video.video_id)
     vid_dir.mkdir(parents=True, exist_ok=True)
 
-    is_short = video.duration <= SHORTS_THRESHOLD
+    is_short = is_youtube_short(video.duration)
     if analysis_mode == "auto":
         effective_mode = "short" if is_short else "full"
     elif analysis_mode == "scan" and is_short:
@@ -808,8 +786,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
             return False
         transcript_bytes = transcript_file.stat().st_size
 
-    transcript = transcript_file.read_text(encoding="utf-8")
-    if not transcript.strip():
+    transcript = read_local_utf8_text(transcript_file)
+    if transcript is None or not transcript.strip():
         console.print("    [red]empty transcript[/red]")
         summary.add_result(
             VideoResult(

@@ -90,15 +90,9 @@ def _read_topic_note(path: Path, topic_dir: Path, library_dir: Path) -> str | No
 
 
 def _is_safe_slug(slug: str) -> bool:
-    return bool(
-        slug
-        and "\x00" not in slug
-        and "/" not in slug
-        and "\\" not in slug
-        and ":" not in slug
-        and slug not in {".", ".."}
-        and slug == Path(slug).name
-    )
+    from distill.library.paths import is_safe_path_slug
+
+    return is_safe_path_slug(slug)
 
 
 def _list_confined_markdown_paths(

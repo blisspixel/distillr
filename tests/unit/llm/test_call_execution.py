@@ -11,6 +11,7 @@ import pytest
 
 import distill.llm.call_execution as call_execution
 from distill.llm.call_execution import CallOptions, execute_call
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import RouterConfig
 from distill.llm.types import LLM_Response
 from distill.llm.usage import (
@@ -19,6 +20,7 @@ from distill.llm.usage import (
     emit_usage_attempt,
     usage_attempts_from_exception,
 )
+from distill.llm.usage_admission import usage_admission
 from distill.pipeline.costs import BudgetExceededError, CostTracker
 from distill.pipeline.usage_records import TokenUsage
 
@@ -112,6 +114,26 @@ def _options(
         usage_batch_sink=lambda attempts: sink.extend(attempts),
         provider_getter=get_provider,
     )
+
+
+def test_budgeted_hosted_local_route_fails_closed_before_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", "https://hosted.example/v1")
+    tracker = CostTracker(budget=1.0)
+    authorizer, reservation = usage_admission(tracker, call_type="analysis")
+    provider = _Provider(LLM_Response(text="ok", input_tokens=10, output_tokens=20, model="llama"))
+    options = replace(
+        _options(provider, []),
+        usage_authorizer=authorizer,
+        usage_reservation=reservation,
+    )
+
+    with pytest.raises(CostPolicyError, match="no verified price"):
+        execute_call(options, "ollama", "llama")
+
+    assert provider.calls == 0
+    assert tracker.entries == []
 
 
 def test_provider_type_requires_loopback_for_local_cost_class(
@@ -406,6 +428,7 @@ def test_agent_accounting_rejection_precedes_pending_task_visibility(tmp_path: P
     ops_dir = tmp_path / "ops"
     provider = AgentProvider(str(ops_dir))
     tracker = CostTracker(budget=0.000001)
+    authorizer, reservation = usage_admission(tracker, call_type="analysis")
 
     options = replace(
         _options(_Provider(RuntimeError("unused")), []),
@@ -413,14 +436,15 @@ def test_agent_accounting_rejection_precedes_pending_task_visibility(tmp_path: P
         usage_sink=tracker.record_attempt,
         usage_batch_sink=None,
         provider_getter=lambda _name: provider,
+        usage_authorizer=authorizer,
+        usage_reservation=reservation,
     )
 
-    with pytest.raises(BudgetExceededError):
+    with pytest.raises(CostPolicyError, match="no verified price"):
         execute_call(options, "agent", "agent")
 
     assert list((ops_dir / "tasks" / "pending").glob("*.json")) == []
-    assert len(tracker.entries) == 1
-    assert tracker.entries[0].provider_name == "agent"
+    assert tracker.entries == []
 
 
 def test_success_without_provider_attempts_derives_and_emits_usage() -> None:

@@ -16,7 +16,7 @@ gives us scalar fields directly.
 
 from __future__ import annotations
 
-import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -58,14 +58,20 @@ class ContestedConcept:
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return []
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    from distill.parsing import strict_json_loads
+
+    for line in lines:
         line = line.strip()
         if not line:
             continue
         try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
+            obj = strict_json_loads(line)
+        except (RecursionError, ValueError):
             continue
         # Keep only object rows. A hand-edited or corrupted export line that is
         # valid JSON but a list/scalar (``[]``, ``true``) would otherwise crash
@@ -105,6 +111,13 @@ def _as_int(value: object) -> int:
     """Coerce a JSONL scalar to int, defaulting to 0 on anything non-numeric."""
     if isinstance(value, bool):
         return 0
-    if isinstance(value, (int, float)):
-        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return 0
+        try:
+            return int(value)
+        except OverflowError:
+            return 0
     return 0

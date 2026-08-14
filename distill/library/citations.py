@@ -183,8 +183,10 @@ def _load_metadata(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        from distill.parsing import strict_json_loads
+
+        payload = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return {}
     return cast("dict[str, Any]", payload) if isinstance(payload, dict) else {}
 

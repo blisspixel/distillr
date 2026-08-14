@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -35,8 +34,10 @@ class ExactVideoDuplicateGroup:
 
 def _read_json_object(path: Path) -> dict[str, Any]:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        from distill.parsing import strict_json_loads
+
+        data = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, RecursionError, UnicodeError, ValueError):
         return {}
     return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
 

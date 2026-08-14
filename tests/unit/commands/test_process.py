@@ -363,6 +363,34 @@ class TestChannelCommand:
         assert result.exit_code == 0
         assert "Limited to 1 videos" in result.output
 
+    def test_channel_limit_applies_to_unprocessed_videos(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        videos = [
+            _video(video_id="old1", title="Already Done"),
+            _video(video_id="new1", title="Should Process"),
+        ]
+        self._patch_common(monkeypatch, config, videos)
+        processed: list[str] = []
+
+        def fake_process(_topic, _channel, video, *_args, **_kwargs):
+            processed.append(video.video_id)
+            return True
+
+        monkeypatch.setattr(process_mod, "_process_video", fake_process)
+        monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        from distill.library.state import ChannelState
+
+        Library(config).add_channel("ai", "https://www.youtube.com/@TestCh", "TestCh")
+        state = ChannelState(config.channel_dir("ai", "TestCh") / "state.json")
+        state.mark_processed("old1", "Already Done", _recent(2))
+
+        result = runner.invoke(
+            cli.app, ["channel", "https://www.youtube.com/@TestCh", "--limit", "1"]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert processed == ["new1"]
+
     def test_channel_with_report_flag(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         self._patch_common(monkeypatch, config, [_video()])
@@ -494,6 +522,39 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert "new since last refresh" in result.output
         assert "Limited to 1 videos" in result.output
+
+    def test_run_limit_without_refresh_processes_unprocessed(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_library(config)
+        self._patch_discover(
+            monkeypatch,
+            [
+                _video(video_id="old1", title="Already Done"),
+                _video(video_id="new1", title="Should Process"),
+                _video(video_id="new2", title="Later New"),
+            ],
+        )
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
+        self._patch_run_processing(monkeypatch)
+        processed: list[str] = []
+
+        def fake_process(_topic, _channel, video, *_args, **_kwargs):
+            processed.append(video.video_id)
+            return True
+
+        monkeypatch.setattr(process_mod, "_process_video", fake_process)
+        monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
+        from distill.library.state import ChannelState
+
+        state = ChannelState(config.channel_dir("ai", "TestCh") / "state.json")
+        state.mark_processed("old1", "Already Done", _recent(2))
+
+        result = runner.invoke(cli.app, ["run", "ai", "--limit", "1"])
+
+        assert result.exit_code == 0, result.output
+        assert processed == ["new1"]
 
     def test_run_delegates_writes_and_verification_to_shared_processor(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

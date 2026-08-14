@@ -14,6 +14,7 @@ from distill.parsing import (
     parse_iso_day_hour_duration,
     read_bounded_json_object,
     read_bounded_jsonl_objects,
+    read_local_utf8_text,
     strict_json_loads,
 )
 
@@ -116,3 +117,12 @@ def test_bounded_jsonl_drops_truncated_tail_without_a_newline(tmp_path: Path) ->
     path.write_bytes(b'{"prefix":"larger-than-window"}')
 
     assert read_bounded_jsonl_objects(path, max_bytes=5, max_rows=10) == []
+
+
+def test_read_local_utf8_text_returns_none_for_unreadable_files(tmp_path: Path) -> None:
+    path = tmp_path / "note.md"
+    path.write_text("hello", encoding="utf-8")
+    assert read_local_utf8_text(path) == "hello"
+    path.write_bytes(b"\xff\xfe")
+    assert read_local_utf8_text(path) is None
+    assert read_local_utf8_text(tmp_path / "missing.md") is None

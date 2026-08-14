@@ -60,6 +60,24 @@ def test_synthesize_corpus_writes_output(tmp_path):
     ).read_text(encoding="utf-8")
 
 
+def test_synthesize_corpus_skips_unreadable_sections(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic_dir = config.topic_dir("mixed")
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    (topic_dir / "paper_synthesis.md").write_bytes(b"\xff\xfe")
+    channel_dir = config.channel_dir("mixed", "CreatorOne")
+    channel_dir.mkdir(parents=True, exist_ok=True)
+    (channel_dir / "synthesis.md").write_text("# Channel", encoding="utf-8")
+    site_dir = config.site_dir("mixed", "example.com")
+    site_dir.mkdir(parents=True, exist_ok=True)
+    (site_dir / "synthesis.md").write_text("# Site", encoding="utf-8")
+
+    with patch("distill.pipeline.synthesis.corpus.llm_call", _fake_llm_call("corpus synthesis")):
+        result = synthesize_corpus("mixed", config)
+
+    assert result == "corpus synthesis"
+
+
 def test_has_corpus_synthesis_inputs_matches_single_pass_boundaries(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic = "mixed"
@@ -281,3 +299,63 @@ def test_two_pass_refuses_unknown_claim_handle(tmp_path):
 
     assert result is None
     assert not find_artifact(topic_dir, "corpus_synthesis", identity=topic).exists()
+
+
+def test_two_pass_ignores_bare_dataset_tokens_that_look_like_handles(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    claims = [_claim("c1", "source-one", "The source reports a repeatable result.")]
+
+    with (
+        patch("distill.claims.pipeline.run_claims"),
+        patch("distill.claims.exports.read_claims", return_value=claims),
+        patch(
+            "distill.pipeline.synthesis.corpus.llm_call",
+            _fake_llm_call("The C4 corpus and Appendix C2 are discussed [C1]."),
+        ),
+    ):
+        result = synthesize_corpus_from_claims(topic, config)
+
+    assert result == "The C4 corpus and Appendix C2 are discussed [C1]."
+
+
+def test_two_pass_uses_latest_claim_per_id(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    topic = "mixed"
+    topic_dir = config.topic_dir(topic)
+    topic_dir.mkdir(parents=True, exist_ok=True)
+    first = _claim("c1", "source-one", "Accuracy is 72.6%.")
+    refreshed = Claim(
+        claim_id="c1",
+        source_id="source-one",
+        artifact_path=first.artifact_path,
+        claim_text="Accuracy is 80.1%.",
+        rhetorical_role=ClaimRole.RESULT,
+        role_confidence=0.9,
+        extracted_at="2026-08-01T00:00:00Z",
+    )
+
+    captured: list[object] = []
+
+    def _capture_prompt(config, workload_tag, prompt, **kwargs):
+        captured.append(prompt)
+        return LLM_Response(
+            text="Updated accuracy is 80.1% [C1].",
+            input_tokens=10,
+            output_tokens=20,
+            model="grok-4.3",
+        )
+
+    with (
+        patch("distill.claims.pipeline.run_claims"),
+        patch("distill.claims.exports.read_claims", return_value=[first, refreshed]),
+        patch("distill.pipeline.synthesis.corpus.llm_call", _capture_prompt),
+    ):
+        result = synthesize_corpus_from_claims(topic, config)
+
+    assert result == "Updated accuracy is 80.1% [C1]."
+    assert captured
+    assert "80.1%" in str(captured[0])
+    assert "72.6%" not in str(captured[0])

@@ -11,7 +11,7 @@ from typing import Any, Protocol, cast
 from rich import box
 from rich.table import Table
 
-from distill.cli_shared import SHORTS_THRESHOLD, console
+from distill.cli_shared import console, is_youtube_short
 from distill.cli_shared import format_date as _format_date
 from distill.commands import _learning_flow as _learning_flow_support
 from distill.commands._helpers import (
@@ -494,7 +494,7 @@ def _select_learning_videos(
             per_channel_cap=max(per_channel_cap * 2, 4),
         )
     if not shorts:
-        raw_candidates = [v for v in raw_candidates if v.duration > SHORTS_THRESHOLD]
+        raw_candidates = [v for v in raw_candidates if not is_youtube_short(v.duration)]
         console.print(f"[dim]Filtered to {len(raw_candidates)} full-length candidates[/dim]")
 
     if not raw_candidates:

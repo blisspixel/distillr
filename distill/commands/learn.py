@@ -451,8 +451,6 @@ def latest_cmd(
     # not quietly spend tokens on ranking/search variants it will ignore.
     effective_rerank = rerank and not top_by_date
     effective_expand = not top_by_date
-    if lens:
-        _persist_lens(get_config(), topic or _topic_from_query(query), query, lens)
     if preview:
         config, tracker, _selected = _preview_learning_selection(
             query,
@@ -482,6 +480,9 @@ def latest_cmd(
             metadata={"topic": topic} if topic else None,
         )
         return
+
+    if lens:
+        _persist_lens(get_config(), topic or _topic_from_query(query), query, lens)
 
     # Thread concept extraction through the learning workflow's tracker so
     # --concepts spend lands in the same cost_log.jsonl row as the rest of

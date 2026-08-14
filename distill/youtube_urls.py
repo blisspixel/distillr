@@ -6,6 +6,8 @@ import re
 import urllib.parse
 
 __all__ = [
+    "SHORTS_THRESHOLD",
+    "is_youtube_short",
     "normalize_channel_handle",
     "normalize_channel_id",
     "normalize_video_id",
@@ -34,6 +36,17 @@ _VIDEO_PATH_RE = re.compile(r"^/(?:shorts|embed|live)/(?P<video_id>[A-Za-z0-9_-]
 _SHORT_VIDEO_PATH_RE = re.compile(r"^/(?P<video_id>[A-Za-z0-9_-]{1,64})/?$")
 _MAX_VIDEO_URL_CHARS = 2_048
 _MAX_VIDEO_QUERY_FIELDS = 20
+# Shorts are <=3 minutes; metadata often reports 75-95s for 60s Shorts.
+SHORTS_THRESHOLD = 180
+
+
+def is_youtube_short(duration_seconds: int) -> bool:
+    """Return True only for a known short duration.
+
+    Unknown or missing duration is not a Short. Search extractors omit
+    duration for lives, premieres, and some listings.
+    """
+    return 0 < duration_seconds <= SHORTS_THRESHOLD
 
 
 def normalize_video_id(value: object) -> str:

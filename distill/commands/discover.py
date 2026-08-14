@@ -607,7 +607,10 @@ def discover(  # noqa: C901 — legacy, will refactor
         if goal_line:
             console.print(f"[dim]Goal: {goal_line}[/dim]")
         console.print()
-        if snapshot.goal:
+
+        def persist_replay_intent() -> None:
+            if not snapshot.goal:
+                return
             save_intent(
                 config.topic_dir(replay_topic),
                 make_intent(snapshot.goal, lens=lens, rigor=snapshot.rigor),
@@ -620,6 +623,9 @@ def discover(  # noqa: C901 — legacy, will refactor
                 snapshot.goal,
                 now_iso=datetime.now().isoformat(),
             )
+
+        if yes:
+            persist_replay_intent()
         replay_estimate = estimate_discover_items(
             papers=len(replay_papers),
             video_durations=[getattr(item.video, "duration", None) for item in replay_videos],
@@ -639,6 +645,7 @@ def discover(  # noqa: C901 — legacy, will refactor
             ranked_sites=replay_sites,
             ingest_attachments=ingest_attachments,
             yes=yes,
+            persist_after_confirm=None if yes else persist_replay_intent,
         )
         return None
 
@@ -658,23 +665,24 @@ def discover(  # noqa: C901 — legacy, will refactor
         # Persist the corpus intent so analysis (this run and later ingests into
         # this topic) reads sources with the chosen lens and the goal in context.
         save_intent(config.topic_dir(topic_name), make_intent(goal, lens=lens, rigor=rigor))
-    if not from_gaps:
-        # Persist the goal<->topic association so catch-up can surface the
-        # refresh command on a cadence (the goal-file watch hook). Gap-derived
-        # goals are synthetic and refresh via --from-gaps instead.
-        from distill.pipeline.goals import save_topic_goal
+        if not from_gaps:
+            # Persist the goal<->topic association so catch-up can surface the
+            # refresh command on a cadence (the goal-file watch hook). Gap-derived
+            # goals are synthetic and refresh via --from-gaps instead. Preview
+            # must not write this: a plan-only run is not a watch subscription.
+            from distill.pipeline.goals import save_topic_goal
 
-        save_topic_goal(
-            config.library_dir,
-            topic_name,
-            goal,
-            goal_file=str(goal_file) if goal_file is not None else "",
-            site_seeds=str(site_seeds) if site_seeds is not None else "",
-            trusted_sites=trusted_site or [],
-            site_crawl_depth=site_crawl_depth,
-            site_crawl_pages=site_crawl_pages,
-            now_iso=datetime.now().isoformat(),
-        )
+            save_topic_goal(
+                config.library_dir,
+                topic_name,
+                goal,
+                goal_file=str(goal_file) if goal_file is not None else "",
+                site_seeds=str(site_seeds) if site_seeds is not None else "",
+                trusted_sites=trusted_site or [],
+                site_crawl_depth=site_crawl_depth,
+                site_crawl_pages=site_crawl_pages,
+                now_iso=datetime.now().isoformat(),
+            )
     trusted_site_sources = trusted_site or []
     effective_site_limit = site_limit if site_seeds is not None or trusted_site_sources else 0
     if paper_limit <= 0 and video_limit <= 0 and effective_site_limit <= 0:

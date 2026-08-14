@@ -20,8 +20,8 @@ from rich.panel import Panel
 
 from distill import cli_shared
 from distill.cli_shared import (
-    SHORTS_THRESHOLD,
     console,
+    is_youtube_short,
 )
 from distill.cli_shared import format_date as _format_date
 from distill.cli_shared import print_markdown_safely as _print_markdown_safely
@@ -65,6 +65,7 @@ from distill.library.state import ChannelState
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.analysis.video import (
     generate_channel_context,
 )
@@ -106,7 +107,7 @@ def _completed_video_artifacts(
     for metadata_path in sorted(channels_dir.glob("*/videos/*/metadata.json")):
         try:
             raw_metadata: object = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, RecursionError, UnicodeError, ValueError):
             continue
         if not isinstance(raw_metadata, dict):
             continue
@@ -136,8 +137,9 @@ def _print_reused_video(
         "pass --force to reanalyze.[/dim]"
     )
     if show:
-        content = _strip_frontmatter(insights_file.read_text(encoding="utf-8"))
-        _print_markdown_safely(console, content)
+        raw_insights = read_local_utf8_text(insights_file)
+        if raw_insights is not None:
+            _print_markdown_safely(console, _strip_frontmatter(raw_insights))
     console.print()
     console.print(f"  transcript      {_file_link(transcript_file)}")
     console.print(f"  insights        {_file_link(insights_file)}")
@@ -209,8 +211,8 @@ def video(
     _require_model()
 
     projected_cost = estimate_routed_video_workflow_cost(
-        full_videos=0 if info.duration <= SHORTS_THRESHOLD else 1,
-        shorts=1 if info.duration <= SHORTS_THRESHOLD else 0,
+        full_videos=0 if is_youtube_short(info.duration) else 1,
+        shorts=1 if is_youtube_short(info.duration) else 0,
     )
     enforce_projected_workflow_budget(config, "video", projected_cost)
     summary.estimated_cost = projected_cost
@@ -248,15 +250,16 @@ def video(
         )
 
     if show:
-        content = _strip_frontmatter(insights_file.read_text(encoding="utf-8"))
-        _print_markdown_safely(
-            console,
-            content,
-            summary=summary,
-            stage="render-preview-content",
-            context=info.video_id,
-            details={"channel": channel_name, "title": info.title},
-        )
+        raw_insights = read_local_utf8_text(insights_file)
+        if raw_insights is not None:
+            _print_markdown_safely(
+                console,
+                _strip_frontmatter(raw_insights),
+                summary=summary,
+                stage="render-preview-content",
+                context=info.video_id,
+                details={"channel": channel_name, "title": info.title},
+            )
 
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
@@ -321,20 +324,17 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
     videos = discover_videos(url, lookback, include_shorts=shorts)
     console.print(f"[green]Found {len(videos)} videos[/green]")
 
-    if limit:
-        videos = videos[:limit]
-        console.print(f"[dim]Limited to {limit} videos[/dim]")
-
     if not videos:
         console.print("[yellow]No videos found in date range[/yellow]")
         return
 
     state = ChannelState(config.channel_dir(topic, name) / "state.json")
-
-    # Pre-run estimate
     new_vids = [v for v in videos if not state.is_processed(v.video_id)]
-    full_est = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
-    short_est = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
+    if limit:
+        new_vids = new_vids[:limit]
+        console.print(f"[dim]Limited to {limit} videos[/dim]")
+    full_est = sum(1 for v in new_vids if not is_youtube_short(v.duration))
+    short_est = sum(1 for v in new_vids if is_youtube_short(v.duration))
     router_config = RouterConfig()
     ledger_estimate = estimate_routed_video_workflow_cost(
         full_videos=full_est,
@@ -486,12 +486,12 @@ def run(  # noqa: C901 — legacy, will refactor
             state_file = config.channel_dir(t, ch.name) / "state.json"
             state = ChannelState(state_file)
 
+            pending = [v for v in videos if not state.is_processed(v.video_id)]
             if refresh:
-                videos = [v for v in videos if not state.is_processed(v.video_id)]
+                videos = pending
                 console.print(f"  [dim]{len(videos)} new since last refresh[/dim]")
-
             if limit:
-                videos = videos[:limit]
+                videos = pending[:limit]
                 console.print(f"  [dim]Limited to {limit} videos[/dim]")
 
             if not videos:
@@ -502,13 +502,13 @@ def run(  # noqa: C901 — legacy, will refactor
                 new_videos = [v for v in videos if not state.is_processed(v.video_id)]
                 for v in videos:
                     status = "SKIP" if state.is_processed(v.video_id) else "NEW"
-                    is_s = v.duration <= SHORTS_THRESHOLD
+                    is_s = is_youtube_short(v.duration)
                     kind = " [dim](Short)[/dim]" if is_s else ""
                     console.print(
                         f"  [{status}] {_format_date(v.upload_date)} | {v.title} ({_duration_str(v.duration)}){kind}"
                     )
-                full = sum(1 for v in new_videos if v.duration > SHORTS_THRESHOLD)
-                short = sum(1 for v in new_videos if v.duration <= SHORTS_THRESHOLD)
+                full = sum(1 for v in new_videos if not is_youtube_short(v.duration))
+                short = sum(1 for v in new_videos if is_youtube_short(v.duration))
                 if new_videos:
                     console.print(
                         f"\n  {estimate_run_cost(full, short, router_config=RouterConfig())}"
@@ -518,8 +518,8 @@ def run(  # noqa: C901 — legacy, will refactor
 
             # Pre-run estimate
             new_to_process = [v for v in videos if not state.is_processed(v.video_id)]
-            full_count = sum(1 for v in new_to_process if v.duration > SHORTS_THRESHOLD)
-            short_count = sum(1 for v in new_to_process if v.duration <= SHORTS_THRESHOLD)
+            full_count = sum(1 for v in new_to_process if not is_youtube_short(v.duration))
+            short_count = sum(1 for v in new_to_process if is_youtube_short(v.duration))
             projected_channel_cost = estimate_routed_video_workflow_cost(
                 full_videos=full_count,
                 shorts=short_count,

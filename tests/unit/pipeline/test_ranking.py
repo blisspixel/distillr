@@ -305,8 +305,13 @@ def test_rerank_response_parsers_skip_malformed_shapes():
     assert _parse_rerank_response("not json") == []
     assert _parse_object_rows({"video_id": "v1"}) == []
     assert _parse_object_rows(["skip", {1: "bad-key"}, {"video_id": "v1"}]) == [{"video_id": "v1"}]
-    with pytest.raises(TypeError, match="score must be number-like"):
+    with pytest.raises(TypeError, match="score must be a finite number"):
         _float_field({"score": object()}, "score")
+    with pytest.raises(TypeError, match="score must be a finite number"):
+        _float_field({"score": "inf"}, "score")
+    with pytest.raises(TypeError, match="score must be a finite number"):
+        _float_field({"score": True}, "score")
+    assert _float_field({"score": "0.75"}, "score") == 0.75
 
 
 def test_scoring_helpers_cover_edge_cases():

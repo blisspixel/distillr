@@ -146,6 +146,30 @@ def test_web_routes_render_dashboard_topic_channel_video_and_watchlist(config):
     assert '<th scope="col">Command</th>' in costs_html
 
 
+def test_video_detail_survives_corrupt_local_files(config):
+    lib = Library(config)
+    lib.add_channel("ai", "https://www.youtube.com/@TestChannel", "TestChannel")
+    video_dir = config.video_dir("ai", "TestChannel", "broken")
+    video_dir.mkdir(parents=True, exist_ok=True)
+    (video_dir / "metadata.json").write_text("[]", encoding="utf-8")
+    (video_dir / "insights.md").write_bytes(b"\xff\xfe")
+    (video_dir / "transcript.txt").write_bytes(b"\xff\xfe")
+    paper_dir = config.papers_dir("ai") / "paper-1"
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "paper.md").write_text("# Paper", encoding="utf-8")
+    (paper_dir / "metadata.json").write_text("{not-json", encoding="utf-8")
+
+    client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
+
+    video = client.get("/topics/ai/channels/TestChannel/videos/broken")
+    topic = client.get("/topics/ai")
+    channel = client.get("/topics/ai/channels/TestChannel")
+
+    assert video.status_code == 200
+    assert topic.status_code == 200
+    assert channel.status_code == 200
+
+
 def test_empty_dashboard_offers_a_truthful_first_action(config):
     client = TestClient(create_app(config), base_url="http://127.0.0.1:8899")
 

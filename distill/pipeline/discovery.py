@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -29,9 +30,8 @@ from distill.pipeline.costs import (
     estimate_discover_items,
 )
 from distill.prompts.discover import discover_query_generation_prompt, discover_rerank_prompt
+from distill.youtube_urls import is_youtube_short
 
-# Constants duplicated from commands._helpers to avoid upward dependency.
-SHORTS_THRESHOLD = 180
 logger = logging.getLogger(__name__)
 
 
@@ -62,6 +62,7 @@ __all__ = [
     "display_ranked_discover",
     "filter_ingested_candidates",
     "format_video_content_stats",
+    "is_youtube_short",
     "summarize_video_content",
 ]
 
@@ -136,12 +137,13 @@ def _row_string(row: dict[str, object], key: str) -> str:
 
 def _row_float(row: dict[str, object], key: str) -> float:
     value = row.get(key, 0.0)
-    if isinstance(value, int | float | str):
-        try:
-            return float(value)
-        except ValueError:
-            return 0.0
-    return 0.0
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        return 0.0
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    return parsed if math.isfinite(parsed) else 0.0
 
 
 def summarize_video_content(videos: list[VideoInfo]) -> VideoContentStats:
@@ -157,7 +159,7 @@ def summarize_video_content(videos: list[VideoInfo]) -> VideoContentStats:
             seconds = 0
         if seconds > 0:
             known_duration_seconds += seconds
-            if seconds <= SHORTS_THRESHOLD:
+            if is_youtube_short(seconds):
                 shorts += 1
         else:
             unknown_duration_count += 1
@@ -337,7 +339,7 @@ def discover_fetch_videos(
     if not raw:
         return []
     if not shorts:
-        raw = [v for v in raw if v.duration > SHORTS_THRESHOLD]
+        raw = [v for v in raw if not is_youtube_short(v.duration)]
     if not raw:
         return []
     enriched = enrich_videos(raw, max_videos=min(len(raw), 20))

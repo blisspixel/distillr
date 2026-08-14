@@ -261,7 +261,7 @@ def _score_named_row(line: str) -> tuple[int, str] | None:
         return None
     try:
         row = json.loads(line)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         return None
     if not isinstance(row, dict):
         return None

@@ -24,6 +24,7 @@ from distill.library.paths import (
 )
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import (
@@ -148,9 +149,10 @@ def synthesize_site(
         if not page_dir.is_dir():
             continue
         insights_file = find_artifact(page_dir, "insights")
-        if not insights_file.exists():
+        content = read_local_utf8_text(insights_file)
+        if content is None:
             continue
-        parts.append(f"\n\n---\n{insights_file.read_text(encoding='utf-8')}")
+        parts.append(f"\n\n---\n{content}")
 
     if not parts:
         return ""
@@ -224,8 +226,9 @@ def synthesize_site_topic(
             "site_synthesis",
             identity=f"{topic}_{site_dir.name}",
         )
-        if synth_file.exists():
-            site_summaries[site_dir.name] = synth_file.read_text(encoding="utf-8")
+        content = read_local_utf8_text(synth_file)
+        if content is not None:
+            site_summaries[site_dir.name] = content
 
     if not site_summaries:
         return ""

@@ -320,6 +320,19 @@ class TestSummarizeQuery:
     def test_no_matches_returns_none(self, config):
         assert sq_mod.summarize_query(config, "empty", "anything") is None
 
+    def test_recursive_cache_json_regenerates(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text("[" * 2000 + "]" * 2000, encoding="utf-8")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert len(calls) == 2
+
     def test_corrupt_cache_regenerates(self, config, monkeypatch):
         _seed(config)
         calls: list = []

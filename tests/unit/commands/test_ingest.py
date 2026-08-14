@@ -354,6 +354,26 @@ def test_ingest_cmd_invalid_tweet_url_exits_with_code_2(tmp_path: Path) -> None:
     assert "X-CANARY" not in result.stdout
 
 
+def test_ingest_cmd_invalid_tweet_url_json_is_loop_readable(tmp_path: Path) -> None:
+    from distill.cli import app
+
+    with patch("distill.commands.ingest.get_config") as get_config_mock:
+        get_config_mock.return_value = DistillConfig(
+            xai_api_key="x", distill_output_dir=tmp_path / "lib"
+        )
+        result = CliRunner().invoke(
+            app,
+            ["--json", "ingest", "https://x.com/alice/profile?access_token=X-CANARY"],
+        )
+
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "usage_error"
+    assert payload["data"]["action"] == "ingest"
+    assert "X-CANARY" not in result.stdout
+
+
 def test_ingest_tweet_preserves_raw_fetch_url_but_omits_it_from_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -396,6 +416,23 @@ def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
     assert result.exit_code == 2
     assert "no dedicated adapter" in result.stdout.lower()
     assert not (tmp_path / "lib" / ".distill" / "cost_log.jsonl").exists()
+
+
+def test_ingest_cmd_unknown_host_json_is_loop_readable(tmp_path: Path) -> None:
+    from distill.cli import app
+
+    with patch("distill.commands.ingest.get_config") as get_config_mock:
+        get_config_mock.return_value = DistillConfig(
+            xai_api_key="x", distill_output_dir=tmp_path / "lib"
+        )
+        result = CliRunner().invoke(app, ["--json", "ingest", "https://example.com/random"])
+
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "error"
+    assert payload["data"]["reason"] == "usage_error"
+    assert payload["data"]["action"] == "ingest"
+    assert payload["data"]["limit"]["value"] == "example.com"
 
 
 def test_ingest_cmd_reports_missing_local_file_before_url_routing(

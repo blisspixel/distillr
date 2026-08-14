@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from distill.llm.cost import has_known_pricing
+from distill.llm.cost import has_known_pricing, is_nonbinding_planning_price
 from distill.llm.usage import MAX_USAGE_TOKENS, LLMUsageAttempt
 
 NO_METERED_PROVIDER_TYPES: frozenset[str] = frozenset({"local", "included-plan"})
@@ -84,11 +84,13 @@ class TokenUsage:
     def external_cost_unavailable(self) -> bool:
         """True when usage is known but Distill has no trustworthy price contract."""
 
-        return self.provider_type in EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES or (
-            self.provider_type == "cloud"
-            and self.provider_name in {"xai", "gemini", "anthropic", "openai"}
-            and not has_known_pricing(self.model)
-        )
+        if self.provider_type in EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES:
+            return True
+        if self.no_metered_cost:
+            return False
+        if is_nonbinding_planning_price(self.model):
+            return True
+        return self.provider_type == "cloud" and not has_known_pricing(self.model)
 
 
 @dataclass
@@ -100,6 +102,7 @@ class TranscriptionUsage:
     duration_s: float = 0.0
     cost: float = 0.0
     outcome: str = "completed"
+    external_cost_unavailable: bool = False
 
 
 def _bounded_usage_count(value: object) -> int:

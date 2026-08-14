@@ -17,6 +17,7 @@ from distill.cli_shared import (
     output_path,
     print_markdown_safely,
     require_api_key,
+    require_model,
     resolve_video_channel_name,
     safe_console_text,
     strip_frontmatter,
@@ -443,17 +444,28 @@ class TestRequireApiKey:
         # typer.Exit is no longer identical to click.exceptions.Exit.
         import typer
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as raised:
             require_api_key("", "Key missing")
+        assert raised.value.exit_code == 3
 
     def test_raises_on_none(self):
         import typer
 
-        with pytest.raises(typer.Exit):
+        with pytest.raises(typer.Exit) as raised:
             require_api_key(None, "Key missing")
+        assert raised.value.exit_code == 3
 
     def test_passes_on_value(self):
         require_api_key("sk-test-123", "Key missing")  # should not raise
+
+    def test_require_model_uses_config_exit(self, monkeypatch):
+        monkeypatch.setattr(
+            "distill.llm.availability.model_available",
+            lambda workload="": False,
+        )
+        with pytest.raises(typer.Exit) as raised:
+            require_model("rerank")
+        assert raised.value.exit_code == 3
 
 
 class TestStripFrontmatter:
@@ -707,6 +719,22 @@ class TestProcessVideo:
         vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
         vid_dir.mkdir(parents=True, exist_ok=True)
         (vid_dir / "transcript.txt").write_text("", encoding="utf-8")
+
+        video = self._make_video()
+        summary = RunSummary(command="test")
+
+        result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
+        assert result is False
+        assert summary.results[0].error == "Empty transcript"
+
+    def test_unreadable_transcript_returns_false(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        (vid_dir / "transcript.txt").write_bytes(b"\xff\xfe")
 
         video = self._make_video()
         summary = RunSummary(command="test")

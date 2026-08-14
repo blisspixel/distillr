@@ -18,7 +18,7 @@ import typer
 from rich.markup import escape
 
 from distill import cli_shared
-from distill.cli_shared import SHORTS_THRESHOLD, console
+from distill.cli_shared import console, is_youtube_short
 from distill.cli_shared import duration_str as _duration_str
 from distill.cli_shared import format_date as _format_date
 from distill.cli_shared import require_model as _require_model
@@ -53,6 +53,7 @@ from distill.library.state import ChannelState
 from distill.llm.availability import model_available
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.costs import BudgetExceededError, estimate_routed_video_workflow_cost
 from distill.pipeline.summary import (
     ETATracker,
@@ -85,7 +86,10 @@ class _LatestInsight:
 
 
 def _read_metadata(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, RecursionError, UnicodeError, ValueError):
+        return {}
     if isinstance(data, dict):
         return cast("dict[str, Any]", data)
     return {}
@@ -165,7 +169,7 @@ def _show_latest_insights(  # noqa: C901 - legacy display helper
                     video_dir=vid_dir,
                 )
             )
-        except (OSError, json.JSONDecodeError):
+        except (OSError, RecursionError, UnicodeError, ValueError):
             continue
     if not vid_list:
         return
@@ -177,8 +181,10 @@ def _show_latest_insights(  # noqa: C901 - legacy display helper
         title = item.title
         date = _format_date(item.upload_date)
         insights_file = find_artifact(item.video_dir, "insights")
-        content = insights_file.read_text(encoding="utf-8")
-        content = _strip_frontmatter(content)
+        raw_insights = read_local_utf8_text(insights_file)
+        if raw_insights is None:
+            continue
+        content = _strip_frontmatter(raw_insights)
         summary_text = ""
         in_summary = False
         for line in content.split("\n"):
@@ -489,8 +495,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             console.print(f"    [dim]...and {len(new_vids) - 5} more[/dim]")
 
         if dry_run:
-            scan_count = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
-            short_count = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
+            scan_count = sum(1 for v in new_vids if not is_youtube_short(v.duration))
+            short_count = sum(1 for v in new_vids if is_youtube_short(v.duration))
             display_estimate(
                 scan_videos=scan_count,
                 shorts=short_count,
@@ -499,8 +505,8 @@ def catch_up(  # noqa: C901 — legacy, will refactor
             continue
 
         # ── Process each video ────────────────────────────────
-        scan_count = sum(1 for v in new_vids if v.duration > SHORTS_THRESHOLD)
-        short_count = sum(1 for v in new_vids if v.duration <= SHORTS_THRESHOLD)
+        scan_count = sum(1 for v in new_vids if not is_youtube_short(v.duration))
+        short_count = sum(1 for v in new_vids if is_youtube_short(v.duration))
         projected_batch_cost = estimate_routed_video_workflow_cost(
             scan_videos=scan_count,
             shorts=short_count,

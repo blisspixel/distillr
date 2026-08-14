@@ -11,7 +11,6 @@ lifts the limit when present, and is never required.
 from __future__ import annotations
 
 import base64
-import json
 import os
 import re
 import urllib.error
@@ -20,6 +19,7 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.parsing import parse_ascii_uint, strict_json_loads
 
 __all__ = ["GitHubFetchError", "RepoRecord", "fetch_repo", "parse_github_url"]
 
@@ -108,6 +108,19 @@ def parse_github_url(url: str) -> tuple[str, str] | None:
     return owner, repo
 
 
+def _json_uint(value: object) -> int:
+    """Parse a non-negative GitHub count without crashing on malformed JSON."""
+
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value if value >= 0 else 0
+    if isinstance(value, str):
+        parsed = parse_ascii_uint(value)
+        return parsed if parsed is not None else 0
+    return 0
+
+
 def _get_json(path: str) -> dict | list:
     """GET an api.github.com path and parse JSON, with optional token auth."""
     request = urllib.request.Request(
@@ -142,9 +155,12 @@ def _get_json(path: str) -> dict | list:
         # Raw read-time errors that escape safe_urlopen's retry wrapper.
         raise GitHubFetchError(f"Network error fetching {path}: {exc}") from exc
     try:
-        return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        loaded = strict_json_loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
         raise GitHubFetchError(f"GitHub returned unparseable JSON for {path}") from exc
+    if not isinstance(loaded, (dict, list)):
+        raise GitHubFetchError(f"GitHub returned unparseable JSON for {path}")
+    return loaded
 
 
 def fetch_repo(owner: str, repo: str) -> RepoRecord:
@@ -183,9 +199,9 @@ def fetch_repo(owner: str, repo: str) -> RepoRecord:
         full_name=str(meta.get("full_name", f"{owner}/{repo}")),
         url=str(meta.get("html_url", f"https://github.com/{owner}/{repo}")),
         description=str(meta.get("description", "") or ""),
-        stars=int(meta.get("stargazers_count", 0) or 0),
-        forks=int(meta.get("forks_count", 0) or 0),
-        open_issues=int(meta.get("open_issues_count", 0) or 0),
+        stars=_json_uint(meta.get("stargazers_count")),
+        forks=_json_uint(meta.get("forks_count")),
+        open_issues=_json_uint(meta.get("open_issues_count")),
         language=str(meta.get("language", "") or ""),
         license_name=str(license_info.get("spdx_id", "") or "")
         if isinstance(license_info, dict)

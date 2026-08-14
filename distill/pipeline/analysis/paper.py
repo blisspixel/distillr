@@ -21,6 +21,7 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.metadata import ProviderMetadata, resolve_metadata_for_router
 from distill.llm.router import RouterConfig
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
 from distill.pipeline.analysis.multipass import (
     PAPER_ANALYSIS_PASSES,
@@ -242,8 +243,9 @@ def synthesize_papers(
         if not paper_dir.is_dir():
             continue
         insights_file = find_artifact(paper_dir, "insights")
-        if insights_file.exists():
-            paper_summaries[paper_dir.name] = insights_file.read_text(encoding="utf-8")
+        content = read_local_utf8_text(insights_file)
+        if content is not None:
+            paper_summaries[paper_dir.name] = content
 
     if not paper_summaries:
         return ""

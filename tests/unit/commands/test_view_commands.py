@@ -578,8 +578,22 @@ class TestShowCommand:
 
         result = runner.invoke(cli.app, ["show", "ai", "1", "--what", "unknown"])
 
-        assert result.exit_code == 0
+        assert result.exit_code == 2
         assert "Invalid --what" in result.output
+
+    def test_show_invalid_what_json(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_library(config)
+        _seed_video(config)
+        self._patch(monkeypatch, config)
+
+        result = runner.invoke(cli.app, ["--json", "show", "ai", "1", "--what", "unknown"])
+
+        assert result.exit_code == 2
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "error"
+        assert payload["data"]["reason"] == "usage_error"
+        assert payload["data"]["limit"]["value"] == "unknown"
 
 
 class TestPackageLatest:

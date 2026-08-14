@@ -10,7 +10,7 @@ from typing import Any, Never, Protocol
 import typer
 
 import distill.cli_shared as cli_shared
-from distill.cli_shared import SHORTS_THRESHOLD, console
+from distill.cli_shared import console, is_youtube_short
 from distill.commands._json import ExitCode
 from distill.config import DistillConfig
 from distill.ingestors.youtube.discovery import VideoInfo
@@ -269,8 +269,8 @@ def process_learning_selection(  # noqa: C901 — legacy, will refactor
             raise exc
 
     all_vids = [item.video for item in selected]
-    full_est = sum(1 for v in all_vids if v.duration > SHORTS_THRESHOLD)
-    short_est = sum(1 for v in all_vids if v.duration <= SHORTS_THRESHOLD)
+    full_est = sum(1 for v in all_vids if not is_youtube_short(v.duration))
+    short_est = sum(1 for v in all_vids if is_youtube_short(v.duration))
     display_estimate(full_est, short_est, console=console, include_report=report)
 
     console.print(f"  Processing {len(selected)} best-pick videos across {len(grouped)} channels")

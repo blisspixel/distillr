@@ -51,6 +51,31 @@ def _legacy_directory(config: DistillConfig, page: SitePage):
     return config.site_page_dir("web", "shared.example", page.title, legacy_page_id)
 
 
+def test_owner_and_legacy_metadata_treat_recursive_json_as_unreadable(tmp_path):
+    config = _config(tmp_path)
+    pages_dir = config.site_pages_dir("web", "shared.example")
+    page_dir = pages_dir / "page"
+    page_dir.mkdir(parents=True)
+    nested = "[" * 1200 + "]" * 1200
+    (page_dir / ".source_meta.json").write_text(nested, encoding="utf-8")
+    (page_dir / "metadata.json").write_text(nested, encoding="utf-8")
+
+    assert (
+        storage_mod._owner_matches(
+            page_dir,
+            pages_dir,
+            "https://shared.example/docs/a",
+            "https://shared.example/docs/a",
+            "deadbeef",
+        )
+        is False
+    )
+    assert (
+        storage_mod._legacy_metadata_matches(page_dir, pages_dir, "https://shared.example/docs/a")
+        is False
+    )
+
+
 def test_site_page_id_uses_complete_canonical_url_identity():
     first = "https://shared.example/docs/abcdefgh-first"
     second = "https://shared.example/docs/abcdefgh-second"

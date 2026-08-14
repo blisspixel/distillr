@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -26,6 +27,7 @@ from distill.ingestors.papers.arxiv import PaperRecord
 from distill.ingestors.sites.scraper import SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library.paths import atomic_write_text
+from distill.parsing import strict_json_loads
 from distill.pipeline.discovery import RankedDiscoverItem
 
 __all__ = [
@@ -130,7 +132,7 @@ def _item_from_dict(d: dict[str, Any]) -> RankedDiscoverItem:
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
-    payload: object = json.loads(path.read_text(encoding="utf-8"))
+    payload: object = strict_json_loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise TypeError(f"expected object, got {type(payload).__name__}")
     return cast("dict[str, Any]", payload)
@@ -178,7 +180,10 @@ def _required_float(payload: dict[str, Any], key: str) -> float:
     value = payload.get(key)
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise TypeError(f"{key} must be a number")
-    return float(value)
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"{key} must be finite")
+    return parsed
 
 
 def _optional_bool(payload: dict[str, Any], key: str, default: bool = False) -> bool:
@@ -359,7 +364,7 @@ def load_preview(cache_dir: Path, preview_id: str) -> PreviewSnapshot:
         )
     try:
         payload = _load_json_object(path)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, RecursionError, UnicodeDecodeError, ValueError) as exc:
         raise PreviewCacheError(f"Preview snapshot '{clean}' is unreadable: {exc}") from exc
     except TypeError as exc:
         raise PreviewCacheError(
@@ -367,7 +372,7 @@ def load_preview(cache_dir: Path, preview_id: str) -> PreviewSnapshot:
         ) from exc
     try:
         return _snapshot_from_payload(payload, clean)
-    except (KeyError, TypeError) as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         raise PreviewCacheError(
             f"Preview snapshot '{clean}' has an unexpected shape: {exc}"
         ) from exc
@@ -381,7 +386,7 @@ def list_previews(cache_dir: Path) -> list[dict[str, Any]]:
     for path in sorted(cache_dir.glob("*.json")):
         try:
             payload = _load_json_object(path)
-        except (OSError, json.JSONDecodeError, TypeError):
+        except (OSError, RecursionError, UnicodeDecodeError, TypeError, ValueError):
             continue
         raw_items = payload.get("items", [])
         if not isinstance(raw_items, list):
@@ -403,6 +408,6 @@ def list_previews(cache_dir: Path) -> list[dict[str, Any]]:
                     "items": len(items),
                 }
             )
-        except TypeError:
+        except (TypeError, ValueError):
             continue
     return out

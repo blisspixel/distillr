@@ -19,6 +19,8 @@ import math
 import re
 from typing import Any
 
+from distill.parsing import parse_bounded_json_int
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["extract_json"]
@@ -94,6 +96,7 @@ def _try_parse(text: str) -> dict[str, Any] | list[Any] | None:
             text,
             parse_constant=_reject_non_finite,
             parse_float=_parse_finite_float,
+            parse_int=parse_bounded_json_int,
         )
         if isinstance(result, dict):
             return result  # type: ignore[reportUnknownVariableType]

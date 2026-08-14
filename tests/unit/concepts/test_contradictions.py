@@ -42,6 +42,18 @@ def test_find_contested_tolerates_malformed_rows(tmp_path: Path) -> None:
     assert bad.source_count == 0
 
 
+def test_find_contested_tolerates_non_finite_source_count(tmp_path: Path) -> None:
+    from distill.concepts.exports import concepts_jsonl_path
+
+    path = concepts_jsonl_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '{"name": "Inf", "slug": "inf", "contested": true, "source_count": Infinity}\n',
+        encoding="utf-8",
+    )
+    assert find_contested(tmp_path) == []
+
+
 def _row(name: str, *, contested: bool, kind: str = "technique", source_count: int = 5) -> dict:
     return {
         "name": name,

@@ -636,6 +636,28 @@ class TestReanalyze:
         assert result.exit_code == 0
         assert "Topic synthesis failed" in result.output
 
+    def test_skips_corrupt_metadata_and_continues(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        _seed_library(config)
+        bad_dir = config.video_dir("ai", "TestCh", "badmeta")
+        bad_dir.mkdir(parents=True, exist_ok=True)
+        (bad_dir / "metadata.json").write_text("{not-json", encoding="utf-8")
+        find_artifact(bad_dir, "transcript", extension="txt").write_text(
+            "Transcript with broken metadata.", encoding="utf-8"
+        )
+        _seed_video(config, video_id="good", title="Has Transcript")
+        self._patch_common(monkeypatch, config)
+        monkeypatch.setattr(helpers_mod, "analyze_video", lambda *args, **kwargs: "## Reanalyzed")
+        monkeypatch.setattr(reprocess_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        monkeypatch.setattr(reprocess_mod, "synthesize_topic", lambda *args, **kwargs: None)
+        monkeypatch.setattr(helpers_mod, "load_intent", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["reanalyze", "ai"])
+
+        assert result.exit_code == 0, result.output
+        assert "Has Transcript" in result.output
+        assert find_artifact(config.video_dir("ai", "TestCh", "good"), "insights").exists()
+
     def test_skips_zero_byte_transcript(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_library(config)
@@ -686,7 +708,7 @@ class TestReanalyze:
         result = runner.invoke(cli.app, ["reanalyze", "ai"])
 
         assert result.exit_code == 0
-        assert seen == ["short"]
+        assert seen == ["full"]
         assert find_artifact(vid_dir, "insights").exists()
 
     def test_skips_channel_without_videos_dir(self, tmp_path, monkeypatch):

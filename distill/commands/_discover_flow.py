@@ -7,6 +7,7 @@ cap while preserving the same command-level patch points during decomposition.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
@@ -322,6 +323,7 @@ def _discover_ingest_set(
     ranked_sites: list[Any],
     ingest_attachments: bool,
     yes: bool,
+    persist_after_confirm: Callable[[], None] | None = None,
 ) -> None:
     """Ingest an already-ranked discover set."""
     if not yes and not _confirm_discover_ingest(
@@ -330,6 +332,8 @@ def _discover_ingest_set(
         console.print("[yellow]Aborted by user.[/yellow]")
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         return
+    if persist_after_confirm is not None:
+        persist_after_confirm()
 
     if ranked_papers:
         _discover_ingest_papers(topic_name, config, tracker, summary, ranked_papers)

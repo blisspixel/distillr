@@ -179,7 +179,7 @@ def _read_workspace_files(
 def _json_mapping(text: str, *, label: str) -> dict[str, Any]:
     try:
         value: object = json.loads(text)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, RecursionError) as exc:
         raise WorkerTaskInvalid(f"{label} is not valid JSON") from exc
     if not isinstance(value, Mapping):
         raise WorkerTaskInvalid(f"{label} must be a JSON object")

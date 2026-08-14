@@ -131,6 +131,8 @@ def topic_spend_last_days(
         timestamp = parse_run_datetime(str(entry.get("timestamp", "")))
         if timestamp is None or timestamp < cutoff:
             continue
+        if entry.get("external_cost_status") == "unavailable":
+            return None
         cost = _cost_value(entry.get("actual_cost"))
         if cost is None:
             return None
@@ -151,6 +153,8 @@ def topic_recent_costs(
         timestamp = parse_run_datetime(str(entry.get("timestamp", "")))
         if timestamp is None:
             continue
+        if entry.get("external_cost_status") == "unavailable":
+            return None
         cost = _cost_value(entry.get("actual_cost"))
         if cost is None:
             return None

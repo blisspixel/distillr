@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 
 __all__ = [
+    "LENIENT_LOCAL_JSON_ERRORS",
     "MAX_ASCII_UINT_DIGITS",
     "MAX_LOOKBACK_DAYS",
     "MAX_LOOKBACK_HOURS",
@@ -18,8 +19,21 @@ __all__ = [
     "parse_iso_day_hour_duration",
     "read_bounded_json_object",
     "read_bounded_jsonl_objects",
+    "read_local_utf8_text",
     "strict_json_loads",
 ]
+
+LENIENT_LOCAL_JSON_ERRORS = (OSError, RecursionError, UnicodeError, ValueError)
+
+
+def read_local_utf8_text(path: Path) -> str | None:
+    """Read a local UTF-8 file, returning None when it is unreadable."""
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+
 
 MAX_ASCII_UINT_DIGITS = 100
 MAX_LOOKBACK_DAYS = 3_650
