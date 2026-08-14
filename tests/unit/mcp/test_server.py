@@ -141,6 +141,11 @@ class TestReadMarkdownResource:
         path = tmp_path / "missing.md"
         assert _read_markdown_resource(path, "missing") == "missing"
 
+    def test_unreadable_file(self, tmp_path):
+        path = tmp_path / "broken.md"
+        path.write_bytes(b"\xff\xfe")
+        assert _read_markdown_resource(path, "missing") == "missing"
+
 
 class TestConfigHelpers:
     def test_config_loads_dotenv(self):

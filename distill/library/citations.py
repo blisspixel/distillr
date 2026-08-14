@@ -13,6 +13,7 @@ from typing import Any, cast
 
 from distill.config import DistillConfig
 from distill.library.paths import extract_frontmatter, find_artifact
+from distill.parsing import LENIENT_LOCAL_JSON_ERRORS, read_local_utf8_text
 
 __all__ = [
     "CitationRecord",
@@ -146,8 +147,9 @@ def _citation_from_paper_dir(topic_name: str, paper_dir: Path) -> CitationRecord
     metadata = _load_metadata(paper_dir / "metadata.json")
     paper_path = find_artifact(paper_dir, "paper", identity=paper_dir.name)
     frontmatter = {}
-    if paper_path.exists():
-        frontmatter = extract_frontmatter(paper_path.read_text(encoding="utf-8"))
+    paper_text = read_local_utf8_text(paper_path)
+    if paper_text is not None:
+        frontmatter = extract_frontmatter(paper_text)
     elif not metadata:
         return None
 
@@ -218,7 +220,7 @@ def _list_value(*values: object) -> list[str]:
             if text.startswith("[") and text.endswith("]"):
                 try:
                     parsed = json.loads(text)
-                except json.JSONDecodeError:
+                except LENIENT_LOCAL_JSON_ERRORS:
                     return [text]
                 if isinstance(parsed, list):
                     items = cast("list[object]", parsed)

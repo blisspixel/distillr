@@ -40,6 +40,7 @@ from distill.library.paths import (
 )
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import read_local_utf8_text
 from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.x import tweet_insight_prompt, vocabulary_expansion_prompt
@@ -139,7 +140,10 @@ def _existing_tweet_receipt(
     candidates = [*sorted(x_dir.rglob("*_Tweet.md")), *sorted(x_dir.rglob("Tweet.md"))]
     for path in candidates:
         try:
-            frontmatter = extract_frontmatter(path.read_text(encoding="utf-8"))
+            content = read_local_utf8_text(path)
+            if content is None:
+                continue
+            frontmatter = extract_frontmatter(content)
         except OSError:
             continue
         if frontmatter.get("source_id") == tweet_id:
@@ -170,10 +174,11 @@ def _completed_tweet_replay(
     """Return a completed unchanged replay without touching its artifacts."""
     if force or existing_receipt is None:
         return None
+    receipt_text = read_local_utf8_text(existing_receipt)
+    if receipt_text is None:
+        return None
     try:
-        previous_hash = extract_frontmatter(existing_receipt.read_text(encoding="utf-8")).get(
-            "content_hash"
-        )
+        previous_hash = extract_frontmatter(receipt_text).get("content_hash")
     except OSError:
         return None
     existing_transcript = find_artifact(
@@ -190,14 +195,16 @@ def _completed_tweet_replay(
     if analyze:
         existing_insights = find_artifact(post_dir, "insights", identity=identity)
         try:
-            insights_text = existing_insights.read_text(encoding="utf-8")
+            insights_text = read_local_utf8_text(existing_insights)
+            if insights_text is None:
+                return None
             insight_hash = extract_frontmatter(insights_text).get("content_hash")
         except OSError:
             return None
         if insight_hash != source_content_hash or not _nonempty(existing_insights):
             return None
     transcript_text = (
-        existing_transcript.read_text(encoding="utf-8") if _nonempty(existing_transcript) else ""
+        read_local_utf8_text(existing_transcript) or "" if _nonempty(existing_transcript) else ""
     )
     media_path = post_dir / "media.mp4"
     return IngestedTweet(
@@ -228,9 +235,11 @@ def _normalized_legacy_receipt_body(content: str) -> str:
 
 def _legacy_pair_order_is_safe(receipt_path: Path, insights_path: Path) -> bool:
     """Reject raw-capture refreshes whose old insight predates the receipt."""
+    receipt_text = read_local_utf8_text(receipt_path)
+    insights_text = read_local_utf8_text(insights_path)
+    if receipt_text is None or insights_text is None:
+        return False
     try:
-        receipt_text = receipt_path.read_text(encoding="utf-8")
-        insights_text = insights_path.read_text(encoding="utf-8")
         receipt_generated = extract_frontmatter(receipt_text).get("generated_at", "")
         insights_generated = extract_frontmatter(insights_text).get("generated_at", "")
         if receipt_generated and insights_generated and receipt_generated != insights_generated:
@@ -254,11 +263,10 @@ def _migrate_legacy_completed_tweet(
     """Stamp proven unchanged pre-hash requested artifacts without model work."""
     if force or existing_receipt is None:
         return None
-    try:
-        receipt_text = existing_receipt.read_text(encoding="utf-8")
-        receipt_hash = extract_frontmatter(receipt_text).get("content_hash")
-    except OSError:
+    receipt_text = read_local_utf8_text(existing_receipt)
+    if receipt_text is None:
         return None
+    receipt_hash = extract_frontmatter(receipt_text).get("content_hash")
     if receipt_hash:
         return None
     existing_transcript = find_artifact(
@@ -278,9 +286,9 @@ def _migrate_legacy_completed_tweet(
             existing_receipt, existing_insights
         ):
             return None
-        insights_text = existing_insights.read_text(encoding="utf-8")
+        insights_text = read_local_utf8_text(existing_insights) or ""
     transcript_text = (
-        existing_transcript.read_text(encoding="utf-8") if _nonempty(existing_transcript) else ""
+        read_local_utf8_text(existing_transcript) or "" if _nonempty(existing_transcript) else ""
     )
     current_body = _tweet_markdown(tweet, transcript_text)
     if _normalized_legacy_receipt_body(receipt_text) != _normalized_legacy_receipt_body(
@@ -307,7 +315,7 @@ def _migrate_legacy_completed_tweet(
         media_path=media_path if _nonempty(media_path) else None,
         transcript_text=transcript_text,
         insights_text=(
-            existing_insights.read_text(encoding="utf-8") if existing_insights is not None else ""
+            read_local_utf8_text(existing_insights) or "" if existing_insights is not None else ""
         ),
         skipped_reasons=[
             "unchanged legacy requested artifacts; recorded a content hash and reused them "

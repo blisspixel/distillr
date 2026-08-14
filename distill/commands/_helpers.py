@@ -7,6 +7,7 @@ All public names that were importable from ``distill.cli_shared`` are
 re-exported here so that both old and new import paths work.
 """
 
+import contextlib
 import logging
 import math
 import os
@@ -758,9 +759,13 @@ def process_video(  # noqa: C901 — legacy, will refactor
     write_video_metadata(vid_dir, video, channel_name, analysis_mode=effective_mode)
 
     transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
-    transcript_bytes = transcript_file.stat().st_size if transcript_file.exists() else 0
-
-    if not transcript_file.exists():
+    existing_transcript = (
+        read_local_utf8_text(transcript_file) if transcript_file.exists() else None
+    )
+    if existing_transcript is None or not existing_transcript.strip():
+        if transcript_file.exists():
+            with contextlib.suppress(OSError):
+                transcript_file.unlink()
         _ts_label = (
             f"    {_eta_progress_str(eta, 'transcript', tracker)}"
             if eta
@@ -784,8 +789,8 @@ def process_video(  # noqa: C901 — legacy, will refactor
             _tick_video_eta(eta, vid_start, success=False)
             _print_video_progress(eta, tracker)
             return False
-        transcript_bytes = transcript_file.stat().st_size
 
+    transcript_bytes = transcript_file.stat().st_size if transcript_file.exists() else 0
     transcript = read_local_utf8_text(transcript_file)
     if transcript is None or not transcript.strip():
         console.print("    [red]empty transcript[/red]")

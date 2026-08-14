@@ -650,7 +650,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video(video_id="v1")],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [_video(video_id="v1")],
         )
 
         result = runner.invoke(cli.app, ["catch-up", "WatchMe"])
@@ -671,7 +671,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: videos,
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: videos,
         )
         estimates: list[tuple[int, int]] = []
 
@@ -697,7 +697,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video(video_id="n1")],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [_video(video_id="n1")],
         )
         process_video = MagicMock()
         synthesize_channel = MagicMock()
@@ -719,7 +719,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: videos,
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: videos,
         )
         processed: list[str] = []
         monkeypatch.setattr(watch_mod, "_ensure_channel_context", lambda *args, **kwargs: None)
@@ -762,7 +762,9 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video(video_id="fresh")],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [
+                _video(video_id="fresh")
+            ],
         )
         monkeypatch.setattr(watch_mod, "_ensure_channel_context", lambda *args, **kwargs: None)
         monkeypatch.setattr(watch_mod, "_process_video", lambda *args, **kwargs: None)
@@ -790,7 +792,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video()],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [_video()],
         )
         monkeypatch.setattr(watch_mod, "_ensure_channel_context", lambda *args, **kwargs: None)
         monkeypatch.setattr(watch_mod, "_process_video", lambda *args, **kwargs: None)
@@ -813,7 +815,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video()],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [_video()],
         )
         monkeypatch.setattr(watch_mod, "_ensure_channel_context", lambda *args, **kwargs: None)
         monkeypatch.setattr(watch_mod, "_process_video", lambda *args, **kwargs: None)
@@ -836,7 +838,9 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [_video(video_id="fresh2")],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [
+                _video(video_id="fresh2")
+            ],
         )
         monkeypatch.setattr(watch_mod, "_ensure_channel_context", lambda *args, **kwargs: None)
         monkeypatch.setattr(watch_mod, "_process_video", lambda *args, **kwargs: None)
@@ -870,7 +874,7 @@ class TestCatchUp:
         monkeypatch.setattr(
             watch_mod,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [],
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [],
         )
 
         result = runner.invoke(cli.app, ["catch-up", "--topic", "music"])
@@ -886,7 +890,7 @@ class TestCatchUp:
         self._patch_common(monkeypatch, config)
         seen: list[str] = []
 
-        def discover(url, days=7, include_shorts=True, quiet=True):
+        def discover(url, days=7, include_shorts=True, quiet=True, **_kwargs):
             seen.append(url)
             return []
 

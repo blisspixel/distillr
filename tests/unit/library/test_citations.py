@@ -196,6 +196,19 @@ def test_collect_handles_corrupt_metadata_json(config):
     assert [record.title for record in records] == ["Corrupt"]
 
 
+def test_collect_skips_unreadable_paper_markdown(config):
+    paper_dir = config.paper_dir("ai", "Broken", "2604.00002v1")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "metadata.json").write_text(
+        '{"title": "Readable Metadata", "paper_id": "2604.00002v1"}',
+        encoding="utf-8",
+    )
+    (paper_dir / "paper.md").write_bytes(b"\xff\xfe")
+
+    records = collect_paper_citations(config, "ai")
+    assert [record.title for record in records] == ["Readable Metadata"]
+
+
 def test_render_citations_dispatches_bibtex_and_ris(tmp_path):
     """render_citations routes to bibtex and ris by format name."""
     existing = tmp_path / "paper_Paper.md"

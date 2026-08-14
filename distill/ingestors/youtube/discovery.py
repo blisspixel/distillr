@@ -21,6 +21,7 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
 )
 from distill.parsing import MAX_LOOKBACK_DAYS, MAX_LOOKBACK_HOURS
 from distill.youtube_urls import (
+    normalize_channel_id,
     normalize_video_id,
     normalize_youtube_channel_url,
     normalize_youtube_video_url,
@@ -385,16 +386,28 @@ def search_videos(
     return selected
 
 
+def _channel_identity_from_url(normalized_channel_url: str) -> str:
+    """Return a stable handle or channel id from a canonical channel URL."""
+
+    if "/@" in normalized_channel_url:
+        return normalized_channel_url.split("/@")[1].split("/")[0]
+    marker = "/channel/"
+    if marker not in normalized_channel_url:
+        return ""
+    return normalize_channel_id(normalized_channel_url.split(marker, 1)[1].split("/")[0])
+
+
 def resolve_channel_name(channel_url: str) -> str:
     """Extract channel name from URL or metadata."""
     _bind_safe_ytdlp()
     normalized_channel_url = normalize_youtube_channel_url(channel_url)
     if not normalized_channel_url:
         return "unknown"
-    if "/@" in normalized_channel_url:
-        name = normalized_channel_url.split("/@")[1].split("/")[0]
-        return name
+    identity = _channel_identity_from_url(normalized_channel_url)
+    if "/@" in normalized_channel_url and identity:
+        return identity
 
+    fallback = identity or "unknown"
     try:
         ydl_opts: dict[str, object] = {"quiet": True, "no_warnings": True, "extract_flat": True}
         with SafeYoutubeDL(
@@ -404,10 +417,10 @@ def resolve_channel_name(channel_url: str) -> str:
         ) as ydl:
             info = info_mapping(ydl.extract_info(normalized_channel_url, download=False))
             if info is None:
-                return "unknown"
-            return first_text(info, ("channel", "uploader"), "unknown")
+                return fallback
+            return first_text(info, ("channel", "uploader"), fallback)
     except Exception:
-        return "unknown"
+        return fallback
 
 
 def _search_expression(query: str, limit: int, sort: str) -> str:

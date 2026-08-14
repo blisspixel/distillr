@@ -302,6 +302,7 @@ class TestExtractFromInsight:
             )
         assert result.mentions == []
         assert result.skipped_rows  # non-empty
+        assert result.parsed is False
 
     def test_json_in_markdown_code_block(self, tmp_path: Path, rc: RouterConfig) -> None:
         # extract_json tolerates ```json ... ``` wrapping; verify pass-through works

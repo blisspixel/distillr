@@ -462,6 +462,7 @@ def catch_up(  # noqa: C901 — legacy, will refactor
                     days=ch_days,
                     include_shorts=shorts,
                     quiet=True,
+                    raise_on_error=True,
                 )
             except Exception as exc:
                 console.print(

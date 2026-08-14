@@ -447,6 +447,26 @@ class TestRunConcepts:
         assert second.insights_extracted == 0
         assert mock_llm.call_count == 0
 
+    def test_unparsed_extraction_stays_pending(
+        self, tmp_path: Path, rc: RouterConfig, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        topic_dir = tmp_path / "topics" / "tkg"
+        _make_insight(topic_dir, source_type="papers", slug="paper_a", source_id="A")
+        calls: list[str] = []
+
+        def extract(*_args, **_kwargs) -> ExtractionResult:
+            calls.append("extract")
+            return ExtractionResult([], "stub", "concepts.extract.v1", ["prose"], parsed=False)
+
+        monkeypatch.setattr(pipeline_mod, "extract_from_insight", extract)
+        first = run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+        second = run_concepts("tkg", topic_dir, rc=rc, threshold=1)
+
+        assert first.mentions_added == 0
+        assert second.mentions_added == 0
+        assert calls == ["extract", "extract"]
+        assert pipeline_mod.read_extracted_sources(topic_dir) == set()
+
     def test_refresh_re_extracts_all_sources(self, tmp_path: Path, rc: RouterConfig) -> None:
         topic_dir = self._seed_corpus(tmp_path)
         responses = [[_grounded_row()]] * 4

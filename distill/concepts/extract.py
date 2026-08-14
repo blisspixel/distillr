@@ -70,7 +70,7 @@ class ExtractionResult:
     captures the model + prompt ID for downstream MergedConcept records.
     """
 
-    __slots__ = ("mentions", "model", "prompt_id", "skipped_rows")
+    __slots__ = ("mentions", "model", "parsed", "prompt_id", "skipped_rows")
 
     def __init__(
         self,
@@ -78,11 +78,14 @@ class ExtractionResult:
         model: str,
         prompt_id: str,
         skipped_rows: list[str],
+        *,
+        parsed: bool = True,
     ) -> None:
         self.mentions = mentions
         self.model = model
         self.prompt_id = prompt_id
         self.skipped_rows = skipped_rows
+        self.parsed = parsed
 
     @property
     def provenance(self) -> dict[str, str]:
@@ -243,7 +246,13 @@ def extract_from_insight(
             insight_path,
             type(parsed).__name__,
         )
-        return ExtractionResult([], response.model, EXTRACTION_PROMPT_ID, [response.text[:200]])
+        return ExtractionResult(
+            [],
+            response.model,
+            EXTRACTION_PROMPT_ID,
+            [response.text[:200]],
+            parsed=False,
+        )
 
     mentions: list[ConceptMention] = []
     skipped: list[str] = []

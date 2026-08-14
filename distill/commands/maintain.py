@@ -771,6 +771,7 @@ def status(  # noqa: C901 — legacy, will refactor
                         lookback,
                         include_shorts=False,
                         quiet=True,
+                        raise_on_error=True,
                     )
                     new_vids = [v for v in available if not state.is_processed(v.video_id)]
                     new_count = len(new_vids)

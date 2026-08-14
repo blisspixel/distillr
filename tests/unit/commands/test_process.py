@@ -239,7 +239,7 @@ class TestChannelCommand:
         monkeypatch.setattr(
             process_mod,
             "discover_videos",
-            lambda _url, _months, include_shorts=True: videos,
+            lambda _url, _months, include_shorts=True, **_kwargs: videos,
         )
         monkeypatch.setattr(process_mod, "display_estimate", lambda *args, **kwargs: None)
         monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
@@ -408,13 +408,27 @@ class TestChannelCommand:
         assert result.exit_code == 0
         assert called == ["channel"]
 
+    def test_channel_discovery_failure_exits(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        self._patch_common(monkeypatch, config, [_video()])
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("extractor down")
+
+        monkeypatch.setattr(process_mod, "discover_videos", boom)
+
+        result = runner.invoke(cli.app, ["channel", "https://www.youtube.com/@TestCh"])
+
+        assert result.exit_code == 1
+        assert "Discovery failed: extractor down" in result.output
+
 
 class TestRunCommand:
     def _patch_discover(self, monkeypatch, videos: list[VideoInfo]):
         monkeypatch.setattr(
             process_mod,
             "discover_videos",
-            lambda _url, _months, include_shorts=False: videos,
+            lambda _url, _months, include_shorts=False, **_kwargs: videos,
         )
 
     def _patch_run_processing(self, monkeypatch):
@@ -423,6 +437,39 @@ class TestRunCommand:
             "generate_channel_context",
             lambda *args, **kwargs: "# Channel context\n",
         )
+
+    def test_run_continues_when_one_channel_discovery_fails(self, tmp_path, monkeypatch):
+        config = _config(tmp_path)
+        lib = Library(config)
+        lib.add_channel("ai", "https://www.youtube.com/@ChanA", "Alpha")
+        lib.add_channel("ai", "https://www.youtube.com/@ChanB", "Beta")
+        seen: list[str] = []
+
+        def discover(url, months=1, include_shorts=False, **_kwargs):
+            seen.append(url)
+            if "ChanA" in url:
+                raise RuntimeError("extractor down")
+            return [_video(video_id="b1", title="Beta Video")]
+
+        monkeypatch.setattr(process_mod, "discover_videos", discover)
+        monkeypatch.setattr(process_mod, "get_config", lambda: config)
+        monkeypatch.setattr(process_mod, "display_summary", lambda *args, **kwargs: None)
+        self._patch_run_processing(monkeypatch)
+        processed: list[str] = []
+        monkeypatch.setattr(
+            process_mod,
+            "_process_video",
+            lambda *_args, **_kwargs: processed.append("ok") or True,
+        )
+        monkeypatch.setattr(process_mod, "synthesize_channel", lambda *args, **kwargs: None)
+        monkeypatch.setattr(process_mod, "synthesize_topic", lambda *args, **kwargs: None)
+
+        result = runner.invoke(cli.app, ["run", "ai"])
+
+        assert result.exit_code == 0, result.output
+        assert "Discovery failed: extractor down" in result.output
+        assert seen == ["https://www.youtube.com/@ChanA", "https://www.youtube.com/@ChanB"]
+        assert processed == ["ok"]
 
     def test_run_requires_topic_or_all(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -729,7 +776,7 @@ class TestRunCommand:
         monkeypatch.setattr(
             process_mod,
             "discover_videos",
-            lambda url, months, include_shorts=False: seen.append(url) or [],
+            lambda url, months, include_shorts=False, **_kwargs: seen.append(url) or [],
         )
         monkeypatch.setattr(process_mod, "get_config", lambda: config)
 

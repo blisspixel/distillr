@@ -120,7 +120,13 @@ def catch_up(  # noqa: C901 - legacy, will refactor
             continue
         ch_days = days if days is not None else entry.days
         try:
-            videos = discover_videos(entry.url, days=ch_days, include_shorts=True, quiet=True)
+            videos = discover_videos(
+                entry.url,
+                days=ch_days,
+                include_shorts=True,
+                quiet=True,
+                raise_on_error=True,
+            )
         except Exception as exc:
             results.append(
                 {"channel": entry.name, "status": "error", "error": agent_safe_error(exc)}

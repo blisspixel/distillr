@@ -710,9 +710,10 @@ def resolve_within_library(library_dir: Path, path: str) -> Path | None:
 
 
 def _read_markdown_resource(path: Path, missing_message: str) -> str:
-    if path.exists():
-        return path.read_text(encoding="utf-8")
-    return missing_message
+    from distill.parsing import read_local_utf8_text
+
+    content = read_local_utf8_text(path)
+    return missing_message if content is None else content
 
 
 def read_markdown_resource(path: Path, missing_message: str) -> str:

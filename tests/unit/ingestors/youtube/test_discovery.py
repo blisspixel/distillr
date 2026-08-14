@@ -404,6 +404,11 @@ class TestDiscoverVideos:
 
 
 class TestResolveChannelName:
+    def test_identity_from_url_requires_handle_or_channel_id(self):
+        from distill.ingestors.youtube.discovery import _channel_identity_from_url
+
+        assert _channel_identity_from_url("https://www.youtube.com/c/LegacyName") == ""
+
     def test_extracts_from_at_url(self):
         """Extracts channel name from /@Name URLs."""
         name = resolve_channel_name("https://www.youtube.com/@TestChannel")
@@ -432,14 +437,24 @@ class TestResolveChannelName:
 
     @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_fallback_ytdlp_error(self, mock_ydl_cls):
-        """Returns 'unknown' when yt-dlp fails and no @ in URL."""
+        """Uses the channel id when yt-dlp fails and no @ handle is present."""
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
         mock_ydl_cls.return_value.__exit__ = MagicMock(return_value=False)
         mock_ydl.extract_info.side_effect = Exception("fail")
 
         name = resolve_channel_name("https://www.youtube.com/channel/UC123456")
-        assert name == "unknown"
+        assert name == "UC123456"
+
+    @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
+    def test_fallback_none_info_uses_channel_id(self, mock_ydl_cls):
+        mock_ydl = MagicMock()
+        mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl_cls.return_value.__exit__ = MagicMock(return_value=False)
+        mock_ydl.extract_info.return_value = None
+
+        name = resolve_channel_name("https://www.youtube.com/channel/UC123456")
+        assert name == "UC123456"
 
     @patch("distill.ingestors.youtube.discovery.SafeYoutubeDL")
     def test_fallback_ignores_non_string_metadata(self, mock_ydl_cls):
@@ -450,7 +465,7 @@ class TestResolveChannelName:
 
         name = resolve_channel_name("https://www.youtube.com/channel/UC123456")
 
-        assert name == "unknown"
+        assert name == "UC123456"
 
 
 class TestSearchVideos:

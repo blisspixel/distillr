@@ -778,7 +778,7 @@ def test_status_online_reports_up_to_date_and_failed_checks(tmp_path, monkeypatc
     lib.add_channel("ai", "https://www.youtube.com/@Okay", "Okay")
     lib.add_channel("ai", "https://www.youtube.com/@Broken", "Broken")
 
-    def discover(url, months=1, include_shorts=False, quiet=True):
+    def discover(url, months=1, include_shorts=False, quiet=True, **_kwargs):
         if "Broken" in url:
             raise RuntimeError("network down")
         return []

@@ -302,8 +302,10 @@ def _run_concepts_transaction(  # noqa: C901 -- sequential transaction orchestra
             new_rows.extend(source_rows)
             summary.mentions_added += len(source_rows)
         # Record every successfully processed source, including a zero-mention
-        # result, only after its evidence batch is durable.
-        record_extracted_sources(topic_dir, [ref.source_id])
+        # result, only after its evidence batch is durable. A parse failure is
+        # not a successful empty extraction, so that source stays pending.
+        if result.parsed:
+            record_extracted_sources(topic_dir, [ref.source_id])
 
     # Refresh path always rebuilds; otherwise only rebuild when new mentions
     # arrived. Without this short-circuit, a second run on an unchanged

@@ -468,6 +468,48 @@ def test_ingest_tweet_text_only_writes_two_artifacts(tmp_path: Path, capsys) -> 
     assert fm["source_id"] == "12345"
 
 
+def test_ingest_tweet_skips_receipt_when_frontmatter_read_fails(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    x_dir = config.topic_dir("t") / "x"
+    x_dir.mkdir(parents=True, exist_ok=True)
+    (x_dir / "other_Tweet.md").write_text("# other\n", encoding="utf-8")
+    real_extract = extract_frontmatter
+    seen = {"n": 0}
+
+    def flaky_extract(content: str):
+        seen["n"] += 1
+        if seen["n"] == 1:
+            raise OSError("unreadable")
+        return real_extract(content)
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=_tweet()),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("insights body")),
+        patch("distill.pipeline.analysis.tweet.extract_frontmatter", side_effect=flaky_extract),
+    ):
+        result = ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
+
+    assert isinstance(result, IngestedTweet)
+    assert result.tweet_path.exists()
+    assert seen["n"] >= 1
+
+
+def test_ingest_tweet_skips_unreadable_sibling_receipt(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    x_dir = config.topic_dir("t") / "x"
+    x_dir.mkdir(parents=True, exist_ok=True)
+    (x_dir / "garbage_Tweet.md").write_bytes(b"\xff\xfe")
+
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=_tweet()),
+        patch("distill.pipeline.analysis.tweet.llm_call", _fake_llm("insights body")),
+    ):
+        result = ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
+
+    assert isinstance(result, IngestedTweet)
+    assert result.tweet_path.exists()
+
+
 def test_ingest_tweet_skip_analyze(tmp_path: Path) -> None:
     config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
     with patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=_tweet()):

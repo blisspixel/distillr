@@ -559,7 +559,7 @@ class TestRunCommand:
         monkeypatch.setattr(
             _process,
             "discover_videos",
-            lambda url, months, include_shorts=False: [
+            lambda url, months, include_shorts=False, **_kwargs: [
                 VideoInfo("v1", "Video 1", _recent(2), 600, "https://youtube.com/watch?v=v1"),
             ],
         )
@@ -1845,6 +1845,7 @@ class TestExportOpenCostsAndStatus:
             months=1,
             include_shorts=False,
             quiet=True,
+            **_kwargs,
         ):
             seen_urls.append(url)
             return [
@@ -3119,7 +3120,7 @@ class TestCatchUpCommand:
         monkeypatch.setattr(
             _watch,
             "discover_videos",
-            lambda url, days=7, include_shorts=True, quiet=True: [
+            lambda url, days=7, include_shorts=True, quiet=True, **_kwargs: [
                 VideoInfo(
                     "v1",
                     "New Deal Video",

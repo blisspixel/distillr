@@ -710,38 +710,83 @@ class TestProcessVideo:
         assert summary.failed == 1
         assert summary.results[0].error == "No transcript"
 
-    def test_empty_transcript_returns_false(self, config, monkeypatch):
-        from distill.cli_shared import process_video
-        from distill.pipeline.costs import CostTracker
-        from distill.pipeline.summary import RunSummary
-
-        # Create empty transcript
-        vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
-        vid_dir.mkdir(parents=True, exist_ok=True)
-        (vid_dir / "transcript.txt").write_text("", encoding="utf-8")
-
-        video = self._make_video()
-        summary = RunSummary(command="test")
-
-        result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
-        assert result is False
-        assert summary.results[0].error == "Empty transcript"
-
-    def test_unreadable_transcript_returns_false(self, config, monkeypatch):
+    def test_empty_transcript_refetches_then_fails(self, config, monkeypatch):
         from distill.cli_shared import process_video
         from distill.pipeline.costs import CostTracker
         from distill.pipeline.summary import RunSummary
 
         vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
         vid_dir.mkdir(parents=True, exist_ok=True)
-        (vid_dir / "transcript.txt").write_bytes(b"\xff\xfe")
+        leftover = vid_dir / "transcript.txt"
+        leftover.write_text("", encoding="utf-8")
+        fetched: list[str] = []
+
+        def fake_get_transcript(*_args, **_kwargs):
+            fetched.append("called")
+            return False
+
+        monkeypatch.setattr("distill.commands._helpers.get_transcript", fake_get_transcript)
 
         video = self._make_video()
         summary = RunSummary(command="test")
 
         result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
         assert result is False
-        assert summary.results[0].error == "Empty transcript"
+        assert fetched == ["called"]
+        assert not leftover.exists()
+        assert summary.results[0].error == "No transcript"
+
+    def test_empty_transcript_is_refetched(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        leftover = vid_dir / "transcript.txt"
+        leftover.write_text("   \n", encoding="utf-8")
+
+        def fake_get_transcript(_url, _video_id, transcript_file, _config, tracker=None):
+            transcript_file.write_text("Fresh captions.", encoding="utf-8")
+            return True
+
+        monkeypatch.setattr("distill.commands._helpers.get_transcript", fake_get_transcript)
+        monkeypatch.setattr(
+            "distill.commands._helpers.analyze_video", lambda *a, **kw: "## Insight"
+        )
+        monkeypatch.setattr("distill.commands._helpers.load_intent", lambda *a, **kw: None)
+
+        video = self._make_video()
+        summary = RunSummary(command="test")
+
+        result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
+        assert result is True
+        assert leftover.read_text(encoding="utf-8") == "Fresh captions."
+
+    def test_unreadable_transcript_refetches(self, config, monkeypatch):
+        from distill.cli_shared import process_video
+        from distill.pipeline.costs import CostTracker
+        from distill.pipeline.summary import RunSummary
+
+        vid_dir = config.video_dir_slug("ai", "TestCh", "Test Video Title", "test123")
+        vid_dir.mkdir(parents=True, exist_ok=True)
+        leftover = vid_dir / "transcript.txt"
+        leftover.write_bytes(b"\xff\xfe")
+        fetched: list[str] = []
+
+        def fake_get_transcript(*_args, **_kwargs):
+            fetched.append("called")
+            return False
+
+        monkeypatch.setattr("distill.commands._helpers.get_transcript", fake_get_transcript)
+
+        video = self._make_video()
+        summary = RunSummary(command="test")
+
+        result = process_video("ai", "TestCh", video, config, CostTracker(), summary)
+        assert result is False
+        assert fetched == ["called"]
+        assert summary.results[0].error == "No transcript"
 
     def test_successful_analysis(self, config, monkeypatch):
         from distill.cli_shared import process_video

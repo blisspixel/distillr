@@ -321,7 +321,11 @@ def channel_cmd(  # noqa: C901 — legacy, will refactor
         console.print(f"[dim]{name} already in {topic}[/dim]")
 
     console.print("Discovering videos...")
-    videos = discover_videos(url, lookback, include_shorts=shorts)
+    try:
+        videos = discover_videos(url, lookback, include_shorts=shorts, raise_on_error=True)
+    except Exception as exc:
+        console.print(f"[red]Discovery failed: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
     console.print(f"[green]Found {len(videos)} videos[/green]")
 
     if not videos:
@@ -479,7 +483,13 @@ def run(  # noqa: C901 — legacy, will refactor
 
             # Discover videos
             console.print(f"  Discovering videos (past {lookback} months)...")
-            videos = discover_videos(ch.url, lookback, include_shorts=shorts)
+            try:
+                videos = discover_videos(
+                    ch.url, lookback, include_shorts=shorts, raise_on_error=True
+                )
+            except Exception as exc:
+                console.print(f"  [red]Discovery failed: {exc}[/red]")
+                continue
             console.print(f"  [green]Found {len(videos)} videos[/green]")
 
             # Filter already processed
