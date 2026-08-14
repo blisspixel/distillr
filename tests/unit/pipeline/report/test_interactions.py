@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 from rich.console import Console
 
-from distill.pipeline.costs import CostTracker, ProjectedBudgetExceededError
+from distill.pipeline.costs import CostTracker, UnboundedProviderCostError
 from distill.pipeline.report._interactions import (
     POLLING_STATUSES,
     await_interaction,
@@ -42,7 +42,7 @@ def _model_output(*texts: str) -> SimpleNamespace:
 
 
 def test_submit_metered_interaction_authorizes_and_records_acceptance():
-    tracker = CostTracker(budget=3.00)
+    tracker = CostTracker()
     interaction = SimpleNamespace(id="job-1")
 
     result = submit_metered_interaction(
@@ -102,7 +102,7 @@ def test_submit_metered_interaction_refuses_budget_before_contact():
         contacted = True
         return SimpleNamespace(id="job-1")
 
-    with pytest.raises(ProjectedBudgetExceededError):
+    with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
         submit_metered_interaction(
             submit,
             tracker=tracker,

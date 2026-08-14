@@ -10,8 +10,10 @@ in the roadmap: parse the external input once, here, into a plain string.
 
 Three functions:
 
-- :func:`submit_metered_interaction` -- authorize fixed-price spend before
-  provider contact and record both accepted and ambiguous submissions.
+- :func:`preflight_metered_interaction` checks budget compatibility before any
+  client, store, upload, or interaction work.
+- :func:`submit_metered_interaction` repeats admission at the provider boundary
+  and records both accepted and ambiguous submissions.
 - :func:`interaction_text` -- pull the model's text answer out of a completed
   interaction, tolerant of both the 2.7+ ``steps`` shape and the legacy
   ``outputs`` shape.
@@ -34,6 +36,7 @@ __all__ = [
     "await_interaction",
     "file_search_grounding_reason",
     "interaction_text",
+    "preflight_metered_interaction",
     "require_cost_tracker",
     "submit_metered_interaction",
 ]
@@ -56,13 +59,19 @@ def require_cost_tracker(tracker: CostTracker | None) -> CostTracker:
     return tracker
 
 
+def preflight_metered_interaction(*, tracker: CostTracker, model: str) -> None:
+    """Fail before remote setup if Deep Research cannot honor the run budget."""
+
+    tracker.authorize_gemini_query(model)
+
+
 def submit_metered_interaction[InteractionT](
     submit: Callable[[], InteractionT],
     *,
     tracker: CostTracker,
     model: str,
 ) -> InteractionT:
-    """Submit one fixed-price interaction with fail-closed cost accounting.
+    """Submit one variable-price interaction with fail-closed cost accounting.
 
     A transport exception after request bytes leave the process cannot prove
     that the provider rejected the job. Such failures are recorded as
@@ -70,7 +79,7 @@ def submit_metered_interaction[InteractionT](
     known lower bound as exact spend.
     """
 
-    tracker.authorize_gemini_query(model)
+    preflight_metered_interaction(tracker=tracker, model=model)
     with tracker.reserve_gemini_query(model):
         try:
             interaction = submit()

@@ -67,7 +67,7 @@ XAI_API_KEY=
 
 # Optional Gemini analysis route and Deep Research reports
 # (https://aistudio.google.com/apikey). After init defaults to xAI, switch with:
-#   distill provider set gemini gemini-3.6-flash
+#   distill provider set gemini gemini-3.7-flash
 GEMINI_API_KEY=
 
 # Local inference instead of cloud (no key needed): uncomment one, or run
@@ -449,7 +449,7 @@ def _emit_verdict(state: InitState) -> None:
             console.print(
                 "  [dim]Other analysis routes:[/dim]  "
                 "distill provider list   |   "
-                "distill provider set gemini gemini-3.6-flash"
+                "distill provider set gemini gemini-3.7-flash"
             )
     else:
         for hint in state["blocking"]:

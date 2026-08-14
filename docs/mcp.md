@@ -63,10 +63,15 @@ For deployments that expose write tools, two narrower guardrails apply.
 allowance. Budgeted xAI, Gemini chat, and Anthropic attempts reserve a
 conservative prompt-plus-maximum-output bound before provider construction and
 disable hidden provider retries. Eligible fallbacks are admitted separately.
-Cloud transcription reserves its duration price. Deep Research reserves the
-upper end of Google's typical range during submission, though Google exposes no
-provider-side dollar cap for its autonomous loop. Provider usage remains
-recorded exactly once, and durable artifacts let re-runs converge.
+Cloud transcription reserves its duration price. Deep Research is refused
+whenever the per-call dollar allowance is active because Google exposes no
+provider-side request cap for its autonomous loop. The refusal occurs before
+client construction, File Search store creation, upload, or provider contact.
+Unbudgeted provider usage remains recorded exactly once, and durable artifacts
+let re-runs converge. The
+structured refusal sets `status: budget_exceeded`,
+`unbounded_external_cost: true`, and `limit.kind: provider_unbounded_cost` so
+an agent does not retry with a larger cap.
 
 `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines **URL entry points and
 stored-URL refresh** (`process_video_url`, `watch_add`, `site_batch`, and

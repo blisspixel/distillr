@@ -200,7 +200,7 @@ class TestTopLevelExperience:
         assert "Have one YouTube URL?" in output
         assert "Build a topic corpus?" in output
         assert "Change analysis provider/model?" in output
-        assert "distill provider set gemini gemini-3.6-flash" in output
+        assert "distill provider set gemini gemini-3.7-flash" in output
         assert 'topic preview "AI news"' in output
         assert 'topic create "AI news"' not in output
         assert "Want recurring updates?" in output

@@ -3,7 +3,7 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-13 against code, roadmap, and release evidence at
-`distillr==0.19.55`; the first performance baseline remains 0.19.50 evidence.
+`distillr==0.19.56`; the first performance baseline remains 0.19.50 evidence.
 
 ## The honest answer
 
@@ -66,7 +66,7 @@ Still open for the 1.0 bar:
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met (0.19.55 local release gate: 95.05%, 6,565 tests) |
+| Branch coverage >=95% | Met (0.19.56: 6,582 passed at 95.04%; floor remains 95%) |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
 | Python 3.12-3.14 + OS smoke | Met |
 | Golden structural offline gate | Met; do not extend to live model scoring |
@@ -148,6 +148,6 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
 | 2 Performance baseline v1 | partial | scale-100 Windows baseline published under `docs/performance/` |
-| 3 Quality ratchets | partial | 95.07% cov, llm strict, file-level strict ~75% of modules |
+| 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~75% of modules |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

@@ -219,6 +219,7 @@ def main() -> None:
     from distill.pipeline.costs import (
         BudgetExceededError,
         ProjectedBudgetExceededError,
+        UnboundedProviderCostError,
     )
 
     app.pretty_exceptions_enable = False
@@ -269,9 +270,17 @@ def main() -> None:
                 if isinstance(exc, ProjectedBudgetExceededError):
                     payload["projected"] = True
                     payload["projected_usd"] = round(exc.projected, 6)
+                if isinstance(exc, UnboundedProviderCostError):
+                    payload["unbounded_external_cost"] = True
+                    payload["provider"] = exc.provider
                 emit_json(payload, error=str(exc))
             else:
-                console.print(f"\n[red]Budget exceeded: {exc}[/red]")
+                label = (
+                    "Budget cannot be enforced"
+                    if isinstance(exc, UnboundedProviderCostError)
+                    else "Budget exceeded"
+                )
+                console.print(f"\n[red]{label}: {exc}[/red]")
             raise SystemExit(int(ExitCode.BUDGET_EXCEEDED)) from exc
         except Exception as exc:
             message = describe_provider_error(exc)

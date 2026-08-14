@@ -7,7 +7,7 @@ import pytest
 
 from distill.config import DistillConfig
 from distill.llm.cost_policy import CostPolicyError
-from distill.pipeline.costs import CostTracker
+from distill.pipeline.costs import CostTracker, UnboundedProviderCostError
 from distill.pipeline.report.brief import (
     _bundle_insights,
     _upload_files,
@@ -145,6 +145,26 @@ def test_run_research_brief_requires_tracker_before_client_or_gather(tmp_path, m
 
     with pytest.raises(ValueError, match="CostTracker is required"):
         run_research_brief(["ai"], "ctx", "demo", config)
+
+    client.assert_not_called()
+    gather.assert_not_called()
+
+
+def test_run_research_brief_hard_budget_refuses_before_client_or_gather(tmp_path, monkeypatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    client = MagicMock(side_effect=AssertionError("client constructed"))
+    gather = MagicMock(side_effect=AssertionError("files gathered"))
+    monkeypatch.setattr("distill.pipeline.report.brief.genai.Client", client)
+    monkeypatch.setattr("distill.pipeline.report.brief.gather_topic_files", gather)
+
+    with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
+        run_research_brief(
+            ["ai"],
+            "ctx",
+            "demo",
+            config,
+            tracker=CostTracker(budget=1_000.00),
+        )
 
     client.assert_not_called()
     gather.assert_not_called()

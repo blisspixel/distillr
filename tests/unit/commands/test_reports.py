@@ -19,7 +19,11 @@ from distill.library.citations import CitationRecord
 from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
 from distill.library.paths import artifact_path
 from distill.llm.cost_policy import CostPolicyError
-from distill.pipeline.costs import BudgetExceededError, CostTracker, ProjectedBudgetExceededError
+from distill.pipeline.costs import (
+    CostTracker,
+    ProjectedBudgetExceededError,
+    UnboundedProviderCostError,
+)
 
 runner = CliRunner()
 
@@ -166,34 +170,26 @@ class TestReportCommand:
         assert result.exit_code == 1
         run_report.assert_called_once()
 
-    def test_budget_failure_persists_submitted_report_cost(self, tmp_path, monkeypatch):
+    def test_unbounded_provider_budget_refusal_records_no_spend(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
         _seed_topic(config)
         self._patch_common(monkeypatch, config)
         tracker = CostTracker(budget=0.0)
         monkeypatch.setattr(reports_mod, "budgeted_cost_tracker", lambda *args: tracker)
 
-        def cross_budget(**kwargs):
-            kwargs["tracker"].record_gemini_query("deep-research-preview-04-2026")
-            raise AssertionError("record_gemini_query should have raised")
+        def refuse_unbounded(**kwargs):
+            kwargs["tracker"].authorize_gemini_query("deep-research-preview-04-2026")
+            raise AssertionError("authorize_gemini_query should have raised")
 
-        monkeypatch.setattr(reports_mod, "run_report", cross_budget)
+        monkeypatch.setattr(reports_mod, "run_report", refuse_unbounded)
 
-        result = runner.invoke(cli.app, ["report", "ai"])
+        result = runner.invoke(cli.app, ["report", "ai", "--profile", "accordion"])
 
         assert result.exit_code == 1
-        assert isinstance(result.exception, BudgetExceededError)
+        assert isinstance(result.exception, UnboundedProviderCostError)
         log_path = config.library_dir / ".distill" / "cost_log.jsonl"
-        rows = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-        assert len(rows) == 1
-        assert rows[0]["command"] == "report"
-        assert rows[0]["gemini_queries"] == 1
-        assert rows[0]["metadata"] == {
-            "topic": "ai",
-            "workflow": "report",
-            "scope": "topic",
-            "profile": "corpus-report",
-        }
+        assert not log_path.exists()
+        assert tracker.gemini_queries == 0
 
     def test_accordion_report_success(self, tmp_path, monkeypatch):
         config = _config(tmp_path)
@@ -580,7 +576,6 @@ class TestExportCommand:
         assert "export source not found" in result.output.lower()
 
     def test_export_missing_markdown_source_json_is_loop_readable(self, tmp_path, monkeypatch):
-        import json
 
         config = _config(tmp_path)
         _seed_topic(config)

@@ -19,6 +19,7 @@ from distill.pipeline.report._interactions import (
     await_interaction,
     file_search_grounding_reason,
     interaction_text,
+    preflight_metered_interaction,
     require_cost_tracker,
     submit_metered_interaction,
 )
@@ -66,6 +67,7 @@ def run_deep_research(
         workload="report",
     )
     tracker = require_cost_tracker(tracker)
+    preflight_metered_interaction(tracker=tracker, model=DEEP_RESEARCH_MODEL)
     from google import genai
 
     client = genai.Client(api_key=config.gemini_api_key.get_secret_value())

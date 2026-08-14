@@ -19,6 +19,7 @@ from distill.pipeline.costs import (
     CostTracker,
     ProjectedBudgetExceededError,
     TokenUsage,
+    UnboundedProviderCostError,
 )
 
 
@@ -111,6 +112,21 @@ class TestWriteToolBudgetCatch:
         assert result["status"] == "budget_exceeded"
         assert result["projected"] is True
         assert result["projected_usd"] == 0.61
+
+    def test_unbounded_provider_budget_response_does_not_suggest_raising_cap(self, monkeypatch):
+        config = DistillConfig(xai_api_key="t")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        @_server.write_tool("deep_report")
+        def deep_report() -> str:
+            raise UnboundedProviderCostError("Gemini Deep Research", 0.0, 0.5)
+
+        result = json.loads(deep_report())
+        assert result["status"] == "budget_exceeded"
+        assert result["unbounded_external_cost"] is True
+        assert result["provider"] == "Gemini Deep Research"
+        assert result["limit"]["kind"] == "provider_unbounded_cost"
+        assert "Raising DISTILL_MCP_MAX_SPEND_PER_CALL cannot" in result["error"]
 
 
 class TestIngestAllowlist:

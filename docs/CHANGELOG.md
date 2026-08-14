@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.56 - 2026-08-13
+
+Provider-truth and hard-budget release. The optional Gemini analysis default
+is current, vendor price changes are reflected in one auditable registry, and
+Gemini Deep Research no longer pretends a planning placeholder can enforce a
+dollar cap that Google does not expose.
+
+The maintainer required $0 release verification. The test harness blocks public
+sockets and replaces cloud credentials, and no live model, speech-to-text,
+File Search, or paid evaluation is part of the release gate.
+The final local gate passes 6,582 tests with 95.04% branch coverage; 4 tests
+are skipped and 8 explicit live-network tests are deselected.
+
+### Added
+
+- Gemini 3.7 Flash pricing, context metadata, provider selection, doctor probe,
+  sampling compatibility, focused tests, and a migration guide.
+- Registry review metadata for xAI, Google, Anthropic, and OpenAI. Provider CLI
+  JSON and human output now expose the 2026-08-13 verification date and official
+  pricing source without making a network call.
+- Preflight tests proving accordion, standalone Deep Research, and research
+  brief refuse a hard budget before client construction, File Search store
+  creation, upload, submission, or polling.
+
+### Changed
+
+- Claude Sonnet 5 remains at Anthropic's permanent $2 input and $10 output per
+  1M tokens. The cancelled September price increase was removed.
+- Reserved OpenAI metadata now prices GPT-5.6 Terra at $2.50/$15 and Luna at
+  $1/$6 per 1M tokens, with corrected long-context tiers. `gpt-5.6` is recorded
+  as the Sol alias. OpenAI remains a reserved, non-routable analysis provider.
+- Deep Research's $2.50 standard and $5 Max values remain only as non-binding
+  planning placeholders. They are excluded from `actual_cost`; accepted and
+  ambiguous jobs set external cost to unavailable in summaries, run logs, and
+  profile receipts.
+- Cost, MCP, architecture, usage, install, README, roadmap, and release docs now
+  use the same provider model and budget semantics.
+
+### Security
+
+- Any hard workflow or MCP dollar budget refuses Gemini Deep Research because
+  Google provides no request-side dollar ceiling. The refusal occurs before any
+  remote setup and uses a dedicated budget exception, CLI exit code 6, and an
+  MCP `provider_unbounded_cost` response that does not recommend raising the
+  cap. Token-priced chat calls and duration-priced transcription keep their
+  conservative atomic reservation controls.
+- Unknown or externally managed cost is never converted to $0. A direct-charge
+  total can remain known while the external-cost status stays unavailable.
+
 ## 0.19.55 - 2026-08-13
 
 Verified-pricing and strict budget-admission release. Current provider rates

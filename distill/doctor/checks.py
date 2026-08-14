@@ -394,7 +394,7 @@ def _validate_gemini_key(
         return ("not_set", "")
     if skipped := _cost_policy_skip("gemini", config):
         return skipped
-    model = model or "gemini-3.6-flash"
+    model = model or "gemini-3.7-flash"
     max_tokens = 5
     if refused := _authorize_probe(
         tracker,

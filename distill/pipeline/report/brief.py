@@ -33,6 +33,7 @@ from distill.pipeline.report._interactions import (
     await_interaction,
     file_search_grounding_reason,
     interaction_text,
+    preflight_metered_interaction,
     require_cost_tracker,
     submit_metered_interaction,
 )
@@ -217,6 +218,7 @@ def run_research_brief(
         workload="research-brief",
     )
     tracker = require_cost_tracker(tracker)
+    preflight_metered_interaction(tracker=tracker, model=DEEP_RESEARCH_MODEL)
 
     from google import genai
 

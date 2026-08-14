@@ -238,9 +238,11 @@ calls reserve one conservative attempt before provider construction, and an
 eligible fallback receives its own admission decision. Any exceptional
 recorded budget crossing must propagate past ordinary fallback handlers, and
 report tracker deltas are persisted from one finalization path on every exit.
-Deep Research uses the upper end of Google's typical range for admission;
-submission interruptions are recorded conservatively as ambiguous after
-provider contact.
+Deep Research has no provider request-side dollar ceiling. A hard workflow or
+MCP budget therefore refuses the agent before client construction, File Search
+store creation, upload, or provider contact. Unbudgeted submission interruptions
+are recorded conservatively as ambiguous, and their external cost remains
+unavailable instead of being replaced by a planning estimate.
 File Search store ownership begins as soon as creation returns a resource id;
 every exceptional exit attempts remote deletion before the original error is
 allowed to continue.

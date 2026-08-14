@@ -250,13 +250,13 @@ class TestGeminiProviderSuccess:
         }
 
     def test_temperature_is_omitted_for_models_that_deprecate_sampling(self) -> None:
-        """3.6 Flash and 3.5 Flash-Lite ignore sampling params; do not forward them."""
+        """Current Flash families ignore sampling params, so do not forward them."""
         provider, mock_client = _build_provider()
         mock_client.models.generate_content.return_value = _make_mock_response()
 
         asyncio.run(
             provider.call(
-                "gemini-3.6-flash",
+                "gemini-3.7-flash",
                 "hello",
                 max_tokens=123,
                 temperature=0.4,

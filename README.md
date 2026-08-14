@@ -30,6 +30,10 @@ distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --l
 builds a current arXiv shortlist without ingesting. When the shortlist looks
 right:
 
+Hard dollar budgets cover registered token-priced calls. Gemini Deep Research
+has no provider request-side dollar ceiling, so Distill refuses that agent
+before remote setup whenever a hard workflow or MCP budget is active.
+
 ```bash
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 ```

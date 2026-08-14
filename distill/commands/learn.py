@@ -180,8 +180,9 @@ def research_brief_cmd(
     briefing for a specific audience, decision, or downstream agent.
 
     The context file IS the prompt — distill handles file gathering, File Search
-    grounding, Deep Research invocation, and output. Google estimates ~$1-3
-    for a typical standard task; actual token and tool usage varies.
+    grounding, Deep Research invocation, and output. Google bills the current
+    agent for underlying inference and tools and exposes no request-side dollar
+    ceiling. A hard workflow or MCP budget refuses before remote setup.
 
     Example:
         distill research-brief -t rag-research -t vector-dbs \\

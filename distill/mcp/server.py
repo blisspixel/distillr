@@ -52,6 +52,7 @@ from distill.pipeline.costs import (
     BudgetExceededError,
     CostTracker,
     ProjectedBudgetExceededError,
+    UnboundedProviderCostError,
     save_run_log,
 )
 from distill.pipeline.gaps import (
@@ -393,25 +394,47 @@ def _tool_cost_scope(command: str) -> Generator[None]:
 
 
 def _budget_response(action: str, exc: BudgetExceededError) -> str:
+    unbounded = isinstance(exc, UnboundedProviderCostError)
+    if unbounded:
+        message = (
+            f"'{action}' refused before provider contact: {exc}. Raising "
+            "DISTILL_MCP_MAX_SPEND_PER_CALL cannot create a provider-side cap. "
+            "Use corpus-report or no-metered mode, or remove the cap only for "
+            "an explicit unbounded metered run."
+        )
+        limit: dict[str, object] = {
+            "kind": "provider_unbounded_cost",
+            "env": "DISTILL_MCP_MAX_SPEND_PER_CALL",
+            "cap": exc.budget,
+            "provider": exc.provider,
+        }
+    else:
+        message = (
+            f"'{action}' stopped: {exc}. Artifacts written before the stop are durable "
+            "and verify-gated; re-running converges (already-ingested sources are "
+            "skipped). Raise DISTILL_MCP_MAX_SPEND_PER_CALL or run the action via the "
+            "distill CLI."
+        )
+        limit = {
+            "kind": "max_spend_per_call",
+            "env": "DISTILL_MCP_MAX_SPEND_PER_CALL",
+            "cap": exc.budget,
+            "spent": round(exc.spent, 6),
+        }
     payload: dict[str, object] = {
         "status": "budget_exceeded",
-        "error": f"'{action}' stopped: {exc}. Artifacts written before the "
-        "stop are durable and verify-gated; re-running converges (already-"
-        "ingested sources are skipped). Raise DISTILL_MCP_MAX_SPEND_PER_CALL "
-        "or run the action via the distill CLI.",
+        "error": message,
         "spent": round(exc.spent, 6),
         "cap": exc.budget,
         **_refusal_observability(
             action=action,
             phase="gate.budget",
-            limit={
-                "kind": "max_spend_per_call",
-                "env": "DISTILL_MCP_MAX_SPEND_PER_CALL",
-                "cap": exc.budget,
-                "spent": round(exc.spent, 6),
-            },
+            limit=limit,
         ),
     }
+    if unbounded:
+        payload["unbounded_external_cost"] = True
+        payload["provider"] = exc.provider
     if isinstance(exc, ProjectedBudgetExceededError):
         payload["projected"] = True
         payload["projected_usd"] = round(exc.projected, 6)

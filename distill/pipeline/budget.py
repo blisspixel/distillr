@@ -8,8 +8,8 @@ class BudgetExceededError(Exception):
 
     Budgeted direct cloud attempts normally refuse on a conservative projection
     before contact. This post-record guard remains for usage that exceeds its
-    admitted bound and for provider workflows without a hard dollar control.
-    Recorded spend stays on the ledger so callers can stop without hiding it.
+    admitted bound. Recorded spend stays on the ledger so callers can stop
+    without hiding it.
     """
 
     def __init__(self, spent: float, budget: float):
@@ -30,4 +30,18 @@ class ProjectedBudgetExceededError(BudgetExceededError):
         Exception.__init__(
             self,
             f"projected spend ${projected:.4f} exceeds the {cap} budget before the run starts",
+        )
+
+
+class UnboundedProviderCostError(BudgetExceededError):
+    """A provider operation cannot honor a configured hard dollar budget."""
+
+    def __init__(self, provider: str, direct_spend: float, budget: float):
+        self.provider = provider
+        self.spent = direct_spend
+        self.budget = budget
+        Exception.__init__(
+            self,
+            f"{provider} exposes no request-side dollar ceiling, so Distill cannot "
+            "enforce the configured hard budget before provider contact",
         )

@@ -112,7 +112,7 @@ Pick or change the analysis route with the CLI (writes `.env` only on `set`):
 ```bash
 distill provider                              # show active provider + model
 distill provider list gemini                  # known models + prices
-distill provider set gemini gemini-3.6-flash  # persist default route
+distill provider set gemini gemini-3.7-flash  # persist default route
 distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 

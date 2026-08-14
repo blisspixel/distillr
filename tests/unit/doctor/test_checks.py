@@ -320,7 +320,7 @@ def test_doctor_validate_gemini_key_success(monkeypatch, tmp_path: Path) -> None
     class _Models:
         @staticmethod
         def generate_content(*, model: str, contents: str, config: object) -> object:
-            assert model == "gemini-3.6-flash"
+            assert model == "gemini-3.7-flash"
             assert contents == "hi"
             calls.append({"config": config})
             return types.SimpleNamespace(
@@ -344,7 +344,7 @@ def test_doctor_validate_gemini_key_success(monkeypatch, tmp_path: Path) -> None
     assert checks.doctor_validate_key(
         "gemini",
         DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path),
-    ) == ("ok", "gemini-3.6-flash")
+    ) == ("ok", "gemini-3.7-flash")
     assert calls == [{"config": {"max_output_tokens": 5}}]
 
 

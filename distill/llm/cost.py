@@ -16,13 +16,10 @@ logger = logging.getLogger(__name__)
 
 GEMINI_DEEP_RESEARCH_MODEL: str = "gemini-deep-research"
 GEMINI_DEEP_RESEARCH_COST: float = 2.50
-GEMINI_DEEP_RESEARCH_AUTHORIZATION_COST: float = 3.00
 # Google bills Deep Research for underlying model tokens and tools rather than
-# at a flat query price. Distill uses conservative per-run planning estimates
-# so it can authorize spend before Google reports the final usage. Max reads
-# more sources and therefore carries a higher planning estimate.
+# at a flat query price. Distill retains non-binding planning placeholders for
+# estimates and display. They are never treated as an actual or enforceable cap.
 DEEP_RESEARCH_MAX_COST: float = 5.00
-DEEP_RESEARCH_MAX_AUTHORIZATION_COST: float = 7.00
 DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     GEMINI_DEEP_RESEARCH_MODEL,
     "deep-research",
@@ -32,12 +29,20 @@ DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
 )
 _GEMINI_DEEP_RESEARCH_PRICING: dict[str, float] = {"per_query": GEMINI_DEEP_RESEARCH_COST}
 _DEEP_RESEARCH_MAX_PRICING: dict[str, float] = {"per_query": DEEP_RESEARCH_MAX_COST}
-_GEMINI_36_INTRO_PRICING_END = date(2026, 12, 31)
-_GEMINI_36_INTRO_PRICING: dict[str, float] = {"input": 0.75, "output": 3.75}
-_GEMINI_36_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.50}
-_SONNET_5_INTRO_PRICING_END = date(2026, 8, 31)
-_SONNET_5_INTRO_PRICING: dict[str, float] = {"input": 2.00, "output": 10.00}
-_SONNET_5_STANDARD_PRICING: dict[str, float] = {"input": 3.00, "output": 15.00}
+_GEMINI_FLASH_INTRO_PRICING_END = date(2026, 12, 31)
+_GEMINI_FLASH_INTRO_PRICING: dict[str, float] = {"input": 0.75, "output": 3.75}
+_GEMINI_FLASH_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.50}
+
+# Registry review metadata is deliberately code-visible so operators and tests
+# can distinguish a recently verified price from an old hard-coded guess. CI
+# never scrapes vendor pages or contacts a paid API.
+PRICING_VERIFIED_ON: str = "2026-08-13"
+PRICING_SOURCE_URLS: dict[str, str] = {
+    "xai": "https://docs.x.ai/developers/models",
+    "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "openai": "https://developers.openai.com/api/docs/models/compare",
+}
 
 # Cloud speech-to-text pricing, USD per hour of audio (batch rates). Local
 # faster-whisper is free. Keyed by the provider/model string TranscriptionResult
@@ -130,10 +135,11 @@ PRICING: dict[str, dict[str, float]] = {
     "grok-code-fast-1": {"input": 0.20, "output": 0.50},
     "grok-3": {"input": 3.00, "output": 9.00},
     "grok-imagine-image-pro": {"per_query": 1.00},
-    # Google Gemini models (standard paid tier; GA 2026-07-21 for 3.6 Flash / 3.5 Flash-Lite)
-    # Gemini 3.6 Flash uses launch pricing through 2026-12-31. get_pricing()
-    # resolves the date window so estimates change automatically on 2027-01-01.
-    "gemini-3.6-flash": _GEMINI_36_INTRO_PRICING,
+    # Google Gemini models (standard paid tier). Gemini 3.7 Flash and 3.6 Flash
+    # use launch pricing through 2026-12-31. get_pricing() resolves the date
+    # window so estimates change automatically on 2027-01-01.
+    "gemini-3.7-flash": _GEMINI_FLASH_INTRO_PRICING,
+    "gemini-3.6-flash": _GEMINI_FLASH_INTRO_PRICING,
     "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
     "gemini-3.1-pro-preview": {
@@ -178,7 +184,7 @@ PRICING: dict[str, dict[str, float]] = {
     # a budget cap overshoot by the same factor. Longest-prefix-wins keeps the
     # exact entries above authoritative.
     "claude-opus-4": {"input": 5.00, "output": 25.00},
-    "claude-sonnet-5": _SONNET_5_INTRO_PRICING,
+    "claude-sonnet-5": {"input": 2.00, "output": 10.00},
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
@@ -191,19 +197,27 @@ PRICING: dict[str, dict[str, float]] = {
         "long_input": 10.00,
         "long_output": 45.00,
     },
-    "gpt-5.6-terra": {
-        "input": 2.00,
-        "output": 12.00,
+    # The unqualified gpt-5.6 id aliases Sol in OpenAI's current model catalog.
+    "gpt-5.6": {
+        "input": 5.00,
+        "output": 30.00,
         "long_context_min_input": 272_001,
-        "long_input": 4.00,
-        "long_output": 18.00,
+        "long_input": 10.00,
+        "long_output": 45.00,
+    },
+    "gpt-5.6-terra": {
+        "input": 2.50,
+        "output": 15.00,
+        "long_context_min_input": 272_001,
+        "long_input": 5.00,
+        "long_output": 22.50,
     },
     "gpt-5.6-luna": {
-        "input": 0.20,
-        "output": 1.20,
+        "input": 1.00,
+        "output": 6.00,
         "long_context_min_input": 272_001,
-        "long_input": 0.40,
-        "long_output": 1.80,
+        "long_input": 2.00,
+        "long_output": 9.00,
     },
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
@@ -221,20 +235,6 @@ def deep_research_query_cost(model: str = "") -> float:
     """
     name = model or GEMINI_DEEP_RESEARCH_MODEL
     return get_pricing(name).get("per_query", GEMINI_DEEP_RESEARCH_COST)
-
-
-def deep_research_authorization_cost(model: str = "") -> float:
-    """Return the upper end of Google's typical-cost range for admission.
-
-    Deep Research has no provider-side dollar cap. Distill keeps the midpoint
-    as its point estimate but admits a job against Google's published upper
-    typical estimate so a configured budget is not tested against a midpoint.
-    """
-
-    normalized = (model or GEMINI_DEEP_RESEARCH_MODEL).strip().lower()
-    if normalized.startswith("deep-research-max"):
-        return DEEP_RESEARCH_MAX_AUTHORIZATION_COST
-    return GEMINI_DEEP_RESEARCH_AUTHORIZATION_COST
 
 
 def normalize_transcription_duration(seconds: object) -> float:
@@ -284,8 +284,8 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 
     Models with a registered long-context threshold use their long-context
     rates for every token once ``input_tokens`` reaches that threshold. For
-    per-query models (e.g. ``gemini-deep-research``) the per-query cost is
-    returned directly, ignoring token counts.
+    planning-only per-query entries (e.g. ``gemini-deep-research``) the
+    non-binding placeholder is returned directly, ignoring token counts.
     """
     rates = get_pricing(model)
     if "per_query" in rates:
@@ -335,10 +335,8 @@ def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     normalized = model.strip().lower()
     if not normalized:
         return None
-    if _is_gemini_36_flash_model(normalized):
-        return _gemini_36_flash_pricing()
-    if _is_sonnet_5_model(normalized):
-        return _sonnet_5_pricing()
+    if _is_intro_priced_gemini_flash_model(normalized):
+        return _gemini_flash_pricing()
     if normalized in PRICING:
         return PRICING[normalized]
     # Prefix matching for versioned model names. Longest key first so the most
@@ -351,24 +349,30 @@ def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     return None
 
 
-def _is_gemini_36_flash_model(model: str) -> bool:
-    return model.strip().lower().startswith("gemini-3.6-flash")
+def pricing_source_for_model(model: str) -> str:
+    """Return the authoritative pricing page for a cloud model, if known."""
+
+    normalized = model.strip().lower()
+    if normalized.startswith("grok-"):
+        return PRICING_SOURCE_URLS["xai"]
+    if normalized.startswith(("gemini-", "deep-research")):
+        return PRICING_SOURCE_URLS["gemini"]
+    if normalized.startswith("claude-"):
+        return PRICING_SOURCE_URLS["anthropic"]
+    if normalized.startswith("gpt-"):
+        return PRICING_SOURCE_URLS["openai"]
+    return ""
 
 
-def _gemini_36_flash_pricing() -> dict[str, float]:
-    if _pricing_reference_date() <= _GEMINI_36_INTRO_PRICING_END:
-        return _GEMINI_36_INTRO_PRICING
-    return _GEMINI_36_STANDARD_PRICING
+def _is_intro_priced_gemini_flash_model(model: str) -> bool:
+    normalized = model.strip().lower()
+    return normalized.startswith(("gemini-3.7-flash", "gemini-3.6-flash"))
 
 
-def _is_sonnet_5_model(model: str) -> bool:
-    return model.strip().lower().startswith("claude-sonnet-5")
-
-
-def _sonnet_5_pricing() -> dict[str, float]:
-    if _pricing_reference_date() <= _SONNET_5_INTRO_PRICING_END:
-        return _SONNET_5_INTRO_PRICING
-    return _SONNET_5_STANDARD_PRICING
+def _gemini_flash_pricing() -> dict[str, float]:
+    if _pricing_reference_date() <= _GEMINI_FLASH_INTRO_PRICING_END:
+        return _GEMINI_FLASH_INTRO_PRICING
+    return _GEMINI_FLASH_STANDARD_PRICING
 
 
 def _pricing_reference_date() -> date:

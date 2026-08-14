@@ -765,8 +765,8 @@ distill report ai --no-qa
 | Profile | Research material | Writing path | Cold-start estimate |
 |---|---|---|---:|
 | `corpus-report` (default) | Existing syntheses, insights, and receipt paths | 6 ordered sections, assembly, full-document QA, ordered rewrites | ~$0.99 on the default Grok route; $0 direct API cost on a proven local route |
-| `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | ~$3.40 at Distill's current planning midpoint |
-| `deep-research` | Gemini Deep Research | One provider-authored report | ~$2.50 planning midpoint; Google estimates ~$1-3 typical |
+| `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | Known writer estimate plus unavailable Google external cost |
+| `deep-research` | Gemini Deep Research | One provider-authored report | External cost unavailable; $2.50 is a non-binding Distill planning placeholder |
 
 These are expected point estimates, not price guarantees. Distill resolves the
 configured report route before applying a workflow cap. Standard Deep Research
@@ -855,9 +855,9 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 | Command | Engine | Best for | Typical cost |
 |---|---|---|---|
 | `distill report <topic>` | Existing corpus + configured ordered writer | Evidence-backed report without mandatory web research | ~$0.99 on default cloud route; $0 direct on proven local route |
-| `distill report <topic> --profile accordion` | Gemini Deep Research + configured ordered writer | Full-depth strategic intelligence report | ~$3.40 at Distill's current planning midpoint |
-| `distill report <topic> --profile deep-research` | Gemini Deep Research | Single provider-authored research report | ~$2.50 planning midpoint; Google estimates ~$1-3 typical |
-| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | Google estimates ~$1-3 for a typical standard task; actual tool and token use varies |
+| `distill report <topic> --profile accordion` | Gemini Deep Research + configured ordered writer | Full-depth strategic intelligence report | Known writer estimate plus unavailable Google external cost |
+| `distill report <topic> --profile deep-research` | Gemini Deep Research | Single provider-authored research report | External cost unavailable; $2.50 is a non-binding Distill planning placeholder |
+| `distill research-brief --topic ... --context-file ...` | Gemini Deep Research | Web-augmented briefing across multiple topics with custom structure | External cost unavailable; hard dollar budgets refuse before remote setup |
 | `distill synthesize --topic ... --context-file ...` | Configured synthesis model, one call | Dense corpus-only synthesis across multiple topics (e.g. academic paper corpora) | Estimate before run |
 
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
@@ -1124,10 +1124,11 @@ For deployments that do expose the write tools, two narrower guardrails:
   Budgeted xAI, Gemini chat, and Anthropic attempts reserve a conservative
   prompt-plus-maximum-output bound before provider construction, with hidden
   provider retries disabled. Cloud transcription reserves its duration price.
-  Deep Research reserves the top of Google's typical range during submission,
-  but Google does not expose a provider-side dollar cap for its autonomous
-  loop. Provider usage is recorded exactly once, and artifacts written before
-  any later stop are durable and verify-gated.
+  Deep Research is refused whenever this hard cap is active because Google does
+  not expose a provider-side dollar ceiling for its autonomous loop. The
+  refusal occurs before client construction, File Search store creation,
+  upload, or provider contact. Unbudgeted provider usage is recorded exactly
+  once and labeled as external cost unavailable.
 - `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines URL
   entry points and stored-URL refresh (`process_video_url`, `watch_add`,
   `site_batch`, and `catch_up` against each stored watch URL) to the listed
@@ -1274,8 +1275,8 @@ Show, list, or set the analysis provider without hand-editing `.env`:
 distill provider                              # show active provider + model
 distill provider list                         # routable providers
 distill provider list gemini                  # known Gemini analysis models + prices
-distill provider set gemini gemini-3.6-flash  # persist DISTILL_PROVIDER + DISTILL_MODEL
-distill provider set gemini                   # cloud default model (gemini-3.6-flash)
+distill provider set gemini gemini-3.7-flash  # persist DISTILL_PROVIDER + DISTILL_MODEL
+distill provider set gemini                   # cloud default model (gemini-3.7-flash)
 distill provider set ollama qwen3.5:27b       # exact local inventory id required
 ```
 
@@ -1286,10 +1287,10 @@ Without a TTY, pass explicit provider (and model for local/agent routes). Use
 For one run only, use global flags (no `.env` write):
 
 ```bash
-distill --provider gemini --model gemini-3.6-flash papers "..." --limit 5
+distill --provider gemini --model gemini-3.7-flash papers "..." --limit 5
 distill -p gemini -m gemini-3.5-flash-lite papers "..." --limit 20
 # known cloud model ids also infer the provider:
-distill -m gemini-3.6-flash papers "..." --limit 5
+distill -m gemini-3.7-flash papers "..." --limit 5
 ```
 
 Aliases: `google` -> `gemini`, `grok` -> `xai`, `claude` -> `anthropic`.
@@ -1304,7 +1305,7 @@ Global output flags go before the command:
 distill --quiet catch-up              # suppress human console output
 distill --verbose doctor              # enable debug logging
 distill --json library                # machine-readable stdout
-distill --provider gemini --model gemini-3.6-flash papers "..." --limit 5
+distill --provider gemini --model gemini-3.7-flash papers "..." --limit 5
 distill -p gemini -m gemini-3.5-flash-lite doctor
 distill --cost-mode paid-ok --provider gemini doctor
 ```

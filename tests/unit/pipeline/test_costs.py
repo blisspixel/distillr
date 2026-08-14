@@ -19,6 +19,7 @@ from distill.pipeline.costs import (
     CostTracker,
     ProjectedBudgetExceededError,
     TokenUsage,
+    UnboundedProviderCostError,
     ensure_terminal_profile_receipt,
     estimate_ask_workflow_cost,
     estimate_paper_workflow_cost,
@@ -663,6 +664,7 @@ def test_host_managed_usage_has_unavailable_external_cost(tmp_path, monkeypatch)
         "no_metered_llm_calls": 0,
         "host_managed_llm_calls": 1,
         "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
         "conservative_usage_calls": 0,
         "gemini_queries": 0,
         "gemini_query_outcomes": {},
@@ -1479,10 +1481,10 @@ def test_gemini_cost_is_model_aware():
     assert tracker.total_gemini_cost == 7.50
 
 
-def test_gemini_query_authorization_refuses_without_ledger_row():
-    tracker = CostTracker(budget=2.99)
+def test_gemini_query_hard_budget_refuses_without_ledger_row():
+    tracker = CostTracker(budget=100.00)
 
-    with pytest.raises(ProjectedBudgetExceededError):
+    with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
         tracker.authorize_gemini_query("deep-research-preview-04-2026")
 
     assert tracker.gemini_queries == 0
@@ -1490,19 +1492,38 @@ def test_gemini_query_authorization_refuses_without_ledger_row():
     assert tracker.gemini_query_outcomes == []
 
 
-def test_gemini_query_authorization_uses_upper_typical_range_but_records_midpoint():
-    tracker = CostTracker(budget=3.00)
+def test_unbudgeted_gemini_query_records_planning_estimate_not_direct_cost():
+    tracker = CostTracker()
 
     tracker.authorize_gemini_query("deep-research-preview-04-2026")
     tracker.record_gemini_query("deep-research-preview-04-2026")
 
     assert tracker.total_gemini_cost == 2.50
+    assert tracker.total_cost == 0
+    assert tracker.format_cost() == "$0.0000 direct; external cost unavailable"
+    assert tracker.summary_dict()["deep_research_cost_status"] == "unavailable"
+    assert tracker.summary_dict()["unknown_external_cost_calls"] == 1
 
 
-def test_gemini_max_authorization_uses_seven_dollar_upper_typical_range():
-    tracker = CostTracker(budget=6.99)
+def test_deep_research_run_log_never_reports_planning_estimate_as_actual(tmp_path):
+    tracker = CostTracker()
+    tracker.record_gemini_query("deep-research-preview-04-2026")
 
-    with pytest.raises(ProjectedBudgetExceededError):
+    save_run_log(tmp_path, "report", tracker)
+
+    row = json.loads((tmp_path / ".distill" / "cost_log.jsonl").read_text(encoding="utf-8").strip())
+    assert row["actual_cost"] == 0
+    assert row["actual_cost_scope"] == "distill-direct-charges"
+    assert row["deep_research_planning_estimate"] == 2.5
+    assert row["external_cost_status"] == "unavailable"
+    assert row["usage_ledger"]["unknown_external_cost_calls"] == 1
+    assert row["usage_ledger"]["unknown_external_cost_llm_calls"] == 0
+
+
+def test_gemini_max_hard_budget_also_fails_closed():
+    tracker = CostTracker(budget=1_000.00)
+
+    with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
         tracker.authorize_gemini_query("deep-research-max-preview-04-2026")
 
 
@@ -1636,13 +1657,14 @@ def test_nested_attempt_reservation_reuses_outer_headroom_and_consumes_it():
     assert tracker.total_cost == 0.002
 
 
-def test_deep_research_reservation_uses_upper_range_and_records_midpoint():
-    tracker = CostTracker(budget=3.00)
+def test_deep_research_unbudgeted_submission_records_planning_estimate():
+    tracker = CostTracker()
 
     with tracker.reserve_gemini_query("deep-research-preview-04-2026"):
         tracker.record_gemini_query("deep-research-preview-04-2026")
 
-    assert tracker.total_cost == 2.50
+    assert tracker.total_gemini_cost == 2.50
+    assert tracker.total_cost == 0
 
 
 def test_transcription_reservation_is_atomic_and_records_duration_cost():

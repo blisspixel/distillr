@@ -82,6 +82,12 @@ def test_exact_cloud_model_lookup() -> None:
     assert metadata.provider_type == "cloud"
 
 
+def test_gemini37_context_window_lookup() -> None:
+    metadata = asyncio.run(resolve_metadata("gemini", "gemini-3.7-flash"))
+    assert metadata.context_window == 1_000_000
+    assert metadata.provider_type == "cloud"
+
+
 def test_anthropic_sonnet5_context_window_lookup() -> None:
     """Claude Sonnet 5 resolves to the documented 1M context window."""
     metadata = asyncio.run(resolve_metadata("anthropic", "claude-sonnet-5"))
@@ -96,7 +102,7 @@ def test_anthropic_current_capability_tiers_have_one_million_context(model: str)
     assert metadata.provider_type == "cloud"
 
 
-@pytest.mark.parametrize("model", ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])
+@pytest.mark.parametrize("model", ["gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"])
 def test_reserved_openai_56_context_metadata(model: str) -> None:
     metadata = asyncio.run(resolve_metadata("openai", model))
     assert metadata.context_window == 1_050_000

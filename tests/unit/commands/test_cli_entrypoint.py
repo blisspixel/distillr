@@ -17,6 +17,7 @@ from distill.pipeline.costs import (
     PROFILE_RECEIPT_ENV,
     BudgetExceededError,
     ProjectedBudgetExceededError,
+    UnboundedProviderCostError,
 )
 
 
@@ -268,6 +269,25 @@ def test_main_emits_projected_budget_error_json(monkeypatch, capsys):
     assert payload["data"]["projected"] is True
     assert payload["data"]["projected_usd"] == 0.12
     assert payload["data"]["budget_usd"] == 0.05
+
+
+def test_main_emits_unbounded_provider_budget_error_json(monkeypatch, capsys):
+    fake_app = _FailingApp(UnboundedProviderCostError("Gemini Deep Research", 0.0, 0.5))
+    monkeypatch.setattr(cli, "app", fake_app)
+
+    set_json_active(True)
+    try:
+        with pytest.raises(SystemExit) as raised:
+            cli.main()
+        captured = capsys.readouterr()
+    finally:
+        set_json_active(False)
+
+    assert raised.value.code == int(ExitCode.BUDGET_EXCEEDED)
+    payload = json.loads(captured.out)
+    assert payload["data"]["reason"] == "budget_exceeded"
+    assert payload["data"]["unbounded_external_cost"] is True
+    assert payload["data"]["provider"] == "Gemini Deep Research"
 
 
 def test_main_emits_cost_policy_error_json(monkeypatch, capsys):

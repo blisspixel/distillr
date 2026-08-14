@@ -3,10 +3,13 @@
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF
 extraction are free. xAI, Anthropic, and Gemini model calls are token-metered.
 Google bills Deep Research for its underlying model inference and tool usage.
-Distill shows the midpoint of Google's typical range as its point estimate, but
-authorizes against the top of that range because the final Deep Research usage
-is not known before the job starts. The admission allowance is $3 for standard
-Deep Research and $7 for Max. These are not provider-side dollar caps.
+Google no longer publishes a typical dollar range for the current agents and
+does not expose a request-side dollar ceiling. Distill may show a non-binding
+$2.50 standard or $5.00 Max planning placeholder, but it never records that
+placeholder as actual spend. A Deep Research run with a hard workflow or MCP
+budget fails closed before client construction, File Search store creation,
+upload, or provider contact. Run it only without a dollar cap as an explicit
+metered choice, or use `corpus-report` for enforceable token-based budgeting.
 
 Cold-start figures below use the **`grok-4.6` default** at $2 input and $6
 output per 1M short-context tokens. They are derived from representative per-stage token
@@ -160,10 +163,10 @@ and synthesis estimates before their model work starts; `distill corpus` checks
 one synthesis-call estimate before model preflight only when the topic has
 corpus source sections, preserving empty and paper-only no-synthesis paths;
 `distill report` checks its selected profile before any provider call. The
-default corpus profile prices only the configured sequential writer, the
-accordion profile prices Gemini Deep Research plus ordered writing and QA, and
-the deep-research profile prices one Gemini job. `distill research-brief`
-checks its Deep Research estimate before the Gemini call; direct `distill
+default corpus profile prices only the configured sequential writer. The
+accordion and deep-research profiles carry planning placeholders, but any hard
+dollar budget refuses their unbounded Google agent stage before remote setup.
+`distill research-brief` uses the same fail-closed rule; direct `distill
 synthesize`, `distill topic brief`, and on-demand
 `distill synthesis` generation check their known synthesis-call estimates before
 model execution; and `distill discover` checks saved preview estimates and
@@ -176,20 +179,23 @@ active; an eligible router fallback is a separate attempt with a separate
 admission decision. A registered price is required, so a budgeted custom
 metered model fails closed before contact if its price is unknown. Projected
 stops exit with code `6`; JSON mode emits a structured `budget_exceeded`
-envelope with `projected: true` and `projected_usd`.
+envelope with `projected: true` and `projected_usd`. A provider-unbounded
+refusal also exits `6` and sets `unbounded_external_cost: true` without
+inventing a numeric projection.
 
 Cloud transcription reserves its verified duration price around each provider
-attempt. Deep Research reserves the upper typical allowance during submission.
-Nested reservations reuse already-held workflow or item headroom, while
-concurrent workers cannot authorize the same remaining dollars independently.
+attempt. Deep Research cannot be reserved against a hard dollar cap because
+Google provides no request-side ceiling. Nested reservations for bounded calls
+reuse already-held workflow or item headroom, while concurrent workers cannot
+authorize the same remaining dollars independently.
 
 Provider-reported usage is still the ledger source of truth after a call.
 Distill records conservative maximum usage when a provider omits valid usage
 metadata. An exceptional provider response that violates the admitted token
 bound is recorded and then raises a budget crossing. Deep Research is
 different: Google runs an autonomous token-and-tool loop without a
-provider-side dollar cap, so the $3/$7 admission allowances reduce surprise
-spend but cannot impose an absolute ceiling inside Google's service.
+provider-side dollar cap. Distill therefore refuses that stage whenever a hard
+workflow or MCP budget is active.
 Third, `distill costs`, the CLI dashboard, JSON cost output, and the local web
 dashboard use the same caps to flag historical over-budget ledger rows.
 
@@ -244,7 +250,7 @@ The provider cache policy is in
 
 ## Per-stage cost
 
-| Stage | Typical cost | Basis at grok-4.6 |
+| Stage | Planning cost or status | Basis at grok-4.6 |
 |---|---|---|
 | YouTube caption extraction | **$0** | yt-dlp pulls auto-generated captions |
 | arXiv PDF download + text extraction | **$0** | pypdf, local |
@@ -261,10 +267,10 @@ The provider cache policy is in
 | **Discover query generation (`distill discover`)** | **~$0.02** | One call generating paper + video queries from a goal |
 | **Discover rerank (`distill discover`)** | **~$0.04-0.09** | One call scoring combined paper+video candidates against the goal |
 | Default `corpus-report` | **~$0.99** | ~420K input + ~25K output across ordered sections, full-document QA, and a likely rewrite |
-| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | Expected midpoint for one standard query; budget admission uses $3; Google estimates ~$1-3 |
+| Accordion Phase 1 (Gemini Deep Research) | **External cost unavailable** | $2.50 is a non-binding Distill planning placeholder, not a provider quote or cap |
 | Accordion ordered writing + QA | **~$0.90** | ~360K input + ~30K output across the sequential report spine |
-| `deep-research` profile | **~$2.50** | Expected midpoint for one standard query without section writing; budget admission uses $3 |
-| `distill research-brief` | **~$1-3 typical** | 1 standard Gemini Deep Research query with custom File Search store; actual tool and token use varies |
+| `deep-research` profile | **External cost unavailable** | One standard agent run; token and tool use is reported by Google after submission |
+| `distill research-brief` | **External cost unavailable** | One standard agent run with a custom File Search store; hard dollar budgets refuse before remote setup |
 | `distill synthesize` | **~$0.33-0.65** | 1 Grok 4.6 call over the gathered corpus; prompts at 200K tokens or more use long-context rates |
 
 ## Example runs
@@ -276,9 +282,9 @@ The provider cache policy is in
 | 182 full videos × 2 passes | 182 × $0.062 | ~$11.28 |
 | 187 Shorts × 1 pass | 187 × $0.0046 | ~$0.86 |
 | Channel synthesis | 1 × $0.064 | ~$0.06 |
-| Accordion Phase 1 (Gemini) | 1 query | ~$2.50 |
+| Accordion Phase 1 (Gemini) | 1 query | External, not included |
 | Accordion ordered writing + QA | registry-backed projection | ~$0.90 |
-| **Total** | | **~$15.60** |
+| **Known Distill direct total** | | **~$13.10 plus Google external cost** |
 
 **100 arXiv papers across 5 topics + one cross-topic synthesis:**
 
@@ -290,7 +296,9 @@ The provider cache policy is in
 | One `distill synthesize` across all 5 topics | 1 × $0.45 | ~$0.45 |
 | **Total** | | **~$8.20** |
 
-Add `distill research-brief` (typically ~$1-3) only if you want web-augmented cross-topic Deep Research on top.
+Add `distill research-brief` only if you want web-augmented cross-topic Deep
+Research on top and accept that its external cost cannot be hard-capped by
+Distill.
 
 **Single `distill discover` run (goal-driven, ~8 papers + ~8 videos):**
 
@@ -316,9 +324,10 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
   estimate is about $0.062 per full video, so 1,000 videos is about $62 before
   calibration. To drive marginal API cost toward $0, use a local model only
   after `distill eval` confirms it clears the workload quality bar.
-- Gemini Deep Research commonly dominates the bill. Google currently estimates
-  ~$1-3 for standard and ~$3-7 for Max. Distill shows $2.50 and $5.00 expected
-  midpoints, then authorizes against the $3 and $7 upper typical estimates.
+- Gemini Deep Research can dominate the bill. Google bills underlying model and
+  tool use and publishes no current typical range or request-side dollar cap.
+  Distill's $2.50 and $5.00 values are planning placeholders only. A configured
+  hard budget refuses the agent before any remote setup.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis
   because it is a single call on the configured synthesis route with no Deep
   Research stage.
@@ -383,18 +392,20 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; Distill substitutes the current `grok-4.6` default. The historical registry price remains for old ledger rows. |
 | `grok-4.20-0309-non-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit non-reasoning override |
 | `grok-4.20-0309-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit override |
-| `deep-research-preview-04-2026` | token and tool based | Google estimates ~$1-3; Distill expects $2.50 and admits at $3 | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
-| `deep-research-max-preview-04-2026` | token and tool based | Google estimates ~$3-7; Distill expects $5 and admits at $7 | N/A | Explicit deeper-research override |
-| `gemini-3.6-flash` | $0.75/1M through 2026-12-31, then $1.50/1M | $3.75/1M through 2026-12-31, then $7.50/1M | 1M | Preferred optional Gemini-provider chat model; doctor probe default |
+| `deep-research-preview-04-2026` | token and tool based | External cost unavailable; $2.50 Distill planning placeholder | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; hard budgets refuse before remote setup |
+| `deep-research-max-preview-04-2026` | token and tool based | External cost unavailable; $5 Distill planning placeholder | N/A | Explicit deeper-research override; hard budgets refuse before remote setup |
+| `gemini-3.7-flash` | $0.75/1M through 2026-12-31, then $1.50/1M | $3.75/1M through 2026-12-31, then $7.50/1M | 1M | Preferred optional Gemini-provider chat model; doctor probe default |
+| `gemini-3.6-flash` | $0.75/1M through 2026-12-31, then $1.50/1M | $3.75/1M through 2026-12-31, then $7.50/1M | 1M | Supported previous Gemini-provider chat default |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19); still selectable |
 | `gemini-3.5-flash-lite` | $0.30/1M | $2.50/1M | 1M | High-throughput optional Gemini chat model (GA 2026-07-21) |
 | `gemini-3.1-pro-preview` | $2.00/1M | $12.00/1M | 1M | Optional Gemini model; prompts over 200K use $4/$18 rates |
-| `claude-sonnet-5` | $2.00/1M through 2026-08-31, then $3.00/1M | $10.00/1M through 2026-08-31, then $15.00/1M | 1M | Optional Anthropic-provider chat model; current intro-rate estimate, not a default route |
+| `claude-sonnet-5` | $2.00/1M | $10.00/1M | 1M | Optional Anthropic-provider chat model; Anthropic cancelled the previously announced increase |
 | `claude-opus-5` | $5.00/1M | $25.00/1M | 1M | Optional Anthropic model |
 | `claude-fable-5` | $10.00/1M | $50.00/1M | 1M | Optional Anthropic model; highest widely available capability tier |
 | `gpt-5.6-sol` | $5.00/1M | $30.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
-| `gpt-5.6-terra` | $2.00/1M | $12.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
-| `gpt-5.6-luna` | $0.20/1M | $1.20/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
+| `gpt-5.6` | $5.00/1M | $30.00/1M | 1.05M | Reserved alias for Sol; OpenAI analysis route is not implemented |
+| `gpt-5.6-terra` | $2.50/1M | $15.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
+| `gpt-5.6-luna` | $1.00/1M | $6.00/1M | 1.05M | Reserved metadata only; OpenAI analysis route is not implemented |
 
 As of 2026-08-13, both xAI tiers default to `grok-4.6`. Explicit model
 overrides remain available and are costed by the same registry.
@@ -412,7 +423,9 @@ when a prompt exceeds 272K tokens. These thresholds are registered even though
 OpenAI is not yet a routable Distill analysis provider, so future estimates
 cannot inherit a known undercount.
 
-Authoritative pricing and capability sources are the
+The registry was reverified on 2026-08-13. `distill provider show` and
+`distill provider list <provider>` expose the same review date and source URL
+without making a network call. Authoritative pricing and capability sources are the
 [xAI model catalog](https://docs.x.ai/developers/models),
 [xAI pricing table](https://docs.x.ai/developers/pricing),
 [Gemini pricing page](https://ai.google.dev/gemini-api/docs/pricing),
@@ -442,7 +455,7 @@ DISTILL_ACCORDION_MODEL=
 # openai is a reserved analysis route and is not implemented in this release.
 ANTHROPIC_API_KEY=
 DISTILL_PROVIDER=xai                    # xai | gemini | anthropic | agent | ollama | lmstudio
-DISTILL_MODEL=                          # e.g. gemini-3.6-flash with DISTILL_PROVIDER=gemini
+DISTILL_MODEL=                          # e.g. gemini-3.7-flash with DISTILL_PROVIDER=gemini
 DISTILL_ANALYSIS_PROVIDER=              # per-workload provider override
 DISTILL_SYNTHESIS_PROVIDER=
 DISTILL_ACCORDION_PROVIDER=             # sequential report sections and QA
@@ -451,7 +464,7 @@ DISTILL_ACCORDION_PROVIDER=             # sequential report sections and QA
 Prefer the CLI over hand-editing when changing the default route:
 
 ```bash
-distill provider set gemini gemini-3.6-flash
+distill provider set gemini gemini-3.7-flash
 distill --provider gemini --model gemini-3.5-flash-lite papers "..." --limit 5
 ```
 

@@ -8,7 +8,7 @@ import pytest
 from distill.config import DistillConfig
 from distill.library.paths import artifact_path, strip_frontmatter
 from distill.llm.cost_policy import CostPolicyError
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import CostTracker, UnboundedProviderCostError
 from distill.pipeline.report.deep_research import (
     _get_report_path,
     run_deep_research,
@@ -301,6 +301,8 @@ def test_run_deep_research_records_submitted_failed_interaction(tmp_path, monkey
 def test_run_deep_research_budget_refusal_stops_before_submission(tmp_path, monkeypatch):
     config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
     submitted = False
+    client_created = False
+    store_created = False
 
     class FakeInteractions:
         def create(self, **kwargs):
@@ -310,14 +312,19 @@ def test_run_deep_research_budget_refusal_stops_before_submission(tmp_path, monk
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
+            nonlocal client_created
+            client_created = True
             self.interactions = FakeInteractions()
 
     deleted = []
     monkeypatch.setattr("distill.pipeline.report.deep_research.genai.Client", FakeClient)
-    monkeypatch.setattr(
-        "distill.pipeline.report.deep_research.create_research_store",
-        lambda *args, **kwargs: ("store-1", 2),
-    )
+
+    def create_store(*args, **kwargs):
+        nonlocal store_created
+        store_created = True
+        return ("store-1", 2)
+
+    monkeypatch.setattr("distill.pipeline.report.deep_research.create_research_store", create_store)
     monkeypatch.setattr(
         "distill.pipeline.report.deep_research.delete_store",
         lambda client, name: deleted.append(name),
@@ -326,13 +333,15 @@ def test_run_deep_research_budget_refusal_stops_before_submission(tmp_path, monk
     monkeypatch.setattr("distill.pipeline.report.deep_research.await_interaction", poll)
     tracker = CostTracker(budget=0.0)
 
-    with pytest.raises(BudgetExceededError):
+    with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
         run_deep_research("ai", config, tracker=tracker)
 
     assert submitted is False
+    assert client_created is False
+    assert store_created is False
     assert tracker.gemini_queries == 0
     poll.assert_not_called()
-    assert deleted == ["store-1"]
+    assert deleted == []
 
 
 def test_run_deep_research_returns_none_when_completed_without_output(tmp_path, monkeypatch):

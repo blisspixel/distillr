@@ -383,7 +383,7 @@ def _apply_output_mode(
             raise typer.Exit(2) from None
 
     # When only --model is set, route known cloud ids to the matching provider
-    # so ``distill -m gemini-3.6-flash ...`` works without a separate --provider.
+    # so ``distill -m gemini-3.7-flash ...`` works without a separate --provider.
     if model_override and not provider_override:
         from distill.llm.provider_catalog import infer_cloud_provider_for_model
 

@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests with branch coverage
         # Branch coverage (stricter than line). --cov-fail-under is a manually
-        # ratcheted floor: measured 95.03% in the full filtered run when the
+        # ratcheted floor: measured 95.04% in the 0.19.56 full filtered run; the
         # 1.0 target reached 95. Ratchet up-only from here; raise as
         # coverage improves on a coverage-improving PR; lowering requires review.
         run: uv run --frozen pytest -q --cov=distill --cov-report=term-missing --cov-fail-under=95

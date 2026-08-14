@@ -18,9 +18,12 @@ from distill.llm.cost import (
     DEFAULT_MODEL,
     GEMINI_DEEP_RESEARCH_COST,
     PRICING,
+    PRICING_SOURCE_URLS,
+    PRICING_VERIFIED_ON,
     compute_cost,
     deep_research_query_cost,
     get_pricing,
+    pricing_source_for_model,
     transcription_cost,
 )
 
@@ -71,7 +74,7 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 def test_all_listed_models_return_correct_pricing() -> None:
     """Every model in PRICING is retrievable via get_pricing with exact match."""
     for model, expected_rates in PRICING.items():
-        if model in {"claude-sonnet-5", "gemini-3.6-flash"}:
+        if model in {"gemini-3.7-flash", "gemini-3.6-flash"}:
             rates = get_pricing(model)
             assert set(rates) == set(expected_rates)
             continue
@@ -145,8 +148,9 @@ def test_prefix_matching_for_versioned_model_names() -> None:
         ("claude-haiku-4-5", 1.00, 5.00),
         ("claude-haiku-4", 0.80, 4.00),
         ("gpt-5.6-sol", 5.00, 30.00),
-        ("gpt-5.6-terra", 2.00, 12.00),
-        ("gpt-5.6-luna", 0.20, 1.20),
+        ("gpt-5.6", 5.00, 30.00),
+        ("gpt-5.6-terra", 2.50, 15.00),
+        ("gpt-5.6-luna", 1.00, 6.00),
         ("gpt-4.1", 2.00, 8.00),
         ("gpt-4.1-mini", 0.40, 1.60),
     ],
@@ -164,7 +168,10 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
         ("grok-4.6", 200_000, 0.999998, 2.0),
         ("grok-4.3", 200_000, 0.49999875, 1.0),
         ("gemini-3.1-pro-preview", 200_001, 1.6, 2.600004),
+        ("gpt-5.6", 272_001, 4.36, 7.22001),
         ("gpt-5.6-sol", 272_001, 4.36, 7.22001),
+        ("gpt-5.6-terra", 272_001, 2.18, 3.610005),
+        ("gpt-5.6-luna", 272_001, 0.872, 1.444002),
     ],
 )
 def test_long_context_pricing_starts_at_registered_boundary(
@@ -179,15 +186,17 @@ def test_long_context_pricing_starts_at_registered_boundary(
     assert compute_cost(model, threshold, 100_000) == pytest.approx(long_cost)
 
 
-def test_sonnet5_standard_pricing_after_intro_period(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sonnet5_permanent_pricing_after_cancelled_increase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import distill.llm.cost as cost_mod
 
     monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 9, 1))
 
     rates = get_pricing("claude-sonnet-5")
-    assert rates["input"] == 3.00
-    assert rates["output"] == 15.00
-    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 18.0
+    assert rates["input"] == 2.00
+    assert rates["output"] == 10.00
+    assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
 
 
 def test_sonnet5_intro_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,6 +221,17 @@ def test_gemini36_launch_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch)
     assert compute_cost("gemini-3.6-flash", 1_000_000, 1_000_000) == 4.5
 
 
+def test_gemini37_launch_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 8, 13))
+
+    rates = get_pricing("gemini-3.7-flash")
+    assert rates["input"] == 0.75
+    assert rates["output"] == 3.75
+    assert compute_cost("gemini-3.7-flash", 1_000_000, 1_000_000) == 4.5
+
+
 def test_gemini36_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
     import distill.llm.cost as cost_mod
 
@@ -221,6 +241,26 @@ def test_gemini36_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch
     assert rates["input"] == 1.50
     assert rates["output"] == 7.50
     assert compute_cost("gemini-3.6-flash", 1_000_000, 1_000_000) == 9.0
+
+
+def test_gemini37_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2027, 1, 1))
+
+    rates = get_pricing("gemini-3.7-flash")
+    assert rates["input"] == 1.50
+    assert rates["output"] == 7.50
+    assert compute_cost("gemini-3.7-flash", 1_000_000, 1_000_000) == 9.0
+
+
+def test_pricing_sources_are_auditable_without_network_access() -> None:
+    assert PRICING_VERIFIED_ON == "2026-08-13"
+    assert pricing_source_for_model("grok-4.6") == PRICING_SOURCE_URLS["xai"]
+    assert pricing_source_for_model("gemini-3.7-flash") == PRICING_SOURCE_URLS["gemini"]
+    assert pricing_source_for_model("claude-sonnet-5") == PRICING_SOURCE_URLS["anthropic"]
+    assert pricing_source_for_model("gpt-5.6-luna") == PRICING_SOURCE_URLS["openai"]
+    assert pricing_source_for_model("local-model") == ""
 
 
 def test_deep_research_query_cost_model_aware() -> None:

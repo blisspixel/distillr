@@ -7,7 +7,12 @@ human-facing catalog of routes Distill can configure for analysis work.
 
 from __future__ import annotations
 
-from distill.llm.cost import PRICING, get_pricing
+from distill.llm.cost import (
+    PRICING,
+    PRICING_SOURCE_URLS,
+    PRICING_VERIFIED_ON,
+    get_pricing,
+)
 from distill.llm.model_policy import RETIRED_MODELS, is_xai_media_generation_model
 
 _CLOUD_MODEL_PREFIXES: tuple[tuple[str, str], ...] = (
@@ -27,6 +32,7 @@ __all__ = [
     "known_models_for_provider",
     "normalize_provider_name",
     "price_summary",
+    "pricing_audit_for_provider",
     "validate_provider_route",
 ]
 
@@ -50,7 +56,7 @@ PROVIDER_HELP: dict[str, str] = {
 
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
     "xai": "grok-4.6",
-    "gemini": "gemini-3.6-flash",
+    "gemini": "gemini-3.7-flash",
     "anthropic": "claude-sonnet-5",
 }
 
@@ -154,6 +160,16 @@ def price_summary(model: str) -> str:
     long_input = rates.get("long_input", input_rate)
     long_output = rates.get("long_output", output_rate)
     return f"{summary}; ${long_input:.2f}/${long_output:.2f} at {int(threshold):,}+ prompt tokens"
+
+
+def pricing_audit_for_provider(provider: str) -> dict[str, str]:
+    """Return the registry review date and authoritative source for a provider."""
+
+    name = normalize_provider_name(provider)
+    source = PRICING_SOURCE_URLS.get(name, "")
+    if not source:
+        return {}
+    return {"verified_on": PRICING_VERIFIED_ON, "source": source}
 
 
 def validate_provider_route(provider: str, model: str) -> tuple[str, str]:

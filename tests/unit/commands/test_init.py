@@ -627,7 +627,7 @@ def test_cloud_ready_path(in_tmp, monkeypatch):
     assert "Analysis route:" in result.output
     compact = " ".join(result.output.split())
     assert "distill provider list" in compact
-    assert "distill provider set gemini gemini-3.6-flash" in compact
+    assert "distill provider set gemini gemini-3.7-flash" in compact
 
 
 def test_cloud_setup_blocks_conflicting_shell_provider(in_tmp, monkeypatch):

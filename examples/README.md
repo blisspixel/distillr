@@ -35,7 +35,7 @@ distill discover --from-preview 476d577294 --topic claim-verification --yes
 ```
 
 Six arXiv papers, ingested and analyzed for **$0.19** in 2m38s on the
-`grok-4.3` default. What you're looking at:
+then-current `grok-4.3` default. What you're looking at:
 
 - `papers/<paper>/<slug>_Insights.md` - per-paper structured analysis (claims,
   methods, limits, open questions) with full YAML provenance (`source_id`,

@@ -21,6 +21,7 @@ from distill.llm.provider_catalog import (
     known_models_for_provider,
     normalize_provider_name,
     price_summary,
+    pricing_audit_for_provider,
     validate_provider_route,
 )
 from distill.llm.router import RouterConfig
@@ -67,6 +68,12 @@ def provider_show_cmd() -> None:
     console.print(f"  Model     [bold]{escape(str(payload['model']))}[/bold]")
     if payload.get("price"):
         console.print(f"  Pricing   [dim]{escape(str(payload['price']))}[/dim]")
+        audit = pricing_audit_for_provider(str(payload["provider"]))
+        if audit:
+            console.print(
+                f"  Verified  [dim]{escape(str(audit['verified_on']))}  "
+                f"{escape(str(audit['source']))}[/dim]"
+            )
     console.print(f"  Cost mode [dim]{escape(str(payload['cost_mode']))}[/dim]")
     console.print(f"  Env file  [dim]{escape(str(payload['env_file']))}[/dim]")
     console.print()
@@ -102,6 +109,7 @@ def provider_list_cmd(
             "default_model": default_model_for_provider(name),
             "models": [{"id": model_id, "price": price_summary(model_id)} for model_id in models],
             "note": _list_note(name),
+            "pricing_audit": pricing_audit_for_provider(name),
         }
         if json_mode_active():
             emit_json(payload)
@@ -118,6 +126,11 @@ def provider_list_cmd(
                     label = f"{model_id}  (recommended)"
                 table.add_row(label, price_summary(model_id))
             console.print(table)
+            audit = pricing_audit_for_provider(name)
+            console.print(
+                "[dim]Pricing verified "
+                f"{escape(audit['verified_on'])}: {escape(audit['source'])}[/dim]"
+            )
         else:
             console.print(f"  [dim]{_list_note(name)}[/dim]")
         return
@@ -146,7 +159,7 @@ def provider_list_cmd(
     console.print(table)
     console.print()
     console.print("[dim]Models for one provider:[/dim]  distill provider list gemini")
-    console.print("[dim]Set default route:[/dim]     distill provider set gemini gemini-3.6-flash")
+    console.print("[dim]Set default route:[/dim]     distill provider set gemini gemini-3.7-flash")
 
 
 @provider_app.command("set")
@@ -172,7 +185,7 @@ def provider_set_cmd(
     pass an explicit provider (and a model for local or agent routes).
 
     Examples:
-      distill provider set gemini gemini-3.6-flash
+      distill provider set gemini gemini-3.7-flash
       distill provider set gemini
       distill provider set ollama qwen3.5:27b
       distill provider set
@@ -219,6 +232,7 @@ def provider_set_cmd(
         "provider": chosen_provider,
         "model": chosen_model,
         "price": price,
+        "pricing_audit": pricing_audit_for_provider(chosen_provider),
         "env_file": str(env_path),
         "provider_help": PROVIDER_HELP[chosen_provider],
     }
@@ -234,6 +248,10 @@ def provider_set_cmd(
     console.print(f"  [dim]Wrote[/dim] {escape(str(env_path))}")
     if price:
         console.print(f"  [dim]Pricing[/dim] {escape(price)}")
+        audit = pricing_audit_for_provider(chosen_provider)
+        console.print(
+            f"  [dim]Verified[/dim] {escape(audit['verified_on'])}  {escape(audit['source'])}"
+        )
     console.print()
     console.print("[dim]Check readiness:[/dim]  distill --cost-mode paid-ok doctor")
     console.print(
@@ -259,6 +277,7 @@ def _current_route_payload() -> dict[str, object]:
         "model": model_id,
         "provider_help": help_text,
         "price": _catalog_price(model_id),
+        "pricing_audit": pricing_audit_for_provider(provider_name),
         "cost_mode": config.cost_mode,
         "env_file": str(env_file_path()),
     }
@@ -291,7 +310,7 @@ def _resolve_set_selection(
         if not interactive:
             raise ValueError(
                 "Provider is required without a TTY. "
-                "Example: distill provider set gemini gemini-3.6-flash"
+                "Example: distill provider set gemini gemini-3.7-flash"
             )
         chosen_provider = _prompt_provider()
 

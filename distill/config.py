@@ -192,8 +192,8 @@ class DistillConfig(BaseSettings):
     # For deployments that DO expose the write tools, two narrower guardrails:
     # DISTILL_MCP_MAX_SPEND_PER_CALL admits each direct cloud attempt against a
     # conservative bound before provider construction, then checks recorded
-    # usage. Deep Research uses an upper typical-cost allowance, not a provider
-    # dollar cap.
+    # usage. Deep Research has no provider request-side dollar ceiling and is
+    # refused whenever this hard per-call cap is active.
     # 0 or unset = no cap.
     distill_mcp_max_spend_per_call: float = 0.0
     # DISTILL_MCP_INGEST_ALLOWLIST: comma-separated hostnames; URL entry points

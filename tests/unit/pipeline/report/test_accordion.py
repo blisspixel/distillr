@@ -10,7 +10,7 @@ from rich.console import Console
 from distill.library.paths import artifact_path, strip_frontmatter
 from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import LLM_Response
-from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.pipeline.costs import BudgetExceededError, CostTracker, UnboundedProviderCostError
 from distill.pipeline.report.accordion import (
     _assemble_report,
     _clean_section_output,
@@ -1145,13 +1145,16 @@ class TestDossierPhase:
         result = _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
 
         assert result == "dossier body"
-        tracker.authorize_gemini_query.assert_called_once_with("deep-research-preview-04-2026")
+        assert tracker.authorize_gemini_query.call_count == 2
+        tracker.authorize_gemini_query.assert_called_with("deep-research-preview-04-2026")
         tracker.record_gemini_query.assert_called_once_with(
             "deep-research-preview-04-2026", outcome="accepted"
         )
 
     def test_run_dossier_budget_refusal_stops_before_submission(self, config, monkeypatch):
         submitted = False
+        client_created = False
+        store_created = False
 
         class FakeInteractions:
             def create(self, **kwargs):
@@ -1161,14 +1164,19 @@ class TestDossierPhase:
 
         class FakeClient:
             def __init__(self, *args, **kwargs):
+                nonlocal client_created
+                client_created = True
                 self.interactions = FakeInteractions()
 
         deleted = []
         monkeypatch.setattr("distill.pipeline.report.accordion.genai.Client", FakeClient)
-        monkeypatch.setattr(
-            "distill.pipeline.report.accordion.create_research_store",
-            lambda *args, **kwargs: ("store-1", 2),
-        )
+
+        def create_store(*args, **kwargs):
+            nonlocal store_created
+            store_created = True
+            return ("store-1", 2)
+
+        monkeypatch.setattr("distill.pipeline.report.accordion.create_research_store", create_store)
         monkeypatch.setattr(
             "distill.pipeline.report.accordion.delete_store",
             lambda client, name: deleted.append(name),
@@ -1177,13 +1185,15 @@ class TestDossierPhase:
         monkeypatch.setattr("distill.pipeline.report.accordion.await_interaction", poll)
         tracker = CostTracker(budget=0.0)
 
-        with pytest.raises(BudgetExceededError):
+        with pytest.raises(UnboundedProviderCostError, match="no request-side dollar ceiling"):
             _run_dossier_phase("ai", config, "topic", None, None, False, tracker=tracker)
 
         assert submitted is False
+        assert client_created is False
+        assert store_created is False
         assert tracker.gemini_queries == 0
         poll.assert_not_called()
-        assert deleted == ["store-1"]
+        assert deleted == []
 
 
 class TestAccordionRun:

@@ -30,7 +30,6 @@ from distill.llm.cost import (
 )
 from distill.llm.cost import (
     compute_cost,
-    deep_research_authorization_cost,
     deep_research_query_cost,
     has_known_transcription_pricing,
     normalize_transcription_duration,
@@ -44,7 +43,11 @@ from distill.llm.run_context import (
     mark_profile_receipt_written,
 )
 from distill.llm.usage import LLMUsageAttempt
-from distill.pipeline.budget import BudgetExceededError, ProjectedBudgetExceededError
+from distill.pipeline.budget import (
+    BudgetExceededError,
+    ProjectedBudgetExceededError,
+    UnboundedProviderCostError,
+)
 from distill.pipeline.cost_estimates import (
     ACCORDION_GROK_ESTIMATE,
     CORPUS_REPORT_ESTIMATE,
@@ -84,6 +87,7 @@ __all__ = [
     "ProjectedBudgetExceededError",
     "TokenUsage",
     "TranscriptionUsage",
+    "UnboundedProviderCostError",
     "cost_anomaly_warnings",
     "ensure_terminal_profile_receipt",
     "estimate_ask_workflow_cost",
@@ -152,8 +156,8 @@ class CostTracker:
 
     With ``budget`` set, direct cloud attempts can be conservatively authorized
     and atomically reserved before provider construction. Every recorded row is
-    still checked against the cap, fixed-price calls have dedicated admission,
-    and ambiguous submissions remain conservatively visible in the ledger.
+    still checked against the cap. Variable-cost services without a provider
+    ceiling fail closed, and ambiguous submissions remain visible in the ledger.
     """
 
     entries: list[TokenUsage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage throughout confirms TokenUsage"
@@ -367,19 +371,28 @@ class CostTracker:
         )
 
     def authorize_gemini_query(self, model: str = "") -> None:
-        """Admit Deep Research against Google's upper typical-cost estimate."""
+        """Refuse Deep Research when a hard workflow budget is configured.
 
+        Google exposes usage after submission but no request-side dollar cap.
+        A planning estimate cannot enforce a user budget, so admission fails
+        before provider contact whenever ``budget`` is set.
+        """
+
+        del model
         with self._lock:
-            projected = self._projected_total(deep_research_authorization_cost(model))
-            if self.budget is not None and projected > self.budget:
-                raise ProjectedBudgetExceededError(projected, self.budget)
+            if self.budget is not None:
+                raise UnboundedProviderCostError(
+                    "Gemini Deep Research",
+                    self.total_cost,
+                    self.budget,
+                )
 
     @contextmanager
     def reserve_gemini_query(self, model: str = "") -> Generator[None, None, None]:
-        """Reserve Google's upper typical-cost estimate during submission."""
+        """Enforce Deep Research budget compatibility during submission."""
 
-        with self.reserve_budget(deep_research_authorization_cost(model)):
-            yield
+        self.authorize_gemini_query(model)
+        yield
 
     def record_gemini_query(self, model: str = "", *, outcome: str = "accepted") -> None:
         """Record an accepted or ambiguously submitted Deep Research query."""
@@ -387,10 +400,15 @@ class CostTracker:
         if outcome not in {"accepted", "ambiguous"}:
             raise ValueError(f"unsupported Gemini query outcome: {outcome}")
         with self._lock:
+            if self.budget is not None:
+                raise UnboundedProviderCostError(
+                    "Gemini Deep Research",
+                    self.total_cost,
+                    self.budget,
+                )
             self.gemini_queries += 1
             self.gemini_query_models.append(model)
             self.gemini_query_outcomes.append(outcome)
-            self._consume_active_reservation(deep_research_query_cost(model))
             self._check_budget()
 
     def authorize_transcription(self, provider: str, duration_s: float, *, model: str = "") -> None:
@@ -478,12 +496,16 @@ class CostTracker:
 
     @property
     def total_gemini_cost(self) -> float:
-        """Estimated Gemini Deep Research cost, per-query and model-aware.
+        """Distill planning estimate for Deep Research, per-query and model-aware.
 
         When the per-query models are known (the normal path) each query is
         priced by its model, so Deep Research Max (~$5) is counted at its higher
         rate. Falls back to the standard per-query estimate for count-only
         trackers (e.g. sub-range report copies that carry only ``gemini_queries``).
+
+        This property is not included in :attr:`total_cost`. Google bills the
+        underlying inference and tools and does not expose a request-side dollar
+        ceiling, so the external cost is unavailable to Distill's direct ledger.
         """
         with self._lock:
             if self.gemini_query_models:
@@ -509,7 +531,7 @@ class CostTracker:
     def total_cost(self) -> float:
         with self._lock:
             return _finite_cost_sum(
-                [self.total_grok_cost, self.total_gemini_cost, self.total_transcription_cost],
+                [self.total_grok_cost, self.total_transcription_cost],
                 label="total cost",
             )
 
@@ -518,7 +540,9 @@ class CostTracker:
         total = self.total_cost
         direct_cost = f"${total:.4f}" if total < 0.01 else f"${total:.2f}"
         with self._lock:
-            if any(entry.external_cost_unavailable for entry in self.entries):
+            if self.gemini_queries or any(
+                entry.external_cost_unavailable for entry in self.entries
+            ):
                 return f"{direct_cost} direct; external cost unavailable"
         return direct_cost
 
@@ -539,7 +563,7 @@ class CostTracker:
         host_managed_calls = sum(
             1 for entry in self.entries if entry.provider_type == "host-managed"
         )
-        unknown_external_cost_calls = sum(
+        unknown_external_cost_calls = self.gemini_queries + sum(
             1
             for entry in self.entries
             if entry.external_cost_unavailable and entry.provider_type != "host-managed"
@@ -585,6 +609,8 @@ class CostTracker:
             "total_output_tokens": self.total_output_tokens,
             "estimated_grok_cost": f"${self.total_grok_cost:.4f}",
             "estimated_gemini_cost": f"${self.total_gemini_cost:.2f}",
+            "deep_research_cost_status": "unavailable" if self.gemini_queries else "not-used",
+            "deep_research_planning_estimate": f"${self.total_gemini_cost:.2f}",
             "estimated_total_cost": self.format_cost(),
             "by_model": by_model,
             "by_provider": by_provider,
@@ -722,11 +748,12 @@ def save_run_log(
 
     recorded_command = f"{command}_preview" if preview else command
     host_managed_calls = sum(1 for row in tracker.entries if row.provider_type == "host-managed")
-    unknown_external_cost_calls = sum(
+    unknown_external_llm_calls = sum(
         1
         for row in tracker.entries
         if row.external_cost_unavailable and row.provider_type != "host-managed"
     )
+    unknown_external_cost_calls = unknown_external_llm_calls + tracker.gemini_queries
     entry = {
         "timestamp": datetime.now().isoformat(),
         "run_id": tracker.run_id or current_run_id(),
@@ -745,6 +772,7 @@ def save_run_log(
             1 for e in tracker.entries if e.usage_source == "conservative"
         ),
         "actual_cost": round(actual_cost, 6),
+        "deep_research_planning_estimate": round(tracker.total_gemini_cost, 6),
         "estimated_cost": round(normalized_estimate, 6)
         if normalized_estimate is not None
         else None,
@@ -816,7 +844,8 @@ def save_run_log(
         ),
         "no_metered_llm_calls": sum(1 for e in tracker.entries if e.no_metered_cost),
         "host_managed_llm_calls": host_managed_calls,
-        "unknown_external_cost_llm_calls": unknown_external_cost_calls,
+        "unknown_external_cost_llm_calls": unknown_external_llm_calls,
+        "unknown_external_cost_calls": unknown_external_cost_calls,
         "conservative_usage_calls": sum(
             1 for e in tracker.entries if e.usage_source == "conservative"
         ),

@@ -68,7 +68,7 @@ _HELP = (
     "  Build a topic corpus?\n"
     '      distill --cost-mode no-metered topic preview "AI news"\n'
     "  Change analysis provider/model?\n"
-    "      distill provider set gemini gemini-3.6-flash\n"
+    "      distill provider set gemini gemini-3.7-flash\n"
     "      distill --provider gemini --model gemini-3.5-flash-lite <command>\n"
     '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
     "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"
