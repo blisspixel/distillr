@@ -3,7 +3,7 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-13 against code, roadmap, and release evidence at
-`distillr==0.19.54`; the first performance baseline remains 0.19.50 evidence.
+`distillr==0.19.55`; the first performance baseline remains 0.19.50 evidence.
 
 ## The honest answer
 
@@ -66,7 +66,7 @@ Still open for the 1.0 bar:
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met (0.19.54 local release gate: 95.07%, 6,553 tests) |
+| Branch coverage >=95% | Met (0.19.55 local release gate: 95.05%, 6,565 tests) |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
 | Python 3.12-3.14 + OS smoke | Met |
 | Golden structural offline gate | Met; do not extend to live model scoring |

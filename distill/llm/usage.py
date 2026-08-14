@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Literal, cast
 from uuid import uuid4
@@ -46,6 +47,8 @@ class LLMUsageAttempt:
 
 UsageAttemptSink = Callable[[LLMUsageAttempt], None]
 UsageAttemptBatchSink = Callable[[tuple[LLMUsageAttempt, ...]], None]
+UsageAttemptAuthorizer = Callable[[LLMUsageAttempt], None]
+UsageAttemptReservation = Callable[[LLMUsageAttempt], AbstractContextManager[None]]
 _EXCEPTION_ATTEMPTS_ATTR = "_distill_usage_attempts"
 
 

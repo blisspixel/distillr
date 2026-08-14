@@ -71,15 +71,16 @@ def submit_metered_interaction[InteractionT](
     """
 
     tracker.authorize_gemini_query(model)
-    try:
-        interaction = submit()
-    except BaseException as active_error:
+    with tracker.reserve_gemini_query(model):
         try:
-            tracker.record_gemini_query(model, outcome="ambiguous")
-        except BaseException:
-            active_error.add_note(_INTERRUPTED_ACCOUNTING_NOTE)
-        raise
-    tracker.record_gemini_query(model, outcome="accepted")
+            interaction = submit()
+        except BaseException as active_error:
+            try:
+                tracker.record_gemini_query(model, outcome="ambiguous")
+            except BaseException:
+                active_error.add_note(_INTERRUPTED_ACCOUNTING_NOTE)
+            raise
+        tracker.record_gemini_query(model, outcome="accepted")
     return interaction
 
 

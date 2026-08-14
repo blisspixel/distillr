@@ -187,7 +187,7 @@ def test_all_route_failures_reach_tracker_and_surfaced_exception(tmp_path, monke
     ]
 
 
-def test_budget_stop_after_failed_attempt_prevents_fallback(tmp_path, monkeypatch):
+def test_projected_budget_stop_prevents_provider_construction_and_fallback(tmp_path, monkeypatch):
     cfg = _config(tmp_path, fallback_provider="ollama", fallback_model="m")
     tracker = CostTracker(budget=0.0)
     constructed: list[str] = []
@@ -210,12 +210,68 @@ def test_budget_stop_after_failed_attempt_prevents_fallback(tmp_path, monkeypatc
             usage_tracker=tracker,
         )
 
-    assert constructed == ["xai"]
+    assert constructed == []
+    assert tracker.entries == []
+
+
+def test_budgeted_call_reserves_one_attempt_and_disables_provider_retries(tmp_path, monkeypatch):
+    tracker = CostTracker(budget=0.01)
+    captured: dict[str, object] = {}
+
+    class CapturingProvider:
+        async def call(self, model_id, prompt, **kwargs):
+            del prompt
+            captured.update(kwargs)
+            return LLM_Response(
+                text="ok",
+                input_tokens=10,
+                output_tokens=20,
+                model=model_id,
+            )
+
+    monkeypatch.setattr(router, "_get_provider", lambda name, config: CapturingProvider())
+
+    response = router.call(
+        _config(tmp_path),
+        "analysis",
+        "prompt",
+        max_tokens=64,
+        retries=2,
+        call_type="analysis",
+        usage_tracker=tracker,
+    )
+
+    assert response.text == "ok"
+    assert captured["retries"] == 0
     assert len(tracker.entries) == 1
-    assert tracker.entries[0].outcome == "error"
+    assert tracker.total_cost < tracker.budget
 
 
-def test_preexisting_attempt_batch_is_fully_recorded_before_budget_stop(tmp_path, monkeypatch):
+def test_budget_marker_without_admission_protocol_fails_closed(tmp_path, monkeypatch):
+    tracker = _NonDeduplicatingTracker()
+    tracker.budget_limit = 0.01
+    constructed = False
+
+    def fake_get_provider(name, config):
+        nonlocal constructed
+        del name, config
+        constructed = True
+        return _FakeProvider(fail=False, label="xai")
+
+    monkeypatch.setattr(router, "_get_provider", fake_get_provider)
+
+    with pytest.raises(TypeError, match="attempt authorization and reservation"):
+        router.call(
+            _config(tmp_path),
+            "analysis",
+            "prompt",
+            usage_tracker=tracker,
+        )
+
+    assert constructed is False
+
+
+def test_projected_budget_stop_precedes_preexisting_provider_attempt_batch(tmp_path, monkeypatch):
     tracker = CostTracker(budget=0.0)
     failure = RuntimeError("provider batch failed")
     attempts = tuple(
@@ -250,8 +306,7 @@ def test_preexisting_attempt_batch_is_fully_recorded_before_budget_stop(tmp_path
             usage_tracker=tracker,
         )
 
-    assert len(tracker.entries) == 2
-    assert len({entry.attempt_id for entry in tracker.entries}) == 2
+    assert tracker.entries == []
 
 
 def test_no_metered_blocks_cloud_fallback_before_provider_construction(tmp_path, monkeypatch):

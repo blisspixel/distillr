@@ -7,6 +7,7 @@ import re
 import tempfile
 import time
 import urllib.request
+from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
@@ -56,6 +57,14 @@ class _TranscriptionCostTracker(Protocol):
         model: str = "",
         outcome: str = "completed",
     ) -> None: ...
+
+    def reserve_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+    ) -> AbstractContextManager[None]: ...
 
 
 @dataclass

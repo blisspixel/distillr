@@ -9,8 +9,10 @@ from datetime import date
 import pytest
 
 from distill.llm.cost import deep_research_query_cost
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.router import LLM_Response
 from distill.llm.run_context import run_scope
+from distill.llm.usage import LLMUsageAttempt
 from distill.pipeline.costs import (
     ACCORDION_GROK_ESTIMATE,
     PROFILE_RECEIPT_ENV,
@@ -1478,7 +1480,7 @@ def test_gemini_cost_is_model_aware():
 
 
 def test_gemini_query_authorization_refuses_without_ledger_row():
-    tracker = CostTracker(budget=2.49)
+    tracker = CostTracker(budget=2.99)
 
     with pytest.raises(ProjectedBudgetExceededError):
         tracker.authorize_gemini_query("deep-research-preview-04-2026")
@@ -1486,6 +1488,22 @@ def test_gemini_query_authorization_refuses_without_ledger_row():
     assert tracker.gemini_queries == 0
     assert tracker.gemini_query_models == []
     assert tracker.gemini_query_outcomes == []
+
+
+def test_gemini_query_authorization_uses_upper_typical_range_but_records_midpoint():
+    tracker = CostTracker(budget=3.00)
+
+    tracker.authorize_gemini_query("deep-research-preview-04-2026")
+    tracker.record_gemini_query("deep-research-preview-04-2026")
+
+    assert tracker.total_gemini_cost == 2.50
+
+
+def test_gemini_max_authorization_uses_seven_dollar_upper_typical_range():
+    tracker = CostTracker(budget=6.99)
+
+    with pytest.raises(ProjectedBudgetExceededError):
+        tracker.authorize_gemini_query("deep-research-max-preview-04-2026")
 
 
 def test_token_usage_authorization_refuses_without_ledger_row():
@@ -1503,6 +1521,49 @@ def test_token_usage_authorization_refuses_without_ledger_row():
         tracker.authorize_token_usage(projected)
 
     assert tracker.entries == []
+
+
+def test_budgeted_unknown_transcription_provider_fails_closed():
+    tracker = CostTracker(budget=1.00)
+
+    with pytest.raises(CostPolicyError, match="no verified duration price"):
+        tracker.authorize_transcription("future-stt-provider", 60.0)
+
+    assert tracker.transcriptions == []
+
+
+def test_budgeted_unknown_metered_model_fails_closed_before_spend():
+    tracker = CostTracker(budget=1.00)
+    projected = TokenUsage(
+        prompt_tokens=1_000,
+        completion_tokens=1_000,
+        model="grok-future-unpriced",
+        provider_name="xai",
+        provider_type="cloud",
+        usage_source="conservative",
+    )
+
+    with pytest.raises(CostPolicyError, match="no verified price"):
+        tracker.authorize_token_usage(projected)
+
+    assert tracker.entries == []
+
+
+def test_unbudgeted_unknown_metered_model_marks_external_cost_unavailable():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1_000,
+            completion_tokens=1_000,
+            model="grok-future-unpriced",
+            provider_name="xai",
+            provider_type="cloud",
+        )
+    )
+
+    assert tracker.total_cost == 0.0
+    assert tracker.summary_dict()["unknown_external_cost_calls"] == 1
+    assert tracker.summary_dict()["external_cost_status"] == "unavailable"
 
 
 def test_token_usage_authorization_includes_existing_spend_without_mutation():
@@ -1552,6 +1613,45 @@ def test_budget_reservation_consumes_recorded_cost_before_next_authorization():
             pass
 
     assert tracker.total_cost == 0.002
+
+
+def test_nested_attempt_reservation_reuses_outer_headroom_and_consumes_it():
+    tracker = CostTracker(budget=0.003)
+    attempt = LLMUsageAttempt(
+        input_tokens=1_000,
+        output_tokens=0,
+        model="grok-4.5",
+        provider_name="xai",
+        provider_type="cloud",
+        usage_source="conservative",
+        outcome="success",
+    )
+
+    with tracker.reserve_budget(0.002):
+        with tracker.reserve_attempt(attempt, call_type="analysis"):
+            tracker.record_attempt(attempt, call_type="analysis")
+        with tracker.reserve_budget(0.001):
+            pass
+
+    assert tracker.total_cost == 0.002
+
+
+def test_deep_research_reservation_uses_upper_range_and_records_midpoint():
+    tracker = CostTracker(budget=3.00)
+
+    with tracker.reserve_gemini_query("deep-research-preview-04-2026"):
+        tracker.record_gemini_query("deep-research-preview-04-2026")
+
+    assert tracker.total_cost == 2.50
+
+
+def test_transcription_reservation_is_atomic_and_records_duration_cost():
+    tracker = CostTracker(budget=0.10)
+
+    with tracker.reserve_transcription("xai-grok-stt", 3_600, model="grok-stt"):
+        tracker.record_transcription("xai-grok-stt", 3_600, model="grok-stt")
+
+    assert tracker.total_transcription_cost == 0.10
 
 
 def test_authorization_counts_other_reservations_and_own_remaining_headroom():

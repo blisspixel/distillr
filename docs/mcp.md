@@ -54,7 +54,43 @@ Then ask Claude things like:
 
 ## Tools
 
-27 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read surface -- every spend/ingest/mutation tool refuses with a clear message (recommended for agent-facing deployments). For deployments that *do* expose the write tools, two narrower guardrails: `DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` caps each tool call's recorded spend (the call that crosses completes -- its spend already happened and stays on the ledger -- then the run stops with a structured `budget_exceeded` response; artifacts written before the stop are durable and re-runs converge), and `DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines **URL entry points and stored-URL refresh** (`process_video_url`, `watch_add`, `site_batch`, and `catch_up` against each stored watch URL) to the listed hosts and their subdomains. Query-shaped discovery tools (`discover`, `papers`, `learn_topic`, `search_videos`) remain open-world when write tools are enabled; they advertise `openWorldHint` and do not pass through the host allowlist. Prefer `DISTILL_MCP_READ_ONLY=1` when a deployment must not reach the public web at all. Remediated path-bearing results (`okf_export`, `doctor`, cost-history integrity messages, `ask` answer paths) use library- or workspace-relative paths and never host absolute paths. Bounded write-side refusals (`read_only`, `budget_exceeded`, `domain_not_allowed`) include `action`, `phase`, `run_id` (when inside a correlated MCP call), `limit` metadata, and a library-relative `telemetry_path` (`.distill/phase_telemetry.jsonl`) so external loops can diagnose without scraping prose. Unexpected tool exceptions are sanitized with `agent_safe_error` (no OSError filenames or host absolute paths in agent-visible error strings). (The surface is deliberately small and shrinking toward workflow-shaped tools: every always-loaded tool schema costs the consuming agent context, so duplicates get removed -- `list_contested` was folded into `find_concepts(contested_only=True)` in 0.9.30.)
+27 tools, grouped by role. Set `DISTILL_MCP_READ_ONLY=1` to serve only the read
+surface. Every spend, ingest, or mutation tool then refuses with a clear
+message. This is the recommended agent-facing deployment posture.
+
+For deployments that expose write tools, two narrower guardrails apply.
+`DISTILL_MCP_MAX_SPEND_PER_CALL=<dollars>` gives each tool call a dollar
+allowance. Budgeted xAI, Gemini chat, and Anthropic attempts reserve a
+conservative prompt-plus-maximum-output bound before provider construction and
+disable hidden provider retries. Eligible fallbacks are admitted separately.
+Cloud transcription reserves its duration price. Deep Research reserves the
+upper end of Google's typical range during submission, though Google exposes no
+provider-side dollar cap for its autonomous loop. Provider usage remains
+recorded exactly once, and durable artifacts let re-runs converge.
+
+`DISTILL_MCP_INGEST_ALLOWLIST=<host,host>` confines **URL entry points and
+stored-URL refresh** (`process_video_url`, `watch_add`, `site_batch`, and
+`catch_up` against each stored watch URL) to the listed hosts and their
+subdomains. Query-shaped discovery tools (`discover`, `papers`, `learn_topic`,
+`search_videos`) remain open-world when write tools are enabled; they advertise
+`openWorldHint` and do not pass through the host allowlist. Prefer
+`DISTILL_MCP_READ_ONLY=1` when a deployment must not reach the public web at
+all.
+
+Remediated path-bearing results (`okf_export`, `doctor`, cost-history integrity
+messages, `ask` answer paths) use library- or workspace-relative paths and
+never host absolute paths. Bounded write-side refusals (`read_only`,
+`budget_exceeded`, `domain_not_allowed`) include `action`, `phase`, `run_id`
+(when inside a correlated MCP call), `limit` metadata, and a library-relative
+`telemetry_path` (`.distill/phase_telemetry.jsonl`) so external loops can
+diagnose without scraping prose. Unexpected tool exceptions are sanitized with
+`agent_safe_error` (no OSError filenames or host absolute paths in
+agent-visible error strings).
+
+The surface is deliberately small and shrinking toward workflow-shaped tools:
+every always-loaded tool schema costs the consuming agent context, so
+duplicates get removed. `list_contested` was folded into
+`find_concepts(contested_only=True)` in 0.9.30.
 
 The server speaks both protocol eras from the one stdio binary: modern
 clients negotiate MCP 2026-07-28 through `server/discover`, and legacy

@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from distill.llm.cost import has_known_pricing
 from distill.llm.usage import MAX_USAGE_TOKENS, LLMUsageAttempt
 
 NO_METERED_PROVIDER_TYPES: frozenset[str] = frozenset({"local", "included-plan"})
@@ -83,7 +84,11 @@ class TokenUsage:
     def external_cost_unavailable(self) -> bool:
         """True when usage is known but Distill has no trustworthy price contract."""
 
-        return self.provider_type in EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES
+        return self.provider_type in EXTERNAL_COST_UNAVAILABLE_PROVIDER_TYPES or (
+            self.provider_type == "cloud"
+            and self.provider_name in {"xai", "gemini", "anthropic", "openai"}
+            and not has_known_pricing(self.model)
+        )
 
 
 @dataclass

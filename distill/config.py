@@ -190,9 +190,10 @@ class DistillConfig(BaseSettings):
     # The recommended setting for agent-facing deployments.
     distill_mcp_read_only: bool = False
     # For deployments that DO expose the write tools, two narrower guardrails:
-    # DISTILL_MCP_MAX_SPEND_PER_CALL caps each tool call's recorded spend in
-    # dollars (the call that crosses completes -- its spend already happened --
-    # then the run stops cleanly; overshoot is bounded by one model call).
+    # DISTILL_MCP_MAX_SPEND_PER_CALL admits each direct cloud attempt against a
+    # conservative bound before provider construction, then checks recorded
+    # usage. Deep Research uses an upper typical-cost allowance, not a provider
+    # dollar cap.
     # 0 or unset = no cap.
     distill_mcp_max_spend_per_call: float = 0.0
     # DISTILL_MCP_INGEST_ALLOWLIST: comma-separated hostnames; URL entry points

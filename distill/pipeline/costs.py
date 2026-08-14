@@ -30,10 +30,13 @@ from distill.llm.cost import (
 )
 from distill.llm.cost import (
     compute_cost,
+    deep_research_authorization_cost,
     deep_research_query_cost,
+    has_known_transcription_pricing,
     normalize_transcription_duration,
     transcription_cost,
 )
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.run_context import (
     current_run,
     current_run_elapsed_seconds,
@@ -103,7 +106,7 @@ __all__ = [
 
 PROFILE_RECEIPT_ENV = "DISTILL_PROFILE_RECEIPT_ID"
 _PROFILE_RECEIPT_RE = re.compile(r"[0-9a-f]{64}")
-_ACTIVE_BUDGET_RESERVATION: ContextVar[tuple[int, str] | None] = ContextVar(
+_ACTIVE_BUDGET_RESERVATION: ContextVar[tuple[int, tuple[str, ...]] | None] = ContextVar(
     "distill_active_budget_reservation",
     default=None,
 )
@@ -147,10 +150,10 @@ def _finite_cost_sum(values: list[float], *, label: str) -> float:
 class CostTracker:
     """Accumulates token usage and cost across a run.
 
-    With ``budget`` set, every record raises :class:`BudgetExceededError` once
-    total recorded cost crosses it. Fixed-price calls are also authorized
-    against the projected total before provider contact, preventing known
-    overspend while conservatively recording ambiguous submission failures.
+    With ``budget`` set, direct cloud attempts can be conservatively authorized
+    and atomically reserved before provider construction. Every recorded row is
+    still checked against the cap, fixed-price calls have dedicated admission,
+    and ambiguous submissions remain conservatively visible in the ledger.
     """
 
     entries: list[TokenUsage] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType] "dataclass default_factory appears as list[Unknown] under strict; usage throughout confirms TokenUsage"
@@ -194,6 +197,12 @@ class CostTracker:
 
         return self._profile_tracker_id
 
+    @property
+    def budget_limit(self) -> float | None:
+        """Budget visible to router admission, including delegated trackers."""
+
+        return self.budget
+
     def _check_budget(self):
         if self.budget is not None and self.total_cost > self.budget:
             raise BudgetExceededError(self.total_cost, self.budget)
@@ -202,11 +211,14 @@ class CostTracker:
         active = _ACTIVE_BUDGET_RESERVATION.get()
         if active is None or active[0] != id(self) or actual_cost <= 0:
             return
-        reservation_id = active[1]
-        remaining = self._budget_reservations.get(reservation_id)
-        if remaining is None:
-            return
-        self._budget_reservations[reservation_id] = max(remaining - actual_cost, 0.0)
+        unallocated = actual_cost
+        for reservation_id in active[1]:
+            remaining = self._budget_reservations.get(reservation_id, 0.0)
+            consumed = min(remaining, unallocated)
+            self._budget_reservations[reservation_id] = remaining - consumed
+            unallocated -= consumed
+            if unallocated <= 0:
+                break
 
     def _projected_total(self, increment: float) -> float:
         """Return an atomic projection including every in-flight reservation.
@@ -226,7 +238,10 @@ class CostTracker:
         if active is not None and active[0] == id(self):
             covered = min(
                 increment,
-                self._budget_reservations.get(active[1], 0.0),
+                _finite_cost_sum(
+                    [self._budget_reservations.get(key, 0.0) for key in active[1]],
+                    label="active reserved cost",
+                ),
             )
         return self.total_cost + reserved + max(increment - covered, 0.0)
 
@@ -255,10 +270,46 @@ class CostTracker:
                     continue
                 if entry.attempt_id:
                     seen_attempt_ids.add(entry.attempt_id)
+                self._require_budget_price(entry)
                 projected_increment += _token_usage_cost(entry)
             projected = self._projected_total(projected_increment)
             if self.budget is not None and projected > self.budget:
                 raise ProjectedBudgetExceededError(projected, self.budget)
+
+    def authorize_attempt(self, attempt: LLMUsageAttempt, *, call_type: str = "") -> None:
+        """Refuse one conservatively bounded provider attempt before construction."""
+
+        self.authorize_token_usage(TokenUsage(call_type=call_type, attempts=(attempt,)))
+
+    @contextmanager
+    def reserve_attempt(
+        self,
+        attempt: LLMUsageAttempt,
+        *,
+        call_type: str = "",
+    ) -> Generator[None, None, None]:
+        """Atomically reserve one bounded provider attempt until it is accounted."""
+
+        usage = TokenUsage(call_type=call_type, attempts=(attempt,))
+        entries = usage.expanded()
+        with self._lock:
+            for entry in entries:
+                self._require_budget_price(entry)
+            amount = _finite_cost_sum(
+                [_token_usage_cost(entry) for entry in entries],
+                label="projected attempt cost",
+            )
+        with self.reserve_budget(amount):
+            yield
+
+    def _require_budget_price(self, usage: TokenUsage) -> None:
+        if self.budget is None or usage.no_metered_cost or not usage.external_cost_unavailable:
+            return
+        raise CostPolicyError(
+            f"Budget cannot authorize model '{usage.model or '(unknown)'}' because "
+            "Distill has no verified price for this metered route. Select a registered "
+            "model or update the pricing registry before allowing spend."
+        )
 
     @contextmanager
     def reserve_budget(self, projected_cost: float) -> Generator[None, None, None]:
@@ -270,17 +321,24 @@ class CostTracker:
         """
 
         amount = _finite_nonnegative(projected_cost, label="projected reservation")
+        active = _ACTIVE_BUDGET_RESERVATION.get()
+        active_ids = active[1] if active is not None and active[0] == id(self) else ()
         reservation_id = secrets.token_hex(16)
         with self._lock:
             reserved = _finite_cost_sum(
                 list(self._budget_reservations.values()),
                 label="reserved cost",
             )
-            projected = self.total_cost + reserved + amount
+            active_reserved = _finite_cost_sum(
+                [self._budget_reservations.get(key, 0.0) for key in active_ids],
+                label="active reserved cost",
+            )
+            additional = max(amount - active_reserved, 0.0)
+            projected = self.total_cost + reserved + additional
             if self.budget is not None and projected > self.budget:
                 raise ProjectedBudgetExceededError(projected, self.budget)
-            self._budget_reservations[reservation_id] = amount
-        active_token = _ACTIVE_BUDGET_RESERVATION.set((id(self), reservation_id))
+            self._budget_reservations[reservation_id] = additional
+        active_token = _ACTIVE_BUDGET_RESERVATION.set((id(self), (*active_ids, reservation_id)))
         try:
             yield
         finally:
@@ -309,12 +367,19 @@ class CostTracker:
         )
 
     def authorize_gemini_query(self, model: str = "") -> None:
-        """Refuse a known-price Deep Research query before provider contact."""
+        """Admit Deep Research against Google's upper typical-cost estimate."""
 
         with self._lock:
-            projected = self._projected_total(deep_research_query_cost(model))
+            projected = self._projected_total(deep_research_authorization_cost(model))
             if self.budget is not None and projected > self.budget:
                 raise ProjectedBudgetExceededError(projected, self.budget)
+
+    @contextmanager
+    def reserve_gemini_query(self, model: str = "") -> Generator[None, None, None]:
+        """Reserve Google's upper typical-cost estimate during submission."""
+
+        with self.reserve_budget(deep_research_authorization_cost(model)):
+            yield
 
     def record_gemini_query(self, model: str = "", *, outcome: str = "accepted") -> None:
         """Record an accepted or ambiguously submitted Deep Research query."""
@@ -334,9 +399,34 @@ class CostTracker:
         del model
         duration = normalize_transcription_duration(duration_s)
         with self._lock:
+            if self.budget is not None and not has_known_transcription_pricing(provider):
+                raise CostPolicyError(
+                    f"Budget cannot authorize transcription provider '{provider}' because "
+                    "Distill has no verified duration price for it."
+                )
             projected = self._projected_total(transcription_cost(provider, duration))
             if self.budget is not None and projected > self.budget:
                 raise ProjectedBudgetExceededError(projected, self.budget)
+
+    @contextmanager
+    def reserve_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+    ) -> Generator[None, None, None]:
+        """Reserve one duration-priced cloud transcription attempt."""
+
+        del model
+        duration = normalize_transcription_duration(duration_s)
+        if self.budget is not None and not has_known_transcription_pricing(provider):
+            raise CostPolicyError(
+                f"Budget cannot reserve transcription provider '{provider}' because "
+                "Distill has no verified duration price for it."
+            )
+        with self.reserve_budget(transcription_cost(provider, duration)):
+            yield
 
     def record_transcription(
         self,
@@ -450,7 +540,9 @@ class CostTracker:
             1 for entry in self.entries if entry.provider_type == "host-managed"
         )
         unknown_external_cost_calls = sum(
-            1 for entry in self.entries if entry.provider_type == "unknown"
+            1
+            for entry in self.entries
+            if entry.external_cost_unavailable and entry.provider_type != "host-managed"
         )
         for entry in self.entries:
             model_summary = by_model.setdefault(
@@ -525,6 +617,10 @@ class _ConcurrentCostTracker(CostTracker):
         super().__init__(run_id=parent.run_id)
         self._parent = parent
 
+    @property
+    def budget_limit(self) -> float | None:
+        return self._parent.budget_limit
+
     def record(self, usage: TokenUsage) -> None:
         super().record(usage)
         self._parent.record(usage)
@@ -532,8 +628,26 @@ class _ConcurrentCostTracker(CostTracker):
     def authorize_token_usage(self, usage: TokenUsage) -> None:
         self._parent.authorize_token_usage(usage)
 
+    def authorize_attempt(self, attempt: LLMUsageAttempt, *, call_type: str = "") -> None:
+        self._parent.authorize_attempt(attempt, call_type=call_type)
+
+    @contextmanager
+    def reserve_attempt(
+        self,
+        attempt: LLMUsageAttempt,
+        *,
+        call_type: str = "",
+    ) -> Generator[None, None, None]:
+        with self._parent.reserve_attempt(attempt, call_type=call_type):
+            yield
+
     def authorize_gemini_query(self, model: str = "") -> None:
         self._parent.authorize_gemini_query(model)
+
+    @contextmanager
+    def reserve_gemini_query(self, model: str = "") -> Generator[None, None, None]:
+        with self._parent.reserve_gemini_query(model):
+            yield
 
     def record_gemini_query(self, model: str = "", *, outcome: str = "accepted") -> None:
         super().record_gemini_query(model, outcome=outcome)
@@ -541,6 +655,17 @@ class _ConcurrentCostTracker(CostTracker):
 
     def authorize_transcription(self, provider: str, duration_s: float, *, model: str = "") -> None:
         self._parent.authorize_transcription(provider, duration_s, model=model)
+
+    @contextmanager
+    def reserve_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+    ) -> Generator[None, None, None]:
+        with self._parent.reserve_transcription(provider, duration_s, model=model):
+            yield
 
     def record_transcription(
         self,
@@ -598,7 +723,9 @@ def save_run_log(
     recorded_command = f"{command}_preview" if preview else command
     host_managed_calls = sum(1 for row in tracker.entries if row.provider_type == "host-managed")
     unknown_external_cost_calls = sum(
-        1 for row in tracker.entries if row.provider_type == "unknown"
+        1
+        for row in tracker.entries
+        if row.external_cost_unavailable and row.provider_type != "host-managed"
     )
     entry = {
         "timestamp": datetime.now().isoformat(),
@@ -779,7 +906,7 @@ def _route_class(entry: TokenUsage) -> str:
         return "included-plan"
     if entry.provider_type == "host-managed":
         return "host-managed"
-    if entry.provider_type == "unknown":
+    if getattr(entry, "external_cost_unavailable", False):
         return "unknown-external"
     if entry.no_metered_cost:
         return "no-metered"

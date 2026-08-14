@@ -175,6 +175,14 @@ class _TranscriptionCostTracker(Protocol):
         outcome: str = "completed",
     ) -> None: ...
 
+    def reserve_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+    ) -> contextlib.AbstractContextManager[None]: ...
+
 
 def get_transcript(
     video_url: str,

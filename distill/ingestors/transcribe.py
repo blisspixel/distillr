@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable, Iterable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -101,6 +102,14 @@ class TranscriptionCostTracker(Protocol):
         model: str = "",
         outcome: str = "completed",
     ) -> None: ...
+
+    def reserve_transcription(
+        self,
+        provider: str,
+        duration_s: float,
+        *,
+        model: str = "",
+    ) -> AbstractContextManager[None]: ...
 
 
 def _complete_transcription(
@@ -401,16 +410,17 @@ def _attempt_cloud_route(
             "provider usage cannot bypass the run ledger"
         )
     tracker.authorize_transcription(ledger_provider, duration_s, model=model)
-    result = _recorded_cloud_attempt(
-        route_name,
-        fn,
-        errors,
-        must_succeed=must_succeed,
-        tracker=tracker,
-        provider=ledger_provider,
-        model=model,
-        duration_s=duration_s,
-    )
+    with tracker.reserve_transcription(ledger_provider, duration_s, model=model):
+        result = _recorded_cloud_attempt(
+            route_name,
+            fn,
+            errors,
+            must_succeed=must_succeed,
+            tracker=tracker,
+            provider=ledger_provider,
+            model=model,
+            duration_s=duration_s,
+        )
     return result, duration_s
 
 

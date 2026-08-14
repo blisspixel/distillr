@@ -77,8 +77,12 @@ def test_validate_provider_route_accepts_matching_pair() -> None:
 
 
 def test_price_summary_for_catalog_models() -> None:
-    assert "1.50" in price_summary("gemini-3.6-flash")
-    assert "7.50" in price_summary("gemini-3.6-flash")
+    from distill.llm.cost import get_pricing
+
+    rates = get_pricing("gemini-3.6-flash")
+    summary = price_summary("gemini-3.6-flash")
+    assert f"{rates['input']:.2f}" in summary
+    assert f"{rates['output']:.2f}" in summary
     assert "0.30" in price_summary("gemini-3.5-flash-lite")
     assert "200,000+" in price_summary("grok-4.6")
     assert "$4.00/$12.00" in price_summary("grok-4.6")

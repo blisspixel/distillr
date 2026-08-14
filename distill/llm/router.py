@@ -30,7 +30,12 @@ from distill.llm.model_policy import (
 from distill.llm.provider_cache import provider_cache_key
 from distill.llm.run_context import current_run_id
 from distill.llm.types import LLM_Response, UsageTracker
-from distill.llm.usage import LLMUsageAttempt, UsageAttemptBatchSink, UsageAttemptSink
+from distill.llm.usage import (
+    LLMUsageAttempt,
+    UsageAttemptBatchSink,
+    UsageAttemptSink,
+)
+from distill.llm.usage_admission import usage_admission
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +472,7 @@ def call(
 
     provider_name, model_id = config.resolve(workload_tag)
     sink, batch_sink = _usage_sinks(usage_tracker, call_type=call_type)
+    authorizer, reservation = usage_admission(usage_tracker, call_type=call_type)
 
     def _provider_getter(name: str) -> Any:
         return _get_provider(name, config)
@@ -485,5 +491,7 @@ def call(
         usage_sink=sink,
         usage_batch_sink=batch_sink,
         provider_getter=_provider_getter,
+        usage_authorizer=authorizer,
+        usage_reservation=reservation,
     )
     return execute_call(options, provider_name, model_id)

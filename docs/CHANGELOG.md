@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.55 - 2026-08-13
+
+Verified-pricing and strict budget-admission release. Current provider rates
+were rechecked against official xAI, Google, Anthropic, and OpenAI sources, and
+budgeted metered attempts now reserve a conservative bound before provider
+construction.
+
+The maintainer required a $0 validation run for this release. The default test
+harness blocks public sockets and replaces cloud credentials, so no paid model,
+speech-to-text, or live-network evaluation was executed. The local release gate
+passes 6,565 tests with 95.05% branch coverage; 4 tests are skipped and 8
+explicit live-network tests are deselected.
+
+### Added
+
+- Date-aware Gemini 3.6 Flash launch pricing through 2026-12-31, followed by
+  its published standard rate from 2027-01-01.
+- Pre-call attempt authorization and atomic reservation for budgeted xAI,
+  Gemini chat, and Anthropic routes, plus atomic reservations for cloud
+  transcription and Deep Research submission.
+- Explicit projected-budget fields in MCP refusal envelopes and fail-closed
+  handling for unpriced metered model or transcription routes.
+
+### Changed
+
+- Budgeted direct-provider calls disable hidden provider retries. Router
+  fallbacks remain available only as separately authorized attempts.
+- Nested item, workflow, and attempt reservations share existing headroom
+  without double-counting it, while concurrent workers cannot independently
+  claim the same remaining allowance.
+- Deep Research keeps the $2.50 standard and $5 Max point estimates for
+  planning and ledger display, but admission and reservation now use the top
+  of Google's published typical ranges, $3 and $7 respectively.
+- Unknown direct-cloud models are reported as external cost unavailable when
+  no budget is active instead of inheriting an unrelated fallback price.
+- Cost, architecture, MCP, and usage documentation now distinguish point
+  estimates, admission bounds, recorded usage, and provider-side limits.
+
+### Security
+
+- Budget refusal now occurs before metered client construction for registered
+  direct-cloud routes. A missing pricing contract or incomplete budget-tracker
+  protocol fails closed before provider contact.
+- Provider usage remains recorded exactly once on success, failure, fallback,
+  or ambiguous Deep Research submission. Post-record enforcement remains as a
+  backstop when observed usage exceeds its admitted bound.
+
 ## 0.19.54 - 2026-08-13
 
 Current-provider and cost-truth release. Grok 4.6 is now the xAI default, and

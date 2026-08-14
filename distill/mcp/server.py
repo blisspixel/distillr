@@ -48,7 +48,12 @@ from distill.llm.run_context import (
     run_scope,
     update_current_run,
 )
-from distill.pipeline.costs import BudgetExceededError, CostTracker, save_run_log
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    CostTracker,
+    ProjectedBudgetExceededError,
+    save_run_log,
+)
 from distill.pipeline.gaps import (
     TopicInventory,
     VideoMetadata,
@@ -324,11 +329,10 @@ def _refuse_if_read_only(action: str) -> str | None:
 def capped_tracker() -> CostTracker:
     """A run tracker carrying the per-call MCP spend cap, when one is set.
 
-    ``DISTILL_MCP_MAX_SPEND_PER_CALL`` caps each tool call's *recorded* spend:
-    the call that crosses completes (its spend already happened and stays on
-    the ledger), then the run raises ``BudgetExceededError``, which
-    :func:`write_tool` turns into a structured response. Enforcement on actual
-    spend, never on an estimate.
+    Direct cloud attempts are conservatively admitted and reserved before
+    provider construction. Provider-reported usage remains authoritative in
+    the ledger, and any exceptional post-call crossing becomes the structured
+    ``BudgetExceededError`` response emitted by :func:`write_tool`.
     """
     config = _config()
     cap = config.distill_mcp_max_spend_per_call
@@ -408,6 +412,9 @@ def _budget_response(action: str, exc: BudgetExceededError) -> str:
             },
         ),
     }
+    if isinstance(exc, ProjectedBudgetExceededError):
+        payload["projected"] = True
+        payload["projected_usd"] = round(exc.projected, 6)
     if _ACCOUNTING_FAILURE_NOTE in getattr(exc, "__notes__", ()):
         payload["accounting_status"] = "failed"
         payload["accounting_error"] = _ACCOUNTING_FAILURE_NOTE

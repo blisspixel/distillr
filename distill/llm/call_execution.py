@@ -27,17 +27,22 @@ from distill.llm.fallback import (
     require_fallback_route_allowed,
 )
 from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
+from distill.llm.providers._usage import projected_usage_attempt
 from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
 from distill.llm.types import LLM_Response
 from distill.llm.usage import (
     LLMUsageAttempt,
+    UsageAttemptAuthorizer,
     UsageAttemptBatchSink,
+    UsageAttemptReservation,
     UsageAttemptSink,
     attach_usage_attempts,
     usage_attempts_from_exception,
 )
 
 logger = logging.getLogger(__name__)
+
+_DIRECT_METERED_PROVIDERS: frozenset[str] = frozenset({"xai", "gemini", "anthropic"})
 
 
 class _PostResponseAccountingError(Exception):
@@ -72,6 +77,8 @@ class CallOptions:
     usage_sink: UsageAttemptSink | None
     usage_batch_sink: UsageAttemptBatchSink | None
     provider_getter: Callable[[str], Any]
+    usage_authorizer: UsageAttemptAuthorizer | None = None
+    usage_reservation: UsageAttemptReservation | None = None
 
 
 def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Response:
@@ -156,6 +163,48 @@ def _run_provider_call(
     provider_name: str,
     model: str,
 ) -> LLM_Response:
+    usage_authorizer = options.usage_authorizer
+    usage_reservation = options.usage_reservation
+    strict_budget = (
+        provider_name in _DIRECT_METERED_PROVIDERS
+        and usage_authorizer is not None
+        and usage_reservation is not None
+    )
+    if not strict_budget:
+        return _run_admitted_provider_call(
+            options,
+            provider_name,
+            model,
+            strict_budget=False,
+        )
+
+    assert usage_authorizer is not None  # nosec B101
+    assert usage_reservation is not None  # nosec B101
+    projection = projected_usage_attempt(
+        prompt=options.prompt,
+        max_tokens=options.max_tokens,
+        model=model,
+        provider_name=provider_name,
+        provider_type="cloud",
+    )
+    usage_authorizer(projection)
+    reservation = usage_reservation(projection)
+    with reservation:
+        return _run_admitted_provider_call(
+            options,
+            provider_name,
+            model,
+            strict_budget=True,
+        )
+
+
+def _run_admitted_provider_call(
+    options: CallOptions,
+    provider_name: str,
+    model: str,
+    *,
+    strict_budget: bool,
+) -> LLM_Response:
     provider = options.provider_getter(provider_name)
     provider_type = _provider_type(provider_name, provider)
     effective_timeout = (
@@ -164,7 +213,10 @@ def _run_provider_call(
     call_kwargs: dict[str, object] = {
         "max_tokens": options.max_tokens,
         "timeout": effective_timeout,
-        "retries": options.retries,
+        # A strict dollar budget admits one bounded attempt at a time. Provider
+        # retries would be additional billable attempts hidden inside this call,
+        # so callers may still use the router's separately admitted fallback.
+        "retries": 0 if strict_budget else options.retries,
         "temperature": options.temperature,
         "call_type": options.call_type,
         "reasoning_effort": _provider_reasoning_effort(

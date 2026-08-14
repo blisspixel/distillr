@@ -3,8 +3,10 @@
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF
 extraction are free. xAI, Anthropic, and Gemini model calls are token-metered.
 Google bills Deep Research for its underlying model inference and tool usage.
-Distill uses a conservative per-run planning estimate for authorization because
-the final Deep Research usage is not known before the job starts.
+Distill shows the midpoint of Google's typical range as its point estimate, but
+authorizes against the top of that range because the final Deep Research usage
+is not known before the job starts. The admission allowance is $3 for standard
+Deep Research and $7 for Max. These are not provider-side dollar caps.
 
 Cold-start figures below use the **`grok-4.6` default** at $2 input and $6
 output per 1M short-context tokens. They are derived from representative per-stage token
@@ -165,12 +167,29 @@ checks its Deep Research estimate before the Gemini call; direct `distill
 synthesize`, `distill topic brief`, and on-demand
 `distill synthesis` generation check their known synthesis-call estimates before
 model execution; and `distill discover` checks saved preview estimates and
-freshly ranked ingest-plan estimates before ingest. Second, direct CLI workflows that create a
-budgeted tracker stop when
-their recorded spend crosses the configured cap. The crossing model call has
-already happened and stays in the ledger, then the installed `distill` command
-exits with code `6`; JSON mode emits a structured `budget_exceeded` envelope.
-Projected stops add `projected: true` and `projected_usd` to that envelope.
+freshly ranked ingest-plan estimates before ingest. Second, direct xAI, Gemini
+chat, and Anthropic calls on a budgeted tracker are admitted one attempt at a
+time. Distill conservatively bounds the prompt and maximum configured output,
+atomically reserves that amount, and does so before provider-client
+construction. Hidden provider retries are disabled while a dollar cap is
+active; an eligible router fallback is a separate attempt with a separate
+admission decision. A registered price is required, so a budgeted custom
+metered model fails closed before contact if its price is unknown. Projected
+stops exit with code `6`; JSON mode emits a structured `budget_exceeded`
+envelope with `projected: true` and `projected_usd`.
+
+Cloud transcription reserves its verified duration price around each provider
+attempt. Deep Research reserves the upper typical allowance during submission.
+Nested reservations reuse already-held workflow or item headroom, while
+concurrent workers cannot authorize the same remaining dollars independently.
+
+Provider-reported usage is still the ledger source of truth after a call.
+Distill records conservative maximum usage when a provider omits valid usage
+metadata. An exceptional provider response that violates the admitted token
+bound is recorded and then raises a budget crossing. Deep Research is
+different: Google runs an autonomous token-and-tool loop without a
+provider-side dollar cap, so the $3/$7 admission allowances reduce surprise
+spend but cannot impose an absolute ceiling inside Google's service.
 Third, `distill costs`, the CLI dashboard, JSON cost output, and the local web
 dashboard use the same caps to flag historical over-budget ledger rows.
 
@@ -242,9 +261,9 @@ The provider cache policy is in
 | **Discover query generation (`distill discover`)** | **~$0.02** | One call generating paper + video queries from a goal |
 | **Discover rerank (`distill discover`)** | **~$0.04-0.09** | One call scoring combined paper+video candidates against the goal |
 | Default `corpus-report` | **~$0.99** | ~420K input + ~25K output across ordered sections, full-document QA, and a likely rewrite |
-| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | Distill authorization midpoint for one standard Deep Research query; Google estimates ~$1-3 |
+| Accordion Phase 1 (Gemini Deep Research) | **~$2.50** | Expected midpoint for one standard query; budget admission uses $3; Google estimates ~$1-3 |
 | Accordion ordered writing + QA | **~$0.90** | ~360K input + ~30K output across the sequential report spine |
-| `deep-research` profile | **~$2.50** | Distill authorization midpoint for one standard Deep Research query, without section writing |
+| `deep-research` profile | **~$2.50** | Expected midpoint for one standard query without section writing; budget admission uses $3 |
 | `distill research-brief` | **~$1-3 typical** | 1 standard Gemini Deep Research query with custom File Search store; actual tool and token use varies |
 | `distill synthesize` | **~$0.33-0.65** | 1 Grok 4.6 call over the gathered corpus; prompts at 200K tokens or more use long-context rates |
 
@@ -298,8 +317,8 @@ The pre-run estimate shown under a discover preview (and per option in the fresh
   calibration. To drive marginal API cost toward $0, use a local model only
   after `distill eval` confirms it clears the workload quality bar.
 - Gemini Deep Research commonly dominates the bill. Google currently estimates
-  ~$1-3 for standard and ~$3-7 for Max; Distill authorizes at $2.50 and $5.00
-  planning midpoints before provider usage is available.
+  ~$1-3 for standard and ~$3-7 for Max. Distill shows $2.50 and $5.00 expected
+  midpoints, then authorizes against the $3 and $7 upper typical estimates.
 - `distill synthesize` is the cheapest way to get dense cross-topic synthesis
   because it is a single call on the configured synthesis route with no Deep
   Research stage.
@@ -364,9 +383,9 @@ distill topic-watch run <topic> --ignore-budget       # explicit override
 | `grok-4-1-fast-reasoning` | - | - | - | **Retired 2026-05-15**; Distill substitutes the current `grok-4.6` default. The historical registry price remains for old ledger rows. |
 | `grok-4.20-0309-non-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit non-reasoning override |
 | `grok-4.20-0309-reasoning` | $1.25/1M | $2.50/1M | 1M | Supported explicit override |
-| `deep-research-preview-04-2026` | token and tool based | Google estimates ~$1-3; Distill plans at $2.50 | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
-| `deep-research-max-preview-04-2026` | token and tool based | Google estimates ~$3-7; Distill plans at $5.00 | N/A | Explicit deeper-research override |
-| `gemini-3.6-flash` | $1.50/1M | $7.50/1M | 1M | Preferred optional Gemini-provider chat model (GA 2026-07-21); doctor probe default |
+| `deep-research-preview-04-2026` | token and tool based | Google estimates ~$1-3; Distill expects $2.50 and admits at $3 | N/A | Accordion dossier, `deep-research` profile, `distill research-brief`; actual Google billing varies with inference and tool usage |
+| `deep-research-max-preview-04-2026` | token and tool based | Google estimates ~$3-7; Distill expects $5 and admits at $7 | N/A | Explicit deeper-research override |
+| `gemini-3.6-flash` | $0.75/1M through 2026-12-31, then $1.50/1M | $3.75/1M through 2026-12-31, then $7.50/1M | 1M | Preferred optional Gemini-provider chat model; doctor probe default |
 | `gemini-3.5-flash` | $1.50/1M | $9.00/1M | 1M | Optional Gemini-provider chat model (GA 2026-05-19); still selectable |
 | `gemini-3.5-flash-lite` | $0.30/1M | $2.50/1M | 1M | High-throughput optional Gemini chat model (GA 2026-07-21) |
 | `gemini-3.1-pro-preview` | $2.00/1M | $12.00/1M | 1M | Optional Gemini model; prompts over 200K use $4/$18 rates |
@@ -400,7 +419,10 @@ Authoritative pricing and capability sources are the
 [Gemini Deep Research guide](https://ai.google.dev/gemini-api/docs/deep-research),
 [Anthropic model overview](https://platform.claude.com/docs/en/about-claude/models/overview),
 [Anthropic pricing guide](https://platform.claude.com/docs/en/about-claude/pricing),
-and [OpenAI model catalog](https://developers.openai.com/api/docs/models).
+[OpenAI model catalog](https://developers.openai.com/api/docs/models),
+[OpenAI API pricing](https://developers.openai.com/api/docs/pricing),
+[xAI speech-to-text pricing](https://docs.x.ai/developers/models/speech-to-text),
+and [OpenAI Whisper pricing](https://developers.openai.com/api/docs/models/whisper-1).
 
 ## Overriding models
 

@@ -20,6 +20,28 @@ def conservative_usage(*, prompt: str, max_tokens: int) -> tuple[int, int]:
     )
 
 
+def projected_usage_attempt(
+    *,
+    prompt: str,
+    max_tokens: int,
+    model: str,
+    provider_name: str,
+    provider_type: str,
+) -> LLMUsageAttempt:
+    """Build the conservative upper-bound row used for pre-call admission."""
+
+    input_tokens, output_tokens = conservative_usage(prompt=prompt, max_tokens=max_tokens)
+    return LLMUsageAttempt(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        model=model,
+        provider_name=provider_name,
+        provider_type=provider_type,
+        usage_source="conservative",
+        outcome="success",
+    )
+
+
 def deferred_usage_attempt(
     *,
     prompt: str,

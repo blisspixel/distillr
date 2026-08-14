@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 
 GEMINI_DEEP_RESEARCH_MODEL: str = "gemini-deep-research"
 GEMINI_DEEP_RESEARCH_COST: float = 2.50
+GEMINI_DEEP_RESEARCH_AUTHORIZATION_COST: float = 3.00
 # Google bills Deep Research for underlying model tokens and tools rather than
 # at a flat query price. Distill uses conservative per-run planning estimates
 # so it can authorize spend before Google reports the final usage. Max reads
 # more sources and therefore carries a higher planning estimate.
 DEEP_RESEARCH_MAX_COST: float = 5.00
+DEEP_RESEARCH_MAX_AUTHORIZATION_COST: float = 7.00
 DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
     GEMINI_DEEP_RESEARCH_MODEL,
     "deep-research",
@@ -30,6 +32,9 @@ DEEP_RESEARCH_MODEL_ALIASES: tuple[str, ...] = (
 )
 _GEMINI_DEEP_RESEARCH_PRICING: dict[str, float] = {"per_query": GEMINI_DEEP_RESEARCH_COST}
 _DEEP_RESEARCH_MAX_PRICING: dict[str, float] = {"per_query": DEEP_RESEARCH_MAX_COST}
+_GEMINI_36_INTRO_PRICING_END = date(2026, 12, 31)
+_GEMINI_36_INTRO_PRICING: dict[str, float] = {"input": 0.75, "output": 3.75}
+_GEMINI_36_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.50}
 _SONNET_5_INTRO_PRICING_END = date(2026, 8, 31)
 _SONNET_5_INTRO_PRICING: dict[str, float] = {"input": 2.00, "output": 10.00}
 _SONNET_5_STANDARD_PRICING: dict[str, float] = {"input": 3.00, "output": 15.00}
@@ -126,7 +131,9 @@ PRICING: dict[str, dict[str, float]] = {
     "grok-3": {"input": 3.00, "output": 9.00},
     "grok-imagine-image-pro": {"per_query": 1.00},
     # Google Gemini models (standard paid tier; GA 2026-07-21 for 3.6 Flash / 3.5 Flash-Lite)
-    "gemini-3.6-flash": {"input": 1.50, "output": 7.50},
+    # Gemini 3.6 Flash uses launch pricing through 2026-12-31. get_pricing()
+    # resolves the date window so estimates change automatically on 2027-01-01.
+    "gemini-3.6-flash": _GEMINI_36_INTRO_PRICING,
     "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
     "gemini-3.1-pro-preview": {
@@ -216,6 +223,20 @@ def deep_research_query_cost(model: str = "") -> float:
     return get_pricing(name).get("per_query", GEMINI_DEEP_RESEARCH_COST)
 
 
+def deep_research_authorization_cost(model: str = "") -> float:
+    """Return the upper end of Google's typical-cost range for admission.
+
+    Deep Research has no provider-side dollar cap. Distill keeps the midpoint
+    as its point estimate but admits a job against Google's published upper
+    typical estimate so a configured budget is not tested against a midpoint.
+    """
+
+    normalized = (model or GEMINI_DEEP_RESEARCH_MODEL).strip().lower()
+    if normalized.startswith("deep-research-max"):
+        return DEEP_RESEARCH_MAX_AUTHORIZATION_COST
+    return GEMINI_DEEP_RESEARCH_AUTHORIZATION_COST
+
+
 def normalize_transcription_duration(seconds: object) -> float:
     """Return a finite, nonnegative duration within the accounting bound."""
 
@@ -246,6 +267,12 @@ def transcription_cost(provider: str, seconds: object) -> float:
     duration = normalize_transcription_duration(seconds)
     rate = TRANSCRIPTION_PRICING.get(provider, 0.0)
     return rate * duration / 3600.0
+
+
+def has_known_transcription_pricing(provider: str) -> bool:
+    """Return whether *provider* has an explicit duration-based rate."""
+
+    return provider in TRANSCRIPTION_PRICING
 
 
 def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
@@ -287,7 +314,29 @@ def get_pricing(model: str) -> dict[str, float]:
     # pricing key and silently fall back to DEFAULT_MODEL -- an 8x under-report
     # for Opus. Under-reporting spend is the dangerous direction for the ledger,
     # budget caps, and projections, so match case-insensitively.
+    resolved = _resolve_known_pricing(model)
+    if resolved is not None:
+        return resolved
+    logger.warning(
+        "No pricing found for model '%s'; falling back to '%s'",
+        model,
+        DEFAULT_MODEL,
+    )
+    return PRICING[DEFAULT_MODEL]
+
+
+def has_known_pricing(model: str) -> bool:
+    """Return whether *model* resolves to an explicit registry price."""
+
+    return _resolve_known_pricing(model) is not None
+
+
+def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     normalized = model.strip().lower()
+    if not normalized:
+        return None
+    if _is_gemini_36_flash_model(normalized):
+        return _gemini_36_flash_pricing()
     if _is_sonnet_5_model(normalized):
         return _sonnet_5_pricing()
     if normalized in PRICING:
@@ -299,12 +348,17 @@ def get_pricing(model: str) -> dict[str, float]:
     for key in sorted(PRICING, key=len, reverse=True):
         if normalized.startswith(key):
             return PRICING[key]
-    logger.warning(
-        "No pricing found for model '%s'; falling back to '%s'",
-        model,
-        DEFAULT_MODEL,
-    )
-    return PRICING[DEFAULT_MODEL]
+    return None
+
+
+def _is_gemini_36_flash_model(model: str) -> bool:
+    return model.strip().lower().startswith("gemini-3.6-flash")
+
+
+def _gemini_36_flash_pricing() -> dict[str, float]:
+    if _pricing_reference_date() <= _GEMINI_36_INTRO_PRICING_END:
+        return _GEMINI_36_INTRO_PRICING
+    return _GEMINI_36_STANDARD_PRICING
 
 
 def _is_sonnet_5_model(model: str) -> bool:

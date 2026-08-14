@@ -6,10 +6,10 @@
 class BudgetExceededError(Exception):
     """A run's recorded spend crossed its budget ceiling.
 
-    Raised after the crossing call is recorded. Its spend already happened and
-    must stay on the ledger. Callers catch this to stop cleanly: artifacts
-    written so far are durable and verifier-gated, and convergent reruns pick
-    up where the run stopped.
+    Budgeted direct cloud attempts normally refuse on a conservative projection
+    before contact. This post-record guard remains for usage that exceeds its
+    admitted bound and for provider workflows without a hard dollar control.
+    Recorded spend stays on the ledger so callers can stop without hiding it.
     """
 
     def __init__(self, spent: float, budget: float):

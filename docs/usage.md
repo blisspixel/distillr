@@ -768,10 +768,11 @@ distill report ai --no-qa
 | `accordion` | Gemini Deep Research dossier grounded in the corpus and web | 10 ordered strategic sections, assembly, full-document QA, ordered rewrites | ~$3.40 at Distill's current planning midpoint |
 | `deep-research` | Gemini Deep Research | One provider-authored report | ~$2.50 planning midpoint; Google estimates ~$1-3 typical |
 
-The estimates are admission values, not price guarantees. Distill resolves the
-configured report route before applying a workflow cap. A local Ollama or LM
-Studio writer contributes $0 direct API cost; Gemini Deep Research remains
-metered in the two profiles that use it.
+These are expected point estimates, not price guarantees. Distill resolves the
+configured report route before applying a workflow cap. Standard Deep Research
+shows a $2.50 midpoint but requires $3 of available budget; Max shows $5 and
+requires $7. A local Ollama or LM Studio writer contributes $0 direct API cost;
+Gemini Deep Research remains metered in the two profiles that use it.
 
 Sequential writing is deliberate. Section N sees prior sections, and the QA
 review sees the complete assembled report before failed sections are rewritten
@@ -1119,12 +1120,14 @@ resolved crawl plan without model checks, crawling, writes, or spend.
 
 For deployments that do expose the write tools, two narrower guardrails:
 
-- `DISTILL_MCP_MAX_SPEND_PER_CALL=0.50` caps each tool call's recorded spend
-  in dollars. Enforcement is on actual spend, not an estimate: the model call
-  that crosses the cap completes (its spend already happened and stays on the
-  ledger -- no off-ledger spend, ever), then the run stops with a structured
-  `budget_exceeded` response. Artifacts written before the stop are durable
-  and verify-gated, and a re-run converges (already-ingested sources skip).
+- `DISTILL_MCP_MAX_SPEND_PER_CALL=0.50` gives each tool call a dollar allowance.
+  Budgeted xAI, Gemini chat, and Anthropic attempts reserve a conservative
+  prompt-plus-maximum-output bound before provider construction, with hidden
+  provider retries disabled. Cloud transcription reserves its duration price.
+  Deep Research reserves the top of Google's typical range during submission,
+  but Google does not expose a provider-side dollar cap for its autonomous
+  loop. Provider usage is recorded exactly once, and artifacts written before
+  any later stop are durable and verify-gated.
 - `DISTILL_MCP_INGEST_ALLOWLIST=youtube.com,learn.microsoft.com` confines URL
   entry points and stored-URL refresh (`process_video_url`, `watch_add`,
   `site_batch`, and `catch_up` against each stored watch URL) to the listed

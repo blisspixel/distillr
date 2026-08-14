@@ -42,7 +42,7 @@ def _model_output(*texts: str) -> SimpleNamespace:
 
 
 def test_submit_metered_interaction_authorizes_and_records_acceptance():
-    tracker = CostTracker(budget=2.50)
+    tracker = CostTracker(budget=3.00)
     interaction = SimpleNamespace(id="job-1")
 
     result = submit_metered_interaction(

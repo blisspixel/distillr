@@ -233,10 +233,14 @@ accounting-failure marker. This prevents retries, error conversion, and local
 tool-specific cleanup from silently discarding provider usage.
 
 The CLI uses the same terminal semantics at workflow boundaries. Credible
-interactive estimates are checked before ingestion, a recorded budget crossing
-must propagate past ordinary fallback handlers, and report tracker deltas are
-persisted from one finalization path on every exit. Deep Research submission
-interruptions are recorded conservatively as ambiguous after provider contact.
+interactive estimates are checked before ingestion. Budgeted direct cloud
+calls reserve one conservative attempt before provider construction, and an
+eligible fallback receives its own admission decision. Any exceptional
+recorded budget crossing must propagate past ordinary fallback handlers, and
+report tracker deltas are persisted from one finalization path on every exit.
+Deep Research uses the upper end of Google's typical range for admission;
+submission interruptions are recorded conservatively as ambiguous after
+provider contact.
 File Search store ownership begins as soon as creation returns a resource id;
 every exceptional exit attempts remote deletion before the original error is
 allowed to continue.

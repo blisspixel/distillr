@@ -2,8 +2,8 @@
 
 For deployments that DO expose the write tools (read-only off), two
 finer-grained controls: DISTILL_MCP_MAX_SPEND_PER_CALL caps each tool call's
-recorded spend, and DISTILL_MCP_INGEST_ALLOWLIST confines URL-taking ingest
-tools to operator-approved hosts.
+admitted and recorded spend, and DISTILL_MCP_INGEST_ALLOWLIST confines
+URL-taking ingest tools to operator-approved hosts.
 """
 
 from __future__ import annotations
@@ -14,7 +14,12 @@ import pytest
 
 from distill.config import DistillConfig
 from distill.mcp import server as _server
-from distill.pipeline.costs import BudgetExceededError, CostTracker, TokenUsage
+from distill.pipeline.costs import (
+    BudgetExceededError,
+    CostTracker,
+    ProjectedBudgetExceededError,
+    TokenUsage,
+)
 
 
 def _usage(prompt: int = 100_000, completion: int = 50_000) -> TokenUsage:
@@ -93,6 +98,19 @@ class TestWriteToolBudgetCatch:
 
         result = json.loads(asyncio.run(expensive_async()))
         assert result["status"] == "budget_exceeded"
+
+    def test_projected_budget_response_is_explicit(self, monkeypatch):
+        config = DistillConfig(xai_api_key="t")
+        monkeypatch.setattr(_server, "_config", lambda: config)
+
+        @_server.write_tool("projected_thing")
+        def projected_thing() -> str:
+            raise ProjectedBudgetExceededError(0.61, 0.5)
+
+        result = json.loads(projected_thing())
+        assert result["status"] == "budget_exceeded"
+        assert result["projected"] is True
+        assert result["projected_usd"] == 0.61
 
 
 class TestIngestAllowlist:

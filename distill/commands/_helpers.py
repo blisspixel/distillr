@@ -168,7 +168,7 @@ def get_config() -> DistillConfig:
 
 
 class _CommandCostTracker(CostTracker):
-    """Cost tracker that persists the call which crosses a CLI budget."""
+    """Cost tracker that persists usage and terminal budget evidence."""
 
     def __init__(
         self,

@@ -71,7 +71,7 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 def test_all_listed_models_return_correct_pricing() -> None:
     """Every model in PRICING is retrievable via get_pricing with exact match."""
     for model, expected_rates in PRICING.items():
-        if model == "claude-sonnet-5":
+        if model in {"claude-sonnet-5", "gemini-3.6-flash"}:
             rates = get_pricing(model)
             assert set(rates) == set(expected_rates)
             continue
@@ -133,7 +133,6 @@ def test_prefix_matching_for_versioned_model_names() -> None:
         ("grok-4.20-0309-non-reasoning", 1.25, 2.50),
         ("grok-4.20-0309-reasoning", 1.25, 2.50),
         ("grok-4.20", 1.25, 2.50),
-        ("gemini-3.6-flash", 1.50, 7.50),
         ("gemini-3.5-flash", 1.50, 9.00),
         ("gemini-3.5-flash-lite", 0.30, 2.50),
         ("gemini-3.1-pro-preview", 2.00, 12.00),
@@ -200,6 +199,28 @@ def test_sonnet5_intro_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch) -
     assert rates["input"] == 2.00
     assert rates["output"] == 10.00
     assert compute_cost("claude-sonnet-5", 1_000_000, 1_000_000) == 12.0
+
+
+def test_gemini36_launch_pricing_before_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2026, 8, 13))
+
+    rates = get_pricing("gemini-3.6-flash")
+    assert rates["input"] == 0.75
+    assert rates["output"] == 3.75
+    assert compute_cost("gemini-3.6-flash", 1_000_000, 1_000_000) == 4.5
+
+
+def test_gemini36_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2027, 1, 1))
+
+    rates = get_pricing("gemini-3.6-flash")
+    assert rates["input"] == 1.50
+    assert rates["output"] == 7.50
+    assert compute_cost("gemini-3.6-flash", 1_000_000, 1_000_000) == 9.0
 
 
 def test_deep_research_query_cost_model_aware() -> None:
