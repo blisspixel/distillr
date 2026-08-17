@@ -355,3 +355,17 @@ def test_render_markdown_surfaces_review_findings():
     assert "## Review Findings" in md
     assert "route_disagreement" in md
     assert "pairwise judge did not certify candidate on route-disagreement fixture" in md
+
+
+def test_console_lines_explains_why_nothing_was_recommended():
+    """A fail-closed verdict must say why, not print a silent table of zeros.
+
+    The reason was computed and then dropped, because the only line that
+    rendered it was gated on there BEING a recommendation.
+    """
+    summary = summarize(_errored("grok-4.3", 3), anchor="grok-4.3", threshold=0.90)
+    assert summary.recommended is None
+
+    text = "\n".join(console_lines(summary))
+
+    assert "no valid output" in text

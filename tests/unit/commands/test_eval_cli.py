@@ -106,6 +106,8 @@ def _mock_gpu_24gb(monkeypatch):
         vram_gb=24.0,
         system_ram_gb=64.0,
         is_container=False,
+        vram_measured=True,
+        vram_is_dedicated=True,
     )
     monkeypatch.setattr(hardware, "detect_hardware", lambda: profile)
     monkeypatch.setattr(_eval, "_ollama_model_sizes", lambda: {"huge:70b": 40.0})
@@ -197,6 +199,59 @@ def test_ollama_sizing_does_not_probe_untrusted_remote_endpoint(monkeypatch):
     )
 
     assert _eval._ollama_model_sizes() == {}
+
+
+def _patch_installed_models(monkeypatch, models):
+    """Make _ollama_model_sizes see one fixed /api/tags model list."""
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+
+    class _FakeProvider:
+        async def list_models(self):
+            return models
+
+    monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", _FakeProvider)
+
+
+def test_ollama_sizing_excludes_embedding_only_models(monkeypatch):
+    """An embedding-only model cannot serve a completion, so it is never a candidate."""
+    _patch_installed_models(
+        monkeypatch,
+        [
+            {"name": "nomic-embed-text:latest", "size": 274_302_450, "capabilities": ["embedding"]},
+            {
+                "name": "qwen3.5:27b",
+                "size": 17_700_000_000,
+                "capabilities": ["completion", "tools"],
+            },
+        ],
+    )
+
+    sizes = _eval._ollama_model_sizes()
+
+    assert "nomic-embed-text:latest" not in sizes
+    assert "qwen3.5:27b" in sizes
+
+
+def test_ollama_sizing_keeps_models_without_capability_metadata(monkeypatch):
+    """Older Ollama omits capabilities; absence must not filter a usable model out."""
+    _patch_installed_models(monkeypatch, [{"name": "llama3:8b", "size": 4_900_000_000}])
+
+    assert "llama3:8b" in _eval._ollama_model_sizes()
+
+
+def test_best_local_model_skips_embedding_only_smallest(monkeypatch):
+    """The smallest installed model is embedding-only, so the next one wins."""
+    _mock_no_gpu(monkeypatch)
+    _patch_installed_models(
+        monkeypatch,
+        [
+            {"name": "nomic-embed-text:latest", "size": 274_302_450, "capabilities": ["embedding"]},
+            {"name": "dolphin3:8b", "size": 4_920_000_000, "capabilities": ["completion"]},
+            {"name": "qwen3.5:27b", "size": 17_700_000_000, "capabilities": ["completion"]},
+        ],
+    )
+
+    assert _eval._best_local_model() == "dolphin3:8b"
 
 
 def test_eval_local_only_works_without_cloud_key(tmp_path, monkeypatch):

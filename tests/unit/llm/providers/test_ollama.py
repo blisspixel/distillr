@@ -21,6 +21,7 @@ from hypothesis import strategies as st
 from distill.commands._json import ExitCode, map_exception_to_exit_code
 from distill.llm.errors import ProviderBusyTimeoutError, describe_provider_error
 from distill.llm.providers import ollama as ollama_module
+from distill.llm.providers._ollama_show import ShowProbe
 from distill.llm.providers.ollama import (
     _STRUCTURED_JSON_CALL_TYPES,
     OllamaProvider,
@@ -398,7 +399,7 @@ def test_retry_count(retries: int) -> None:
 
     with (
         patch("httpx.AsyncClient", _stream_client_factory(on_stream=_raise_timeout)),
-        patch("distill.llm.providers.ollama.time.sleep"),
+        patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock),
         pytest.raises(httpx.TimeoutException),
     ):
         asyncio.run(provider.call("test-model", "test prompt", retries=retries))
@@ -513,7 +514,9 @@ class TestOllamaProviderRetry:
                 "httpx.AsyncClient",
                 _stream_client_factory(frames=[json_data], on_stream=_fail_first),
             ),
-            patch("distill.llm.providers.ollama.time.sleep") as mock_sleep,
+            patch(
+                "distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock
+            ) as mock_sleep,
         ):
             result = asyncio.run(provider.call("llama3:8b", "hello", retries=2))
 
@@ -530,7 +533,7 @@ class TestOllamaProviderRetry:
 
         with (
             patch("httpx.AsyncClient", _stream_client_factory(on_stream=_always_timeout)),
-            patch("distill.llm.providers.ollama.time.sleep"),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(httpx.TimeoutException),
         ):
             asyncio.run(provider.call("llama3:8b", "hello", retries=2))
@@ -548,7 +551,7 @@ class TestOllamaProviderRetry:
                 "httpx.AsyncClient",
                 _stream_client_factory(frames=[partial], stall_exc=httpx.ReadTimeout("idle")),
             ),
-            patch("distill.llm.providers.ollama.time.sleep"),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(httpx.ReadTimeout),
         ):
             asyncio.run(provider.call("llama3:8b", "hello", retries=1))
@@ -559,7 +562,7 @@ class TestOllamaProviderRetry:
 
         with (
             patch("httpx.AsyncClient", _stream_client_factory(frames=[], status_code=500)),
-            patch("distill.llm.providers.ollama.time.sleep"),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(httpx.HTTPStatusError),
         ):
             asyncio.run(provider.call("llama3:8b", "hello", retries=1))
@@ -1127,6 +1130,148 @@ class TestOllamaListModels:
             result = asyncio.run(provider.list_models())
 
         assert result == [expected]
+
+    def test_list_models_accepts_top_level_capabilities_list(self) -> None:
+        """Current Ollama tags carry a top-level ``capabilities`` list."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        expected = {
+            "name": "qwen3.5:27b",
+            "model": "qwen3.5:27b",
+            "size": 1_000_000,
+            "details": {"family": "qwen3", "families": ["qwen3"]},
+            "capabilities": ["completion", "tools", "thinking"],
+        }
+        payload = json.dumps({"models": [expected]}).encode("utf-8")
+
+        with patch("httpx.AsyncClient", return_value=self._TagsClient(self._TagsResponse(payload))):
+            result = asyncio.run(provider.list_models())
+
+        assert result == [expected]
+
+    def test_list_models_bounds_top_level_list_fields(self, monkeypatch) -> None:
+        """A top-level list is still bounded by the item and scalar limits."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        monkeypatch.setattr(ollama_module, "_TAGS_MAX_LIST_ITEMS", 2)
+        payload = json.dumps({"models": [{"name": "one", "capabilities": ["a", "b", "c"]}]}).encode(
+            "utf-8"
+        )
+
+        with (
+            patch(
+                "httpx.AsyncClient",
+                return_value=self._TagsClient(self._TagsResponse(payload)),
+            ),
+            pytest.raises(ValueError, match="item limit"),
+        ):
+            asyncio.run(provider.list_models())
+
+        payload = json.dumps({"models": [{"name": "one", "capabilities": [{"nested": 1}]}]}).encode(
+            "utf-8"
+        )
+        with (
+            patch(
+                "httpx.AsyncClient",
+                return_value=self._TagsClient(self._TagsResponse(payload)),
+            ),
+            pytest.raises(ValueError, match="invalid value shape"),
+        ):
+            asyncio.run(provider.list_models())
+
+
+class TestThinkingCapability:
+    """think must follow the server's capability report, not the model name."""
+
+    @staticmethod
+    def _show_client(capabilities):
+        payload = {"capabilities": capabilities, "model_info": {"x.context_length": 32768}}
+
+        class _Resp:
+            status_code = 200
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self):
+                return payload
+
+        class _Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+            async def post(self, url: str, *, json=None):
+                return _Resp()
+
+        return _Client()
+
+    def test_instruct_sibling_of_a_thinking_family_does_not_think(self) -> None:
+        """qwen3-coder starts with 'qwen3' but 400s on think; capabilities say no."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with patch("httpx.AsyncClient", return_value=self._show_client(["completion", "tools"])):
+            assert asyncio.run(provider._show.supports_thinking("qwen3-coder:30b")) is False
+
+        # The name-only heuristic is exactly what got this wrong.
+        from distill.llm.providers._ollama_metadata import _is_thinking_model
+
+        assert _is_thinking_model("qwen3-coder:30b") is True
+
+    def test_thinking_model_reports_thinking(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with patch(
+            "httpx.AsyncClient",
+            return_value=self._show_client(["completion", "thinking"]),
+        ):
+            assert asyncio.run(provider._show.supports_thinking("qwen3.8:27b")) is True
+
+    def test_unknown_capabilities_defer_to_the_caller(self) -> None:
+        """An older server reports nothing; None means 'fall back', not 'no'."""
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with patch("httpx.AsyncClient", return_value=self._show_client([])):
+            assert asyncio.run(provider._show.supports_thinking("llama3:8b")) is None
+
+    def test_payload_omits_think_when_server_says_unsupported(self) -> None:
+        payload = ollama_module.build_chat_payload(
+            "qwen3-coder:30b",
+            "hi",
+            max_tokens=16,
+            num_ctx=4096,
+            temperature=None,
+            supports_thinking=False,
+        )
+        assert "think" not in payload
+
+        thinking = ollama_module.build_chat_payload(
+            "qwen3.8:27b",
+            "hi",
+            max_tokens=16,
+            num_ctx=4096,
+            temperature=None,
+            supports_thinking=True,
+        )
+        assert thinking["think"] is True
+
+    def test_thinking_rejection_is_recognized(self) -> None:
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        response = httpx.Response(
+            400,
+            json={"error": '"qwen3-coder:30b" does not support thinking'},
+            request=request,
+        )
+        exc = httpx.HTTPStatusError("400", request=request, response=response)
+
+        assert ShowProbe.is_thinking_rejection(exc) is True
+
+    def test_other_400s_are_not_treated_as_thinking_rejections(self) -> None:
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        response = httpx.Response(400, json={"error": "model not found"}, request=request)
+        exc = httpx.HTTPStatusError("400", request=request, response=response)
+
+        assert ShowProbe.is_thinking_rejection(exc) is False
 
 
 class TestOllamaProviderInit:

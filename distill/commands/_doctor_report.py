@@ -181,6 +181,13 @@ def _doctor_local_inference_section(  # noqa: C901
             f"  GPU:        [green]{profile.gpu_name}[/green]  "
             f"[dim]({profile.vram_gb:.0f} GB unified)[/dim]"
         )
+    elif profile.has_gpu:
+        # AMD / Intel. Their memory is shared with the system, so report that
+        # rather than a carve-out figure that reads as a hard capacity limit.
+        console.print(
+            f"  GPU:        [green]{profile.gpu_name or profile.gpu_type}[/green]  "
+            f"[dim](memory shared with system)[/dim]"
+        )
     else:
         console.print("  GPU:        [dim]none detected[/dim]")
 
@@ -201,6 +208,11 @@ def _doctor_local_inference_section(  # noqa: C901
                 console.print(f"              [dim]  ... and {len(ollama_models) - 5} more[/dim]")
     elif ollama_status in {"blocked", "untrusted"}:
         console.print("  Ollama:     [yellow]not probed (non-loopback endpoint)[/yellow]")
+    elif ollama_status == "unreadable":
+        console.print(
+            "  Ollama:     [yellow]responding, but its model list was unreadable[/yellow]"
+        )
+        console.print("              [dim]re-run with --verbose for the cause[/dim]")
     else:
         console.print("  Ollama:     [dim]not running[/dim]")
 

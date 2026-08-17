@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from distill.doctor.hardware import (
+    HardwareProfile,
     _detect_nvidia,
     _get_apple_chip_name,
     _get_linux_ram,
@@ -17,6 +18,7 @@ from distill.doctor.hardware import (
     _get_windows_ram,
     _is_container,
     _run_tool,
+    _vendor_from_name,
     detect_hardware,
 )
 
@@ -36,7 +38,8 @@ class TestDetectNvidia:
             result = _detect_nvidia()
 
         assert result is not None
-        gpu_type, gpu_name, vram_gb = result
+        gpu_type, gpu_name, vram_gb, dedicated = result
+        assert dedicated is True  # nvidia-smi reports a real dedicated ceiling
         assert gpu_type == "nvidia"
         assert gpu_name == "NVIDIA Test GPU"
         assert vram_gb == pytest.approx(24.0, abs=0.1)
@@ -102,7 +105,7 @@ class TestDetectNvidia:
         ):
             result = _detect_nvidia()
 
-        assert result == ("nvidia", "NVIDIA Test GPU", 0.0)
+        assert result == ("nvidia", "NVIDIA Test GPU", 0.0, True)
 
 
 class TestAppleChipName:
@@ -393,3 +396,56 @@ class TestDetectHardware:
         assert profile.vram_gb == 24.0
         assert profile.system_ram_gb == 24.0
         assert profile.is_container is False
+
+
+class TestVendorAndCapacitySemantics:
+    """A measured VRAM figure is not always a capacity ceiling."""
+
+    @pytest.mark.parametrize(
+        ("description", "expected"),
+        (
+            ("NVIDIA GeForce RTX 4090", "nvidia"),
+            ("AMD Radeon(TM) 780M", "amd"),
+            ("Intel(R) Iris(R) Xe Graphics", "intel"),
+            ("Intel(R) Arc(TM) A770", "intel"),
+            ("Microsoft Basic Display Adapter", "none"),
+        ),
+    )
+    def test_vendor_from_adapter_description(self, description: str, expected: str) -> None:
+        assert _vendor_from_name(description) == expected
+
+    def test_integrated_carve_out_is_not_a_capacity_ceiling(self) -> None:
+        """A 780M reports a 2GB carve-out but runs 18GB models from shared RAM."""
+        profile = HardwareProfile(
+            gpu_type="amd",
+            gpu_name="AMD Radeon(TM) 780M",
+            vram_gb=2.0,
+            system_ram_gb=62.0,
+            is_container=False,
+            vram_measured=True,
+            vram_is_dedicated=False,
+        )
+
+        assert profile.has_gpu is True
+        assert profile.vram_capacity_gb == 0.0  # no ceiling may be asserted
+
+    def test_dedicated_vram_is_a_capacity_ceiling(self) -> None:
+        profile = HardwareProfile(
+            gpu_type="nvidia",
+            gpu_name="RTX 4090",
+            vram_gb=24.0,
+            system_ram_gb=64.0,
+            is_container=False,
+            vram_measured=True,
+            vram_is_dedicated=True,
+        )
+
+        assert profile.vram_capacity_gb == 24.0
+
+    def test_absent_gpu_is_distinguishable_from_unmeasured(self) -> None:
+        absent = HardwareProfile("none", "", 0.0, 16.0, False)
+        present_unsized = HardwareProfile("intel", "Intel Arc", 0.0, 16.0, False)
+
+        assert absent.has_gpu is False
+        assert present_unsized.has_gpu is True
+        assert present_unsized.vram_capacity_gb == 0.0

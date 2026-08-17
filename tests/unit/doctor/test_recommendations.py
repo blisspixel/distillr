@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from distill.doctor import recommendations
 from distill.doctor.hardware import HardwareProfile
 from distill.doctor.recommendations import (
     ModelRecommendation,
@@ -34,13 +37,23 @@ class TestClassifyHardwareTier:
         profile = HardwareProfile("apple_silicon", "Apple 16GB Test Chip", 16.0, 16.0, False)
         assert _classify_hardware_tier(profile) == "apple_silicon_16gb"
 
-    def test_no_gpu(self) -> None:
+    def test_no_gpu_still_gets_a_ram_sized_tier(self) -> None:
+        """A CPU-only box runs models from RAM, so it must not be left tier-less.
+
+        Returning "" here meant `distill doctor` offered no model at all to
+        every non-NVIDIA, non-Apple machine.
+        """
         profile = HardwareProfile("none", "", 0.0, 8.0, False)
+        assert _classify_hardware_tier(profile) == "budget_8gb"
+
+    def test_machine_too_small_for_any_model_gets_no_tier(self) -> None:
+        profile = HardwareProfile("none", "", 0.0, 4.0, False)
         assert _classify_hardware_tier(profile) == ""
 
-    def test_nvidia_8gb_below_threshold(self) -> None:
-        profile = HardwareProfile("nvidia", "NVIDIA 8GB Test GPU", 8.0, 16.0, False)
-        assert _classify_hardware_tier(profile) == ""
+    def test_nvidia_below_12gb_falls_to_its_measured_vram_budget(self) -> None:
+        """A small discrete card is sized by its own VRAM ceiling, not by RAM."""
+        profile = HardwareProfile("nvidia", "NVIDIA 8GB Test GPU", 8.0, 16.0, False, True, True)
+        assert _classify_hardware_tier(profile) == "budget_8gb"
 
 
 class TestRecommendModels:
@@ -60,10 +73,15 @@ class TestRecommendModels:
         # Should recommend smaller models for 16GB
         assert all(r.context_window <= 131072 for r in recs)
 
-    def test_no_gpu_returns_empty(self) -> None:
+    def test_no_gpu_still_gets_a_recommendation(self) -> None:
+        """CPU-only is a supported way to run distill, so it gets real advice."""
         profile = HardwareProfile("none", "", 0.0, 8.0, False)
         recs = recommend_models(profile)
-        assert recs == []
+        assert [r.model_name for r in recs] == ["qwen3.5:4b"]
+
+    def test_machine_below_every_budget_returns_empty(self) -> None:
+        profile = HardwareProfile("none", "", 0.0, 4.0, False)
+        assert recommend_models(profile) == []
 
     def test_custom_config_file(self, tmp_path: Path) -> None:
         config = {
@@ -145,3 +163,23 @@ class TestEstimateThroughput:
     def test_apple_silicon_32gb_throughput(self) -> None:
         profile = HardwareProfile("apple_silicon", "Apple 32GB Test Chip", 32.0, 32.0, False)
         assert estimate_throughput(profile) == 25.0
+
+
+@pytest.mark.live_network
+def test_every_recommended_model_tag_resolves_in_the_ollama_registry() -> None:
+    """Recommended names are pull commands, so a phantom tag is a dead end.
+
+    `qwen3.5:14b` and `gemma4:27b` both shipped in this table and both 404, so
+    `distill doctor` handed 12-16GB and 32GB users models they could not pull.
+    Opt-in (`-m live_network`) because it queries the public registry.
+    """
+    import urllib.request
+
+    for entries in recommendations._DEFAULT_RECOMMENDATIONS.values():
+        for entry in entries:
+            name = str(entry["model_name"])
+            namespace, _, tag = name.partition(":")
+            url = f"https://registry.ollama.ai/v2/library/{namespace}/manifests/{tag or 'latest'}"
+            request = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(request, timeout=20) as response:
+                assert response.status == 200, f"{name} does not resolve in the registry"

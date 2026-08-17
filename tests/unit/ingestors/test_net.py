@@ -990,3 +990,35 @@ def test_proxy_detection_rejects_a_malformed_request_authority() -> None:
     )
 
     assert net._request_uses_proxy(request, "https://example.com/docs") is True
+
+
+def test_https_handler_does_not_forward_check_hostname() -> None:
+    """Python 3.12 dropped check_hostname from HTTPSConnection.__init__.
+
+    Forwarding it raised TypeError on every supported interpreter, so the
+    Playwright-less search fallback that uses this handler was dead as shipped.
+    """
+    captured: dict[str, Any] = {}
+
+    class _Recorder:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    handler = net._DeadlineHTTPSHandler()
+    handler._context = None
+    handler._check_hostname = True
+
+    def fake_do_open(conn_factory: Any, req: Any, **kwargs: Any) -> str:
+        conn_factory(req.host, **kwargs)
+        return "opened"
+
+    handler.do_open = fake_do_open  # type: ignore[method-assign]
+    request = urllib.request.Request("https://example.com/")
+    request.timeout = 5
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(net, "_DeadlineHTTPSConnection", _Recorder)
+        assert handler.https_open(request) == "opened"
+
+    assert "check_hostname" not in captured
+    assert "context" in captured

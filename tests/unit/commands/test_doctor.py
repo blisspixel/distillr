@@ -15,6 +15,7 @@ from distill.commands import _doctor_report as doctor_report_mod
 from distill.commands import doctor as doctor_mod
 from distill.config import DistillConfig
 from distill.doctor.adapters import AdapterDoctorReport, AdapterProbe
+from distill.doctor.hardware import HardwareProfile
 from distill.library import Library
 from distill.library.state import ChannelState
 
@@ -860,12 +861,14 @@ class TestDoctorLocalInferenceSection:
     def test_gpu_profiles(self, tmp_path, monkeypatch, gpu_type):
         config = _config(tmp_path, distill_cost_mode="paid-ok")
         monkeypatch.setenv("DISTILL_PROVIDER", "xai")
-        profile = SimpleNamespace(
+        profile = HardwareProfile(
             gpu_type=gpu_type,
             gpu_name="Test GPU",
             vram_gb=16.0,
             system_ram_gb=32.0,
             is_container=gpu_type == "none",
+            vram_measured=gpu_type != "none",
+            vram_is_dedicated=gpu_type == "nvidia",
         )
         monkeypatch.setattr("distill.doctor.hardware.detect_hardware", lambda: profile)
         monkeypatch.setattr(
@@ -896,7 +899,7 @@ class TestDoctorLocalInferenceSection:
 
     def test_local_ready_without_cloud_key(self, tmp_path, monkeypatch):
         config = _config(tmp_path, xai_api_key="")
-        profile = SimpleNamespace(
+        profile = HardwareProfile(
             gpu_type="none",
             gpu_name="",
             vram_gb=0.0,

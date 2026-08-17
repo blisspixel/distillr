@@ -7,9 +7,9 @@ Override with LMSTUDIO_BASE_URL environment variable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
-import time
 
 import httpx
 from openai import OpenAI
@@ -140,7 +140,9 @@ class LMStudioProvider:
                         exc,
                         wait,
                     )
-                    time.sleep(wait)
+                    # Coroutine: a blocking sleep here freezes the event loop
+                    # for the whole backoff, stalling every concurrent call.
+                    await asyncio.sleep(wait)
                 else:
                     raise
             else:

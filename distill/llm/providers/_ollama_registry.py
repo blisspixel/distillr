@@ -24,6 +24,25 @@ class TagRegistryLimits:
     string_chars: int
 
 
+# Ollama reports per-model capabilities on /api/tags. A model that cannot serve a
+# chat completion (an embedding model) can never run an analysis workload, so it
+# must never be auto-selected or recommended. Older servers omit the field
+# entirely; absence is treated as capable so this only excludes proven-incapable
+# models and never regresses an older install.
+_COMPLETION_CAPABILITIES = frozenset({"completion", "chat", "tools", "thinking", "vision"})
+
+
+def model_can_complete(model: dict[str, Any]) -> bool:
+    """True unless the server proves this model cannot serve a completion."""
+    raw = model.get("capabilities")
+    if not isinstance(raw, list):
+        return True
+    declared = {str(item).casefold() for item in cast(list[object], raw)}
+    if not declared:
+        return True
+    return bool(declared & _COMPLETION_CAPABILITIES)
+
+
 def bounded_context_window(value: object, *, maximum: int) -> int | None:
     """Return a positive, bounded integral context window when valid."""
 
@@ -54,6 +73,16 @@ def _bounded_scalar(value: object, *, field: str, limits: TagRegistryLimits) -> 
     raise ValueError(f"Ollama model field {field!r} has an invalid value shape")
 
 
+def _bounded_value(value: object, *, field: str, limits: TagRegistryLimits) -> object:
+    """Bound one scalar, or one bounded list of scalars, under the same limits."""
+    if isinstance(value, list):
+        values = cast(list[object], value)
+        if len(values) > limits.list_items:
+            raise ValueError(f"Ollama model field {field!r} list exceeds its item limit")
+        return [_bounded_scalar(item, field=field, limits=limits) for item in values]
+    return _bounded_scalar(value, field=field, limits=limits)
+
+
 def _bounded_details(value: object, *, limits: TagRegistryLimits) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Ollama model details must be an object")
@@ -64,19 +93,11 @@ def _bounded_details(value: object, *, limits: TagRegistryLimits) -> dict[str, A
     for raw_key, raw_value in details.items():
         if not isinstance(raw_key, str) or len(raw_key) > limits.field_name_chars:
             raise ValueError("Ollama model details has an invalid field name")
-        if isinstance(raw_value, list):
-            values = cast(list[object], raw_value)
-            if len(values) > limits.list_items:
-                raise ValueError("Ollama model details list exceeds its item limit")
-            bounded[raw_key] = [
-                _bounded_scalar(item, field=f"details.{raw_key}", limits=limits) for item in values
-            ]
-        else:
-            bounded[raw_key] = _bounded_scalar(
-                raw_value,
-                field=f"details.{raw_key}",
-                limits=limits,
-            )
+        bounded[raw_key] = _bounded_value(
+            raw_value,
+            field=f"details.{raw_key}",
+            limits=limits,
+        )
     return bounded
 
 
@@ -101,7 +122,8 @@ def _bounded_model(value: object, *, limits: TagRegistryLimits) -> dict[str, Any
         if raw_key == "details":
             bounded[raw_key] = _bounded_details(raw_value, limits=limits)
         else:
-            bounded[raw_key] = _bounded_scalar(raw_value, field=raw_key, limits=limits)
+            # Modern Ollama tags carry list-valued top-level fields (capabilities).
+            bounded[raw_key] = _bounded_value(raw_value, field=raw_key, limits=limits)
     return bounded
 
 

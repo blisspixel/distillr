@@ -494,11 +494,15 @@ class _DeadlineHTTPSConnection(http.client.HTTPSConnection):
 
 class _DeadlineHTTPSHandler(urllib.request.HTTPSHandler):
     def https_open(self, req):  # type: ignore[override] - urllib exposes a dynamic handler signature
+        # Python 3.12 removed ``check_hostname`` from ``HTTPSConnection.__init__``;
+        # forwarding it raised TypeError on every supported interpreter, so this
+        # whole fallback path was dead as shipped (requires-python is >= 3.12).
+        # Hostname verification rides on the SSLContext, exactly as CPython's own
+        # HTTPSHandler.https_open does on 3.12+.
         return self.do_open(
             _DeadlineHTTPSConnection,
             req,
             context=getattr(self, "_context", None),
-            check_hostname=getattr(self, "_check_hostname", None),
         )
 
 

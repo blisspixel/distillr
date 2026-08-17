@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -147,7 +147,7 @@ def test_retry_count(retries: int) -> None:
     mock_client.chat.completions.create = counting_create
 
     with (
-        patch("distill.llm.providers.lmstudio.time.sleep"),
+        patch("distill.llm.providers.lmstudio.asyncio.sleep", new_callable=AsyncMock),
         pytest.raises(RuntimeError, match="transient server error"),
     ):
         asyncio.run(provider.call("test-model", "test prompt", retries=retries))
@@ -242,7 +242,9 @@ class TestLMStudioProviderRetry:
             _make_mock_response(text="ok", prompt_tokens=5, completion_tokens=3),
         ]
 
-        with patch("distill.llm.providers.lmstudio.time.sleep") as mock_sleep:
+        with patch(
+            "distill.llm.providers.lmstudio.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             result = asyncio.run(provider.call("local-model", "hello", retries=2))
 
         assert result.text == "ok"
@@ -257,7 +259,7 @@ class TestLMStudioProviderRetry:
         mock_client.chat.completions.create.side_effect = RuntimeError("permanent error")
 
         with (
-            patch("distill.llm.providers.lmstudio.time.sleep"),
+            patch("distill.llm.providers.lmstudio.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(RuntimeError, match="permanent error"),
         ):
             asyncio.run(provider.call("local-model", "hello", retries=2))
@@ -272,7 +274,7 @@ class TestLMStudioProviderRetry:
         ]
         emitted: list[LLMUsageAttempt] = []
 
-        with patch("distill.llm.providers.lmstudio.time.sleep"):
+        with patch("distill.llm.providers.lmstudio.asyncio.sleep", new_callable=AsyncMock):
             result = asyncio.run(
                 provider.call(
                     "hosted-model",
