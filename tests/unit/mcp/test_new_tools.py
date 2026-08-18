@@ -132,12 +132,16 @@ class TestCostsTool:
         assert result["total_cost"] == 0.15
 
     def test_malformed_cost_rows_do_not_break_summary(self, mock_config):
+        # Timestamps must be relative to now: `costs()` applies a 30-day lookback,
+        # so a hardcoded date silently ages out of the window and turns this into
+        # a test that passes until a fixed calendar date and fails forever after.
+        recent = (datetime.now() - timedelta(days=1)).isoformat(timespec="seconds")
         log_file = mock_config.library_dir / "cost_log.jsonl"
         entries = [
             "not-json",
             '["not", "an", "object"]',
-            '{"command":"learn","actual_cost":0.25,"timestamp":"2026-07-18T10:00:00"}',
-            '{"command":"bad","actual_cost":"not-a-number","timestamp":"2026-07-18T10:00:00"}',
+            f'{{"command":"learn","actual_cost":0.25,"timestamp":"{recent}"}}',
+            f'{{"command":"bad","actual_cost":"not-a-number","timestamp":"{recent}"}}',
         ]
         log_file.write_text("\n".join(entries), encoding="utf-8")
 

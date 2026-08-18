@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from distill.doctor import hardware as hardware_mod
 from distill.doctor.hardware import (
     HardwareProfile,
+    _detect_amd,
     _detect_nvidia,
+    _detect_windows_adapter,
     _get_apple_chip_name,
     _get_linux_ram,
     _get_macos_ram,
@@ -449,3 +453,160 @@ class TestVendorAndCapacitySemantics:
         assert absent.has_gpu is False
         assert present_unsized.has_gpu is True
         assert present_unsized.vram_capacity_gb == 0.0
+
+
+class TestAmdDetection:
+    """AMD is detected from a vendor tool or the kernel, on any platform."""
+
+    def test_rocm_smi_reports_total_vram(self) -> None:
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = "device,VRAM Total Memory (B)\ncard0,25769803776\n"
+
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value="rocm-smi"),
+            patch("subprocess.run", return_value=result),
+        ):
+            assert _detect_amd() == ("amd", "AMD GPU", 24.0, True)
+
+    def test_rocm_smi_absent_falls_through_to_sysfs(self, tmp_path: Path) -> None:
+        vram_node = tmp_path / "card0" / "device" / "mem_info_vram_total"
+        vram_node.parent.mkdir(parents=True)
+        vram_node.write_text("17179869184\n", encoding="utf-8")
+
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value=None),
+            patch.object(hardware_mod.Path, "glob", return_value=[vram_node]),
+        ):
+            assert _detect_amd() == ("amd", "AMD GPU", 16.0, True)
+
+    def test_rocm_smi_nonzero_exit_is_not_a_detection(self) -> None:
+        result = MagicMock()
+        result.returncode = 1
+        result.stdout = ""
+
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value="rocm-smi"),
+            patch("subprocess.run", return_value=result),
+            patch.object(hardware_mod.Path, "glob", return_value=[]),
+        ):
+            assert _detect_amd() is None
+
+    def test_unreadable_sysfs_node_is_skipped(self, tmp_path: Path) -> None:
+        bad = tmp_path / "card0" / "device" / "mem_info_vram_total"
+        bad.parent.mkdir(parents=True)
+        bad.write_text("not-a-number", encoding="utf-8")
+
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value=None),
+            patch.object(hardware_mod.Path, "glob", return_value=[bad]),
+        ):
+            assert _detect_amd() is None
+
+    def test_no_amd_anywhere(self) -> None:
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value=None),
+            patch.object(hardware_mod.Path, "glob", side_effect=OSError),
+        ):
+            assert _detect_amd() is None
+
+
+class _FakeWinreg:
+    """Minimal winreg stand-in over a {subkey: {value: data}} tree."""
+
+    HKEY_LOCAL_MACHINE = object()
+
+    def __init__(self, tree: dict[str, dict[str, object]]) -> None:
+        self._tree = tree
+
+    def OpenKey(self, root: object, name: str):
+        if isinstance(root, _FakeWinreg._Key):
+            return _FakeWinreg._Key(self, name)
+        return _FakeWinreg._Key(self, None)
+
+    def EnumKey(self, key: object, index: int) -> str:
+        names = list(self._tree)
+        if index >= len(names):
+            raise OSError("no more items")
+        return names[index]
+
+    def QueryValueEx(self, key: object, name: str):
+        values = self._tree.get(getattr(key, "name", "") or "", {})
+        if name not in values:
+            raise OSError(name)
+        return (values[name], 0)
+
+    class _Key:
+        def __init__(self, owner: _FakeWinreg, name: str | None) -> None:
+            self.owner = owner
+            self.name = name
+
+        def __enter__(self) -> _FakeWinreg._Key:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+
+class TestWindowsAdapterDetection:
+    """The Windows fallback names a GPU without spawning a subprocess."""
+
+    @staticmethod
+    def _detect(tree: dict[str, dict[str, object]]):
+        fake = _FakeWinreg(tree)
+        with patch.dict("sys.modules", {"winreg": fake}):
+            return _detect_windows_adapter()
+
+    def test_amd_adapter_with_qword_memory(self) -> None:
+        result = self._detect(
+            {
+                "0000": {
+                    "DriverDesc": "AMD Radeon(TM) 780M",
+                    "HardwareInformation.qwMemorySize": 2147483648,
+                }
+            }
+        )
+        # The registry cannot tell a carve-out from dedicated VRAM, so never
+        # report this figure as a capacity ceiling.
+        assert result == ("amd", "AMD Radeon(TM) 780M", 2.0, False)
+
+    def test_byte_encoded_memory_value_is_decoded(self) -> None:
+        result = self._detect(
+            {
+                "0000": {
+                    "DriverDesc": "Intel(R) Arc(TM) A770",
+                    "HardwareInformation.MemorySize": (16 * 1024**3).to_bytes(8, "little"),
+                }
+            }
+        )
+        assert result == ("intel", "Intel(R) Arc(TM) A770", 16.0, False)
+
+    def test_adapter_without_a_memory_value_still_names_the_gpu(self) -> None:
+        result = self._detect({"0000": {"DriverDesc": "NVIDIA GeForce RTX 4090"}})
+        assert result == ("nvidia", "NVIDIA GeForce RTX 4090", 0.0, False)
+
+    def test_non_numeric_subkeys_and_missing_descriptions_are_skipped(self) -> None:
+        result = self._detect(
+            {
+                "Properties": {"DriverDesc": "ignored, not a numeric subkey"},
+                "0000": {"HardwareInformation.qwMemorySize": 1},
+                "0001": {"DriverDesc": "AMD Radeon RX 7900"},
+            }
+        )
+        assert result == ("amd", "AMD Radeon RX 7900", 0.0, False)
+
+    def test_unreadable_registry_reports_no_adapter(self) -> None:
+        class _Broken:
+            HKEY_LOCAL_MACHINE = object()
+
+            def OpenKey(self, *args: object):
+                raise OSError("access denied")
+
+        with patch.dict("sys.modules", {"winreg": _Broken()}):
+            assert _detect_windows_adapter() is None
+
+    def test_unparseable_memory_value_degrades_to_unsized(self) -> None:
+        result = self._detect(
+            {"0000": {"DriverDesc": "AMD Radeon", "HardwareInformation.qwMemorySize": "huge"}}
+        )
+        assert result == ("amd", "AMD Radeon", 0.0, False)

@@ -1495,3 +1495,56 @@ def test_malformed_chat_frames_are_skipped_not_crashed() -> None:
         response = asyncio.run(provider._stream_chat("m", {}, 5))  # pyright: ignore[reportPrivateUsage]
 
     assert response.text == "hello"
+
+
+class TestShowProbeDegradation:
+    """Capability discovery must never fail the call it is trying to improve."""
+
+    def test_unreachable_server_yields_no_capabilities(self) -> None:
+        probe = ShowProbe(
+            "http://localhost:11434", trust_env=False, parse_context_window=lambda _: 0
+        )
+
+        with patch("httpx.AsyncClient", side_effect=httpx.ConnectError("refused")):
+            assert asyncio.run(probe.capabilities("any:model")) == frozenset()
+            # Unknown, not "no" -- the caller falls back to its own heuristic.
+            assert asyncio.run(probe.supports_thinking("any:model")) is None
+
+    def test_capabilities_are_cached_after_a_successful_read(self) -> None:
+        calls: list[str] = []
+
+        class _Resp:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, Any]:
+                return {"capabilities": ["completion", "thinking"]}
+
+        class _Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+            async def post(self, url: str, *, json: Any = None):
+                calls.append(url)
+                return _Resp()
+
+        probe = ShowProbe(
+            "http://localhost:11434", trust_env=False, parse_context_window=lambda _: 0
+        )
+        with patch("httpx.AsyncClient", return_value=_Client()):
+            assert asyncio.run(probe.capabilities("m")) == frozenset({"completion", "thinking"})
+            assert asyncio.run(probe.capabilities("m")) == frozenset({"completion", "thinking"})
+
+        assert len(calls) == 1
+
+    def test_a_recorded_refusal_overrides_reported_capabilities(self) -> None:
+        probe = ShowProbe(
+            "http://localhost:11434", trust_env=False, parse_context_window=lambda _: 0
+        )
+        probe.mark_thinking_unsupported("qwen3-coder:30b")
+
+        # No HTTP call is needed once the server has refused the flag outright.
+        assert asyncio.run(probe.supports_thinking("qwen3-coder:30b")) is False

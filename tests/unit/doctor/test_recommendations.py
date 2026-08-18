@@ -183,3 +183,37 @@ def test_every_recommended_model_tag_resolves_in_the_ollama_registry() -> None:
             request = urllib.request.Request(url, method="HEAD")
             with urllib.request.urlopen(request, timeout=20) as response:
                 assert response.status == 200, f"{name} does not resolve in the registry"
+
+
+class TestBudgetTier:
+    """Machines outside the NVIDIA/Apple ladders are sized by real budget."""
+
+    def test_dedicated_ceiling_wins_over_system_ram(self) -> None:
+        """A small discrete card is capped by its VRAM, not by a large RAM pool."""
+        profile = HardwareProfile("nvidia", "8GB card", 8.0, 128.0, False, True, True)
+        assert recommendations._budget_tier(profile) == "budget_8gb"
+
+    def test_shared_memory_gpu_is_sized_on_system_ram(self) -> None:
+        """An integrated GPU's carve-out is not a ceiling, so RAM is the budget."""
+        profile = HardwareProfile("amd", "Radeon 780M", 2.0, 62.0, False, True, False)
+        assert recommendations._budget_tier(profile) == "budget_48gb"
+
+    @pytest.mark.parametrize(
+        ("ram", "expected"),
+        (
+            (64.0, "budget_48gb"),
+            (48.0, "budget_48gb"),
+            (32.0, "budget_24gb"),
+            (24.0, "budget_24gb"),
+            (16.0, "budget_8gb"),
+            (8.0, "budget_8gb"),
+            (4.0, ""),
+        ),
+    )
+    def test_thresholds(self, ram: float, expected: str) -> None:
+        assert (
+            recommendations._budget_tier(HardwareProfile("none", "", 0.0, ram, False)) == expected
+        )
+
+    def test_unknown_ram_yields_no_tier(self) -> None:
+        assert recommendations._budget_tier(HardwareProfile("none", "", 0.0, 0.0, False)) == ""
