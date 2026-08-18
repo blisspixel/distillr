@@ -21,6 +21,18 @@ class LLM_Response:
     provider_type: str = ""
     usage_source: str = "reported"
     usage_attempts: tuple[LLMUsageAttempt, ...] = ()
+    # Phase timings, when the provider reports them. Local runtimes separate
+    # weight loading, prompt prefill, and token decode, and those rates differ
+    # by several times -- a single "tokens per second" over total elapsed time
+    # conflates all three and understates decode by up to 100x on a cold call.
+    # 0.0 means "not reported", never "zero seconds".
+    load_seconds: float = 0.0
+    prefill_seconds: float = 0.0
+    decode_seconds: float = 0.0
+    # Context window the provider actually resolved for this call. Recorded
+    # because two machines running one model can silently use different
+    # windows, and the window changes both memory use and speed.
+    num_ctx: int = 0
 
 
 class UsageTracker(Protocol):

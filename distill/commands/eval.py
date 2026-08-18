@@ -24,6 +24,7 @@ from distill.commands._helpers import (
     run_preflight,
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
+from distill.doctor.hardware import HardwareProfile
 from distill.jsonl import append_jsonl_lines
 from distill.llm.cost_policy import evaluate_route_cost_policy
 from distill.llm.providers._ollama_registry import model_can_complete
@@ -31,6 +32,10 @@ from distill.llm.providers._ollama_registry import model_can_complete
 __all__ = ["eval_cmd", "register"]
 
 logger = logging.getLogger(__name__)
+
+# Headroom left for the OS when weights share system memory.
+_OS_RESERVE_GB = 8.0
+_OS_RESERVE_SHARE = 0.25
 
 
 def _append_results_log(path: Path, lines: Iterable[str]) -> None:
@@ -73,24 +78,43 @@ def _ollama_model_sizes() -> dict[str, float]:
         return {}
 
 
-def _best_local_model() -> str | None:
-    """Pick a sensible installed Ollama model for the machine, or None if none.
+def local_memory_budget_gb(profile: HardwareProfile) -> float:
+    """GB available to hold model weights on this machine.
 
-    With a GPU: the largest model that fits VRAM (best quality that runs). Without
-    a usable VRAM probe (CPU/AMD/Intel): the smallest installed (most usable on CPU).
+    A dedicated VRAM ceiling is the budget when one was actually measured.
+    Otherwise weights live in system RAM -- true for CPU-only machines, for
+    Apple unified memory, and for an integrated GPU whose reported VRAM is a
+    BIOS carve-out rather than a limit. Reserve headroom for the OS and the
+    rest of the working set, because a model that swaps is worse than a
+    smaller one that does not.
+    """
+    if profile.vram_capacity_gb > 0:
+        return profile.vram_capacity_gb
+    if profile.system_ram_gb <= 0:
+        return 0.0
+    return profile.system_ram_gb - min(_OS_RESERVE_GB, profile.system_ram_gb * _OS_RESERVE_SHARE)
+
+
+def _best_local_model() -> str | None:
+    """Largest installed model that fits this machine's memory budget.
+
+    Largest-that-fits, not smallest: the size ordering is a fit statement, not
+    a quality claim -- `distill eval` is the arbiter of whether a model is good
+    enough. Reading `vram_gb` here instead of `vram_capacity_gb` was a real bug:
+    an integrated GPU reports a 2GB carve-out, nothing fit it, and selection
+    silently fell back to the smallest installed model.
     """
     sizes = _ollama_model_sizes()
     if not sizes:
         return None
     from distill.doctor.hardware import detect_hardware
 
-    vram = detect_hardware().vram_gb
-    if vram > 0:
-        fitting = {n: gb for n, gb in sizes.items() if gb <= vram}
-        if fitting:
-            return max(fitting, key=lambda n: fitting[n])  # largest that fits
-        return min(sizes, key=lambda n: sizes[n])  # nothing fits → smallest
-    return min(sizes, key=lambda n: sizes[n])  # no GPU → smallest is most usable
+    budget = local_memory_budget_gb(detect_hardware())
+    fitting = {name: gb for name, gb in sizes.items() if gb <= budget}
+    if fitting:
+        return max(fitting, key=lambda name: fitting[name])
+    # Nothing fits the budget: the smallest is the only one with a chance.
+    return min(sizes, key=lambda name: sizes[name])
 
 
 def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + results log

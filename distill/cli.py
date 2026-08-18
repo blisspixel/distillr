@@ -82,6 +82,7 @@ from distill.commands._helpers import _file_link  # noqa: F401
 # attaches each command to ``app``.
 from distill.commands.ask import register as _register_ask
 from distill.commands.audit import register as _register_audit
+from distill.commands.bench import register as _register_bench
 from distill.commands.claude_md import register as _register_claude_md
 from distill.commands.concepts import concepts_app
 from distill.commands.concepts import register as _register_concepts_recovery
@@ -106,6 +107,7 @@ from distill.commands.profile import register as _register_profile
 from distill.commands.provider import register as _register_provider
 from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
+from distill.commands.roles import register as _register_roles
 from distill.commands.skill import skill_app
 from distill.commands.topic import (  # noqa: F401
     _collect_topic_bundle_files,
@@ -147,6 +149,8 @@ _register_intent(app)
 _register_maintain(app)
 _register_provider(app)
 _register_doctor(app)
+_register_bench(app)
+_register_roles(app)
 _register_eval(app)
 _register_reprocess(app)
 _register_okf(app)

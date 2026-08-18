@@ -610,3 +610,72 @@ class TestWindowsAdapterDetection:
             {"0000": {"DriverDesc": "AMD Radeon", "HardwareInformation.qwMemorySize": "huge"}}
         )
         assert result == ("amd", "AMD Radeon", 0.0, False)
+
+
+class TestDetectionDegradesToNoGpu:
+    """Every probe failing must report "none", never crash or invent a device."""
+
+    def test_all_probes_absent_reports_no_gpu(self) -> None:
+        with (
+            patch("distill.doctor.hardware.resolve_executable", return_value=None),
+            patch.object(hardware_mod.Path, "glob", side_effect=OSError),
+            patch("platform.system", return_value="Linux"),
+            patch("distill.doctor.hardware._get_system_ram", return_value=16.0),
+            patch("distill.doctor.hardware._is_container", return_value=False),
+        ):
+            profile = detect_hardware()
+
+        assert profile.gpu_type == "none"
+        assert profile.has_gpu is False
+        assert profile.vram_measured is False
+        assert profile.vram_capacity_gb == 0.0
+
+    def test_windows_registry_absent_reports_no_adapter(self) -> None:
+        """A machine with no display-adapter key must not raise."""
+
+        class _Empty:
+            HKEY_LOCAL_MACHINE = object()
+
+            class _Key:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc: object) -> None:
+                    return None
+
+            def OpenKey(self, *args: object):
+                return self._Key()
+
+            def EnumKey(self, key: object, index: int) -> str:
+                raise OSError("no more items")
+
+        with patch.dict("sys.modules", {"winreg": _Empty()}):
+            assert _detect_windows_adapter() is None
+
+    def test_a_subkey_that_cannot_be_opened_is_skipped(self) -> None:
+        class _Broken:
+            HKEY_LOCAL_MACHINE = object()
+            _depth = 0
+
+            class _Key:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *exc: object) -> None:
+                    return None
+
+            def OpenKey(self, root: object, name: str = ""):
+                if name == "0000":
+                    raise OSError("access denied")
+                return self._Key()
+
+            def EnumKey(self, key: object, index: int) -> str:
+                if index == 0:
+                    return "0000"
+                raise OSError("no more items")
+
+            def QueryValueEx(self, key: object, name: str):
+                raise OSError(name)
+
+        with patch.dict("sys.modules", {"winreg": _Broken()}):
+            assert _detect_windows_adapter() is None

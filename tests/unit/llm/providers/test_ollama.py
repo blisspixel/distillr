@@ -1548,3 +1548,74 @@ class TestShowProbeDegradation:
 
         # No HTTP call is needed once the server has refused the flag outright.
         assert asyncio.run(probe.supports_thinking("qwen3-coder:30b")) is False
+
+
+class TestPhaseTimings:
+    """The done frame carries load/prefill/decode separately; capture all three."""
+
+    @staticmethod
+    def _done_frame(**overrides: object) -> dict[str, Any]:
+        frame: dict[str, Any] = {
+            "done": True,
+            "message": {"content": "hi"},
+            "prompt_eval_count": 1024,
+            "eval_count": 64,
+            "load_duration": 20_000_000_000,
+            "prompt_eval_duration": 8_000_000_000,
+            "eval_duration": 4_000_000_000,
+        }
+        frame.update(overrides)
+        return frame
+
+    def _call(self, frame: dict[str, Any]) -> LLM_Response:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        client = _FakeStreamClient([frame])
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            return asyncio.run(provider.call("m", "hello", max_tokens=64))
+
+    def test_durations_are_converted_from_nanoseconds(self) -> None:
+        response = self._call(self._done_frame())
+
+        assert response.load_seconds == 20.0
+        assert response.prefill_seconds == 8.0
+        assert response.decode_seconds == 4.0
+
+    def test_absent_timings_read_as_not_reported(self) -> None:
+        """Every timing field is omitted rather than zero when unavailable."""
+        frame = self._done_frame()
+        for field in ("load_duration", "prompt_eval_duration", "eval_duration"):
+            del frame[field]
+
+        response = self._call(frame)
+
+        assert (response.load_seconds, response.prefill_seconds, response.decode_seconds) == (
+            0.0,
+            0.0,
+            0.0,
+        )
+
+    def test_nonsense_timings_are_rejected_rather_than_propagated(self) -> None:
+        """A negative or non-numeric duration must not poison a rate."""
+        response = self._call(
+            self._done_frame(load_duration=-5, prompt_eval_duration="soon", eval_duration=True)
+        )
+
+        assert (response.load_seconds, response.prefill_seconds, response.decode_seconds) == (
+            0.0,
+            0.0,
+            0.0,
+        )
+
+    def test_wall_clock_would_understate_decode_by_20x(self) -> None:
+        """The reason phase timings exist, pinned as a regression."""
+        response = self._call(self._done_frame())
+
+        wall = response.load_seconds + response.prefill_seconds + response.decode_seconds
+        naive = response.output_tokens / wall
+        honest = response.output_tokens / response.decode_seconds
+
+        assert honest / naive == pytest.approx(8.0, rel=0.01)
+        assert response.num_ctx > 0  # recorded for cross-machine comparability

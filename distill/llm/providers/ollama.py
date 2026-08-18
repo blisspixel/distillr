@@ -33,6 +33,9 @@ from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPr
     parse_chat_frame,
     parse_context_window,
 )
+from distill.llm.providers._ollama_metadata import (
+    frame_seconds as _frame_seconds,
+)
 from distill.llm.providers._ollama_registry import (
     TagRegistryLimits,
     parse_running_model_names,
@@ -158,6 +161,7 @@ class OllamaProvider:
                     supports_thinking=await self._show.supports_thinking(model),
                 )
                 response = await self._stream_chat(model, payload, timeout)
+                response = replace(response, num_ctx=num_ctx)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 surfaced = ConnectionError(
                     f"Cannot reach Ollama at {self._base_url}. "
@@ -371,6 +375,9 @@ class OllamaProvider:
         thinking_parts: list[str] = []
         input_tokens = 0
         output_tokens = 0
+        load_seconds = 0.0
+        prefill_seconds = 0.0
+        decode_seconds = 0.0
         async with (
             httpx.AsyncClient(
                 timeout=httpx.Timeout(timeout, connect=10.0),
@@ -400,6 +407,12 @@ class OllamaProvider:
                 if frame.get("done"):
                     input_tokens = frame.get("prompt_eval_count", 0) or 0
                     output_tokens = frame.get("eval_count", 0) or 0
+                    # Ollama reports each phase separately, in nanoseconds. They
+                    # are the only honest basis for a rate: wall-clock elapsed
+                    # includes a model load that can be 40s on a 17GB model.
+                    load_seconds = _frame_seconds(frame, "load_duration")
+                    prefill_seconds = _frame_seconds(frame, "prompt_eval_duration")
+                    decode_seconds = _frame_seconds(frame, "eval_duration")
         content = "".join(content_parts)
         thinking = "".join(thinking_parts)
         return LLM_Response(
@@ -407,6 +420,9 @@ class OllamaProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=model,
+            load_seconds=load_seconds,
+            prefill_seconds=prefill_seconds,
+            decode_seconds=decode_seconds,
         )
 
     _MIN_NUM_CTX: int = 4096

@@ -124,6 +124,22 @@
         },
         {
           "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "role",
+          "names": [
+            "--role"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
           "default": null,
           "flag_value": null,
           "is_flag": true,
@@ -325,6 +341,45 @@
         }
       ],
       "path": "distill audit"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "json_out",
+          "names": [
+            "--json"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "installed",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "models",
+          "names": [
+            "--models",
+            "-m"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill bench"
     },
     {
       "parameters": [
@@ -4519,6 +4574,38 @@
         }
       ],
       "path": "distill resynthesize"
+    },
+    {
+      "invoke_without_command": true,
+      "parameters": [],
+      "path": "distill roles"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "role",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "model",
+          "nargs": 1,
+          "position": 1,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill roles set"
     },
     {
       "parameters": [

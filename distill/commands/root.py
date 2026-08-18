@@ -7,6 +7,7 @@ import os
 import sys
 
 import typer
+from rich.markup import escape
 
 from distill._app import app
 from distill._version import get_version
@@ -59,6 +60,11 @@ def default_callback(
         "-p",
         help="Override analysis provider for all workloads (xai, gemini, anthropic, ollama, ...)",
     ),
+    role: str = typer.Option(
+        "",
+        "--role",
+        help="Local model role for this run: fast | standard | deep | unfiltered",
+    ),
     cost_mode: str = typer.Option("", "--cost-mode", help="Override cost policy"),
     version: bool = typer.Option(
         False,
@@ -83,6 +89,7 @@ def default_callback(
     # In --json mode, redirect all human/progress/diagnostic output to stderr so
     # stdout carries only the JSON envelope. Called every invocation so a reused
     # process resets the stream instead of leaking a prior redirect.
+    model = _apply_role_override(role, model)
     effective_debug = _apply_output_mode(
         ctx,
         quiet=quiet,
@@ -142,3 +149,37 @@ def get_provider_override(ctx: typer.Context | None = None) -> str:
     if ctx and ctx.obj:
         return ctx.obj.get("provider", "")
     return ""
+
+
+def _apply_role_override(role: str, model: str) -> str:
+    """Resolve ``--role`` to a model id, unless ``--model`` already named one.
+
+    An explicit ``--model`` always wins: naming a model is more specific than
+    naming a role, and silently overriding it would make the more precise flag
+    the weaker one. An unconfigured role is a usage error rather than a silent
+    fallback -- falling back would run the wrong brain without saying so.
+    """
+    # These annotations describe the Typer-parsed contract, not a runtime
+    # guarantee: the callback is also invoked directly (tests, internal callers),
+    # where an unpassed option arrives as Typer's OptionInfo sentinel. Dropping
+    # these checks makes a direct call raise AttributeError on .strip().
+    if not isinstance(role, str) or not role.strip():  # pyright: ignore[reportUnnecessaryIsInstance]  -- runtime sentinel, not str
+        return model
+    requested = role.strip().lower()
+    from distill.commands._json import ExitCode
+    from distill.llm.model_roles import ROLES, resolve_role_model
+
+    if requested not in ROLES:
+        console.print(f"[red]Unknown --role '{escape(role)}'.[/red] Choose: {', '.join(ROLES)}.")
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    if isinstance(model, str) and model.strip():  # pyright: ignore[reportUnnecessaryIsInstance]  -- runtime sentinel, not str
+        return model  # --model is the more specific instruction
+    resolved = resolve_role_model(requested)
+    if not resolved:
+        console.print(
+            f"[red]No model assigned to the '{requested}' role.[/red] "
+            f"Set it with `distill roles set {requested} <model-id>`, "
+            f"or see suggestions with `distill roles`."
+        )
+        raise typer.Exit(ExitCode.CONFIG_ERROR)
+    return resolved
