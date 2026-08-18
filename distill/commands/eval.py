@@ -9,6 +9,7 @@ register() from distill.cli.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -24,8 +25,12 @@ from distill.commands._helpers import (
 )
 from distill.commands._helpers import tty_confirm as _tty_confirm
 from distill.jsonl import append_jsonl_lines
+from distill.llm.cost_policy import evaluate_route_cost_policy
+from distill.llm.providers._ollama_registry import model_can_complete
 
 __all__ = ["eval_cmd", "register"]
+
+logger = logging.getLogger(__name__)
 
 
 def _append_results_log(path: Path, lines: Iterable[str]) -> None:
@@ -35,7 +40,12 @@ def _append_results_log(path: Path, lines: Iterable[str]) -> None:
 
 
 def _ollama_model_sizes() -> dict[str, float]:
-    """Map installed Ollama model name -> on-disk size in GB ({} if unavailable)."""
+    """Map completion-capable Ollama model name -> on-disk size in GB.
+
+    Returns ``{}`` when Ollama is unreachable, non-loopback, or unreadable.
+    Embedding-only models are excluded: they are installed and sized like any
+    other model but cannot serve the chat completion an eval workload needs.
+    """
     import asyncio
 
     from distill.llm.cost_policy import classify_provider
@@ -54,9 +64,12 @@ def _ollama_model_sizes() -> dict[str, float]:
         return {
             str(m.get("name", "")): float(m.get("size", 0) or 0) / 1e9
             for m in models_data
-            if m.get("name")
+            if m.get("name") and model_can_complete(m)
         }
-    except (ConnectionError, Exception):
+    except Exception:
+        # Silence here previously made a registry-parse regression look exactly
+        # like "no local models installed", which disables the local eval gate.
+        logger.warning("Ollama model discovery failed; treating as no local models", exc_info=True)
         return {}
 
 
@@ -156,9 +169,20 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
         raise typer.Exit(1)
 
     config = get_config()
-    # Adaptive defaults: cloud (grok-4.6) when an XAI key exists, else a fitting
-    # local Ollama model — so a local-only user runs `distill eval` without keys.
-    cloud_ok = bool(config.xai_api_key)
+    # Adaptive defaults: cloud (grok-4.6) when an XAI key exists AND the active
+    # cost policy actually permits a metered route, else a fitting local model.
+    # Without the policy check, `--cost-mode no-metered eval` selected grok-4.6
+    # as model and anchor, quoted a spend estimate for it, then failed every
+    # fixture on the route block and still exited 0 -- a green run full of zeros
+    # on exactly the cost mode the docs recommend.
+    cloud_ok = (
+        bool(config.xai_api_key)
+        and evaluate_route_cost_policy(
+            cost_mode=config.distill_cost_mode,
+            provider="xai",
+            workload="eval",
+        ).allowed
+    )
     best_local = _best_local_model()
     if models == "auto":
         models = "grok-4.6" if cloud_ok else (best_local or "")
@@ -199,7 +223,12 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
     from distill.doctor.hardware import detect_hardware
 
     local_models = [m for m in model_list if provider_for_model(m) in ("ollama", "lmstudio")]
-    vram = detect_hardware().vram_gb
+    profile = detect_hardware()
+    # Only a dedicated-VRAM measurement is a real capacity ceiling. Unified
+    # memory and an integrated GPU's BIOS carve-out are not: a 780M reports 2GB
+    # and still runs an 18GB model out of shared system RAM, so gating on that
+    # figure would disqualify every model the machine can actually run.
+    vram = profile.vram_capacity_gb
     if vram > 0 and local_models:
         sizes = _ollama_model_sizes()
         oversized = [m for m in local_models if sizes.get(m, 0.0) > vram and m != anchor]
@@ -213,12 +242,18 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
             console.print(
                 "[dim]Skipped the above (pass --allow-oversized to run them anyway).[/dim]"
             )
-    elif vram <= 0 and local_models:
-        # No usable GPU detected (CPU-only, AMD/Intel without a VRAM probe, etc.).
-        # Don't block — local just runs on CPU (slow). Cloud models are unaffected.
+    elif local_models and not profile.has_gpu:
+        # Say "CPU" only when no accelerator was found. Claiming it whenever the
+        # VRAM probe came up empty told every AMD/Intel owner their GPU-served
+        # run would be slow on CPU.
         console.print(
-            "[dim]No GPU VRAM detected - local models will run on CPU (slow); "
+            "[dim]No GPU detected - local models will run on CPU (slow); "
             "cloud models are unaffected.[/dim]"
+        )
+    elif local_models and not profile.vram_is_dedicated:
+        console.print(
+            f"[dim]{profile.gpu_name or profile.gpu_type} detected; memory is shared with the "
+            "system, so model size is not capped here.[/dim]"
         )
 
     needs_xai = provider_for_model(judge) == "xai" or any(

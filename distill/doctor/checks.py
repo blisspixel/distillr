@@ -13,6 +13,7 @@ present the results.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -21,6 +22,7 @@ from typing import Any, Literal, Protocol, cast
 
 from distill.config import DistillConfig
 from distill.llm.cost_policy import route_block_reason
+from distill.llm.providers._ollama_registry import model_can_complete
 from distill.llm.providers._usage import conservative_usage, usage_or_conservative
 from distill.pipeline.costs import (
     BudgetExceededError,
@@ -28,6 +30,8 @@ from distill.pipeline.costs import (
     TokenUsage,
     save_run_log,
 )
+
+logger = logging.getLogger(__name__)
 
 type DoctorKeyStatus = Literal[
     "ok",
@@ -582,7 +586,10 @@ def check_ollama_status() -> tuple[str, list[str]]:
 def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUnusedFunction] "called via public check_ollama_status seam and tests through dynamic lookup"
     """Check if Ollama server is running and list available models.
 
-    Returns (status, model_names) where status is "running" or "unavailable".
+    Returns (status, model_names) where status is "running", "unavailable"
+    (nothing answered) or "unreadable" (it answered, we could not use it).
+    Collapsing the second and third into one status reported a registry-parse
+    regression as "not running", sending operators to restart a healthy server.
     """
     import asyncio
 
@@ -595,10 +602,21 @@ def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUn
         except RuntimeError:
             loop = asyncio.get_event_loop()
             models_data = loop.run_until_complete(provider.list_models())
-        model_names = [m.get("name", "") for m in models_data if m.get("name")]
-        return ("running", model_names)
-    except (ConnectionError, Exception):
+        named = [m for m in models_data if m.get("name")]
+        # Completion-capable models first. Callers that suggest "configure this
+        # one" take the head of this list, and an embedding-only model there is
+        # advice that cannot work -- doctor used to tell operators to set
+        # DISTILL_MODEL=nomic-embed-text. Every installed model still appears,
+        # so the inventory the operator sees stays complete.
+        named.sort(key=lambda m: not model_can_complete(m))
+        return ("running", [str(m.get("name", "")) for m in named])
+    except ConnectionError:
         return ("unavailable", [])
+    except Exception:
+        # The server answered but the response was unusable. Log the cause and
+        # say so distinctly: "not running" would point at the wrong problem.
+        logger.warning("Ollama responded but its model list was unreadable", exc_info=True)
+        return ("unreadable", [])
 
 
 def check_lmstudio_status() -> str:

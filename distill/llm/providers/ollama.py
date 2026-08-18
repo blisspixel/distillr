@@ -30,7 +30,6 @@ from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPr
     _canonical_model_name,
     _describe_ollama_error,
     build_chat_payload,
-    is_terminal_show_status,
     parse_chat_frame,
     parse_context_window,
 )
@@ -39,6 +38,7 @@ from distill.llm.providers._ollama_registry import (
     parse_running_model_names,
     parse_tags_response,
 )
+from distill.llm.providers._ollama_show import ShowProbe
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
@@ -106,7 +106,12 @@ class OllamaProvider:
             "local" if classify_provider("ollama", endpoint=url) == "local" else "unknown"
         )
         self._trust_env = self._provider_type != "local"
-        self._context_window_cache: dict[str, int] = {}
+        self._show = ShowProbe(
+            url,
+            trust_env=self._trust_env,
+            parse_context_window=lambda data: self._parse_context_window(data),
+        )
+        self._context_window_cache = self._show.context_window_cache
 
     async def call(
         self,
@@ -132,7 +137,13 @@ class OllamaProvider:
 
         last_error: Exception | None = None
         usage_attempts: list[LLMUsageAttempt] = []
-        for attempt in range(retries + 1):
+        # A thinking refusal costs one extra attempt rather than one of the
+        # caller's retries, so degrading never eats the transient-error budget.
+        thinking_degraded = False
+        bonus_attempts = 0
+        attempt = -1
+        while attempt < retries + bonus_attempts:
+            attempt += 1
             try:
                 # Size the context to prompt + output + headroom so a model's huge
                 # default window does not allocate a KV cache that spills VRAM.
@@ -144,6 +155,7 @@ class OllamaProvider:
                     num_ctx=num_ctx,
                     temperature=temperature,
                     call_type=call_type,
+                    supports_thinking=await self._show.supports_thinking(model),
                 )
                 response = await self._stream_chat(model, payload, timeout)
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
@@ -192,6 +204,19 @@ class OllamaProvider:
                     usage_sink,
                 )
                 attach_usage_attempts(exc, usage_attempts)
+                if not thinking_degraded and ShowProbe.is_thinking_rejection(exc):
+                    # Older servers report no capabilities, so the name guess can
+                    # still ask an instruct model to think and take a hard 400.
+                    # Record the refusal and re-send without it rather than
+                    # failing a run over a transport flag the answer never needed.
+                    self._show.mark_thinking_unsupported(model)
+                    thinking_degraded = True
+                    bonus_attempts += 1
+                    logger.warning(
+                        "Ollama model '%s' rejected thinking mode; retrying without it.",
+                        model,
+                    )
+                    continue
                 if is_permanent_error(exc):
                     raise
                 if attempt < retries:
@@ -203,7 +228,11 @@ class OllamaProvider:
                         _describe_ollama_error(exc),
                         wait,
                     )
-                    time.sleep(wait)
+                    # Must not be time.sleep: this is a coroutine, and a blocking
+                    # sleep freezes the whole event loop for the full backoff --
+                    # every concurrent document, provider call and progress
+                    # render stalls with it. _wait_for_model_slot already awaits.
+                    await asyncio.sleep(wait)
                 else:
                     raise
             else:
@@ -414,60 +443,15 @@ class OllamaProvider:
         if ceiling:
             # Never drop below the floor even if the operator sets a tiny ceiling.
             needed = min(needed, max(ceiling, self._MIN_NUM_CTX))
-        return max(self._MIN_NUM_CTX, needed)
+        sized = max(self._MIN_NUM_CTX, needed)
+        # The floor must not exceed what the model was trained for. Applying it
+        # after the model-max clamp asked a 2048-window model for num_ctx=4096,
+        # which the runtime either rejects or silently rope-extends.
+        return min(sized, model_max) if model_max else sized
 
     async def get_context_window(self, model: str) -> int:
         """Query Ollama /api/show for the model's context window. Cached per model."""
-        if model in self._context_window_cache:
-            return self._context_window_cache[model]
-
-        try:
-            async with httpx.AsyncClient(timeout=5, trust_env=self._trust_env) as client:
-                response = await client.post(
-                    f"{self._base_url}/api/show",
-                    json={"name": model},
-                )
-                response.raise_for_status()
-                data = response.json()
-
-            ctx = self._parse_context_window(data)
-
-            # Default fallback
-            if not ctx:
-                ctx = 4096
-                logger.warning(
-                    "Could not determine context window for '%s'; defaulting to %d",
-                    model,
-                    ctx,
-                )
-
-            self._context_window_cache[model] = ctx
-            return ctx
-        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-            raise ConnectionError(
-                f"Cannot reach Ollama at {self._base_url}. Run `ollama serve` to start the server."
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            # Ollama is reachable but /api/show returned an error status for this
-            # model (an unpulled model 404s). Degrade to the default context
-            # window rather than failing the run. Connection and timeout errors
-            # are deliberately not caught here, so retry/backoff behavior and the
-            # "start Ollama" hint above are unchanged.
-            status = exc.response.status_code
-            logger.warning(
-                "Ollama /api/show returned %s for '%s'; defaulting context window to 4096",
-                status,
-                model,
-            )
-            # Only a terminal status means "this model has no window to discover"
-            # (an unpulled model 404s). Caching a transient 5xx/429 pinned the
-            # window to 4096 for the whole process, so every later call silently
-            # truncated long prompts to ~4k tokens while still reporting success.
-            # Leave the cache untouched for retryable statuses so the next call
-            # re-probes.
-            if is_terminal_show_status(status):
-                self._context_window_cache[model] = 4096
-            return 4096
+        return await self._show.context_window(model)
 
     _parse_context_window = staticmethod(parse_context_window)
 

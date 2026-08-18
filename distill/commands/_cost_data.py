@@ -111,9 +111,14 @@ def compute_local_cloud_stats(config: DistillConfig) -> dict[str, float | int]:
     from distill.llm.telemetry import scan_telemetry
 
     scan = scan_telemetry(telemetry_path.parent, n=0)
+    # Aggregate throughput (total tokens / total seconds), not the mean of
+    # per-call rates: most records carry no rate at all, so averaging the rate
+    # column over every local record understated real throughput by ~425x on a
+    # measured library (0.04 vs 14.96 tok/s) and then rounded to 0.0, which the
+    # display guard suppressed entirely.
     avg_tps = (
-        round(scan.total_tokens_per_second / scan.local_records_count, 1)
-        if scan.local_records_count
+        round(scan.local_total_tokens / scan.local_total_seconds, 1)
+        if scan.local_total_seconds > 0
         else 0
     )
     return {

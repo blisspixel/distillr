@@ -360,6 +360,11 @@ def console_lines(summary: EvalSummary) -> list[str]:
             f"  Recommendation ({summary.confidence}): {summary.recommended} "
             f"— {summary.confidence_reason}"
         )
+    elif summary.confidence_reason:
+        # No recommendation is exactly when the operator needs the reason most:
+        # gating this line on `recommended` turned every fail-closed verdict
+        # ("anchor produced no valid output") into an unexplained table of zeros.
+        lines.append(f"  No recommendation ({summary.confidence}): {summary.confidence_reason}")
     return lines
 
 

@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.57 - 2026-08-17
+
+Local-inference correctness release. Every local route was broken against a
+current Ollama, and the failures were mutually masking: a registry parse error
+was reported as "Ollama is not running", which made the eval gate look like a
+machine with no local models. Local model discovery, capability handling,
+hardware detection, and throughput reporting are now correct on Linux, macOS,
+and Windows, and on NVIDIA, AMD, Intel, Apple Silicon, and CPU-only machines.
+
+### Fixed
+
+- **Ollama model discovery failed outright on Ollama 0.32+.** Each model in
+  `/api/tags` now carries a top-level `capabilities` list, and the bounded
+  parser only accepted lists under `details`, so the whole response raised and
+  every local command refused to run. Top-level fields now take the same
+  bounded-list path, with every existing limit intact.
+- **Instruct models were sent `think` and rejected with HTTP 400.** Thinking
+  support was guessed from the model name, and `qwen3-coder` starts with the
+  `qwen3` prefix of a thinking model while rejecting the flag outright, which
+  killed every non-structured call to it. Support is now read from the server's
+  own `/api/show` capability report and cached per model, so new models are
+  handled without a code change. A server that reports no capabilities falls
+  back to the name heuristic, and a thinking refusal degrades and retries once
+  without the flag on an extra attempt, so it never consumes a caller's retry.
+- **The Playwright-less search fallback could never run.** Python 3.12 removed
+  `check_hostname` from `HTTPSConnection.__init__`, and the handler still
+  forwarded it, so the path raised `TypeError` on every supported interpreter
+  (`requires-python` is `>=3.12`). Hostname verification rides on the
+  SSLContext, matching CPython's own handler.
+- **Doctor reported a parse failure as a stopped server.** `unavailable`
+  (nothing answered) and `unreadable` (answered, unusable) are now distinct,
+  and the cause is logged instead of silently swallowed, satisfying the
+  project's own no-silent-error-swallowing rule.
+- **`distill eval` selected a metered cloud route under `--cost-mode
+  no-metered`.** It chose `grok-4.6` as model and anchor, quoted a spend
+  estimate for it, failed every fixture on the route block, and still exited 0.
+  Auto-selection now consults the active cost policy before choosing.
+- **`distill eval` could auto-select an embedding-only model.** With no
+  detectable VRAM it picked the smallest installed model, which is commonly
+  `nomic-embed-text` and cannot serve a completion. Selection now filters on
+  reported capabilities and fails open when a server reports none.
+- **Doctor recommended two models that do not exist.** `qwen3.5:14b` and
+  `gemma4:27b` both 404 in the registry, so 12-16GB and 32GB users were handed
+  unpullable pull commands. Replaced with `qwen3.5:9b` and `gemma4:26b`, and an
+  opt-in `live_network` test now checks every recommended tag resolves.
+- **Doctor's own remediation advice could name an unusable model.** The "set
+  `DISTILL_MODEL=...`" hint took an arbitrary installed model; completion-capable
+  models are now ordered first, and the full inventory is still displayed.
+- **The retry backoff blocked the event loop.** `time.sleep` inside `async def
+  call` froze every concurrent document, provider call, and progress render for
+  the full backoff in both the Ollama and LM Studio providers. Both now await.
+- **`num_ctx` could exceed a model's trained context window.** The floor was
+  applied after the model-max clamp, so a 2048-window model was asked for 4096.
+- **Local throughput was computed as a mean of per-call rates** rather than
+  total tokens over total seconds, understating it by ~425x on a measured
+  library (0.04 vs 14.96 tok/s) and then rounding to 0.0, which the display
+  guard suppressed. `distill costs` now reports real local throughput.
+- **A fail-closed eval verdict printed no reason.** The explanation was computed
+  and then dropped because the line rendering it required a recommendation to
+  exist, turning every refusal into an unexplained table of zeros.
+
+### Changed
+
+- **GPU detection covers every vendor and platform.** Detection was `nvidia-smi`
+  plus a Darwin/arm64 check, so AMD, Intel, and CPU-only machines reported no
+  GPU, which then drove six downstream decisions including a false "local models
+  will run on CPU (slow)" while the GPU served the whole run. Detection now
+  adds `rocm-smi`, the Linux `amdgpu` sysfs node, and a dependency-free Windows
+  driver-registry probe via `winreg`.
+- **A measured VRAM figure is no longer assumed to be a capacity ceiling.**
+  `vram_measured` separates "no GPU" from "not measured", and
+  `vram_is_dedicated` marks whether the figure is a real ceiling. An integrated
+  GPU's BIOS carve-out and Apple unified memory are budgets shared with the
+  system, not limits: a Radeon 780M reports 2GB and runs an 18GB model.
+- **Every machine that can run a model now gets a model recommendation.** Tier
+  classification returned nothing for AMD, Intel, and CPU-only hardware. A
+  budget-based tier now covers them, sized on a dedicated VRAM ceiling when one
+  was measured and on system RAM otherwise. The NVIDIA and Apple Silicon tiers
+  are unchanged.
+
 ## 0.19.56 - 2026-08-13
 
 Provider-truth and hard-budget release. The optional Gemini analysis default

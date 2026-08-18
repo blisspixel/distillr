@@ -29,6 +29,7 @@ __all__ = [
     "_uses_structured_json",
     "build_chat_payload",
     "is_terminal_show_status",
+    "parse_capabilities",
     "parse_chat_frame",
     "parse_context_window",
 ]
@@ -44,6 +45,8 @@ _THINKING_MODEL_PREFIXES: tuple[str, ...] = (
 
 _MAX_CONTEXT_WINDOW = 16_777_216
 _MAX_PARAMETERS_CHARS = 100_000
+_MAX_CAPABILITIES = 64
+_MAX_FIELD_CHARS = 128
 _STRUCTURED_JSON_CALL_TYPES = frozenset(
     {
         "discover_plan",
@@ -57,9 +60,29 @@ _STRUCTURED_JSON_CALL_TYPES = frozenset(
 
 
 def _is_thinking_model(model: str) -> bool:
-    """Check if a model supports thinking mode."""
+    """Guess thinking support from the model name.
+
+    Name prefixes cannot distinguish a thinking model from an instruct sibling
+    that shares its family prefix -- ``qwen3-coder`` starts with ``qwen3`` but
+    rejects ``think`` with HTTP 400. This stays only as the offline fallback for
+    when the server's own capability list is unavailable; prefer
+    ``supports_thinking`` from ``/api/show``.
+    """
     model_lower = model.lower()
     return any(model_lower.startswith(prefix) for prefix in _THINKING_MODEL_PREFIXES)
+
+
+def parse_capabilities(data: object) -> frozenset[str]:
+    """Extract the capability set from an Ollama ``/api/show`` response."""
+    if not isinstance(data, dict):
+        return frozenset()
+    raw = cast(dict[object, object], data).get("capabilities")
+    if not isinstance(raw, list):
+        return frozenset()
+    items = cast(list[object], raw)[:_MAX_CAPABILITIES]
+    return frozenset(
+        item.casefold() for item in items if isinstance(item, str) and len(item) <= _MAX_FIELD_CHARS
+    )
 
 
 def _canonical_model_name(model: str) -> str:
@@ -85,6 +108,7 @@ def build_chat_payload(
     num_ctx: int,
     temperature: float | None,
     call_type: str = "",
+    supports_thinking: bool | None = None,
 ) -> dict[str, Any]:
     """Assemble the /api/chat request body.
 
@@ -92,6 +116,10 @@ def build_chat_payload(
     timeout. Trusted structured workloads force ``format=json`` without thinking
     because thinking conflicts with the JSON constraint on most models. Prompt
     text never controls transport options.
+
+    ``supports_thinking`` is the server's own answer for this model (from
+    ``/api/show``). When it is None the name-prefix guess stands in, which is
+    only correct for families whose instruct variants do not share the prefix.
     """
     payload: dict[str, Any] = {
         "model": model,
@@ -99,10 +127,11 @@ def build_chat_payload(
         "stream": True,
         "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
     }
+    thinking = _is_thinking_model(model) if supports_thinking is None else supports_thinking
     if _uses_structured_json(call_type):
         payload["format"] = "json"
         payload["think"] = False
-    elif _is_thinking_model(model):
+    elif thinking:
         payload["think"] = True
     if temperature is not None:
         payload["options"]["temperature"] = temperature

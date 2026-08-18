@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 import types
 from pathlib import Path
@@ -552,6 +553,31 @@ def test_check_ollama_status_unavailable_on_provider_error(monkeypatch) -> None:
     )
 
     assert checks.check_ollama_status() == ("unavailable", [])
+
+
+def test_check_ollama_status_separates_unreadable_from_unreachable(monkeypatch, caplog) -> None:
+    """A server that answers unusably must not be reported as "not running".
+
+    Collapsing the two hid a registry-parse regression behind a message that
+    told operators to restart an already-healthy server.
+    """
+
+    class _Provider:
+        @staticmethod
+        async def list_models() -> list[dict[str, str]]:
+            raise ValueError("Ollama model field 'capabilities' has an invalid value shape")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "distill.llm.providers.ollama",
+        types.SimpleNamespace(OllamaProvider=lambda: _Provider()),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        assert checks.check_ollama_status() == ("unreadable", [])
+
+    assert "unreadable" in caplog.text
+    assert "capabilities" in caplog.text  # the real cause reaches the operator
 
 
 def test_public_local_inventory_refuses_remote_endpoints_before_probe(monkeypatch) -> None:

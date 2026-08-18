@@ -43,7 +43,7 @@ _DEFAULT_RECOMMENDATIONS: dict[str, list[dict[str, str | int]]] = {
     ],
     "nvidia_12gb": [
         {
-            "model_name": "qwen3.5:14b",
+            "model_name": "qwen3.5:9b",
             "context_window": 65536,
             "reason": "Fits 12-16GB VRAM",
         },
@@ -55,14 +55,14 @@ _DEFAULT_RECOMMENDATIONS: dict[str, list[dict[str, str | int]]] = {
             "reason": "Full-size model in unified memory",
         },
         {
-            "model_name": "gemma4:27b",
+            "model_name": "gemma4:26b",
             "context_window": 131072,
             "reason": "Strong reasoning alternative",
         },
     ],
     "apple_silicon_16gb": [
         {
-            "model_name": "qwen3.5:14b",
+            "model_name": "qwen3.5:9b",
             "context_window": 65536,
             "reason": "Best fit for 16GB unified memory",
         },
@@ -70,6 +70,35 @@ _DEFAULT_RECOMMENDATIONS: dict[str, list[dict[str, str | int]]] = {
             "model_name": "gemma4:12b",
             "context_window": 32768,
             "reason": "Compact alternative",
+        },
+    ],
+    # Budget-sized tiers for everything else: small discrete cards, AMD/Intel
+    # GPUs, and CPU-only machines. Sized on measured VRAM when a dedicated
+    # ceiling exists, otherwise on system RAM.
+    "budget_48gb": [
+        {
+            "model_name": "qwen3.5:27b",
+            "context_window": 131072,
+            "reason": "Best quality within a 48GB+ memory budget",
+        },
+        {
+            "model_name": "qwen3.5:9b",
+            "context_window": 65536,
+            "reason": "Much faster; try first if generation feels slow",
+        },
+    ],
+    "budget_24gb": [
+        {
+            "model_name": "qwen3.5:9b",
+            "context_window": 65536,
+            "reason": "Fits a 24GB+ memory budget with room for the OS",
+        },
+    ],
+    "budget_8gb": [
+        {
+            "model_name": "qwen3.5:4b",
+            "context_window": 32768,
+            "reason": "Smallest capable option; fits an 8GB+ memory budget",
         },
     ],
 }
@@ -115,15 +144,43 @@ def recommend_models(
 
 
 def _classify_hardware_tier(profile: HardwareProfile) -> str:
-    """Classify hardware into a tier key for the recommendation table."""
+    """Classify hardware into a tier key for the recommendation table.
+
+    Every machine that can run a model gets a tier. Keying only on NVIDIA VRAM
+    and Apple unified memory returned "" for AMD, Intel, and CPU-only boxes, so
+    `distill doctor` offered them no model at all -- the machines most in need
+    of the advice. Where no dedicated VRAM ceiling exists, the budget is shared
+    system RAM, which is what those runtimes actually allocate from.
+    """
     if profile.gpu_type == "nvidia" and profile.vram_gb >= 24:
         return "nvidia_24gb"
-    elif profile.gpu_type == "nvidia" and profile.vram_gb >= 12:
+    if profile.gpu_type == "nvidia" and profile.vram_gb >= 12:
         return "nvidia_12gb"
-    elif profile.gpu_type == "apple_silicon" and profile.vram_gb >= 32:
+    if profile.gpu_type == "apple_silicon" and profile.vram_gb >= 32:
         return "apple_silicon_32gb"
-    elif profile.gpu_type == "apple_silicon" and profile.vram_gb >= 16:
+    if profile.gpu_type == "apple_silicon" and profile.vram_gb >= 16:
         return "apple_silicon_16gb"
+    return _budget_tier(profile)
+
+
+def _budget_tier(profile: HardwareProfile) -> str:
+    """Tier for everything the vendor-specific rules above do not cover.
+
+    Covers small discrete cards, AMD/Intel GPUs, and CPU-only machines. The
+    budget is the dedicated VRAM ceiling when one was actually measured, and
+    otherwise system RAM -- which is where shared-memory runtimes hold weights.
+    Thresholds are conservative: the OS needs headroom, and a model that swaps
+    is worse than a smaller one that does not.
+    """
+    budget = profile.vram_capacity_gb or profile.system_ram_gb
+    if budget <= 0:
+        return ""
+    if budget >= 48:
+        return "budget_48gb"
+    if budget >= 24:
+        return "budget_24gb"
+    if budget >= 8:
+        return "budget_8gb"
     return ""
 
 
