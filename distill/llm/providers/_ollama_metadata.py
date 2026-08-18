@@ -12,6 +12,7 @@ here, so the provider's public surface is unchanged.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any, cast
 
 import httpx
@@ -28,6 +29,7 @@ __all__ = [
     "_is_thinking_model",
     "_uses_structured_json",
     "build_chat_payload",
+    "frame_seconds",
     "is_terminal_show_status",
     "parse_capabilities",
     "parse_chat_frame",
@@ -218,3 +220,22 @@ _TERMINAL_SHOW_STATUSES = frozenset({400, 401, 403, 404, 410, 422})
 def is_terminal_show_status(status: int) -> bool:
     """Whether an ``/api/show`` status describes the model, not a transient fault."""
     return status in _TERMINAL_SHOW_STATUSES
+
+
+_NANOSECONDS_PER_SECOND = 1_000_000_000
+
+
+def frame_seconds(frame: dict[str, Any], field: str) -> float:
+    """Read one nanosecond duration from a chat done-frame as seconds.
+
+    Returns 0.0 for a missing, non-numeric, negative, or non-finite value so a
+    malformed provider frame degrades to "not reported" rather than poisoning a
+    rate calculation with a nonsense duration.
+    """
+    raw = frame.get(field)
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return 0.0
+    value = float(raw)
+    if not math.isfinite(value) or value <= 0:
+        return 0.0
+    return value / _NANOSECONDS_PER_SECOND

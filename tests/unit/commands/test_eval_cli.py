@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from distill import cli
 from distill.commands import eval as _eval
 from distill.config import DistillConfig
+from distill.doctor.hardware import HardwareProfile
 from distill.eval.harness import EvalRow
 from distill.eval.scoring import QualityScore
 
@@ -465,3 +466,51 @@ def test_eval_refuses_projected_spend_before_model_run(mock_config, monkeypatch)
 
     assert raised.value.projected == 0.12
     assert called["run"] is False
+
+
+class TestLocalMemoryBudget:
+    """Model selection must size on real capacity, not a carve-out."""
+
+    def test_dedicated_vram_is_the_budget(self) -> None:
+        profile = HardwareProfile("nvidia", "RTX 4090", 24.0, 128.0, False, True, True)
+
+        assert _eval.local_memory_budget_gb(profile) == 24.0
+
+    def test_integrated_gpu_budgets_on_system_ram(self) -> None:
+        """A 780M reports a 2GB carve-out and runs an 18GB model from shared RAM."""
+        profile = HardwareProfile("amd", "Radeon 780M", 2.0, 62.0, False, True, False)
+
+        budget = _eval.local_memory_budget_gb(profile)
+
+        assert budget == pytest.approx(54.0)  # 62 - min(8, 15.5)
+        assert budget > 18.0  # the model that actually runs there must fit
+
+    def test_small_machine_reserves_a_share_not_a_flat_eight(self) -> None:
+        profile = HardwareProfile("none", "", 0.0, 8.0, False)
+
+        assert _eval.local_memory_budget_gb(profile) == pytest.approx(6.0)  # 8 - 25%
+
+    def test_unmeasurable_machine_has_no_budget(self) -> None:
+        assert _eval.local_memory_budget_gb(HardwareProfile("none", "", 0.0, 0.0, False)) == 0.0
+
+
+def test_best_local_model_picks_largest_that_fits_not_smallest(monkeypatch):
+    """Reading vram_gb instead of vram_capacity_gb silently picked the smallest."""
+    _patch_installed_models(
+        monkeypatch,
+        [
+            {"name": "small:8b", "size": 4_900_000_000, "capabilities": ["completion"]},
+            {"name": "big:30b", "size": 18_000_000_000, "capabilities": ["completion"]},
+            {"name": "huge:200b", "size": 120_000_000_000, "capabilities": ["completion"]},
+        ],
+    )
+    from distill.doctor import hardware
+
+    # An integrated GPU: 2GB carve-out, 62GB shared. Nothing "fits" the carve-out.
+    monkeypatch.setattr(
+        hardware,
+        "detect_hardware",
+        lambda: HardwareProfile("amd", "Radeon 780M", 2.0, 62.0, False, True, False),
+    )
+
+    assert _eval._best_local_model() == "big:30b"

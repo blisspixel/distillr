@@ -13,7 +13,6 @@ from distill.doctor.recommendations import (
     ModelRecommendation,
     _classify_hardware_tier,
     _load_recommendation_table,
-    estimate_throughput,
     recommend_models,
 )
 
@@ -128,41 +127,6 @@ class TestRecommendModels:
         table = _load_recommendation_table(tmp_path / "missing.json")
 
         assert "nvidia_12gb" in table
-
-
-class TestEstimateThroughput:
-    """Tests for throughput estimation."""
-
-    def test_nvidia_24gb_throughput(self) -> None:
-        profile = HardwareProfile("nvidia", "NVIDIA 24GB Test GPU", 24.0, 64.0, False)
-        tps = estimate_throughput(profile)
-        assert tps > 0
-
-    def test_apple_silicon_throughput(self) -> None:
-        profile = HardwareProfile("apple_silicon", "Apple 16GB Test Chip", 16.0, 16.0, False)
-        tps = estimate_throughput(profile)
-        assert tps > 0
-
-    def test_no_gpu_zero_throughput(self) -> None:
-        profile = HardwareProfile("none", "", 0.0, 8.0, False)
-        tps = estimate_throughput(profile)
-        assert tps == 0.0
-
-    def test_nvidia_below_12gb_throughput(self) -> None:
-        profile = HardwareProfile("nvidia", "NVIDIA 8GB Test GPU", 8.0, 16.0, False)
-        assert estimate_throughput(profile) == 15.0
-
-    def test_nvidia_12gb_throughput(self) -> None:
-        profile = HardwareProfile("nvidia", "NVIDIA 12GB Test GPU", 12.0, 32.0, False)
-        assert estimate_throughput(profile) == 35.0
-
-    def test_apple_silicon_below_16gb_throughput(self) -> None:
-        profile = HardwareProfile("apple_silicon", "Apple 8GB Test Chip", 8.0, 8.0, False)
-        assert estimate_throughput(profile) == 10.0
-
-    def test_apple_silicon_32gb_throughput(self) -> None:
-        profile = HardwareProfile("apple_silicon", "Apple 32GB Test Chip", 32.0, 32.0, False)
-        assert estimate_throughput(profile) == 25.0
 
 
 @pytest.mark.live_network

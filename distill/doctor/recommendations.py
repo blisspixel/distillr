@@ -182,25 +182,3 @@ def _budget_tier(profile: HardwareProfile) -> str:
     if budget >= 8:
         return "budget_8gb"
     return ""
-
-
-def estimate_throughput(profile: HardwareProfile) -> float:
-    """Estimate tokens/second based on hardware tier.
-
-    Returns a rough estimate for display purposes.
-    """
-    if profile.gpu_type == "nvidia":
-        if profile.vram_gb >= 24:
-            return 60.0
-        elif profile.vram_gb >= 12:
-            return 35.0
-        else:
-            return 15.0
-    elif profile.gpu_type == "apple_silicon":
-        if profile.vram_gb >= 32:
-            return 25.0
-        elif profile.vram_gb >= 16:
-            return 18.0
-        else:
-            return 10.0
-    return 0.0

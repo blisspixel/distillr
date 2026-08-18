@@ -131,6 +131,30 @@ distill provider set ollama qwen3.5:27b
 distill --cost-mode no-metered doctor
 ```
 
+### Measuring and choosing a local model
+
+```bash
+distill bench                        # measure every installed model on this machine
+distill roles                        # see roles and what this machine suggests
+distill roles set deep qwen3.5:27b   # pin a model to a role
+distill --role deep papers "..." --topic t
+```
+
+`distill bench` reports prompt-processing and generation rates, load time, and
+the projected wall clock for a typical paper, so you can pick a model knowing
+what it costs in time rather than guessing from its size. Size is a poor
+predictor: a mixture-of-experts model can decode several times faster than a
+smaller dense one.
+
+Roles name which model to use when. `deep` is suggested from the server's own
+capability report -- whether a model produces a reasoning trace -- and `fast`
+from measured speed once `distill bench` has run. `unfiltered` is never
+suggested, because nothing the server reports distinguishes it; assign it
+yourself if you need it.
+
+A role only changes which model reads the source. Prompts, the write-time verify
+gate, and receipt discipline are identical for every role.
+
 Local mode still uses fresh sources. `DISTILL_PROVIDER=ollama` or
 `DISTILL_PROVIDER=lmstudio` changes the model that analyzes fetched receipts;
 it does not answer from model pretraining alone. Discovery and ingest still

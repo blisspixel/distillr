@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.58 - 2026-08-18
+
+Local speed becomes measurable. Distill could estimate what a run would cost in
+dollars but never what it would cost in time, which on a local route is the only
+budget that binds -- every local call is $0. The measurement it did report was
+wrong by 20x, and the one hardware-tier table that predicted throughput was
+fabricated and returned 0.0 for every non-NVIDIA machine.
+
+Speed is reported so a quality-first default is affordable to commit to, not to
+push anyone toward a weaker model. Nothing here ranks answer quality: that stays
+with `distill eval` and its model judges.
+
+### Added
+
+- **`distill bench`** measures each installed local model on this machine and
+  reports prompt-processing rate, generation rate, load time, and the projected
+  wall clock for a 20K/3K paper. Results append to
+  `.distill/bench/results.jsonl` with the fields that decide whether two numbers
+  may be compared at all -- model, resolved context window, provider, and
+  machine facts that carry no hostname, username, or path.
+- **`distill roles`** names which local model to use when, and `--role
+  fast|standard|deep|unfiltered` selects one for a run. A machine usually holds
+  several models that are not interchangeable: on the development laptop a 30B
+  mixture-of-experts decodes four times faster than a 27B dense model, and only
+  one of the installed models reports a reasoning trace. Assignments are
+  suggested from what the server declares and what this machine measured, never
+  from a model's name -- so the unfiltered role has no suggestion and must be
+  set deliberately. A role changes which model reads the source and nothing
+  else: prompts, the verify gate, and receipt discipline are identical across
+  every role, because the charter refuses any mode that buys speed with
+  fidelity.
+- **`distill/pipeline/duration_estimates.py`** turns measured rates into a
+  projected duration, mirroring the cost estimator. It deliberately has no
+  default rate: a price list is an external fact that can be looked up, but
+  tokens per second is a property of one machine and cannot. Too few samples
+  reports "unknown" rather than a number.
+
+### Fixed
+
+- **Local phase timings were discarded.** The provider's done frame reports
+  weight loading, prompt prefill, and token decode separately, and only the two
+  token counts were read. Every rate was therefore computed over total elapsed
+  time including the model load -- measured at 1.22 tok/s against a true 24.51
+  on the same call, a 20x understatement. All three durations are now captured,
+  so every production call becomes a calibration sample.
+- **Model selection read a carve-out as a capacity ceiling.** `_best_local_model`
+  used `vram_gb` where the fix shipped in 0.19.57 added `vram_capacity_gb`, so
+  on an integrated GPU nothing fit the reported 2GB and selection fell back to
+  the smallest installed model. It now sizes on a real memory budget --
+  dedicated VRAM when measured, otherwise system RAM less headroom -- and picks
+  the largest model that fits rather than the smallest.
+- **`distill costs` reported a throughput number that could not be produced by
+  the hardware.** It averaged per-call rates over every local record, including
+  failures and zero-length rows.
+
+### Removed
+
+- **`estimate_throughput()`** and its tests. It returned hardcoded constants per
+  GPU tier and 0.0 for AMD, Intel, and CPU-only machines, had no callers, and
+  its tests only asserted the constants equalled themselves. Measuring the
+  machine replaces predicting it.
+
 ## 0.19.57 - 2026-08-17
 
 Local-inference correctness release. Every local route was broken against a
