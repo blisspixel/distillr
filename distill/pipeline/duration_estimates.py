@@ -22,7 +22,10 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from distill.jsonl import JsonlIntegrityError, read_jsonl_objects_strict
+from distill.llm.cost_policy import metered_api_spend_notice
 from distill.pipeline.cost_estimates import _STAGE_TOKENS  # pyright: ignore[reportPrivateUsage]
 
 __all__ = [
@@ -31,7 +34,13 @@ __all__ = [
     "estimate_stage_duration",
     "estimate_workflow_duration",
     "format_duration",
+    "format_run_projection",
+    "load_speed_calibration",
 ]
+
+_BENCH_MAX_FILE_BYTES = 1_048_576
+_BENCH_MAX_ROW_BYTES = 64 * 1024
+_BENCH_MAX_ROWS = 2_000
 
 # Bands are wider when the only evidence is production telemetry, because real
 # prompts vary in length and a growing KV cache slows decode as context fills.
@@ -143,6 +152,94 @@ def estimate_stage_duration(stage: str, calibration: SpeedCalibration) -> Durati
         return _uncalibrated(calibration)
     input_tokens, output_tokens = _STAGE_TOKENS[stage]
     return _estimate(stage_seconds(input_tokens, output_tokens, calibration), calibration)
+
+
+def _finite_positive(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        return None
+    return number
+
+
+def _finite_non_negative(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0.0
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        return 0.0
+    return number
+
+
+def load_speed_calibration(
+    library_dir: Path,
+    *,
+    model: str,
+    provider: str,
+) -> SpeedCalibration:
+    """Latest successful ``distill bench`` row for this model on this library.
+
+    Missing, unreadable, or mismatched rows return an uncalibrated object. That
+    is the honest outcome: Distill will not invent a tokens-per-second number.
+    """
+    blank = SpeedCalibration(model=model, provider=provider)
+    if not model or not provider:
+        return blank
+    path = library_dir / ".distill" / "bench" / "results.jsonl"
+    try:
+        rows = read_jsonl_objects_strict(
+            path,
+            max_file_bytes=_BENCH_MAX_FILE_BYTES,
+            max_row_bytes=_BENCH_MAX_ROW_BYTES,
+            max_rows=_BENCH_MAX_ROWS,
+            confinement_root=library_dir,
+        )
+    except (JsonlIntegrityError, OSError, ValueError):
+        return blank
+    for row in reversed(rows):
+        if row.get("outcome") != "success":
+            continue
+        if str(row.get("model") or "") != model:
+            continue
+        if str(row.get("provider") or "") != provider:
+            continue
+        prefill = _finite_positive(row.get("prefill_tokens_per_second"))
+        decode = _finite_positive(row.get("decode_tokens_per_second"))
+        if prefill is None or decode is None:
+            continue
+        return SpeedCalibration(
+            model=model,
+            provider=provider,
+            prefill_tokens_per_second=prefill,
+            decode_tokens_per_second=decode,
+            cold_load_seconds=_finite_non_negative(row.get("load_plus_queue_seconds")),
+            basis="probe",
+            samples={"prefill": 1, "decode": 1},
+        )
+    return blank
+
+
+def format_run_projection(
+    *,
+    cost_usd: float,
+    duration: DurationEstimate,
+    local: bool,
+) -> str:
+    """One pre-run line: dollars always, wall clock when time is the budget."""
+    cost = f"${cost_usd:.2f}"
+    if not local:
+        return f"Projected spend {cost} on a metered cloud API. {metered_api_spend_notice()}"
+    if duration.calibrated:
+        where = f" on {duration.model}" if duration.model else ""
+        return (
+            f"Projected spend {cost} · {duration.format()}{where}. "
+            "On a local route, wall clock is the budget; hours are expected."
+        )
+    return (
+        f"Projected spend {cost} · {duration.format()}. "
+        "Run `distill bench` once so Distill can estimate duration on this machine."
+    )
 
 
 def estimate_workflow_duration(

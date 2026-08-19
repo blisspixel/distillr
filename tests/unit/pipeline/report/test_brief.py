@@ -266,7 +266,7 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     # the env, and DistillConfig reads it -- clear it so this genuinely exercises
     # the missing-key early return rather than the downstream metered path.
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    no_key = DistillConfig(distill_output_dir=tmp_path / "empty")
+    no_key = DistillConfig(gemini_api_key="", distill_output_dir=tmp_path / "empty")
     assert run_research_brief(["ai"], "ctx", "demo", no_key) is None
 
     monkeypatch.setattr(

@@ -283,6 +283,13 @@ def test_batch_progress_formats_item_status_and_spend():
     assert "failed 1" in failed_line
 
 
+def test_batch_progress_shows_planned_duration_before_first_item_finishes():
+    progress = BatchProgress("paper", 2, CostTracker(), planned_item_seconds=1380.0)
+    line = progress.item_line("analyze", "Graph Hawkes", index=1)
+    assert "est 23m" in line
+    assert "~46m left" in line
+
+
 def test_file_size_formats_units(tmp_path):
     small = tmp_path / "small.txt"
     small.write_bytes(b"a" * 10)
@@ -324,6 +331,10 @@ class TestETATracker:
     def test_eta_str_empty_when_no_times(self):
         tracker = ETATracker(total=5)
         assert tracker.eta_str == ""
+
+    def test_eta_str_uses_planned_seconds_before_any_item_finishes(self):
+        tracker = ETATracker(total=2, planned_seconds_per_item=1380.0)
+        assert tracker.eta_str == "~46m left"
 
     def test_eta_str_empty_when_done(self):
         tracker = ETATracker(total=1, completed=1)
@@ -425,7 +436,9 @@ class TestDisplayEstimate:
             router_config=RouterConfig(provider="ollama", fast_model="qwen2.5:14b"),
         )
 
-        assert "~$0.00 estimated" in console.export_text()
+        rendered = console.export_text()
+        assert "~$0.00 estimated" in rendered
+        assert "Metered cloud API" not in rendered
 
     def test_local_analysis_keeps_metered_report_estimate(self):
         from distill.llm.router import RouterConfig
@@ -441,6 +454,7 @@ class TestDisplayEstimate:
         rendered = console.export_text()
         assert "~$0.00 estimated" not in rendered
         assert "Deep Research" in rendered
+        assert "Metered cloud API" in rendered
 
 
 def test_file_size_megabytes(tmp_path):

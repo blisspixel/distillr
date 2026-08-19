@@ -612,7 +612,9 @@ def test_topic_watch_run_fails_closed_on_incomplete_cost_history(tmp_path, monke
     assert blocked.exit_code == 0, blocked.output
     assert "Budget guardrail" in blocked.output
     assert str(cost_log) in _plain_cli_output(blocked.output).replace("\n", "")
-    assert "1 malformed row" in blocked.output
+    # Rich wraps the long Windows temp path through the reason clause, so
+    # collapse whitespace before matching the malformed-row detail.
+    assert "malformed" in " ".join(_plain_cli_output(blocked.output).split())
     assert calls == ["AI daily"]
     assert overridden.exit_code == 0, overridden.output
 

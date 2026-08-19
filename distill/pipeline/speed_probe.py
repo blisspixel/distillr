@@ -23,16 +23,20 @@ on a repeat of an identical prompt).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 
 from distill.llm.types import LLM_Response
 
-__all__ = ["ModelSpeed", "build_probe_prompt", "speed_from_response"]
+__all__ = ["ModelSpeed", "build_probe_prompt", "release_model", "speed_from_response"]
 
 # Below this, the runtime answered from resident weights rather than reloading.
 # Measured separation on real hardware: 0.31s warm against 4.79s for a reload.
+logger = logging.getLogger(__name__)
+
 WARM_LOAD_SECONDS = 1.0
+_RELEASE_TIMEOUT_SECONDS = 10.0
 
 # Roughly four characters per token; the exact ratio does not matter because the
 # rate is computed from the token count the server reports, not from this guess.
@@ -125,3 +129,29 @@ def speed_from_response(
         # is not inference, so the rates are not publishable.
         reloaded_during_measure=measured.load_seconds >= WARM_LOAD_SECONDS,
     )
+
+
+async def release_model(base_url: str, model: str, *, trust_env: bool = False) -> None:
+    """Unload one model so the next measurement starts from a clean machine.
+
+    A benchmark must hold exactly one model at a time. Leaving the previous one
+    resident lets the two compete for memory, which shows up as a slower rate
+    for whichever loaded second -- an artefact of the sweep, not a property of
+    the model. Sending ``keep_alive: 0`` with no prompt is the runtime's own
+    unload primitive; it generates nothing.
+
+    Best-effort by design: a failed unload costs a slightly noisier next sample,
+    which is not worth failing a sweep over.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=_RELEASE_TIMEOUT_SECONDS, trust_env=trust_env
+        ) as client:
+            await client.post(
+                f"{base_url}/api/generate",
+                json={"model": model, "keep_alive": 0},
+            )
+    except Exception as exc:
+        logger.debug("Could not release Ollama model '%s': %s", model, exc)

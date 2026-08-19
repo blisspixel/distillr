@@ -398,9 +398,30 @@ class _DeadlineSocketIO(io.RawIOBase):
     def close(self) -> None:
         if self.closed:
             return
-        with contextlib.suppress(OSError):
-            self._deadline_socket.close()
+        self._deadline_socket._release_view()
         super().close()
+
+
+_WINDOWS_NOT_A_SOCKET = 10038
+
+
+def _is_windows_not_a_socket(exc: OSError) -> bool:
+    return getattr(exc, "winerror", None) == _WINDOWS_NOT_A_SOCKET
+
+
+def _apply_socket_timeout(sock: Any, seconds: float) -> None:
+    """Set a socket timeout, ignoring Windows makefile() teardown.
+
+    After ``makefile()``, Windows can raise WinError 10038 (WSAENOTSOCK) on
+    ``settimeout`` even though ``recv`` still works. The deadline still binds
+    via ``remaining()`` before I/O and the timer that closes registered
+    resources.
+    """
+    try:
+        sock.settimeout(seconds)
+    except OSError as exc:
+        if not _is_windows_not_a_socket(exc):
+            raise
 
 
 class _DeadlineSocket:
@@ -409,18 +430,27 @@ class _DeadlineSocket:
     def __init__(self, sock: Any, deadline: NetworkDeadline) -> None:
         self._socket = sock
         self._deadline = deadline
+        self._live_views = 0
+        self._closed = False
 
     def _cap_timeout(self, requested: float | None) -> None:
         remaining = self._deadline.remaining()
         effective = remaining if requested is None else min(float(requested), remaining)
-        self._socket.settimeout(effective)
+        _apply_socket_timeout(self._socket, effective)
 
     def settimeout(self, value: float | None) -> None:
         self._cap_timeout(value)
 
     def recv_into(self, buffer: Any, *args: Any) -> int:
         self._cap_timeout(self._socket.gettimeout())
-        received = self._socket.recv_into(buffer, *args)
+        try:
+            received = self._socket.recv_into(buffer, *args)
+        except OSError as exc:
+            # Windows raises WSAENOTSOCK once HTTPConnection.close() has
+            # already taken the socket after Connection: close. That is EOF.
+            if _is_windows_not_a_socket(exc):
+                return 0
+            raise
         self._deadline.remaining()
         return int(received)
 
@@ -445,12 +475,33 @@ class _DeadlineSocket:
             or newline is not None
         ):
             raise ValueError("deadline socket supports binary response reads only")
+        self._live_views += 1
         raw = _DeadlineSocketIO(self)
         if buffering == 0:
             return raw
         buffer_size = io.DEFAULT_BUFFER_SIZE if buffering in {None, -1} else buffering
         assert buffer_size is not None
         return io.BufferedReader(raw, buffer_size)
+
+    def _close_inner(self) -> None:
+        close = getattr(self._socket, "close", None)
+        if callable(close):
+            with contextlib.suppress(OSError):
+                close()
+
+    def _release_view(self) -> None:
+        if self._live_views > 0:
+            self._live_views -= 1
+        if self._live_views == 0:
+            self._closed = True
+            self._close_inner()
+
+    def close(self) -> None:
+        # HTTPConnection.close() after Connection: close must not destroy the
+        # SSL socket while the response makefile still has unread body bytes.
+        self._closed = True
+        if self._live_views == 0:
+            self._close_inner()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._socket, name)

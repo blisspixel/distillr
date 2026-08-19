@@ -102,6 +102,8 @@ class _FakeStreamResponse:
         self._stall_exc = stall_exc
 
     async def aiter_lines(self) -> AsyncIterator[str]:
+        yield ""
+        yield "not-json{"
         for frame in self._frames:
             yield json.dumps(frame)
         if self._stall_exc is not None:
@@ -556,6 +558,18 @@ class TestOllamaProviderRetry:
         ):
             asyncio.run(provider.call("llama3:8b", "hello", retries=1))
 
+    def test_permanent_http_error_is_not_retried(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+
+        with (
+            patch("httpx.AsyncClient", _stream_client_factory(frames=[], status_code=404)),
+            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            asyncio.run(provider.call("llama3:8b", "hello", retries=2))
+
+        sleep.assert_not_awaited()
+
     def test_stream_http_error_reads_body_then_raises(self) -> None:
         """A >=400 status on the stream loads the body and raises HTTPStatusError."""
         provider = OllamaProvider(base_url="http://localhost:11434")
@@ -620,7 +634,9 @@ class TestOllamaContention:
         with (
             patch.object(provider, "_running_model_names", availability),
             patch("httpx.AsyncClient", _stream_client_factory(frames=[response])),
-            patch("distill.llm.providers.ollama.asyncio.sleep", new_callable=AsyncMock) as sleep,
+            patch(
+                "distill.llm.providers._ollama_slot.asyncio.sleep", new_callable=AsyncMock
+            ) as sleep,
         ):
             result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=30))
 
@@ -630,7 +646,79 @@ class TestOllamaContention:
         assert "waiting up to 30s for requested model 'qwen3.5:27b'" in caplog.text
         assert "No model will be substituted" in caplog.text
 
-    def test_different_model_timeout_is_actionable_and_classified(self) -> None:
+    def test_different_model_still_busy_proceeds_after_courtesy_wait(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("DISTILL_OLLAMA_STRICT_SLOT", raising=False)
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        clock = [0.0]
+        sleeps: list[float] = []
+        response = _make_generate_response(text="proceeded")
+        caplog.set_level(logging.WARNING, logger="distill.llm.providers.ollama")
+
+        async def advance_clock(seconds: float) -> None:
+            sleeps.append(seconds)
+            clock[0] += seconds
+
+        with (
+            patch.object(
+                provider,
+                "_running_model_names",
+                AsyncMock(return_value=("llama3:8b",)),
+            ),
+            patch(
+                "distill.llm.providers._ollama_slot.time.monotonic",
+                side_effect=lambda: clock[0],
+            ),
+            patch(
+                "distill.llm.providers._ollama_slot.asyncio.sleep",
+                side_effect=advance_clock,
+            ),
+            patch("httpx.AsyncClient", _stream_client_factory(frames=[response])),
+        ):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=3))
+
+        assert result.text == "proceeded"
+        assert sleeps == [1.0, 2.0]
+        assert "proceeding with 'qwen3.5:27b'" in caplog.text
+        assert "DISTILL_OLLAMA_STRICT_SLOT=1" in caplog.text
+
+    def test_zero_wait_proceeds_immediately_when_another_model_is_resident(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("DISTILL_OLLAMA_STRICT_SLOT", raising=False)
+        monkeypatch.setenv("DISTILL_OLLAMA_CONTENTION_WAIT", "0")
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        response = _make_generate_response(text="immediate")
+        caplog.set_level(logging.WARNING, logger="distill.llm.providers.ollama")
+
+        with (
+            patch.object(
+                provider,
+                "_running_model_names",
+                AsyncMock(return_value=("llama3:8b",)),
+            ),
+            patch("httpx.AsyncClient", _stream_client_factory(frames=[response])),
+            patch(
+                "distill.llm.providers._ollama_slot.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as sleep,
+        ):
+            result = asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=0))
+
+        assert result.text == "immediate"
+        sleep.assert_not_awaited()
+        assert "proceeding with 'qwen3.5:27b'" in caplog.text
+
+    def test_strict_slot_timeout_is_actionable_and_classified(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("DISTILL_OLLAMA_STRICT_SLOT", "1")
         provider = OllamaProvider(base_url="http://localhost:11434")
         clock = [0.0]
         sleeps: list[float] = []
@@ -645,8 +733,14 @@ class TestOllamaContention:
                 "_running_model_names",
                 AsyncMock(return_value=("llama3:8b",)),
             ),
-            patch("distill.llm.providers.ollama.time.monotonic", side_effect=lambda: clock[0]),
-            patch("distill.llm.providers.ollama.asyncio.sleep", side_effect=advance_clock),
+            patch(
+                "distill.llm.providers._ollama_slot.time.monotonic",
+                side_effect=lambda: clock[0],
+            ),
+            patch(
+                "distill.llm.providers._ollama_slot.asyncio.sleep",
+                side_effect=advance_clock,
+            ),
             pytest.raises(ProviderBusyTimeoutError) as caught,
         ):
             asyncio.run(provider.call("qwen3.5:27b", "hello", timeout=3))
@@ -677,6 +771,27 @@ class TestOllamaContention:
 
         assert result.text == "fallback"
         sleep.assert_not_awaited()
+
+    def test_running_model_probe_stops_when_the_total_deadline_elapses(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        clock = [0.0]
+
+        def _advance() -> float:
+            clock[0] += 10.0
+            return clock[0]
+
+        monkeypatch.setattr(ollama_module, "_monotonic", _advance)
+
+        with patch(
+            "httpx.AsyncClient",
+            _stream_client_factory(running_models=["llama3:8b"]),
+        ):
+            names = asyncio.run(provider._running_model_names(5))
+
+        assert names is None
 
     def test_running_model_probe_rejects_oversized_response(
         self,
@@ -1255,6 +1370,34 @@ class TestThinkingCapability:
         )
         assert thinking["think"] is True
 
+    def test_thinking_rejection_retries_the_call_without_thinking(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        response = httpx.Response(
+            400,
+            json={"error": '"qwen3-coder:30b" does not support thinking'},
+            request=request,
+        )
+        rejection = httpx.HTTPStatusError("400", request=request, response=response)
+        success = LLM_Response(text="ok", input_tokens=1, output_tokens=1, model="qwen3-coder:30b")
+        calls = {"n": 0}
+
+        async def _stream(_model: str, _payload: dict[str, Any], _timeout: int) -> LLM_Response:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise rejection
+            return success
+
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider, "_stream_chat", side_effect=_stream),
+            patch.object(provider._show, "supports_thinking", AsyncMock(return_value=True)),
+        ):
+            result = asyncio.run(provider.call("qwen3-coder:30b", "hello", retries=0))
+
+        assert result.text == "ok"
+        assert calls["n"] == 2
+
     def test_thinking_rejection_is_recognized(self) -> None:
         request = httpx.Request("POST", "http://localhost:11434/api/chat")
         response = httpx.Response(
@@ -1349,6 +1492,19 @@ class TestAdaptiveNumCtx:
         big = "x" * 400_000  # ~100k token estimate, far over the model max
         ctx = asyncio.run(provider._adaptive_num_ctx("small-ctx:7b", big, 8192))
         assert ctx == 8192  # capped at the model's max context
+
+    def test_context_window_probe_failure_uses_the_floor(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        provider.get_context_window = AsyncMock(side_effect=ConnectionError("down"))
+        ctx = asyncio.run(provider._adaptive_num_ctx("m", "short prompt", 100))
+        assert ctx == 4096
+
+    def test_operator_ceiling_caps_a_large_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("OLLAMA_MAX_NUM_CTX", "8192")
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        provider.get_context_window = AsyncMock(return_value=262144)
+        ctx = asyncio.run(provider._adaptive_num_ctx("m", "x" * 400_000, 8192))
+        assert ctx == 8192
 
     def test_scales_with_prompt_when_under_model_max(self) -> None:
         import asyncio

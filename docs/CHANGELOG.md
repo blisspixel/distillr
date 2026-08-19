@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.60 - 2026-08-19
+
+### Added
+
+- **`distill papers` prints wall clock next to spend on a local route.** After
+  `distill bench`, preview and ingest show `$0.00` plus a measured duration such
+  as `~1h15m on qwen3.8:27b`. Time is the budget when dollars are zero. Hours
+  are expected. If this machine has not been benched, Distill says `unknown`
+  rather than guessing a rate. Cloud routes still print spend only.
+- **Paper-batch progress uses that estimate before the first paper finishes.**
+  A two-paper local run no longer sits on `paper 1/2 analyze` with no ETA until
+  paper 1 completes.
+- **`distill profile refresh` packs due profiles into an overnight window.**
+  It ranks stale and never-run research profiles, estimates wall clock from
+  `distill bench` or the last run, and starts only what fits `--max-hours`
+  (default 6) and `--max-profiles` (default 12). The rest wait until the next
+  window, which is how a 100-topic local wiki stays current on `$0` without a
+  stampede. Distill still does not schedule itself; Task Scheduler or cron
+  runs the `--yes` command.
+
+### Changed
+
+- **Operator story: local is volume, paid-ok is a lot quickly.** README, usage,
+  cost, `distill --help`, and `distill doctor` next steps now say to use a
+  ready local model to ingest more and stay current (`$0`, hours), use
+  `paid-ok` plus a larger `--limit` and `--workers` when spend is OK so a
+  large set finishes in minutes, and not treat subscription CLIs as
+  no-metered until Distill can prove included-plan auth.
+- **Metered API spend notice.** Paper projections, video estimates, profile
+  refresh, and `distill doctor` warn when a run will bill a cloud API, and
+  state that this is not local `$0` inference and not an included-plan quota
+  CLI until Distill can prove that.
+
+### Fixed
+
+- **Windows arXiv ingest no longer dies on WinError 10038.** After
+  `Connection: close`, `HTTPConnection.close()` invalidated the SSL socket
+  while the response makefile still had unread body bytes. Deadline sockets
+  now keep the inner socket alive until the last file view closes, and treat
+  WSAENOTSOCK as EOF. The yt-dlp path uses the same contract.
+- **A resident Ollama model no longer stalls the next command for the full
+  call timeout.** Keep-alive leaves weights loaded; that is idle, not busy.
+  Distill waits up to 30s (`DISTILL_OLLAMA_CONTENTION_WAIT`), then proceeds
+  and lets the runtime manage memory. `DISTILL_OLLAMA_STRICT_SLOT=1` restores
+  refuse-rather-than-disturb on a shared machine.
+- **`distill bench` unloads each model after measuring it.** A model left
+  resident competed for memory with the next one, which read as that next
+  model being slower.
+
 ## 0.19.59 - 2026-08-18
 
 ### Fixed

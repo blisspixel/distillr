@@ -5,11 +5,15 @@ Feature: local-speed
 
 from __future__ import annotations
 
+import asyncio
+from unittest.mock import AsyncMock, patch
+
 from distill.llm.types import LLM_Response
 from distill.pipeline.speed_probe import (
     WARM_LOAD_SECONDS,
     ModelSpeed,
     build_probe_prompt,
+    release_model,
     speed_from_response,
 )
 
@@ -102,3 +106,23 @@ class TestReloadGuard:
         speed = ModelSpeed(model="m", provider="ollama", outcome="error", error="boom")
 
         assert speed.usable is False
+
+
+class TestReleaseModel:
+    def test_posts_keep_alive_zero(self) -> None:
+        client = AsyncMock()
+        client.post = AsyncMock()
+        client.__aenter__.return_value = client
+        client.__aexit__.return_value = None
+
+        with patch("httpx.AsyncClient", return_value=client):
+            asyncio.run(release_model("http://localhost:11434", "qwen3.8:27b"))
+
+        client.post.assert_awaited_once_with(
+            "http://localhost:11434/api/generate",
+            json={"model": "qwen3.8:27b", "keep_alive": 0},
+        )
+
+    def test_transport_errors_are_swallowed(self) -> None:
+        with patch("httpx.AsyncClient", side_effect=OSError("down")):
+            asyncio.run(release_model("http://localhost:11434", "qwen3.8:27b"))

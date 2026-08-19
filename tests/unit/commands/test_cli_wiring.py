@@ -205,6 +205,8 @@ class TestTopLevelExperience:
         assert 'topic create "AI news"' not in output
         assert "Want recurring updates?" in output
         assert "distill monitor" in output
+        assert "Overnight wiki fuel?" in output
+        assert "distill profile refresh --max-hours 6" in output
         assert "Microsoft AI news" in output
 
     def test_topic_help_lists_preview_before_create(self):
@@ -219,6 +221,10 @@ class TestTopLevelExperience:
         checks = [
             (["profile", "preview", "--help"], "distill profile preview ai-developer-news"),
             (["profile", "run", "--help"], "distill profile run ai-developer-news --yes"),
+            (
+                ["profile", "refresh", "--help"],
+                "distill --cost-mode no-metered profile refresh --max-hours 6",
+            ),
             (["discover", "--help"], 'distill discover "agentic coding loops"'),
             (["ingest", "--help"], "distill ingest https://github.com/example/project"),
             (["audit", "--help"], "distill --json audit all --next-actions"),

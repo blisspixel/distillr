@@ -828,9 +828,40 @@ class TestDoctorAdapterReport:
                     env_blockers_present=["OPENAI_API_KEY"],
                     missing_flags=["--json-output"],
                     blocked_reasons=["codex is not installed"],
-                )
+                ),
+                AdapterProbe(
+                    name="claude",
+                    binary="claude",
+                    route_class="included-plan",
+                    installed=True,
+                    version="",
+                    no_metered_candidate=True,
+                    no_metered_eligible=True,
+                    support_statement="current",
+                    support_statement_detail={},
+                    auth_mode="",
+                    config_files_found=[],
+                    auth_evidence=[],
+                    env_blockers_present=[],
+                    missing_flags=[],
+                    blocked_reasons=[],
+                ),
             ],
         )
+
+    def test_adapter_json_report(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: _config(tmp_path))
+        monkeypatch.setattr(
+            "distill.doctor.adapters.adapter_doctor_report",
+            lambda: self._fake_report(),
+        )
+
+        result = runner.invoke(cli.app, ["--json", "doctor", "--adapters"])
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "ok"
+        assert "codex" in result.stdout
 
     def test_adapter_console_report(self, tmp_path, monkeypatch):
         monkeypatch.setattr(doctor_mod, "get_config", lambda: _config(tmp_path))
@@ -896,6 +927,32 @@ class TestDoctorLocalInferenceSection:
         assert "Recommended Models" in joined
         assert "Next step" in joined
         assert "--cost-mode paid-ok papers" in joined
+        assert "Metered cloud API" in joined
+        assert "Volume without spend" in joined
+
+    def test_cloud_ready_without_local_models_omits_overnight_volume(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, distill_cost_mode="paid-ok")
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
+        profile = HardwareProfile(
+            gpu_type="none",
+            gpu_name="",
+            vram_gb=0.0,
+            system_ram_gb=16.0,
+            is_container=False,
+        )
+        monkeypatch.setattr("distill.doctor.hardware.detect_hardware", lambda: profile)
+        monkeypatch.setattr(
+            "distill.doctor.recommendations.recommend_models",
+            lambda _p: [],
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
+
+        doctor_mod._doctor_local_inference_section(config, "cyan")
+
+        joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
+        assert "Metered cloud API" in joined
+        assert "Volume without spend" not in joined
 
     def test_local_ready_without_cloud_key(self, tmp_path, monkeypatch):
         config = _config(tmp_path, xai_api_key="")
@@ -930,7 +987,101 @@ class TestDoctorLocalInferenceSection:
         doctor_mod._doctor_local_inference_section(config, "cyan")
 
         joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
-        assert "Local ready, no API key" in joined
+        assert "Local ready: ingest more, stay current, $0" in joined
+        assert "profile refresh --max-hours 6" in joined
+
+    def test_inventory_status_variants(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        profile = HardwareProfile(
+            gpu_type="none",
+            gpu_name="",
+            vram_gb=0.0,
+            system_ram_gb=16.0,
+            is_container=False,
+        )
+        monkeypatch.setattr("distill.doctor.hardware.detect_hardware", lambda: profile)
+        monkeypatch.setattr(
+            "distill.doctor.recommendations.recommend_models",
+            lambda _p: [],
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.delenv("DISTILL_PROVIDER", raising=False)
+        monkeypatch.delenv("DISTILL_MODEL", raising=False)
+
+        cases = [
+            (("blocked", ()), ("blocked", ()), "not probed (non-loopback endpoint)"),
+            (("unreadable", ()), ("unavailable", ()), "model list was unreadable"),
+            (
+                ("running", [f"m{i}" for i in range(6)]),
+                ("untrusted", ()),
+                "and 1 more",
+            ),
+        ]
+        for ollama, lmstudio, expected in cases:
+            monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda ollama=ollama: ollama)
+            monkeypatch.setattr(
+                doctor_mod,
+                "_check_lmstudio_models",
+                lambda lmstudio=lmstudio: lmstudio,
+                raising=False,
+            )
+            monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
+            doctor_mod._doctor_local_inference_section(config, "cyan")
+            joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
+            assert expected in joined, expected
+
+    def test_installed_models_without_routing_point_at_env(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        profile = HardwareProfile(
+            gpu_type="none",
+            gpu_name="",
+            vram_gb=0.0,
+            system_ram_gb=16.0,
+            is_container=False,
+        )
+        monkeypatch.setattr("distill.doctor.hardware.detect_hardware", lambda: profile)
+        monkeypatch.setattr(
+            doctor_mod, "_check_ollama_status", lambda: ("running", ["qwen3.5:27b"])
+        )
+        monkeypatch.delenv("DISTILL_PROVIDER", raising=False)
+        monkeypatch.delenv("DISTILL_MODEL", raising=False)
+        monkeypatch.setattr(
+            "distill.doctor.recommendations.recommend_models",
+            lambda _p: [],
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
+
+        doctor_mod._doctor_local_inference_section(config, "cyan")
+
+        joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
+        assert "Model available but routing is not ready" in joined
+        assert "DISTILL_PROVIDER=ollama" in joined
+
+    def test_no_local_models_points_at_init(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="")
+        profile = HardwareProfile(
+            gpu_type="none",
+            gpu_name="",
+            vram_gb=0.0,
+            system_ram_gb=16.0,
+            is_container=False,
+        )
+        monkeypatch.setattr("distill.doctor.hardware.detect_hardware", lambda: profile)
+        monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
+        monkeypatch.delenv("DISTILL_PROVIDER", raising=False)
+        monkeypatch.setattr(
+            "distill.doctor.recommendations.recommend_models",
+            lambda _p: [],
+        )
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_report_mod, "console", MagicMock())
+
+        doctor_mod._doctor_local_inference_section(config, "cyan")
+
+        joined = " ".join(str(call) for call in doctor_report_mod.console.print.call_args_list)
+        assert "Not set up yet" in joined
+        assert "distill --cost-mode no-metered init" in joined
 
 
 class TestHealthCommand:

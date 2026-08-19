@@ -75,6 +75,7 @@ _HELP = (
     "  Have one paper URL?    distill paper https://arxiv.org/abs/2602.12670 --topic papers\n"
     '  Need the latest on a topic?  distill latest "Microsoft AI news" --topic microsoft-news\n'
     '  Want recurring updates?      distill monitor "Microsoft AI news" --topic microsoft-news\n'
+    "  Overnight wiki fuel?         distill profile refresh --max-hours 6\n"
 )
 
 app = typer.Typer(

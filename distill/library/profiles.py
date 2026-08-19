@@ -23,6 +23,7 @@ from distill.parsing import (
 from distill.youtube_urls import normalize_youtube_channel_url
 
 __all__ = [
+    "MAX_LIBRARY_PROFILES",
     "MAX_PROFILE_DECLARATIONS",
     "MAX_PROFILE_NEW_ITEMS",
     "PROFILE_SCHEMA_VERSION",
@@ -36,6 +37,7 @@ __all__ = [
     "SourceSet",
     "YouTubeChannelSource",
     "find_research_profile",
+    "list_research_profile_paths",
     "load_research_profile",
     "profile_path",
 ]
@@ -43,6 +45,7 @@ __all__ = [
 PROFILE_SCHEMA_VERSION = "research-profile.v1"
 MAX_PROFILE_NEW_ITEMS = 1_000
 MAX_PROFILE_DECLARATIONS = 100
+MAX_LIBRARY_PROFILES = 200
 _MAX_PROFILE_FILE_BYTES = 1_000_000
 _MAX_PROFILE_YAML_NODES = 100_000
 _MAX_SLUG_CHARS = 100
@@ -541,6 +544,34 @@ def _validate_yaml_tree(payload: object) -> None:
         active.add(identity)
         stack.append((container, True))
         stack.extend((child, False) for child in children)
+
+
+def list_research_profile_paths(library_dir: Path) -> list[Path]:
+    """Return saved profile files under ``library/profiles``, newest-name last.
+
+    Caps the library at ``MAX_LIBRARY_PROFILES`` so an overnight refresh cannot
+    walk an unbounded directory. Duplicate stems (``.yaml`` and ``.yml``) keep
+    the first path in sorted order.
+    """
+
+    profiles_dir = library_dir / "profiles"
+    if not profiles_dir.is_dir():
+        return []
+    found: dict[str, Path] = {}
+    try:
+        entries = sorted(profiles_dir.iterdir(), key=lambda path: path.name.lower())
+    except OSError:
+        return []
+    for path in entries:
+        if path.suffix.lower() not in {".yaml", ".yml"} or not path.is_file():
+            continue
+        stem = path.stem.lower()
+        if stem in found:
+            continue
+        found[stem] = path
+        if len(found) >= MAX_LIBRARY_PROFILES:
+            break
+    return list(found.values())
 
 
 def profile_path(library_dir: Path, name: str) -> Path:

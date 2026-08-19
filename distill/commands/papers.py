@@ -46,7 +46,7 @@ from distill.ingestors.papers.arxiv import (
 from distill.library.intent import CorpusIntent
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
-from distill.llm.cost_policy import CostPolicyError
+from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES, CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
@@ -56,6 +56,13 @@ from distill.pipeline.concurrency import (
     iter_bounded,
 )
 from distill.pipeline.costs import BudgetExceededError, CostTracker, estimate_paper_workflow_cost
+from distill.pipeline.duration_estimates import (
+    DurationEstimate,
+    estimate_stage_duration,
+    estimate_workflow_duration,
+    format_run_projection,
+    load_speed_calibration,
+)
 from distill.pipeline.ranking import rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
@@ -75,6 +82,42 @@ def _nonempty(path: Path) -> bool:
 def _paper_tail_calls(topic: str, config: DistillConfig) -> int:
     """One paper synthesis plus a corpus call only when mixed inputs require it."""
     return 1 + int(has_corpus_synthesis_inputs(topic, config))
+
+
+def _papers_run_projection(
+    paper_count: int,
+    *,
+    synthesis_calls: int,
+    projected_cost: float,
+    config: DistillConfig,
+    router_config: RouterConfig,
+) -> None:
+    """Print the $ and wall-clock projection for this papers run."""
+    provider, model = router_config.resolve("analysis")
+    local = provider in LOCAL_PROVIDER_NAMES
+    duration = DurationEstimate(model=model)
+    if local:
+        calibration = load_speed_calibration(config.library_dir, model=model, provider=provider)
+        duration = estimate_workflow_duration(
+            {"paper": max(paper_count, 0), "synthesis": max(synthesis_calls, 0)},
+            calibration,
+        )
+    line = format_run_projection(cost_usd=projected_cost, duration=duration, local=local)
+    if local:
+        console.print(line)
+    else:
+        console.print(f"[yellow]{line}[/yellow]")
+
+
+def _planned_paper_seconds(router_config: RouterConfig, config: DistillConfig) -> float:
+    provider, model = router_config.resolve("analysis")
+    if provider not in LOCAL_PROVIDER_NAMES:
+        return 0.0
+    estimate = estimate_stage_duration(
+        "paper",
+        load_speed_calibration(config.library_dir, model=model, provider=provider),
+    )
+    return estimate.expected_seconds if estimate.calibrated else 0.0
 
 
 def _write_completed_paper(
@@ -129,7 +172,12 @@ def _analyze_paper_batch(
         synthesis_calls=0,
         router_config=router_config,
     )
-    progress = BatchProgress("paper", len(records), tracker)
+    progress = BatchProgress(
+        "paper",
+        len(records),
+        tracker,
+        planned_item_seconds=_planned_paper_seconds(router_config, config),
+    )
     starts: dict[int, float] = {}
     paper_dirs: dict[int, Path] = {}
     item_errors: dict[int, Exception] = {}
@@ -255,6 +303,13 @@ def paper(
     )
     enforce_projected_workflow_budget(config, "paper", projected_cost)
     summary.estimated_cost = projected_cost
+    _papers_run_projection(
+        1,
+        synthesis_calls=_paper_tail_calls(topic, config),
+        projected_cost=projected_cost,
+        config=config,
+        router_config=router_config,
+    )
     _require_model()
     insights, document = analyze_paper(
         paper_record,
@@ -440,7 +495,20 @@ def papers(  # noqa: C901 — legacy, will refactor
 
     if preview:
         _display_ranked_papers(ranked, title="Paper Best-Pick Learning Set")
-        console.print("\n[dim]Run without `--preview` to process this set.[/dim]")
+        projected_cost = estimate_paper_workflow_cost(
+            len(ranked),
+            synthesis_calls=_paper_tail_calls(topic_name, config),
+            router_config=router_config,
+        )
+        console.print()
+        _papers_run_projection(
+            len(ranked),
+            synthesis_calls=_paper_tail_calls(topic_name, config),
+            projected_cost=projected_cost,
+            config=config,
+            router_config=router_config,
+        )
+        console.print("[dim]Run without `--preview` to process this set.[/dim]")
         display_summary(
             summary,
             cost_tracker=tracker,
@@ -464,7 +532,13 @@ def papers(  # noqa: C901 — legacy, will refactor
 
     _display_ranked_papers(ranked, title="Selected Papers")
     console.print()
-
+    _papers_run_projection(
+        len(records),
+        synthesis_calls=_paper_tail_calls(topic_name, config),
+        projected_cost=projected_cost,
+        config=config,
+        router_config=router_config,
+    )
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
     _analyze_paper_batch(
         records,

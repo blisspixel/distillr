@@ -18,6 +18,7 @@ from rich.markup import escape
 from distill.jsonl import append_jsonl_line_locked, jsonl_append_lock
 from distill.library.confined import read_confined_text, validate_confined_path
 from distill.library.paths import atomic_write_text
+from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES, metered_api_spend_notice
 from distill.llm.router import RouterConfig
 from distill.llm.run_context import current_run_id, record_completed_phase
 from distill.pipeline.costs import (
@@ -25,6 +26,7 @@ from distill.pipeline.costs import (
     estimate_routed_video_workflow_cost,
     report_deep_research_estimate,
 )
+from distill.pipeline.duration_estimates import format_duration
 
 logger = logging.getLogger(__name__)
 
@@ -191,11 +193,14 @@ class RunSummary:
 
 @dataclass
 class ETATracker:
-    """Tracks per-video processing time for ETA estimates."""
+    """Tracks per-item processing time for ETA estimates."""
 
     total: int
     completed: int = 0
     failed: int = 0
+    # Used only before any item finishes, so a local run can show "~23m left"
+    # from distill bench instead of going silent until paper 1 completes.
+    planned_seconds_per_item: float = 0.0
     _times: list[float] = field(default_factory=list[float])
 
     def start(self) -> float:
@@ -208,16 +213,26 @@ class ETATracker:
             self.failed += 1
 
     @property
+    def has_samples(self) -> bool:
+        return bool(self._times)
+
+    @property
     def avg_seconds(self) -> float:
-        if not self._times:
+        if not self.has_samples:
             return 0
         return sum(self._times) / len(self._times)
 
     @property
     def eta_str(self) -> str:
-        if not self._times or self.completed >= self.total:
+        remaining_items = self.total - self.completed
+        if remaining_items <= 0:
             return ""
-        remaining = (self.total - self.completed) * self.avg_seconds
+        if self.has_samples:
+            remaining = remaining_items * self.avg_seconds
+        elif self.planned_seconds_per_item > 0:
+            remaining = remaining_items * self.planned_seconds_per_item
+        else:
+            return ""
         if remaining < 60:
             return f"~{int(remaining)}s left"
         mins = int(remaining // 60)
@@ -246,10 +261,14 @@ class BatchProgress:
     cost_tracker: Any | None = None
     completed: int = 0
     failed: int = 0
+    planned_item_seconds: float = 0.0
     _eta: ETATracker = field(init=False)
 
     def __post_init__(self) -> None:
-        self._eta = ETATracker(total=max(self.total, 0))
+        self._eta = ETATracker(
+            total=max(self.total, 0),
+            planned_seconds_per_item=max(self.planned_item_seconds, 0.0),
+        )
 
     def start_item(self) -> float:
         return self._eta.start()
@@ -285,6 +304,12 @@ class BatchProgress:
         ]
         if self.cost_tracker is not None:
             parts.append(f"spent {self.cost_tracker.format_cost()}")
+        if (
+            index is not None
+            and self._eta.planned_seconds_per_item > 0
+            and not self._eta.has_samples
+        ):
+            parts.append(f"est {format_duration(self._eta.planned_seconds_per_item)}")
         eta = self._eta.eta_str
         if eta:
             parts.append(eta)
@@ -344,7 +369,16 @@ def display_estimate(
             f"  [dim]includes Deep Research (~${report_deep_research_estimate(include_section_writing=False):.2f}) "
             "+ report generation[/dim]"
         )
+    if include_report or _estimate_uses_metered_api(router_config):
+        con.print(f"  [yellow]{metered_api_spend_notice()}[/yellow]")
     con.print()
+
+
+def _estimate_uses_metered_api(router_config: RouterConfig | None) -> bool:
+    if router_config is None:
+        return True
+    provider, _model = router_config.resolve("analysis")
+    return provider not in LOCAL_PROVIDER_NAMES
 
 
 def _output_bytes(paths: list[Path]) -> int:

@@ -13,7 +13,7 @@ from rich.markup import escape
 
 from distill._console import console
 from distill.config import DistillConfig
-from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES
+from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES, metered_api_spend_notice
 
 __all__ = [
     "_doctor_adapter_report",
@@ -268,21 +268,39 @@ def _doctor_local_inference_section(  # noqa: C901
     console.print("  [bold]Next step[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")
     if route_ready and route_provider not in LOCAL_PROVIDER_NAMES:
+        console.print("  API spend OK: go wide and fast. Preview, then a large set in minutes.")
+        console.print(f"  [yellow]{metered_api_spend_notice()}[/yellow]")
         console.print(
-            '  Configured cloud route ready:  [cyan]distill --cost-mode paid-ok papers "agent memory" '
-            "--limit 5 --preview[/cyan]"
+            '  [cyan]distill --cost-mode paid-ok papers "agent memory" --limit 20 --preview[/cyan]'
+        )
+        console.print(
+            '  [cyan]distill --cost-mode paid-ok papers "agent memory" '
+            "--limit 20 --workers 3[/cyan]"
         )
         if ollama_models:
             console.print(
-                f"  Compare local vs cloud (local is free):  "
+                "  Volume without spend ($0, hours):  [cyan]distill --cost-mode no-metered "
+                "profile refresh --max-hours 6[/cyan]"
+            )
+            console.print(
+                f"  Compare local vs cloud:  "
                 f"[cyan]distill eval --models grok-4.6,{escape(ollama_models[0])}[/cyan]"
             )
     elif local_model_ready:
+        console.print("  Local ready: ingest more, stay current, $0. Time is the budget.")
         console.print(
-            "  Local ready, no API key:  [cyan]distill --cost-mode no-metered papers "
+            "  Ad hoc:  [cyan]distill --cost-mode no-metered papers "
             '"agent memory" --limit 5 --preview[/cyan]'
         )
-        console.print("  [dim]Add XAI_API_KEY to .env to also use cloud models.[/dim]")
+        console.print(
+            "  Overnight wiki fuel:  [cyan]distill --cost-mode no-metered "
+            "profile refresh --max-hours 6[/cyan]"
+        )
+        console.print(
+            "  [dim]If API spend is OK, `paid-ok` plus `--limit 20 --workers 3` "
+            "ingests a large set in minutes. Subscription CLIs are not a Distill "
+            "no-metered route until adapter proof exists.[/dim]"
+        )
     elif ollama_models or lmstudio_models:
         example_model = ollama_models[0] if ollama_models else lmstudio_models[0]
         example_provider = "ollama" if ollama_models else "lmstudio"
