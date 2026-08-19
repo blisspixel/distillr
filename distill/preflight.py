@@ -1,9 +1,18 @@
 """Lightweight version-age checks for fragile dependencies.
 
-yt-dlp ships a new release roughly weekly to keep up with YouTube changes.
-A user with a stale install will see opaque extractor errors. Preflight checks
-warn (never block) when yt-dlp is older than YTDLP_STALE_DAYS, with a cached
-result so the version parse runs at most once per day.
+yt-dlp ships frequently to keep up with YouTube changes, and a stale install
+shows up as opaque extractor errors. Preflight warns (never blocks) when a
+*newer release actually exists* -- not merely when the installed one is old.
+
+Age alone was the original signal and it cried wolf: yt-dlp had not published in
+45 days, so a perfectly current install was told to run an update that would do
+nothing, every single command. A warning that fires on a healthy install is one
+operators learn to ignore, which is precisely the wrong habit for the dependency
+this project names as its most fragile.
+
+Age is still consulted first, as a free local pre-filter: a recent install
+cannot be behind, so the network is never touched in the common case. The PyPI
+answer is cached for a day alongside the version parse.
 """
 
 # pyright: strict
@@ -27,6 +36,8 @@ from distill.process_security import package_install_context
 YTDLP_STALE_DAYS = 14
 PREFLIGHT_CACHE_NAME = ".preflight.json"
 CACHE_TTL_HOURS = 24
+YTDLP_PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
+YTDLP_FETCH_TIMEOUT_S = 3.0
 
 
 def get_ytdlp_version() -> str | None:
@@ -57,6 +68,38 @@ def ytdlp_age_days(now: datetime | None = None) -> int | None:
     if release is None:
         return None
     return ((now or datetime.now()) - release).days
+
+
+def fetch_latest_ytdlp_version(timeout: float = YTDLP_FETCH_TIMEOUT_S) -> str | None:
+    """Latest published yt-dlp version from PyPI, or None on any failure.
+
+    Deliberately swallows everything (offline, DNS, 5xx, malformed JSON): a
+    freshness hint must never raise into a command, and must never delay one
+    for long. Mirrors ``distill.update.fetch_latest_version``.
+    """
+    try:
+        import requests
+
+        response = requests.get(YTDLP_PYPI_URL, timeout=timeout)
+        response.raise_for_status()
+        version = response.json()["info"]["version"]
+        return version if isinstance(version, str) and version else None
+    except Exception:
+        return None
+
+
+def ytdlp_update_available(installed: str | None) -> bool | None:
+    """True/False when PyPI could be reached, None when it could not.
+
+    The tri-state matters: "no newer release" and "could not check" must not
+    print the same thing, or the check quietly stops meaning anything offline.
+    """
+    latest = fetch_latest_ytdlp_version()
+    if latest is None:
+        return None
+    from distill.update import latest_is_newer
+
+    return latest_is_newer(installed, latest)
 
 
 def _cache_path(library_dir: Path | None) -> Path | None:
@@ -111,35 +154,63 @@ def preflight_ytdlp(console: Console, library_dir: Path | None = None) -> None:
     entry = cache.get("yt-dlp", {})
     version = get_ytdlp_version()
 
-    if (
-        _is_cache_fresh(entry, now)
-        and entry.get("version") == version
-        and entry.get("warned_age_days") is not None
-    ):
-        warned_age = entry["warned_age_days"]
-        if isinstance(warned_age, int) and warned_age > YTDLP_STALE_DAYS:
-            _emit_stale_warning(console, version, warned_age)
+    if _is_cache_fresh(entry, now) and entry.get("version") == version:
+        cached_age = entry.get("warned_age_days")
+        cached_newer = entry.get("update_available")
+        if isinstance(cached_age, int):
+            _warn_if_behind(console, version, cached_age, cached_newer)
         return
 
     age = ytdlp_age_days(now=now)
+    # Only ask PyPI once the local age makes it plausible we are behind. A
+    # recently released install cannot be, so the common case costs no network.
+    update_available = (
+        ytdlp_update_available(version) if age is not None and age > YTDLP_STALE_DAYS else False
+    )
     cache["yt-dlp"] = {
         "version": version,
         "checked_at": now.isoformat(timespec="seconds"),
         "warned_age_days": age,
+        "update_available": update_available,
     }
     _write_cache(cache_file, cache)
 
-    if age is not None and age > YTDLP_STALE_DAYS:
-        _emit_stale_warning(console, version, age)
+    if age is not None:
+        _warn_if_behind(console, version, age, update_available)
 
 
-def _emit_stale_warning(console: Console, version: str | None, age: int) -> None:
+def _warn_if_behind(
+    console: Console,
+    version: str | None,
+    age: int,
+    update_available: object,
+) -> None:
+    """Warn only when there is something to actually do about it."""
+    if age <= YTDLP_STALE_DAYS:
+        return
+    if update_available is False:
+        return  # old, but already the newest published release: nothing to do
+    _emit_stale_warning(console, version, age, verified=update_available is True)
+
+
+def _emit_stale_warning(
+    console: Console,
+    version: str | None,
+    age: int,
+    *,
+    verified: bool,
+) -> None:
     label = f"v{version}" if version else "unknown"
+    reason = (
+        "a newer release is available"
+        if verified
+        else f"{age} days old and PyPI could not be reached to confirm"
+    )
     # ASCII marker (`!`) instead of U+26A0 so even legacy Windows consoles that
     # somehow bypass the UTF-8 stdio bootstrap don't crash on this banner.
     with contextlib.suppress(Exception):
         console.print(
-            f"[yellow]! yt-dlp {label} is {age} days old. "
+            f"[yellow]! yt-dlp {label}: {reason}. "
             f"YouTube extractors may be stale; run "
             f"[bold]distill doctor --update[/bold] to refresh.[/yellow]"
         )

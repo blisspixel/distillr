@@ -51,6 +51,7 @@ from distill.preflight import (
     invalidate_preflight_cache,
     update_ytdlp,
     ytdlp_age_days,
+    ytdlp_update_available,
 )
 
 __all__ = [
@@ -617,16 +618,25 @@ def doctor(  # noqa: C901 - legacy, will refactor
             raise importlib_metadata.PackageNotFoundError("yt-dlp")
         ytdlp_version = importlib_metadata.version("yt-dlp")
         age = ytdlp_age_days()
-        if update_succeeded and (age is None or age > YTDLP_STALE_DAYS):
-            # Suppress the "X days old; run --update" nag right after a successful
-            # upgrade attempt; pypi simply hasn't shipped a newer release yet.
+        # Age alone is not staleness. yt-dlp can go weeks without a release, and
+        # telling an operator to update when nothing newer exists trains them to
+        # ignore the one warning that guards the project's most fragile
+        # dependency. Only ask PyPI when age makes being behind plausible.
+        newer = (
+            ytdlp_update_available(ytdlp_version)
+            if age is not None and age > YTDLP_STALE_DAYS and not update_succeeded
+            else False
+        )
+        if update_succeeded or newer is False:
             age_label = "  [dim](latest available release)[/dim]"
         elif age is None:
             age_label = ""
-        elif age > YTDLP_STALE_DAYS:
-            age_label = f"  [yellow]({age}d old; run `distill doctor --update`)[/yellow]"
+        elif newer is True:
+            age_label = (
+                "  [yellow](newer release available; run `distill doctor --update`)[/yellow]"
+            )
         else:
-            age_label = f"  [dim]({age}d old)[/dim]"
+            age_label = f"  [dim]({age}d old; could not reach PyPI to check)[/dim]"
         console.print(
             f"  [green]OK[/green]  yt-dlp            [dim]v{ytdlp_version}[/dim]{age_label}"
         )
