@@ -108,7 +108,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.56, 2026-08-13). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.61, 2026-08-19). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -519,7 +519,7 @@ refinement.
   - Deterministic generated-corpus fixtures cover search, audit, links, insight discovery, dashboard reads, manifest scans, and near-duplicate detection at increasing scale. Frozen offline workflow replays separate Distill-owned overhead from simulated provider wait.
   - Blocking performance checks are limited to deterministic offline fixtures after runner variance is characterized. Live model, network, and hardware journeys are scheduled or release evidence, not ordinary PR gates.
   - Optimization order is measurement, repeated-scan and data-movement removal, algorithm and cache improvements, bounded concurrency, then a conditional native spike. No language extraction precedes that sequence.
-  - Status 2026-08-01: first published offline baseline is [`docs/performance/baseline-0.19.50.md`](docs/performance/baseline-0.19.50.md) (Windows scale-100, n=20, warm-generated) with raw JSON. Scale 500/1k/10k, multi-host history, frozen workflow replay, and live reference journeys remain open. No native language admission.
+  - Status 2026-08-19: published offline baselines are [`docs/performance/baseline-0.19.60.md`](docs/performance/baseline-0.19.60.md) (Windows scale-100/500/1_000/10_000, n=20, warm-generated) and the earlier [`docs/performance/baseline-0.19.50.md`](docs/performance/baseline-0.19.50.md) scale-100 receipt. Multi-host history, frozen workflow replay, and live reference journeys remain open. No native language admission.
 
 **A future stability commitment is about contracts, not about prompts. Prompt-revision cadence is separate.**
 

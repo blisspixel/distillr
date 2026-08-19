@@ -45,8 +45,9 @@ cannot silently label changed source with stale distribution metadata.
 
 The near-duplicate operation exercises exact Jaccard verification behind the
 ephemeral rare-first prefix candidate index. Start with the documented
-scale-100 sample; the 1,000 and 10,000 canonical scale runs remain pending
-until comparable history establishes safe operation-specific timeout budgets.
+scale-100 sample. Published Windows n=20 receipts at 100, 500, 1,000, and
+10,000 live in `docs/performance/baseline-0.19.60.md`. Safe sample timeouts
+on that host were 60s at 100 and 500, 120s at 1,000, and 300s at 10,000.
 
 The corpus is hashed before and after every operation and for the whole suite.
 Any corpus or measured-source digest change is an integrity failure. Timings

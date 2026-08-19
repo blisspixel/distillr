@@ -1,6 +1,8 @@
 # Performance baseline (0.19.50, partial)
 
 Status: **published offline scale-100 evidence**, not the complete 1.0 baseline.
+Successor Windows evidence at 100 / 500 / 1_000 / 10_000:
+[`baseline-0.19.60.md`](baseline-0.19.60.md).
 Live reference journeys and multi-host history remain open. Policy:
 [`../design/performance-and-language-admission.md`](../design/performance-and-language-admission.md).
 Plan: [`../design/path-to-1.0.md`](../design/path-to-1.0.md).
@@ -70,7 +72,9 @@ work in 0.19.45 remains the relevant prior art for reducing this.
 
 ## Next baseline slices (still required for 1.0)
 
-1. Scale 500 / 1_000 / 10_000 with operation-specific timeouts and n>=20
-2. Linux and macOS repeats of the same seed for runner-variance history
-3. Frozen offline workflow replays with provider stubs
-4. Scheduled live reference journeys as release evidence only
+Scale 500, 1_000, and 10_000 n=20 now live in
+[`baseline-0.19.60.md`](baseline-0.19.60.md). Still required:
+
+1. Linux and macOS repeats of the same seed for runner-variance history
+2. Frozen offline workflow replays with provider stubs
+3. Scheduled live reference journeys as release evidence only

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.61 - 2026-08-19
+
+### Added
+
+- **Published Windows corpus-scale baseline at 100, 500, 1_000, and 10_000
+  insights.** Twenty fresh-process samples per operation, same seed as
+  0.19.50, with p95 and raw `corpus-scale-result.v2` JSON. Scale-100 result
+  digests match the 0.19.50 receipt, including near-duplicate clustering
+  identity. This is a different Windows host than 0.19.50, so wall times are
+  not a same-machine speedup claim. Linux/macOS repeats, frozen workflow
+  replays, and live reference journeys remain open. Evidence:
+  [`docs/performance/baseline-0.19.60.md`](performance/baseline-0.19.60.md).
+
 ## 0.19.60 - 2026-08-19
 
 ### Added

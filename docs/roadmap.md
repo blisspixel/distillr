@@ -430,12 +430,14 @@ per unit of time and cost, not language-level throughput in isolation.
   threshold-edge pairs, malformed frontmatter, broken links, and path edge
   cases. Replay paper, video, site, synthesis, verification, profile, and report
   workflows with frozen receipts and provider responses.
-- [~] **Published 1.0 baseline.** First offline evidence published as
+- [~] **Published 1.0 baseline.** Offline evidence published as
+  [`performance/baseline-0.19.60.md`](performance/baseline-0.19.60.md)
+  (Windows corpus-scale at 100 / 500 / 1_000 / 10_000, n=20, plus CLI
+  `--version` process start) and the earlier
   [`performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
-  (Windows scale-100 corpus-scale suite, n=20, plus CLI `--version` process
-  start). Still open: scale 500/1k/10k, multi-host history, frozen workflow
-  replays, export/install metrics, and live 20-paper / 50-video / site-batch
-  reference journeys with full hardware and cost metadata.
+  scale-100 receipt. Still open: multi-host history, frozen workflow
+  replays, export/install metrics, and live 20-paper / 50-video /
+  site-batch reference journeys with full hardware and cost metadata.
 - [ ] **Honest regression policy.** Keep live provider, network, and hardware
   journeys as scheduled or release evidence. Allow deterministic offline
   benchmarks to block only after at least five comparable runs characterize
