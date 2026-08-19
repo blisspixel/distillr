@@ -49,6 +49,21 @@ class CostPolicyError(ValueError):
     """A route is not allowed under the selected cost mode."""
 
 
+def metered_api_spend_notice() -> str:
+    """Operator notice when a run will bill a cloud API.
+
+    Local loopback inference is $0. Subscription quota CLIs are not a Distill
+    no-metered route until adapter proof exists. This copy must stay honest on
+    both points.
+    """
+    return (
+        "Metered cloud API: provider token billing applies. "
+        "This is not local $0 inference (Ollama or LM Studio), and Distill "
+        "cannot treat subscription quota CLIs as included-plan until adapter "
+        "proof exists. Use --cost-mode no-metered to refuse API-billed routes."
+    )
+
+
 def normalize_cost_mode(value: object) -> CostMode:
     """Normalize and validate a configured cost mode."""
 

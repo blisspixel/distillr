@@ -3810,6 +3810,145 @@
     {
       "parameters": [
         {
+          "count": false,
+          "default": true,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "fetch_sources",
+          "names": [
+            "--fetch"
+          ],
+          "nargs": 1,
+          "required": false,
+          "secondary_names": [
+            "--no-fetch"
+          ],
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "include_fresh",
+          "names": [
+            "--include-fresh"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "include_manual",
+          "names": [
+            "--include-manual"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": 3,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "item_limit",
+          "names": [
+            "--item-limit"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": 50,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": 6.0,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_hours",
+          "names": [
+            "--max-hours"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": 24.0,
+            "max_open": false,
+            "min": 0.25,
+            "min_open": false,
+            "name": "float range"
+          }
+        },
+        {
+          "count": false,
+          "default": 12,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "max_profiles",
+          "names": [
+            "--max-profiles"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "clamp": false,
+            "max": 100,
+            "max_open": false,
+            "min": 1,
+            "min_open": false,
+            "name": "integer range"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "yes",
+          "names": [
+            "--yes"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        }
+      ],
+      "path": "distill profile refresh"
+    },
+    {
+      "parameters": [
+        {
           "default": null,
           "kind": "argument",
           "name": "profile",

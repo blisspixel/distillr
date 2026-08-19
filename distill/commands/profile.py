@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import NoReturn
 
@@ -22,7 +23,9 @@ from distill.library.profiles import (
     find_research_profile,
     load_research_profile,
 )
-from distill.llm.cost_policy import CostMode, normalize_cost_mode
+from distill.llm.cost_policy import CostMode, metered_api_spend_notice, normalize_cost_mode
+from distill.llm.router import RouterConfig
+from distill.pipeline.duration_estimates import DurationEstimate, format_run_projection
 from distill.pipeline.profile_execution import MAX_PROFILE_TIMEOUT_SECONDS
 from distill.pipeline.profile_preview import (
     ProfilePreviewResult,
@@ -30,12 +33,23 @@ from distill.pipeline.profile_preview import (
     command_shell_label,
     command_text,
 )
+from distill.pipeline.profile_refresh import (
+    ProfileRefreshPlan,
+    ProfileRefreshSlot,
+    pack_profile_refresh,
+)
 from distill.pipeline.profile_run import (
     ProfileRunResult,
     run_profile_preview,
 )
 
-__all__ = ["profile_app", "profile_preview_cmd", "profile_run_cmd", "register"]
+__all__ = [
+    "profile_app",
+    "profile_preview_cmd",
+    "profile_refresh_cmd",
+    "profile_run_cmd",
+    "register",
+]
 
 profile_app = typer.Typer(help="Manage recurring research profiles.")
 
@@ -149,6 +163,224 @@ def profile_run_cmd(
         _render_profile_run(result, path)
     if yes and result.health_status not in {"ok", "complete"}:
         raise typer.Exit(1)
+
+
+@profile_app.command(name="refresh")
+def profile_refresh_cmd(
+    max_hours: float = typer.Option(
+        6.0,
+        "--max-hours",
+        min=0.25,
+        max=24.0,
+        help="Overnight wall-clock budget. Remaining due profiles wait until tomorrow.",
+    ),
+    max_profiles: int = typer.Option(
+        12,
+        "--max-profiles",
+        min=1,
+        max=100,
+        help="Hard cap on profiles started in this window.",
+    ),
+    item_limit: int = typer.Option(
+        3,
+        "--item-limit",
+        min=1,
+        max=50,
+        help="Fresh items per profile tonight. Keeps 100 topics rotating instead of one huge ingest.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Execute the packed profile runs. Without this, only prints the plan.",
+    ),
+    include_fresh: bool = typer.Option(
+        False,
+        "--include-fresh",
+        help="Also consider profiles that are not stale yet.",
+    ),
+    include_manual: bool = typer.Option(
+        False,
+        "--include-manual",
+        help="Include cadence: manual profiles.",
+    ),
+    fetch_sources: bool = typer.Option(
+        True,
+        "--fetch/--no-fetch",
+        help="Fetch feeds and YouTube metadata for selected profiles.",
+    ),
+):
+    """Pack due research profiles into an overnight window.
+
+    Distill does not run a scheduler. Put this command on Task Scheduler or
+    cron. It picks stale and never-run profiles that fit ``--max-hours`` on
+    this machine, then either prints the plan or runs them with ``--yes``.
+    Unfinished topics wait until the next window, which is how 100 wiki
+    topics stay current on a $0 local route without starting all of them
+    at once.
+
+    Examples:
+      distill --cost-mode no-metered profile refresh --max-hours 6
+      distill --cost-mode no-metered profile refresh --max-hours 6 --yes
+    """
+
+    config = get_config()
+    router = RouterConfig()
+    provider, model = router.resolve("analysis")
+    plan = pack_profile_refresh(
+        config.library_dir,
+        cost_mode=normalize_cost_mode(
+            os.environ.get("DISTILL_COST_MODE", config.distill_cost_mode)
+        ),
+        provider=provider,
+        model=model,
+        max_hours=max_hours,
+        max_profiles=max_profiles,
+        item_limit=item_limit,
+        include_fresh=include_fresh,
+        include_manual=include_manual,
+    )
+
+    if json_mode_active() and not yes:
+        emit_json(plan.to_dict())
+        return
+
+    if not json_mode_active():
+        _render_profile_refresh_plan(plan)
+
+    if not yes:
+        if not json_mode_active() and plan.selected:
+            console.print(
+                "\n[yellow]Preview only.[/yellow] Re-run with --yes to execute tonight's pack."
+            )
+        return
+
+    failed = _execute_profile_refresh(
+        config,
+        plan,
+        fetch_sources=fetch_sources,
+        max_hours=max_hours,
+    )
+    if failed:
+        raise typer.Exit(1)
+
+
+def _execute_profile_refresh(
+    config: DistillConfig,
+    plan: ProfileRefreshPlan,
+    *,
+    fetch_sources: bool,
+    max_hours: float,
+) -> bool:
+    if not plan.selected:
+        if json_mode_active():
+            emit_json({**plan.to_dict(), "executed": []})
+        return False
+    runs: list[dict[str, object]] = []
+    remaining = max_hours * 3600.0
+    failed = False
+    for index, slot in enumerate(plan.selected, start=1):
+        if remaining < 60:
+            if not json_mode_active():
+                console.print(
+                    "[dim]Window almost empty; leaving remaining profiles for tomorrow.[/dim]"
+                )
+            break
+        if not json_mode_active():
+            console.print(
+                f"\n[bold]({index}/{len(plan.selected)}) {slot.name}[/bold] "
+                f"[dim]{slot.topic} · {slot.reason}[/dim]"
+            )
+        started = time.monotonic()
+        try:
+            run_failed = _run_refresh_slot(
+                config,
+                slot,
+                fetch_sources=fetch_sources,
+                timeout=min(MAX_PROFILE_TIMEOUT_SECONDS, max(int(remaining), 60)),
+                runs=runs,
+            )
+        finally:
+            remaining = max(remaining - (time.monotonic() - started), 0.0)
+        failed = failed or run_failed
+    if json_mode_active():
+        emit_json({**plan.to_dict(), "executed": runs})
+    return failed
+
+
+def _run_refresh_slot(
+    config: DistillConfig,
+    slot: ProfileRefreshSlot,
+    *,
+    fetch_sources: bool,
+    timeout: int,
+    runs: list[dict[str, object]],
+) -> bool:
+    try:
+        _loaded, path, preview = _load_profile_preview(slot.name, slot.max_new_items, fetch_sources)
+        del _loaded
+        result = run_profile_preview(
+            preview,
+            library_dir=config.library_dir,
+            approved=True,
+            profile_ref=slot.name,
+            timeout_seconds=timeout,
+            workflow_budgets_usd=config.cost_workflow_budgets_usd,
+        )
+    except (ProfileValidationError, ValueError) as exc:
+        runs.append({"profile": slot.name, "status": "error", "error": str(exc)})
+        if not json_mode_active():
+            console.print(f"[red]{exc}[/red]")
+        return True
+    runs.append(
+        {
+            "profile": slot.name,
+            "status": result.health_status,
+            "succeeded": result.succeeded_count,
+            "failed": result.failed_count,
+        }
+    )
+    if not json_mode_active():
+        _render_profile_run(result, path)
+    return result.health_status not in {"ok", "complete"}
+
+
+def _render_profile_refresh_plan(plan: ProfileRefreshPlan) -> None:
+    console.print("\n[bold]Overnight profile refresh[/bold]")
+    duration = DurationEstimate(model=plan.model)
+    if plan.estimated_calibrated:
+        duration = DurationEstimate(
+            expected_seconds=plan.estimated_seconds,
+            low_seconds=plan.estimated_seconds * 0.8,
+            high_seconds=plan.estimated_seconds * 1.4,
+            calibrated=True,
+            model=plan.model,
+            samples=len(plan.selected),
+            basis="probe",
+        )
+    if plan.local:
+        console.print(format_run_projection(cost_usd=0.0, duration=duration, local=True))
+    else:
+        console.print(f"[yellow]{metered_api_spend_notice()}[/yellow]")
+    console.print(
+        f"[dim]Window: {plan.max_hours:g}h · cap {plan.max_profiles} profiles · "
+        f"{plan.item_limit} fresh items each · {plan.cost_mode}[/dim]"
+    )
+    if plan.selected:
+        table = Table(title="Tonight")
+        table.add_column("Profile")
+        table.add_column("Topic")
+        table.add_column("Why")
+        table.add_column("Est")
+        for slot in plan.selected:
+            est = slot.to_dict()["estimated_duration"]
+            table.add_row(slot.name, slot.topic, slot.reason, str(est))
+        console.print(table)
+    else:
+        console.print("[dim]Nothing due that fits this window.[/dim]")
+    if plan.deferred:
+        console.print(
+            f"\n[dim]Deferred {len(plan.deferred)} profile(s) until a later window.[/dim]"
+        )
 
 
 def _maybe_export_okf_bundle(

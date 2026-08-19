@@ -164,12 +164,14 @@ def test_deadline_socket_file_close_releases_underlying_socket() -> None:
         def close(self) -> None:
             self.closed = True
 
+    deadline = NetworkDeadline(5)
     socket_resource = Socket()
-    stream = net._DeadlineSocketIO(socket_resource)  # type: ignore[arg-type] - close-only socket test double
-
-    stream.close()
-
-    assert socket_resource.closed is True
+    try:
+        stream = net._DeadlineSocket(socket_resource, deadline).makefile("rb", buffering=0)
+        stream.close()
+        assert socket_resource.closed is True
+    finally:
+        deadline.cancel()
 
 
 def test_safe_urlopen_honors_an_already_exhausted_shared_deadline() -> None:
@@ -728,6 +730,160 @@ class _SocketDouble:
 
     def close(self) -> None:
         self.closed = True
+
+
+def _windows_not_a_socket() -> OSError:
+    error = OSError("not a socket")
+    error.winerror = 10038
+    return error
+
+
+def test_deadline_socket_survives_windows_makefile_settimeout() -> None:
+    class _NotASocket:
+        def __init__(self) -> None:
+            self.timeout: float | None = 30.0
+            self._reads = 0
+
+        def settimeout(self, value: float | None) -> None:
+            raise _windows_not_a_socket()
+
+        def gettimeout(self) -> float | None:
+            return self.timeout
+
+        def recv_into(self, buffer, *_args) -> int:
+            if self._reads:
+                return 0
+            self._reads += 1
+            buffer[:3] = b"abc"
+            return 3
+
+    deadline = NetworkDeadline(5)
+    socket = net._DeadlineSocket(_NotASocket(), deadline)
+    try:
+        buffer = bytearray(3)
+        assert socket.recv_into(buffer) == 3
+        assert bytes(buffer) == b"abc"
+        socket.settimeout(1)
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_treats_windows_closed_recv_as_eof() -> None:
+    class _ClosedOnRecv:
+        def settimeout(self, value: float | None) -> None:
+            return None
+
+        def gettimeout(self) -> float | None:
+            return 30.0
+
+        def recv_into(self, buffer, *_args) -> int:
+            raise _windows_not_a_socket()
+
+    deadline = NetworkDeadline(5)
+    socket = net._DeadlineSocket(_ClosedOnRecv(), deadline)
+    try:
+        assert socket.recv_into(bytearray(8)) == 0
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_settimeout_still_raises_other_oserrors() -> None:
+    class _BrokenSocket:
+        def settimeout(self, value: float | None) -> None:
+            raise OSError(22, "invalid argument")
+
+        def gettimeout(self) -> float | None:
+            return None
+
+    deadline = NetworkDeadline(5)
+    socket = net._DeadlineSocket(_BrokenSocket(), deadline)
+    try:
+        with pytest.raises(OSError, match="invalid argument"):
+            socket.settimeout(1)
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_close_without_views_closes_inner() -> None:
+    deadline = NetworkDeadline(5)
+    socket_double = _SocketDouble()
+    deadline_socket = net._DeadlineSocket(socket_double, deadline)
+    try:
+        deadline_socket.close()
+        assert socket_double.closed is True
+        deadline_socket.close()
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_close_inner_swallows_missing_or_failing_close() -> None:
+    class _NoClose:
+        def settimeout(self, value: float | None) -> None:
+            return None
+
+        def gettimeout(self) -> float | None:
+            return 1.0
+
+    class _ExplodingClose(_NoClose):
+        def close(self) -> None:
+            raise OSError("already closed")
+
+    deadline = NetworkDeadline(5)
+    try:
+        net._DeadlineSocket(_NoClose(), deadline).close()
+        net._DeadlineSocket(_ExplodingClose(), deadline).close()
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_makefile_default_buffering_and_extra_release() -> None:
+    deadline = NetworkDeadline(5)
+    socket_double = _SocketDouble()
+    deadline_socket = net._DeadlineSocket(socket_double, deadline)
+    try:
+        buffered = deadline_socket.makefile("rb")
+        buffered.close()
+        deadline_socket._release_view()
+        assert socket_double.closed is True
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_recv_other_oserror_is_not_eof() -> None:
+    class _BrokenRecv:
+        def settimeout(self, value: float | None) -> None:
+            return None
+
+        def gettimeout(self) -> float | None:
+            return 30.0
+
+        def recv_into(self, buffer, *_args) -> int:
+            raise OSError(22, "invalid argument")
+
+    deadline = NetworkDeadline(5)
+    socket = net._DeadlineSocket(_BrokenRecv(), deadline)
+    try:
+        with pytest.raises(OSError, match="invalid argument"):
+            socket.recv_into(bytearray(8))
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_keeps_inner_socket_open_while_makefile_lives() -> None:
+    deadline = NetworkDeadline(5)
+    socket_double = _SocketDouble()
+    deadline_socket = net._DeadlineSocket(socket_double, deadline)
+    try:
+        view = deadline_socket.makefile("rb", buffering=0)
+        deadline_socket.close()
+        assert socket_double.closed is False
+        buffer = bytearray(3)
+        assert view.readinto(buffer) == 3
+        assert bytes(buffer) == b"abc"
+        view.close()
+        assert socket_double.closed is True
+    finally:
+        deadline.cancel()
 
 
 def test_deadline_socket_applies_budget_to_io_and_file_views() -> None:

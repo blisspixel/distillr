@@ -327,6 +327,19 @@ def test_paper_fetch_failure_refuses_before_analysis(paper_config, monkeypatch):
     assert "Could not fetch paper metadata" in result.output
 
 
+def test_completed_paper_artifacts_skip_unreadable_or_non_object_metadata(
+    paper_config: DistillConfig,
+) -> None:
+    papers_dir = paper_config.papers_dir("research")
+    broken = papers_dir / "broken"
+    listed = papers_dir / "listed"
+    broken.mkdir(parents=True)
+    listed.mkdir(parents=True)
+    (broken / "metadata.json").write_text("{not-json", encoding="utf-8")
+    (listed / "metadata.json").write_text("[]\n", encoding="utf-8")
+    assert papers_cmd._completed_paper_artifacts(paper_config, "research", "2607.00001v1") is None
+
+
 def test_exact_completed_paper_version_replay_is_a_write_free_noop(
     paper_config: DistillConfig,
     monkeypatch: pytest.MonkeyPatch,
@@ -931,3 +944,60 @@ def test_papers_budget_crossing_is_a_hard_stop(paper_config, monkeypatch):
     assert syntheses == []
     assert concepts == []
     assert issue_calls == []
+
+
+class _Router:
+    def __init__(self, provider: str, model: str) -> None:
+        self._provider = provider
+        self._model = model
+
+    def resolve(self, _workload: str = "") -> tuple[str, str]:
+        return self._provider, self._model
+
+
+def _write_paper_bench(library: Path) -> None:
+    bench = library / ".distill" / "bench"
+    bench.mkdir(parents=True, exist_ok=True)
+    (bench / "results.jsonl").write_text(
+        '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+        '"prefill_tokens_per_second":12.6,"decode_tokens_per_second":3.1,'
+        '"load_plus_queue_seconds":20.0}\n',
+        encoding="utf-8",
+    )
+
+
+def test_papers_run_projection_prints_local_time_budget(paper_config, capsys) -> None:
+    _write_paper_bench(paper_config.library_dir)
+    papers_cmd._papers_run_projection(
+        2,
+        synthesis_calls=1,
+        projected_cost=0.0,
+        config=paper_config,
+        router_config=_Router("ollama", "qwen3.8:27b"),
+    )
+    output = capsys.readouterr().out
+    assert "$0.00" in output
+    assert "wall clock is the budget" in output
+    assert "qwen3.8:27b" in output
+
+
+def test_papers_run_projection_warns_on_metered_cloud(paper_config, capsys) -> None:
+    papers_cmd._papers_run_projection(
+        2,
+        synthesis_calls=1,
+        projected_cost=1.2,
+        config=paper_config,
+        router_config=_Router("xai", "grok-4.6"),
+    )
+    output = capsys.readouterr().out
+    assert "Projected spend $1.20 on a metered cloud API" in output
+    assert "not local $0" in output
+
+
+def test_planned_paper_seconds_are_zero_on_cloud_and_positive_when_benched(
+    paper_config,
+) -> None:
+    assert papers_cmd._planned_paper_seconds(_Router("xai", "grok-4.6"), paper_config) == 0.0
+    assert papers_cmd._planned_paper_seconds(_Router("ollama", "qwen3.8:27b"), paper_config) == 0.0
+    _write_paper_bench(paper_config.library_dir)
+    assert papers_cmd._planned_paper_seconds(_Router("ollama", "qwen3.8:27b"), paper_config) > 0

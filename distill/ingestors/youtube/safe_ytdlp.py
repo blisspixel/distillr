@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import math
 import threading
@@ -27,7 +28,12 @@ from yt_dlp.networking._requests import (
 from yt_dlp.networking.common import Response
 from yt_dlp.networking.exceptions import RequestError
 
-from distill.ingestors.net import pin_host_to_ip, resolve_public_ip
+from distill.ingestors.net import (
+    _apply_socket_timeout,
+    _is_windows_not_a_socket,
+    pin_host_to_ip,
+    resolve_public_ip,
+)
 from distill.ingestors.youtube._yt_dlp_boundary import ydl_params
 from distill.parsing import parse_ascii_uint
 
@@ -153,6 +159,12 @@ class _DeadlineSocketIO(io.RawIOBase):
     def fileno(self) -> int:
         return self._deadline_socket.fileno()
 
+    def close(self) -> None:
+        if self.closed:
+            return
+        self._deadline_socket._release_view()
+        super().close()
+
 
 class _DeadlineSocket:
     """Socket proxy whose every blocking operation is capped by one deadline."""
@@ -160,11 +172,13 @@ class _DeadlineSocket:
     def __init__(self, sock: Any, deadline: _OperationDeadline) -> None:
         self._socket = sock
         self._deadline = deadline
+        self._live_views = 0
+        self._closed = False
 
     def _cap_timeout(self, requested: float | None) -> None:
         remaining = self._deadline.remaining()
         effective = remaining if requested is None else min(float(requested), remaining)
-        self._socket.settimeout(effective)
+        _apply_socket_timeout(self._socket, effective)
 
     def settimeout(self, value: float | None) -> None:
         self._cap_timeout(value)
@@ -172,7 +186,12 @@ class _DeadlineSocket:
     def recv_into(self, buffer: Any, *args: Any) -> int:
         current = self._socket.gettimeout()
         self._cap_timeout(current)
-        received = self._socket.recv_into(buffer, *args)
+        try:
+            received = self._socket.recv_into(buffer, *args)
+        except OSError as exc:
+            if _is_windows_not_a_socket(exc):
+                return 0
+            raise
         self._deadline.remaining()
         return int(received)
 
@@ -198,6 +217,7 @@ class _DeadlineSocket:
             or newline is not None
         ):
             raise ValueError("deadline socket supports binary response reads only")
+        self._live_views += 1
         raw = _DeadlineSocketIO(self)
         if buffering == 0:
             return raw
@@ -207,6 +227,24 @@ class _DeadlineSocket:
             assert buffering is not None
             buffer_size = buffering
         return io.BufferedReader(raw, buffer_size)
+
+    def _close_inner(self) -> None:
+        close = getattr(self._socket, "close", None)
+        if callable(close):
+            with contextlib.suppress(OSError):
+                close()
+
+    def _release_view(self) -> None:
+        if self._live_views > 0:
+            self._live_views -= 1
+        if self._live_views == 0:
+            self._closed = True
+            self._close_inner()
+
+    def close(self) -> None:
+        self._closed = True
+        if self._live_views == 0:
+            self._close_inner()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._socket, name)

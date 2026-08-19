@@ -25,6 +25,37 @@ public sources before analysis. The local model reads those receipts. Its
 pretraining may be old, but the evidence under the insight is whatever Distill
 just captured from arXiv, YouTube, feeds, sites, repos, or local files.
 
+## Capacity: volume, speed, and already-paid plans
+
+If the machine is on and a local model is loaded, do more research, not less.
+Internet plus local inference is how the corpus grows: ad hoc `papers` /
+`discover` / `ask` when you are at the keyboard, and `profile refresh` after
+hours so dozens of topics stay current. Local models keep getting faster. The
+same `$0` command buys more knowledge over time. Hours tonight are expected;
+that wait is the control.
+
+When API spend is OK, use a calibrated cloud route with `--cost-mode paid-ok`
+and a hard budget, and go wide: `--limit 20` plus `--workers 2|3` ingests a
+large paper set in minutes with the same verify gate. That is a speed
+purchase. It is not required to keep the wiki fed, but if you are willing to
+spend, Distill can do a lot of research quickly and well. Preview and ingest
+print a metered-API notice so that billing is not confused with local `$0`
+inference or with subscription quota CLIs Distill has not proven as
+included-plan.
+
+Subscription or plan-quota CLIs (Codex, Claude Code, Grok Build, Gemini CLI,
+and similar) are the lane you already pay for, and Distill wants that to become
+the fast included-plan route. They are **not** a no-metered Distill provider
+today. Distill cannot call that usage free until adapter doctor, a current
+support statement, and `distill eval` prove included-plan auth rather than API
+billing. Until that proof exists, treat them as candidate workers, not as a
+silent `$0` default.
+
+`distill eval` with a cloud judge is optional extra spend for "is this local
+model good enough," not part of building the corpus. `distill profile refresh
+--max-hours 6` is the library-scale volume control: many topics, `$0` local
+analysis, a finite overnight window, leftover work tomorrow.
+
 ## Route classes
 
 | Route class | Implemented today | Cost meaning | Notes |

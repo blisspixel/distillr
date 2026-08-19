@@ -12,6 +12,8 @@ from distill.pipeline.duration_estimates import (
     estimate_stage_duration,
     estimate_workflow_duration,
     format_duration,
+    format_run_projection,
+    load_speed_calibration,
 )
 
 # Measured on an AMD Radeon 780M, 2026-08-18.
@@ -123,6 +125,131 @@ class TestFormatDuration:
         assert format_duration(float("nan")) == "unknown"
         assert format_duration(float("inf")) == "unknown"
         assert format_duration(-5) == "unknown"
+
+
+class TestLoadSpeedCalibration:
+    def test_missing_file_is_uncalibrated(self, tmp_path) -> None:
+        loaded = load_speed_calibration(tmp_path, model="qwen3.8:27b", provider="ollama")
+        assert loaded.calibrated is False
+        assert loaded.model == "qwen3.8:27b"
+
+    def test_latest_matching_success_row_wins(self, tmp_path) -> None:
+        bench = tmp_path / ".distill" / "bench"
+        bench.mkdir(parents=True)
+        (bench / "results.jsonl").write_text(
+            "\n".join(
+                [
+                    '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+                    '"prefill_tokens_per_second":10.0,"decode_tokens_per_second":2.0,'
+                    '"load_plus_queue_seconds":5.0}',
+                    '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+                    '"prefill_tokens_per_second":49.46,"decode_tokens_per_second":5.41,'
+                    '"load_plus_queue_seconds":20.51}',
+                    '{"outcome":"success","model":"qwen3-coder:30b","provider":"ollama",'
+                    '"prefill_tokens_per_second":189.0,"decode_tokens_per_second":21.0,'
+                    '"load_plus_queue_seconds":16.0}',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        loaded = load_speed_calibration(tmp_path, model="qwen3.8:27b", provider="ollama")
+        assert loaded.calibrated is True
+        assert loaded.decode_tokens_per_second == 5.41
+        assert loaded.cold_load_seconds == 20.51
+
+    def test_non_finite_helpers_and_provider_mismatch(self, tmp_path) -> None:
+        from distill.pipeline.duration_estimates import (
+            _finite_non_negative,
+            _finite_positive,
+        )
+
+        assert _finite_positive(True) is None
+        assert _finite_positive(0) is None
+        assert _finite_positive(float("inf")) is None
+        assert _finite_positive(12.0) == 12.0
+        assert _finite_non_negative(True) == 0.0
+        assert _finite_non_negative(-4) == 0.0
+        assert _finite_non_negative(float("nan")) == 0.0
+        assert _finite_non_negative(2.5) == 2.5
+
+        bench = tmp_path / ".distill" / "bench"
+        bench.mkdir(parents=True)
+        (bench / "results.jsonl").write_text(
+            "\n".join(
+                [
+                    '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+                    '"prefill_tokens_per_second":12.0,"decode_tokens_per_second":3.0}',
+                    '{"outcome":"success","model":"qwen3.8:27b","provider":"lmstudio",'
+                    '"prefill_tokens_per_second":10.0,"decode_tokens_per_second":5.0}',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        loaded = load_speed_calibration(tmp_path, model="qwen3.8:27b", provider="ollama")
+        assert loaded.calibrated is True
+        assert loaded.decode_tokens_per_second == 3.0
+
+    def test_bool_or_blank_identity_rows_are_uncalibrated(self, tmp_path) -> None:
+        bench = tmp_path / ".distill" / "bench"
+        bench.mkdir(parents=True)
+        (bench / "results.jsonl").write_text(
+            '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+            '"prefill_tokens_per_second":true,"decode_tokens_per_second":5.0}\n',
+            encoding="utf-8",
+        )
+        assert (
+            load_speed_calibration(tmp_path, model="qwen3.8:27b", provider="ollama").calibrated
+            is False
+        )
+        assert load_speed_calibration(tmp_path, model="", provider="ollama").calibrated is False
+
+    def test_failed_or_zero_rate_rows_are_skipped(self, tmp_path) -> None:
+        bench = tmp_path / ".distill" / "bench"
+        bench.mkdir(parents=True)
+        (bench / "results.jsonl").write_text(
+            '{"outcome":"error","model":"qwen3.8:27b","provider":"ollama",'
+            '"prefill_tokens_per_second":49.0,"decode_tokens_per_second":5.0}\n',
+            encoding="utf-8",
+        )
+        loaded = load_speed_calibration(tmp_path, model="qwen3.8:27b", provider="ollama")
+        assert loaded.calibrated is False
+
+
+class TestFormatRunProjection:
+    def test_cloud_route_warns_that_spend_is_metered_api_billing(self) -> None:
+        line = format_run_projection(
+            cost_usd=1.2,
+            duration=estimate_stage_duration("paper", _MEASURED),
+            local=False,
+        )
+        assert line.startswith("Projected spend $1.20 on a metered cloud API.")
+        assert "token billing" in line
+        assert "not local $0" in line
+        assert "quota CLIs" in line
+        assert "no-metered" in line
+        assert "hour" not in line
+
+    def test_local_calibrated_route_states_time_as_the_budget(self) -> None:
+        line = format_run_projection(
+            cost_usd=0.0,
+            duration=estimate_workflow_duration({"paper": 2, "synthesis": 1}, _MEASURED),
+            local=True,
+        )
+        assert line.startswith("Projected spend $0.00 · ~")
+        assert "qwen3.8:27b" in line
+        assert "wall clock is the budget" in line
+        assert "hours are expected" in line
+
+    def test_local_uncalibrated_points_at_bench(self) -> None:
+        line = format_run_projection(
+            cost_usd=0.0,
+            duration=estimate_stage_duration("paper", SpeedCalibration(model="qwen3.8:27b")),
+            local=True,
+        )
+        assert "unknown" in line
+        assert "distill bench" in line
 
 
 class TestFormatting:

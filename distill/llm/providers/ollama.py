@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import time
 from dataclasses import replace
 from time import monotonic as _monotonic
 from typing import Any
@@ -19,7 +18,6 @@ import httpx
 
 from distill.llm._parsing import parse_ascii_uint
 from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
-from distill.llm.errors import ProviderBusyTimeoutError
 
 # Re-exported for callers/tests that import it from this module; the redundant
 # alias marks the intentional re-export (the transport code does not use it).
@@ -27,7 +25,6 @@ from distill.llm.providers._ollama_metadata import (
     _STRUCTURED_JSON_CALL_TYPES as _STRUCTURED_JSON_CALL_TYPES,  # pyright: ignore[reportPrivateUsage]  -- compatibility re-export
 )
 from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPrivateUsage]  -- private helpers shared with the transport module
-    _canonical_model_name,
     _describe_ollama_error,
     build_chat_payload,
     parse_chat_frame,
@@ -42,6 +39,7 @@ from distill.llm.providers._ollama_registry import (
     parse_tags_response,
 )
 from distill.llm.providers._ollama_show import ShowProbe
+from distill.llm.providers._ollama_slot import wait_for_model_slot
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
@@ -56,8 +54,6 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_DEFAULT_URL = "http://localhost:11434"
 
-_CONTENTION_INITIAL_BACKOFF_SECONDS = 1.0
-_CONTENTION_MAX_BACKOFF_SECONDS = 10.0
 _RUNNING_MODELS_REQUEST_TIMEOUT_SECONDS = 5.0
 _RUNNING_MODELS_RESPONSE_BYTES = 1024 * 1024
 _RUNNING_MODELS_MAX_MODELS = 256
@@ -136,7 +132,11 @@ class OllamaProvider:
         The final answer (message.content) is returned as the response text.
         Retries on transient errors with exponential backoff (base 2s, factor 2).
         """
-        await self._wait_for_model_slot(model, timeout)
+        await wait_for_model_slot(
+            model,
+            timeout,
+            running_models=self._running_model_names,
+        )
 
         last_error: Exception | None = None
         usage_attempts: list[LLMUsageAttempt] = []
@@ -255,75 +255,8 @@ class OllamaProvider:
                 )
                 return replace(response, usage_attempts=tuple(usage_attempts))
 
-        assert last_error is not None  # nosec B101
-        raise last_error
-
-    async def _wait_for_model_slot(self, model: str, timeout: int) -> None:
-        """Wait until Ollama is free or already has the requested model loaded.
-
-        Ollama may unload a running model to satisfy a request for another one,
-        which can disrupt an unrelated local workload and make this call appear
-        to hang during model loading. Poll ``/api/ps`` with bounded backoff so
-        the configured model remains explicit. The call timeout is also the
-        maximum contention wait. Older or unavailable ``/api/ps`` endpoints
-        preserve the previous behavior and let the normal call proceed.
-        """
-        wait_limit = max(float(timeout), 0.0)
-        deadline = time.monotonic() + wait_limit
-        backoff = _CONTENTION_INITIAL_BACKOFF_SECONDS
-        first_wait = True
-        last_running: tuple[str, ...] | None = None
-
-        while True:
-            remaining = deadline - time.monotonic()
-            if last_running is not None and remaining <= 0:
-                raise ProviderBusyTimeoutError(
-                    provider="Ollama",
-                    requested_model=model,
-                    active_models=last_running,
-                    timeout_seconds=wait_limit,
-                )
-
-            running = await self._running_model_names(max(remaining, 0.0))
-            if (
-                running is None
-                or not running
-                or any(
-                    _canonical_model_name(model) == _canonical_model_name(running_model)
-                    for running_model in running
-                )
-            ):
-                return
-
-            last_running = running
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ProviderBusyTimeoutError(
-                    provider="Ollama",
-                    requested_model=model,
-                    active_models=running,
-                    timeout_seconds=wait_limit,
-                )
-
-            active = ", ".join(running)
-            sleep_for = min(backoff, remaining)
-            if first_wait:
-                logger.warning(
-                    "Ollama is running %s; waiting up to %gs for requested model '%s'. "
-                    "No model will be substituted.",
-                    active,
-                    wait_limit,
-                    model,
-                )
-                first_wait = False
-            logger.info(
-                "Ollama is still running %s; checking again in %.1fs (%.1fs remaining)",
-                active,
-                sleep_for,
-                remaining,
-            )
-            await asyncio.sleep(sleep_for)
-            backoff = min(backoff * 2, _CONTENTION_MAX_BACKOFF_SECONDS)
+        assert last_error is not None  # nosec B101  # pragma: no cover
+        raise last_error  # pragma: no cover
 
     async def _running_model_names(self, probe_timeout: float) -> tuple[str, ...] | None:
         """Return models reported by ``/api/ps``, or ``None`` when unavailable."""

@@ -27,7 +27,14 @@ distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --l
 ```
 
 `no-metered` only allows routes Distill can prove are not API-billed. Preview
-builds a current arXiv shortlist without ingesting. When the shortlist looks
+builds a current arXiv shortlist without ingesting. On a local Ollama or LM
+Studio route that spend is `$0.00` and the budget is wall clock: a two-paper
+ingest can take an hour on a laptop, and that is the control, not a hang. Run
+`distill bench` once so preview can print how long the full ingest will take on
+this machine. If local inference is up, use it to ingest more and stay more
+current: ad hoc commands at the keyboard, `distill profile refresh --max-hours
+6 --yes` after hours so many topics keep feeding the markdown wiki. When API
+spend is OK, the same pipeline goes wide and fast. When the shortlist looks
 right:
 
 Hard dollar budgets cover registered token-priced calls. Gemini Deep Research
@@ -36,12 +43,14 @@ before remote setup whenever a hard workflow or MCP budget is active.
 
 ```bash
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
+distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20 --workers 3
 ```
 
-Paper analysis stays one-at-a-time by default. After reviewing the projected
-total, pass `--workers 2` or `--workers 3` to analyze independent papers in a
-small bounded group. Discovery, artifact writes, verification, synthesis, and
-report sections remain serialized.
+Paid-ok is how you do a lot quickly: preview the shortlist, then ingest a large
+set in minutes instead of hours. Paper analysis stays one-at-a-time by default.
+After reviewing the projected total, `--workers 2` or `--workers 3` analyzes
+independent papers in a small bounded group. Discovery, artifact writes,
+verification, synthesis, and report sections remain serialized.
 
 ![distill papers CLI demo with synthetic paper titles, progress lines, cost summary, and Markdown corpus artifacts](docs/assets/cli-papers-demo.png)
 

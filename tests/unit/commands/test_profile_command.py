@@ -13,7 +13,7 @@ from distill import cli
 from distill.commands import profile as _profile
 from distill.config import DistillConfig
 from distill.library.okf import OkfExportResult, OkfIssue, OkfValidationResult
-from distill.library.profiles import ProfileValidationError
+from distill.library.profiles import ProfileValidationError, load_research_profile
 from distill.pipeline.profile_preview import (
     ProfilePreviewCandidate,
     ProfilePreviewResult,
@@ -747,6 +747,374 @@ class TestProfileOkfExport:
         data = json.loads(result.stdout)["data"]
         assert data["okf_bundle_valid"] is False
         assert "validation failed" in data["warnings"][-1]["message"]
+
+
+def _library_research_profile(library: Path, name: str, *, cost_mode: str = "no-metered") -> None:
+    profiles = library / "profiles"
+    profiles.mkdir(parents=True, exist_ok=True)
+    (library / "goals").mkdir(parents=True, exist_ok=True)
+    (library / "goals" / f"{name}.md").write_text("goal", encoding="utf-8")
+    (profiles / f"{name}.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: research-profile.v1",
+                f"name: {name}",
+                f"topic: {name}",
+                f"goal_file: goals/{name}.md",
+                f"cost_mode: {cost_mode}",
+                "freshness:",
+                "  cadence: daily",
+                "  stale_after: P1D",
+                "queries:",
+                "  - overnight wiki fuel",
+                "limits:",
+                "  max_new_items: 25",
+                f"  max_metered_usd: {'0' if cost_mode == 'no-metered' else '5'}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+class _LocalRouter:
+    def resolve(self, _workload: str = "") -> tuple[str, str]:
+        return ("ollama", "qwen3.8:27b")
+
+
+def test_profile_refresh_json_preview_packs_due_profiles(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    _library_research_profile(config.library_dir, "bravo")
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "--json",
+            "profile",
+            "refresh",
+            "--max-hours",
+            "6",
+            "--no-fetch",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["schema_version"] == "profile-refresh.v1"
+    assert data["selected_count"] == 2
+    assert [slot["name"] for slot in data["selected"]] == ["alpha", "bravo"]
+    assert data["local"] is True
+    assert "executed" not in data
+
+
+def test_profile_refresh_yes_executes_packed_profiles(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    ran: list[str] = []
+
+    def _fake_run(preview, **kwargs):
+        ran.append(preview.profile)
+        return ProfileRunResult(
+            schema_version="profile-run.v1",
+            profile=preview.profile,
+            topic=preview.topic,
+            cost_mode=preview.cost_mode,
+            generated_at="2026-08-19T06:00:00Z",
+            state_path=str(
+                config.library_dir / ".distill" / "profiles" / preview.profile / "run_state.json"
+            ),
+            approved=True,
+            executed=True,
+            fresh_item_limit=preview.fresh_item_limit,
+            ordering=preview.ordering,
+        )
+
+    monkeypatch.setattr(_profile, "run_profile_preview", _fake_run)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "--json",
+            "profile",
+            "refresh",
+            "--max-hours",
+            "6",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["schema_version"] == "profile-refresh.v1"
+    assert ran == ["alpha"]
+    assert data["executed"] == [
+        {"profile": "alpha", "status": "complete", "succeeded": 0, "failed": 0}
+    ]
+
+
+def test_profile_refresh_console_preview_and_empty_window(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+
+    empty = runner.invoke(
+        cli.app,
+        ["--cost-mode", "no-metered", "profile", "refresh", "--max-hours", "6", "--no-fetch"],
+    )
+    assert empty.exit_code == 0, empty.output
+    assert "Overnight profile refresh" in empty.output
+    assert "Nothing due" in empty.output
+
+    _library_research_profile(config.library_dir, "alpha")
+    preview = runner.invoke(
+        cli.app,
+        ["--cost-mode", "no-metered", "profile", "refresh", "--max-hours", "6", "--no-fetch"],
+    )
+    assert preview.exit_code == 0, preview.output
+    assert "alpha" in preview.output
+    assert "Preview only" in preview.output
+    assert "wall clock is the budget" in preview.output or "distill bench" in preview.output
+
+
+def test_profile_refresh_cloud_route_prints_metered_notice(tmp_path, monkeypatch):
+    class _CloudRouter:
+        def resolve(self, _workload: str = "") -> tuple[str, str]:
+            return ("xai", "grok-4.6")
+
+    config = _config(tmp_path)
+    monkeypatch.setenv("DISTILL_COST_MODE", "paid-ok")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _CloudRouter)
+    _library_research_profile(config.library_dir, "alpha")
+
+    result = runner.invoke(
+        cli.app,
+        ["--cost-mode", "paid-ok", "profile", "refresh", "--max-hours", "6", "--no-fetch"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Metered cloud API" in result.output
+
+
+def test_profile_refresh_yes_records_slot_errors_and_stops_on_empty_window(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    _library_research_profile(config.library_dir, "bravo")
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    clock = [0.0]
+    monkeypatch.setattr(_profile.time, "monotonic", lambda: clock[0])
+
+    def _fake_run(preview, **kwargs):
+        clock[0] += 6 * 3600
+        raise ProfileValidationError(f"{preview.profile} is invalid")
+
+    monkeypatch.setattr(_profile, "run_profile_preview", _fake_run)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "--json",
+            "profile",
+            "refresh",
+            "--max-hours",
+            "6",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 1, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["executed"] == [
+        {"profile": "alpha", "status": "error", "error": "alpha is invalid"}
+    ]
+
+
+def test_profile_refresh_yes_with_nothing_due_emits_empty_execution(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "--json",
+            "profile",
+            "refresh",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["selected_count"] == 0
+    assert data["executed"] == []
+
+
+def _write_bench(library: Path) -> None:
+    bench = library / ".distill" / "bench"
+    bench.mkdir(parents=True, exist_ok=True)
+    (bench / "results.jsonl").write_text(
+        '{"outcome":"success","model":"qwen3.8:27b","provider":"ollama",'
+        '"prefill_tokens_per_second":200.0,"decode_tokens_per_second":50.0,'
+        '"load_plus_queue_seconds":1.0}\n',
+        encoding="utf-8",
+    )
+
+
+def test_profile_refresh_console_yes_renders_and_stops_when_window_elapses(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    _library_research_profile(config.library_dir, "bravo")
+    _library_research_profile(config.library_dir, "cloud", cost_mode="paid-ok")
+    _write_bench(config.library_dir)
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    clock = [0.0]
+    monkeypatch.setattr(_profile.time, "monotonic", lambda: clock[0])
+
+    def _fake_run(preview, **kwargs):
+        clock[0] += 6 * 3600
+        return ProfileRunResult(
+            schema_version="profile-run.v1",
+            profile=preview.profile,
+            topic=preview.topic,
+            cost_mode=preview.cost_mode,
+            generated_at="2026-08-19T06:00:00Z",
+            state_path=str(
+                config.library_dir / ".distill" / "profiles" / preview.profile / "run_state.json"
+            ),
+            approved=True,
+            executed=True,
+            fresh_item_limit=preview.fresh_item_limit,
+            ordering=preview.ordering,
+        )
+
+    monkeypatch.setattr(_profile, "run_profile_preview", _fake_run)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "profile",
+            "refresh",
+            "--max-hours",
+            "6",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Overnight profile refresh" in result.output
+    assert "Deferred" in result.output or "Tonight" in result.output
+    assert "Window almost empty" in result.output
+    assert "(1/" in result.output
+
+
+def test_profile_refresh_console_yes_prints_slot_errors(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    monkeypatch.setattr(
+        _profile,
+        "run_profile_preview",
+        lambda preview, **kwargs: (_ for _ in ()).throw(ProfileValidationError("alpha is invalid")),
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "profile",
+            "refresh",
+            "--max-hours",
+            "6",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 1, result.output
+    assert "alpha is invalid" in result.output
+
+
+def test_profile_refresh_console_yes_with_nothing_due(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "profile",
+            "refresh",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Nothing due" in result.output
+
+
+def test_profile_refresh_yes_treats_failed_health_as_nonzero(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    _library_research_profile(config.library_dir, "alpha")
+    monkeypatch.setenv("DISTILL_COST_MODE", "no-metered")
+    monkeypatch.setattr(_profile, "get_config", lambda: config)
+    monkeypatch.setattr(_profile, "RouterConfig", _LocalRouter)
+    monkeypatch.setattr(
+        _profile,
+        "run_profile_preview",
+        lambda preview, **kwargs: _run_result(approved=True, failed=True),
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "--json",
+            "profile",
+            "refresh",
+            "--yes",
+            "--no-fetch",
+        ],
+    )
+    assert result.exit_code == 1, result.output
+    data = json.loads(result.stdout)["data"]
+    assert data["executed"][0]["status"] == "failed"
+
+
+def test_apply_profile_cost_policy_auto_inherits_configured_mode(tmp_path):
+    profile_path = _write_profile(tmp_path)
+    loaded = load_research_profile(profile_path)
+    auto = loaded.model_copy(update={"cost_mode": "auto"})
+    applied = _profile._apply_profile_cost_policy(auto, "paid-ok")
+    assert applied.cost_mode == "paid-ok"
 
 
 class TestProfileRegister:

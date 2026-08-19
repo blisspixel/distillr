@@ -281,6 +281,140 @@ def test_deadline_socket_binary_io_contract():
         deadline.cancel()
 
 
+def _windows_not_a_socket() -> OSError:
+    error = OSError("not a socket")
+    error.winerror = 10038
+    return error
+
+
+def test_deadline_socket_survives_windows_makefile_settimeout() -> None:
+    class _NotASocket:
+        def __init__(self) -> None:
+            self.timeout: float | None = 30.0
+            self._reads = 0
+
+        def settimeout(self, value: float | None) -> None:
+            raise _windows_not_a_socket()
+
+        def gettimeout(self) -> float | None:
+            return self.timeout
+
+        def recv_into(self, buffer, *_args) -> int:
+            if self._reads:
+                return 0
+            self._reads += 1
+            buffer[:3] = b"abc"
+            return 3
+
+    deadline = _OperationDeadline(5)
+    wrapped = safe_mod._DeadlineSocket(_NotASocket(), deadline)
+    try:
+        buffer = bytearray(3)
+        assert wrapped.recv_into(buffer) == 3
+        assert bytes(buffer) == b"abc"
+        wrapped.settimeout(1)
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_treats_windows_closed_recv_as_eof() -> None:
+    class _ClosedOnRecv:
+        def settimeout(self, value: float | None) -> None:
+            return None
+
+        def gettimeout(self) -> float | None:
+            return 30.0
+
+        def recv_into(self, buffer, *_args) -> int:
+            raise _windows_not_a_socket()
+
+    deadline = _OperationDeadline(5)
+    wrapped = safe_mod._DeadlineSocket(_ClosedOnRecv(), deadline)
+    try:
+        assert wrapped.recv_into(bytearray(8)) == 0
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_settimeout_still_raises_other_oserrors() -> None:
+    class _BrokenSocket:
+        def settimeout(self, value: float | None) -> None:
+            raise OSError(22, "invalid argument")
+
+        def gettimeout(self) -> float | None:
+            return None
+
+    deadline = _OperationDeadline(5)
+    wrapped = safe_mod._DeadlineSocket(_BrokenSocket(), deadline)
+    try:
+        with pytest.raises(OSError, match="invalid argument"):
+            wrapped.settimeout(1)
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_keeps_inner_socket_open_while_makefile_lives() -> None:
+    class _SocketDouble:
+        def __init__(self) -> None:
+            self.closed = False
+            self.timeout: float | None = 2.0
+            self._reads = 0
+
+        def settimeout(self, value: float | None) -> None:
+            self.timeout = value
+
+        def gettimeout(self) -> float | None:
+            return self.timeout
+
+        def recv_into(self, buffer, *_args) -> int:
+            if self._reads:
+                return 0
+            self._reads += 1
+            buffer[:3] = b"abc"
+            return 3
+
+        def close(self) -> None:
+            self.closed = True
+
+        def fileno(self) -> int:
+            return 9
+
+    deadline = _OperationDeadline(5)
+    inner = _SocketDouble()
+    wrapped = safe_mod._DeadlineSocket(inner, deadline)
+    try:
+        view = wrapped.makefile("rb", buffering=0)
+        wrapped.close()
+        assert inner.closed is False
+        buffer = bytearray(3)
+        assert view.readinto(buffer) == 3
+        assert bytes(buffer) == b"abc"
+        view.close()
+        assert inner.closed is True
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_recv_other_oserror_is_not_eof() -> None:
+    class _BrokenRecv:
+        def settimeout(self, value: float | None) -> None:
+            return None
+
+        def gettimeout(self) -> float | None:
+            return 30.0
+
+        def recv_into(self, buffer, *_args) -> int:
+            raise OSError(22, "invalid argument")
+
+    deadline = _OperationDeadline(5)
+    wrapped = safe_mod._DeadlineSocket(_BrokenRecv(), deadline)
+    try:
+        with pytest.raises(OSError, match="invalid argument"):
+            wrapped.recv_into(bytearray(8))
+    finally:
+        deadline.cancel()
+
+
 def test_dns_resolution_rejects_when_worker_capacity_is_exhausted(monkeypatch):
     class ExhaustedSlots:
         def acquire(self, *, timeout):

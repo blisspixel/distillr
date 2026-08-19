@@ -6,6 +6,7 @@ from distill.llm.cost_policy import (
     CostPolicyError,
     classify_provider,
     local_provider_endpoint_is_valid,
+    metered_api_spend_notice,
     normalize_cost_mode,
     require_route_allowed,
     route_block_report,
@@ -15,6 +16,15 @@ from distill.llm.cost_policy import (
 @pytest.mark.parametrize("value", ["auto", "AUTO", " no-metered ", "paid-ok"])
 def test_normalize_cost_mode_accepts_supported_values(value: str) -> None:
     assert normalize_cost_mode(value) in {"auto", "no-metered", "paid-ok"}
+
+
+def test_metered_api_spend_notice_distinguishes_local_and_quota() -> None:
+    notice = metered_api_spend_notice()
+    assert "Metered cloud API" in notice
+    assert "Ollama" in notice
+    assert "included-plan" in notice
+    assert "no-metered" in notice
+    assert "free" not in notice.lower()
 
 
 def test_normalize_cost_mode_rejects_unknown_values() -> None:

@@ -30,7 +30,12 @@ from distill.pipeline.duration_estimates import (
     estimate_stage_duration,
     format_duration,
 )
-from distill.pipeline.speed_probe import ModelSpeed, build_probe_prompt, speed_from_response
+from distill.pipeline.speed_probe import (
+    ModelSpeed,
+    build_probe_prompt,
+    release_model,
+    speed_from_response,
+)
 
 __all__ = ["bench_cmd", "register"]
 
@@ -85,9 +90,13 @@ async def _probe_one(provider_name: str, model: str) -> ModelSpeed:
             call_type="bench",
         )
     except Exception as exc:  # one bad model must not end the sweep
+        await release_model(provider._base_url, model)  # pyright: ignore[reportPrivateUsage]
         return ModelSpeed(
             model=model, provider=provider_name, outcome="error", error=str(exc)[:200]
         )
+    # Hold exactly one model at a time. A model left resident competes for
+    # memory with the next one measured, which reads as that model being slower.
+    await release_model(provider._base_url, model)  # pyright: ignore[reportPrivateUsage]
     return speed_from_response(model, provider_name, warmup=warmup, measured=measured)
 
 

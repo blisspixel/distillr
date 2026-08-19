@@ -146,6 +146,19 @@ what it costs in time rather than guessing from its size. Size is a poor
 predictor: a mixture-of-experts model can decode several times faster than a
 smaller dense one.
 
+After a bench, `distill papers --preview` prints `$0.00` and a duration such as
+`~1h15m on this machine`. Hours are expected on local hardware. Local models
+keep getting faster; the same command gets cheaper in time without changing the
+`$0` spend. Persist the route so you do not have to pass it every time:
+
+```bash
+distill --cost-mode no-metered provider set ollama qwen3.5:27b
+```
+
+A bare `distill papers` still follows `.env`. If `DISTILL_PROVIDER` is unset,
+the default cloud route can spend. `--cost-mode no-metered` refuses that
+instead of charging.
+
 Roles name which model to use when. `deep` is suggested from the server's own
 capability report -- whether a model produces a reasoning trace -- and `fast`
 from measured speed once `distill bench` has run. `unfiltered` is never

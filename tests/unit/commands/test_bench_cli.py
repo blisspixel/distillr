@@ -19,6 +19,10 @@ from distill.pipeline.speed_probe import ModelSpeed
 runner = CliRunner()
 
 
+async def _async_noop(*_args: object, **_kwargs: object) -> None:
+    return None
+
+
 @pytest.fixture
 def library(tmp_path, monkeypatch):
     config = DistillConfig(distill_output_dir=tmp_path / "library")
@@ -214,8 +218,10 @@ class TestProbeExecution:
         from distill.llm.types import LLM_Response
 
         class _Provider:
-            @staticmethod
-            async def call(model: str, prompt: str, **kwargs: object) -> LLM_Response:
+            def __init__(self, base_url: str = "") -> None:
+                self._base_url = base_url or "http://localhost:11434"
+
+            async def call(self, model: str, prompt: str, **kwargs: object) -> LLM_Response:
                 if fail:
                     raise RuntimeError("ollama unreachable")
                 calls.append({"model": model, "prompt": prompt, **kwargs})
@@ -236,6 +242,7 @@ class TestProbeExecution:
         """Differing sizes would resize the context and force a weight reload."""
         calls: list[dict[str, object]] = []
         monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", self._provider(calls))
+        monkeypatch.setattr(bench_mod, "release_model", _async_noop)
 
         speed = asyncio.run(bench_mod._probe_one("ollama", "m:8b"))
 
@@ -249,6 +256,7 @@ class TestProbeExecution:
     def test_the_probe_defeats_the_prefix_cache_between_calls(self, monkeypatch):
         calls: list[dict[str, object]] = []
         monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", self._provider(calls))
+        monkeypatch.setattr(bench_mod, "release_model", _async_noop)
 
         asyncio.run(bench_mod._probe_one("ollama", "m:8b"))
 
@@ -258,6 +266,7 @@ class TestProbeExecution:
         monkeypatch.setattr(
             "distill.llm.providers.ollama.OllamaProvider", self._provider([], fail=True)
         )
+        monkeypatch.setattr(bench_mod, "release_model", _async_noop)
 
         speed = asyncio.run(bench_mod._probe_one("ollama", "m:8b"))
 

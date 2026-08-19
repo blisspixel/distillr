@@ -37,6 +37,16 @@ JSON. DEBUG stays in `library/.distill/distill.log` (8 MiB roll, three backups).
 behavior are documented under [Exit Codes](#exit-codes) and the source sections
 below.
 
+**Capacity.** Local inference plus the public internet is how Distill builds a
+knowledge corpus: do more ingest, stay more current, grow the markdown wiki.
+Ad hoc commands are for when you are at the keyboard. `profile refresh` is for
+after hours. `$0` local runs are volume; they take wall clock, and that clock
+gets shorter as local models improve. `--cost-mode paid-ok` is how you do a
+lot quickly: preview, then `--limit 20 --workers 3` if the estimate looks
+right. Plan-quota CLIs you already subscribe to are the intended fast
+included-plan lane, but Distill does not treat them as no-metered until it can
+prove included-plan auth. See [cost.md](cost.md).
+
 ## Table of Contents
 
 - [Goal-aware discovery (cross-source)](#goal-aware-discovery-cross-source)
@@ -316,6 +326,21 @@ distill --cost-mode no-metered profile run ai-developer-news --yes
 and does not execute commands or write run state. With `--yes`, it executes the
 approved argv rows from preview, captures each exit code and output tail, and
 writes state to `library/.distill/profiles/<profile>/run_state.json`.
+
+To keep many topics current (a Karpathy-style wiki on a $0 local route), save
+one profile per topic with `cadence: daily` or `weekly`, then pack what fits
+tonight:
+
+```bash
+distill --cost-mode no-metered profile refresh --max-hours 6
+distill --cost-mode no-metered profile refresh --max-hours 6 --yes
+```
+
+That does not start 100 full ingests. It ranks stale and never-run profiles,
+estimates wall clock from `distill bench` or the last run, and takes only what
+fits the window (default 12 profiles, 3 fresh items each). The rest wait until
+tomorrow. Distill still does not schedule itself; put the `--yes` line on Task
+Scheduler or cron.
 JSON output includes `next_actions` rows with the same argv, approval, write
 scope, verifier, and loop metadata shape used by audit next actions, so an
 external runner can execute profile refreshes without scraping console text.
@@ -659,6 +684,8 @@ distill --cost-mode paid-ok papers "agent memory systems" --topic my-research --
 
 # Preview the ranked shortlist without ingesting; refuse API-billed model routes
 distill --cost-mode no-metered papers "agent memory systems" --topic my-research --limit 5 --preview
+# After `distill bench`, that preview also prints how long the ingest would take
+# on this machine. $0.00 and "~1h15m" are the same kind of control.
 
 # Old behavior: literal query, newest-first, blind ingest of top N
 distill papers "agent memory systems" --topic my-research --limit 20 \
@@ -686,7 +713,7 @@ Flags on `distill papers`:
 - `--expand / --no-expand` - expand the single user query into up to six arXiv search variants via the configured model (default on). Candidates are deduped by `paper_id` across variants. arXiv calls are spaced 3.5s to respect rate limits.
 - `--rerank / --no-rerank` - LLM rerank with `RankedPaper` scoring on relevance / depth / novelty / credibility (default on). Runs *before* PDF fetch and analysis, so you don't pay to analyze off-topic picks.
 - `--rigor strict|balanced|loose|off` - quality bar on the rerank score; drops papers below the per-source threshold (0.65 / 0.45 / 0.30) before the `--limit` cap. Default `off` (keep the rerank's top picks as before). Needs `--rerank` - under `--no-rerank` the scores are heuristic, off the rerank scale, so an explicit bar is skipped with a warning. When set, the whole candidate pool is reranked so the bar has something to drop, and a `kept X/Y` line shows what it cut.
-- `--preview` - show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing.
+- `--preview` - show the ranked shortlist and stop. Use this to sanity-check what you'd actually ingest before committing. On a local route it also prints `$0.00` plus a wall-clock estimate from `distill bench` (or `unknown` if this machine has not been measured). Hours-long local ingests are expected.
 - `--workers 1|2|3` - concurrent independent PDF fetch and paper analysis.
   Default `1` preserves one-at-a-time spend and failure semantics. Values `2`
   and `3` are explicit opt-ins after the total workflow estimate passes.
@@ -1085,20 +1112,26 @@ Every command is safe unattended: non-interactive flags, convergent re-runs
 (a converged corpus exits 0 as a no-op), clean failure messages, report
 artifacts instead of console-only output.
 
-Windows Task Scheduler (weekly refresh + audit):
+Windows Task Scheduler (overnight wiki fuel + morning audit):
 
 ```powershell
-schtasks /Create /SC WEEKLY /D MON /ST 06:00 /TN "distill-refresh" `
-  /TR "distill catch-up"
-schtasks /Create /SC WEEKLY /D MON /ST 06:30 /TN "distill-audit" `
-  /TR "distill audit all --report-only"
+schtasks /Create /SC DAILY /ST 01:00 /TN "distill-refresh" `
+  /TR "distill --cost-mode no-metered profile refresh --max-hours 6 --yes"
+schtasks /Create /SC DAILY /ST 07:00 /TN "distill-audit" `
+  /TR "distill --cost-mode no-metered audit all --report-only"
 ```
+
+`profile refresh` packs due topics into the six-hour window. A `$0` local
+machine that estimates `~20m` per topic will rotate through dozens of
+profiles over a couple of weeks, which is how 100 wiki topics stay current
+without a 100-topic stampede on Monday night. Cloud API runs finish in
+minutes and can use a shorter window. Distill does not schedule itself.
 
 cron (Linux/macOS):
 
 ```cron
-0 6 * * 1   distill catch-up
-30 6 * * 1  distill audit all --report-only
+0 1 * * *   distill --cost-mode no-metered profile refresh --max-hours 6 --yes
+0 7 * * *   distill --cost-mode no-metered audit all --report-only
 0 7 * * 1   distill discover --from-gaps --topic <topic> --preview
 ```
 
