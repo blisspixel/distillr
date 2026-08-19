@@ -2,8 +2,9 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-2026-08-13 against code, roadmap, and release evidence at
-`distillr==0.19.56`; the first performance baseline remains 0.19.50 evidence.
+2026-08-19 against code, roadmap, and release evidence at
+`distillr==0.19.60`; published performance evidence is the 0.19.50 scale-100
+receipt plus the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix.
 
 ## The honest answer
 
@@ -53,14 +54,15 @@ additively under that policy and do not block 1.0.
 ### B. Published performance baseline (partial harness, no freeze yet)
 
 `benchmarks/corpus_scale/` exists for deterministic offline scale evidence.
-Still open for the 1.0 bar:
+Published: Windows scale 100 (0.19.50 and 0.19.60), 500, 1_000, and 10_000
+at n=20, plus CLI `--version` process start, under
+[`../performance/`](../performance/). Still open for the 1.0 bar:
 
-1. Canonical matrix at 100 / 500 / 1_000 / 10_000 insights with comparable
-   history (p95 only after >=20 samples).
+1. Comparable history on more than one host class (Linux and macOS repeats of
+   the same seed; p95 only after >=20 samples).
 2. Frozen offline workflow replays (paper / video / site / synthesis / verify).
 3. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
-4. Published baseline document consumers can cite.
 
 ### C. Quality bar completeness (mostly done; residual ratchets)
 
@@ -147,7 +149,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 |-------|--------|----------|
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | scale-100 Windows baseline published under `docs/performance/` |
+| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 published under `docs/performance/`; Linux/macOS, frozen replays, live journeys remain |
 | 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~75% of modules |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

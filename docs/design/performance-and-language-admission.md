@@ -122,8 +122,10 @@ instrumentation from each worker, and suppresses p95 below 20 successful
 samples. There is deliberately no installed command and no user-selected
 library path. Source `project_version` and installed distribution version are
 reported separately with an explicit match flag, so a deliberate `--no-sync`
-run cannot label current editable source with stale package metadata. The
-canonical scale matrix, cold-filesystem experiments, malformed and
+run cannot label current editable source with stale package metadata. Windows
+receipts at scale 100, 500, 1_000, and 10_000 with n=20 are published under
+[`../performance/baseline-0.19.60.md`](../performance/baseline-0.19.60.md).
+Linux and macOS repeats, cold-filesystem experiments, malformed and
 threshold-edge fixture expansion, scheduled history, and offline workflow
 replay remain follow-on work.
 
