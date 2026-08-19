@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.59 - 2026-08-18
+
+### Fixed
+
+- **The yt-dlp freshness warning fired on a perfectly current install.** It
+  compared the installed release *date* against a staleness threshold and never
+  asked whether a newer release existed, so a fortnight without an upstream
+  publish produced "45 days old; run `distill doctor --update`" on every
+  command -- advice that could not be acted on, because nothing newer had
+  shipped. Running the update and getting nothing was the only way to learn the
+  install was fine.
+
+  Staleness now means *being behind*, not *being old*: the check consults PyPI
+  and warns only when a newer release actually exists. Age is still read first
+  as a free local pre-filter, so a recently published install never touches the
+  network. Three outcomes are now distinguishable rather than collapsed --
+  a newer release exists, none does, or the index could not be reached.
+
+  This matters beyond tidiness. The roadmap names yt-dlp churn as the known
+  fragile edge of YouTube ingestion, so this is the warning that should mean
+  something. One that fires on a healthy install is one operators learn to
+  ignore, and then it is not there when extraction genuinely breaks.
+
 ## 0.19.58 - 2026-08-18
 
 Local speed becomes measurable. Distill could estimate what a run would cost in

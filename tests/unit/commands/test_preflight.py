@@ -253,3 +253,120 @@ def test_update_ytdlp_returns_noop_false_when_pre_version_unknown(monkeypatch):
     assert ok is True
     assert detail == "2026.4.20"
     assert was_noop is False
+
+
+class TestStalenessIsAboutBeingBehindNotBeingOld:
+    """Age alone cried wolf: yt-dlp can go weeks without publishing.
+
+    Warning a user to update when nothing newer exists trains them to ignore
+    the warning that guards this project's most fragile dependency.
+    """
+
+    @staticmethod
+    def _console():
+        from rich.console import Console
+
+        return Console(record=True, width=200)
+
+    def test_a_current_install_is_never_warned_about(self, tmp_path, monkeypatch):
+        console = self._console()
+        monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.7.4")
+        monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 45)
+        monkeypatch.setattr(preflight, "ytdlp_update_available", lambda installed: False)
+
+        preflight.preflight_ytdlp(console, tmp_path)
+
+        assert console.export_text().strip() == ""
+
+    def test_a_genuinely_behind_install_is_warned(self, tmp_path, monkeypatch):
+        console = self._console()
+        monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.5.1")
+        monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 100)
+        monkeypatch.setattr(preflight, "ytdlp_update_available", lambda installed: True)
+
+        preflight.preflight_ytdlp(console, tmp_path)
+
+        output = console.export_text()
+        assert "newer release is available" in output
+        assert "distill doctor --update" in output
+
+    def test_an_unreachable_index_says_so_rather_than_asserting_staleness(
+        self, tmp_path, monkeypatch
+    ):
+        """ "No newer release" and "could not check" must not print the same thing."""
+        console = self._console()
+        monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.5.1")
+        monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 100)
+        monkeypatch.setattr(preflight, "ytdlp_update_available", lambda installed: None)
+
+        preflight.preflight_ytdlp(console, tmp_path)
+
+        output = console.export_text()
+        assert "could not be reached" in output
+
+    def test_a_recent_install_never_touches_the_network(self, tmp_path, monkeypatch):
+        """Age is a free local pre-filter: a fresh install cannot be behind."""
+        console = self._console()
+        monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.8.15")
+        monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 3)
+
+        def forbidden(installed: str | None) -> bool:
+            raise AssertionError("a fresh install must not be checked against PyPI")
+
+        monkeypatch.setattr(preflight, "ytdlp_update_available", forbidden)
+
+        preflight.preflight_ytdlp(console, tmp_path)
+
+        assert console.export_text().strip() == ""
+
+    def test_the_pypi_answer_is_cached_with_the_version(self, tmp_path, monkeypatch):
+        import json
+
+        console = self._console()
+        monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.5.1")
+        monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 100)
+        calls: list[str | None] = []
+
+        def once(installed: str | None) -> bool:
+            calls.append(installed)
+            return True
+
+        monkeypatch.setattr(preflight, "ytdlp_update_available", once)
+
+        preflight.preflight_ytdlp(console, tmp_path)
+        preflight.preflight_ytdlp(console, tmp_path)
+
+        assert len(calls) == 1  # second run served from the daily cache
+        cached = json.loads((tmp_path / preflight.PREFLIGHT_CACHE_NAME).read_text(encoding="utf-8"))
+        assert cached["yt-dlp"]["update_available"] is True
+
+
+class TestFetchLatestYtdlp:
+    def test_a_failed_fetch_returns_none_rather_than_raising(self, monkeypatch):
+        """A freshness hint must never raise into a command."""
+        import requests
+
+        def boom(*args: object, **kwargs: object) -> None:
+            raise requests.RequestException("offline")
+
+        monkeypatch.setattr("requests.get", boom)
+
+        assert preflight.fetch_latest_ytdlp_version() is None
+
+    def test_an_unreachable_index_yields_an_unknown_verdict(self, monkeypatch):
+        monkeypatch.setattr(preflight, "fetch_latest_ytdlp_version", lambda timeout=3.0: None)
+
+        assert preflight.ytdlp_update_available("2026.5.1") is None
+
+    def test_a_newer_published_version_is_detected(self, monkeypatch):
+        monkeypatch.setattr(
+            preflight, "fetch_latest_ytdlp_version", lambda timeout=3.0: "2026.8.15"
+        )
+
+        assert preflight.ytdlp_update_available("2026.5.1") is True
+
+    def test_an_equal_version_is_not_an_update(self, monkeypatch):
+        """The zero-padding difference (2026.07.04 vs 2026.7.4) must not mislead."""
+        monkeypatch.setattr(preflight, "fetch_latest_ytdlp_version", lambda timeout=3.0: "2026.7.4")
+
+        assert preflight.ytdlp_update_available("2026.07.04") is False
