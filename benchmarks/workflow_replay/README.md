@@ -17,3 +17,9 @@ Published Windows n=20 receipts live under `docs/performance/`. p95 is omitted
 below 20 successful samples. Every recorded sample runs in a fresh child
 process. Timing values never affect the exit code; an operation error or source
 integrity failure returns nonzero.
+
+The manual `Performance evidence` GitHub Actions workflow runs the canonical
+n=20 replay beside the corpus-scale matrix on Linux and macOS. Before upload,
+`benchmarks.evidence_bundle` verifies the offline route, source integrity,
+operation completion, stable result digests, checked-out package version, and
+runner platform, then hashes the raw receipt into a run-bound manifest.

@@ -69,10 +69,10 @@ That split is product direction, not implementation trivia. "More agentic" means
 more model judgment where flexibility helps, plus tighter rule-owned boundaries
 around writes, spend, ingestion, and completion.
 
-**Competitive context (June 2026).** The "local-first LLM Wiki" space saturated
-within weeks of Karpathy's April gist (35k-star official Obsidian skills, an
-11k-star desktop wiki app); the vault-maintenance fight is not distillr's to win.
-What stayed uncrowded - verified in a June 2026 primary-source sweep - is the
+**Competitive context (August 2026).** The "local-first LLM Wiki" space saturated
+within weeks of Karpathy's April gist (47k-star official Obsidian skills, a
+17k-star desktop wiki app); the vault-maintenance fight is not distillr's to win.
+What stayed uncrowded - revalidated in an August 2026 primary-source sweep - is the
 acquisition front-half (goal-aware multi-source discovery, transcript-grade
 pipelines) and *verified* trust (claim grounding against receipts, contradiction
 surfacing). The plain-files-over-RAG architecture itself is now
@@ -82,7 +82,7 @@ target, which moves Distill's advantage from "plain files" to "verified corpus
 producer." The spine was reordered accordingly: agent legibility promoted out of
 1.0 polish, the verify hook pulled forward to 0.10, breadth behind the trust
 gate at 0.11, and OKF/loop-readiness before any future stability commitment. See
-[`../ROADMAP.md#competitive-landscape-june-2026`](../ROADMAP.md#competitive-landscape-june-2026) for the full analysis.
+[`../ROADMAP.md#competitive-landscape-august-2026`](../ROADMAP.md#competitive-landscape-august-2026) for the full analysis.
 
 Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
 be moved to `CHANGELOG.md` on next release).
@@ -428,7 +428,11 @@ per unit of time and cost, not language-level throughput in isolation.
   1,000, and 10,000 insights with controlled sizes, duplicate density,
   threshold-edge pairs, malformed frontmatter, broken links, and path edge
   cases. Replay paper, video, site, synthesis, verification, profile, and report
-  workflows with frozen receipts and provider responses.
+  workflows with frozen receipts and provider responses. The manual
+  `Performance evidence` Actions workflow runs the exact n=20 matrix and replay
+  on Linux and macOS. Its fail-closed evidence bundler validates operation and
+  integrity receipts, checked-out version, runner platform, and stable result
+  digests before uploading raw JSON, a summary, and a run-bound hash manifest.
 - [~] **Published 1.0 baseline.** Offline evidence published as
   [`performance/baseline-0.19.60.md`](performance/baseline-0.19.60.md)
   (Windows corpus-scale at 100 / 500 / 1_000 / 10_000, n=20, plus CLI
@@ -437,9 +441,10 @@ per unit of time and cost, not language-level throughput in isolation.
   (paper / video / site / synthesis / numeric verify / profile / report, n=20),
   and the earlier
   [`performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
-  scale-100 receipt. Still open: multi-host history, export/install metrics,
-  and live 20-paper / 50-video / site-batch reference journeys with full
-  hardware and cost metadata.
+  scale-100 receipt. Cross-platform collection is now executable and manual,
+  but the first Linux/macOS receipts are not yet published. Still open:
+  multi-host history, export/install metrics, and live 20-paper / 50-video /
+  site-batch reference journeys with full hardware and cost metadata.
 - [ ] **Honest regression policy.** Keep live provider, network, and hardware
   journeys as scheduled or release evidence. Allow deterministic offline
   benchmarks to block only after at least five comparable runs characterize

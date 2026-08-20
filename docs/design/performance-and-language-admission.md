@@ -125,8 +125,10 @@ reported separately with an explicit match flag, so a deliberate `--no-sync`
 run cannot label current editable source with stale package metadata. Windows
 receipts at scale 100, 500, 1_000, and 10_000 with n=20 are published under
 [`../performance/baseline-0.19.60.md`](../performance/baseline-0.19.60.md).
-Linux and macOS repeats, cold-filesystem experiments, malformed and
-threshold-edge fixture expansion, and scheduled history remain follow-on work.
+The manual `Performance evidence` workflow now runs that exact matrix on Linux
+and macOS and packages validated raw receipts with run-bound hashes. Publishing
+the first results, cold-filesystem experiments, malformed and threshold-edge
+fixture expansion, and scheduled history remain follow-on work.
 
 ### 2. Offline workflow replay
 
@@ -138,6 +140,9 @@ repository-only harness lives in `benchmarks/workflow_replay/`. A Windows n=20
 receipt for paper, video, site, paper synthesis, numeric verify, profile
 preview/run, and report synthesis is published under
 [`../performance/workflow-replay-0.19.63.md`](../performance/workflow-replay-0.19.63.md).
+The same manual workflow runs the canonical n=20 replay on Linux and macOS and
+validates its offline route, source integrity, sample stability, and provenance
+before artifact upload.
 
 ### 3. Live reference journeys
 

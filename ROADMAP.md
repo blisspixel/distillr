@@ -40,24 +40,24 @@ Distillr is the **persistent, verifiable research corpus** for AI agent workflow
 
 We deliberately do **not** position this as a "memory layer." The agent-memory category (mem0, Zep, Letta, Cognee) is conversation-fact extraction - a different job, being commoditized from below by free native memory in Claude/ChatGPT/Gemini, and measured by benchmarks (LoCoMo et al.) that are both contested and irrelevant to a research corpus. Distillr is a research corpus / knowledge substrate; it competes with none of those tools on their turf and should not invite the comparison.
 
-## Competitive landscape (June 2026)
+## Competitive landscape (August 2026)
 
-*Refreshed 2026-06-11 from a primary-source research sweep; star counts verified directly against the GitHub API that day. The May 2026 analysis this replaces is in git history.*
+*Refreshed 2026-08-20 from primary sources; star counts were verified directly against the GitHub API that day. The June 2026 analysis this replaces is in git history.*
 
 **The architecture bet won the argument.** In the nine months to mid-2026, "plain files over RAG" went from contrarian to mainstream-endorsed: Anthropic's [context-engineering guidance](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) recommends just-in-time file retrieval over pre-built semantic indexes (semantic search: "less accurate, more difficult to maintain, and less transparent"), and every Anthropic memory surface - the memory tool, Claude Code auto-memory, managed-agent memory - is Markdown files. Letta, the MemGPT company that defined database-backed agent memory, publicly sunset its server-side memory tools for git-backed file "context repositories" (March 2026). Karpathy's April 2026 gist (~16M views on the announcement post) made the whole pattern famous. The pure-Markdown invariant no longer needs defending; it needs citing.
 
 **But the generic wiki-maintenance niche saturated within weeks of the gist.** The May analysis tracked four small tools; the actual leaders emerged elsewhere:
 
-| Tool | Stars (2026-06-11) | What it is | Relation to distillr |
+| Tool | Stars (2026-08-20) | What it is | Relation to distillr |
 |------|--------------------|------------|----------------------|
-| [kepano/obsidian-skills](https://github.com/kepano/obsidian-skills) | 35.3k | Obsidian CEO's official Agent Skills for Markdown vaults | Validates skills-as-distribution and vault conventions; not an ingestion pipeline |
-| [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) | 11.1k | Desktop LLM-wiki app + web clipper, "instead of traditional RAG", MCP + lint reports | The mass-market wiki maintainer |
-| [claude-obsidian](https://github.com/AgriciDaniel/claude-obsidian) | 6.5k | "Self-organizing second brain" conventions for Claude Code + Obsidian | Generic `/ingest`, no source-specific pipelines |
-| [obsidian-wiki (Ar9av)](https://github.com/Ar9av/obsidian-wiki) | 1.8k | Skills-based vault agent (35 skills), session auto-capture | The "install skills into your agent" model |
-| [SwarmVault](https://github.com/swarmclawai/swarmvault) | 538 | LLM wiki + hybrid SQLite/embeddings, typed graph with per-edge provenance, contradiction detection, installers for 10+ agent harnesses | The trust-features pacesetter, DB-backed |
-| [Lacuna-wiki](https://github.com/Labhund/lacuna-wiki) | 32 | MCP-first DuckDB wiki | Stalled (no pushes since April 2026) |
+| [kepano/obsidian-skills](https://github.com/kepano/obsidian-skills) | 46.9k | Obsidian CEO's official Agent Skills for Markdown vaults | Validates skills-as-distribution and vault conventions; not an ingestion pipeline |
+| [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) | 16.6k | Desktop LLM-wiki app + web clipper, "instead of traditional RAG", MCP + lint reports | The mass-market wiki maintainer |
+| [claude-obsidian](https://github.com/AgriciDaniel/claude-obsidian) | 11.1k | "Self-organizing second brain" conventions for Claude Code + Obsidian | Generic `/ingest`, no source-specific pipelines |
+| [obsidian-wiki (Ar9av)](https://github.com/Ar9av/obsidian-wiki) | 3.3k | Skills-based vault agent (35 skills), session auto-capture | The "install skills into your agent" model |
+| [SwarmVault](https://github.com/swarmclawai/swarmvault) | 662 | LLM wiki + hybrid SQLite/embeddings, typed graph with per-edge provenance, contradiction detection, installers for 10+ agent harnesses | The trust-features pacesetter, DB-backed |
+| [Lacuna-wiki](https://github.com/Labhund/lacuna-wiki) | 34 | MCP-first DuckDB wiki | Stalled (no pushes since April 2026) |
 
-Distillr should not chase that crowd - the vault-maintenance fight is lost to 35k/11k-star incumbents and the storage format is no longer a differentiator (everyone has Markdown now).
+Distillr should not chase that crowd - the vault-maintenance fight is lost to 47k/17k-star incumbents and the storage format is no longer a differentiator (everyone has Markdown now).
 
 **OKF changes the interop story, not the product thesis.** Google Cloud introduced the [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) on 2026-06-12 as a vendor-neutral Markdown + YAML-frontmatter specification for agent-readable knowledge bundles. The current [v0.2 spec](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) keeps the minimal `type`, `index.md`, `log.md`, and Markdown-link base while making `sources`, `generated`, `verified`, `status`, `stale_after`, trust tiers, and attested computations first-class. That validates distillr's file-first bet, but it also means "plain Markdown" will become table stakes. Distillr should remain a high-quality OKF producer and validator so verified research corpora can move into other agent systems without losing receipts, audit state, freshness, or provenance. The native corpus remains authoritative.
 
@@ -108,7 +108,7 @@ The goal of 1.0 is a stable, agent-drivable research tool that an external agent
 
 ### Milestones at a glance
 
-Shipped: **0.1 through 0.19** (latest release 0.19.64, 2026-08-20). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
+Shipped: **0.1 through 0.19** (latest release 0.19.65, 2026-08-20). Per-release detail is the changelog's job, not the roadmap's: [`docs/CHANGELOG.md`](docs/CHANGELOG.md). Newest-first headlines:
 
 - **0.19 Recurring research profiles + no-metered-cost routing** - saved profile artifacts (topic + goal + sources + rigor), the `auto|no-metered|paid-ok` cost-mode router with fail-closed refusal, `distill doctor --adapters` preflights, `distill profile run` handoff with resume state, and the route availability/pool primitives. The remaining route-graduation gates are vendor-gated (see Current refinement program). Design: [`docs/design/recurring-profiles-cost-routing.md`](docs/design/recurring-profiles-cost-routing.md), [`docs/design/route-orchestration.md`](docs/design/route-orchestration.md).
 
@@ -519,7 +519,7 @@ refinement.
   - Deterministic generated-corpus fixtures cover search, audit, links, insight discovery, dashboard reads, manifest scans, and near-duplicate detection at increasing scale. Frozen offline workflow replays separate Distill-owned overhead from simulated provider wait.
   - Blocking performance checks are limited to deterministic offline fixtures after runner variance is characterized. Live model, network, and hardware journeys are scheduled or release evidence, not ordinary PR gates.
   - Optimization order is measurement, repeated-scan and data-movement removal, algorithm and cache improvements, bounded concurrency, then a conditional native spike. No language extraction precedes that sequence.
-  - Status 2026-08-19: published offline baselines are [`docs/performance/baseline-0.19.60.md`](docs/performance/baseline-0.19.60.md) (Windows scale-100/500/1_000/10_000, n=20, warm-generated), [`docs/performance/workflow-replay-0.19.63.md`](docs/performance/workflow-replay-0.19.63.md) (paper/video/site/synthesis/verify/profile/report, n=20), and the earlier [`docs/performance/baseline-0.19.50.md`](docs/performance/baseline-0.19.50.md) scale-100 receipt. Multi-host history and live reference journeys remain open. No native language admission.
+  - Status 2026-08-20: published offline baselines are [`docs/performance/baseline-0.19.60.md`](docs/performance/baseline-0.19.60.md) (Windows scale-100/500/1_000/10_000, n=20, warm-generated), [`docs/performance/workflow-replay-0.19.63.md`](docs/performance/workflow-replay-0.19.63.md) (paper/video/site/synthesis/verify/profile/report, n=20), and the earlier [`docs/performance/baseline-0.19.50.md`](docs/performance/baseline-0.19.50.md) scale-100 receipt. A manual, non-blocking Actions workflow now collects and validates the same matrix on Linux and macOS with raw receipts and run-bound hashes. Publishing the first cross-platform receipts, building comparable history, and running live reference journeys remain open. No native language admission.
 
 **A future stability commitment is about contracts, not about prompts. Prompt-revision cadence is separate.**
 

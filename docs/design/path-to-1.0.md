@@ -2,8 +2,8 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-2026-08-19 against code, roadmap, and release evidence at
-`distillr==0.19.64`; published performance evidence is the 0.19.50 scale-100
+2026-08-20 against code, roadmap, release evidence, and the live GitHub state at
+`distillr==0.19.65`; published performance evidence is the 0.19.50 scale-100
 receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and frozen
 workflow replay through 0.19.63 (paper / video / site / synthesis / verify /
 profile / report). Write-path fault injection for empty analysis, empty
@@ -61,10 +61,14 @@ additively under that policy and do not block 1.0.
 Published: Windows scale 100 (0.19.50 and 0.19.60), 500, 1_000, and 10_000
 at n=20, plus CLI `--version` process start, and Windows frozen workflow
 replay (paper / video / site / synthesis / numeric verify / profile / report)
-at n=20, under [`../performance/`](../performance/). Still open for the 1.0 bar:
+at n=20, under [`../performance/`](../performance/). A manual, non-blocking
+GitHub Actions workflow now runs the exact matrix and replay on Linux and macOS,
+validates correctness and integrity, and uploads raw receipts with a run-bound
+manifest. Still open for the 1.0 bar:
 
-1. Comparable history on more than one host class (Linux and macOS repeats of
-   the same seed and the same replay fixtures; p95 only after >=20 samples).
+1. Run and publish comparable Linux and macOS receipts from the same merge
+   commit, seed, fixtures, and n=20 profile, then build enough history to
+   characterize hosted-runner variance.
 2. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
 
@@ -153,7 +157,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 |-------|--------|----------|
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 (including profile and report) published under `docs/performance/`; Linux/macOS and live journeys remain |
+| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; manual Linux/macOS collection and validation workflow added; publishing those receipts and live journeys remain |
 | 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |
