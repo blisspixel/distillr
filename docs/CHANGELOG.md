@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.66 - 2026-08-20
+
+### Fixed
+
+- **Equal-score corpus search is deterministic across platforms.** Search now
+  uses portable relative paths and a lexical path tie-break before applying the
+  result limit. Linux, macOS, and Windows therefore select the same bounded set
+  when more documents share a score than the requested limit.
+
 ## 0.19.65 - 2026-08-20
 
 ### Added

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "distill-corpus",
-  "version": "0.19.65",
+  "version": "0.19.66",
   "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs.",
   "author": {
     "name": "Nick Seal",
