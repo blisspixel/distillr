@@ -35,6 +35,7 @@ from distill.pipeline.analysis.video import (
     analyze_video,
     generate_channel_context,
 )
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
@@ -853,6 +854,20 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     custom_instructions=custom_instructions,
                     intent=_intent,
                 )
+        if not insight_has_body(insights):
+            console.print("    [red]empty analysis[/red]")
+            summary.add_result(
+                VideoResult(
+                    video.video_id,
+                    video.title,
+                    False,
+                    error="Empty analysis",
+                    duration=video.duration,
+                )
+            )
+            _tick_video_eta(eta, vid_start, success=False)
+            _print_video_progress(eta, tracker)
+            return False
         # Write-time verify hook: ground the insight's numeric claims against
         # the fetched metadata and transcript before committing it. Metadata is
         # evidence for facts the analysis prompt receives outside the transcript,

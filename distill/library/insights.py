@@ -30,6 +30,7 @@ __all__ = [
     "derive_source_id",
     "discover_insights",
     "insight_content_sha256",
+    "insight_has_body",
     "insight_verification_binding_is_valid",
     "insight_verification_payload_is_valid",
     "read_discovered_insight",
@@ -67,6 +68,16 @@ def _read_artifact_text(path: Path, root: Path) -> str | None:
     if content is None:
         return None
     return content.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def insight_has_body(markdown: str) -> bool:
+    """Return True when the insight has a non-empty body after frontmatter.
+
+    Write paths use this as a fail-closed gate: analysis that produced only
+    YAML, whitespace, or nothing is not a corpus artifact.
+    """
+
+    return bool(strip_frontmatter(markdown).strip())
 
 
 def receipt_body_sha256(content: str) -> str:

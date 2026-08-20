@@ -42,6 +42,7 @@ from distill.ingestors.sites.scraper import (
     build_page_document,
     crawl_site,
 )
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     base_frontmatter,
     find_artifact,
@@ -405,6 +406,14 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             insights = analyze_site_page(
                 page_obj, config, tracker=tracker, intent=resolve_intent(config, seed.topic)
             )
+            if not insight_has_body(insights):
+                summary.add_issue(
+                    "analysis",
+                    "empty analysis; insight not written",
+                    context=url_for_diagnostic(page_obj.url),
+                )
+                console.print("  [red]empty analysis[/red]")
+                continue
 
             from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
 
