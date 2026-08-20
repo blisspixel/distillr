@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.64 - 2026-08-20
+
+### Fixed
+
+- **Empty analysis no longer becomes a corpus insight.** Paper, video, and site
+  write paths now refuse an insight whose body is empty after frontmatter.
+  Receipts (paper document, transcript, page content, metadata) stay on disk;
+  existing insights are not overwritten; the video is not marked processed so
+  a later retry can still succeed.
+
+### Added
+
+- **Write-path fault injection for the named 1.0 external boundaries.**
+  `tests/unit/pipeline/test_boundary_faults.py` drives the real paper, video,
+  and site writers under empty LLM output, empty transcripts, PDF fetch
+  failure, yt-dlp discovery/transcript failure, and malformed structured JSON.
+  Each case fails closed: no insight artifact, no silent swallow.
+
 ## 0.19.63 - 2026-08-20
 
 ### Added

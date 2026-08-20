@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from distill.library.insights import (
+    insight_has_body,
     insight_verification_binding_is_valid,
     insight_verification_payload_is_valid,
     verify_sidecar_for_insight,
@@ -16,6 +17,15 @@ def _insight(tmp_path: Path, *, required: bool = False) -> Path:
     frontmatter = "verification_required: true\n" if required else ""
     path.write_text(f"---\n{frontmatter}---\n\nGrounded content.\n", encoding="utf-8")
     return path
+
+
+def test_insight_has_body_rejects_frontmatter_only_or_whitespace() -> None:
+    assert not insight_has_body("")
+    assert not insight_has_body("   \n")
+    assert not insight_has_body("---\nvideo_title: x\n---\n")
+    assert not insight_has_body("---\nvideo_title: x\n---\n\n  \n")
+    assert insight_has_body("---\ntitle: x\n---\n\nA real finding.\n")
+    assert insight_has_body("No frontmatter, but a body.")
 
 
 def test_verification_helpers_reject_missing_insight(tmp_path: Path) -> None:

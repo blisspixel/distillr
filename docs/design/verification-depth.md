@@ -227,6 +227,15 @@ write-scope isolation. A future native or free-threaded path must add the
 shared-state and race tests required by that implementation; those rules are
 not assumed for code paths that do not use that model.
 
+Status (2026-08-20): the first write-path slice shipped in 0.19.64.
+`insight_has_body` refuses empty analysis at the paper, video, and site
+commit boundaries, so a frontmatter-only or whitespace LLM body cannot
+become a corpus insight. Receipts stay; existing insights are not
+overwritten; videos are not marked processed. The named suite is
+`tests/unit/pipeline/test_boundary_faults.py`. Remaining: broader LLM JSON
+shape faults at every structured-output caller, truncated-but-nonempty
+transcripts, and site/network timeout injection through the scraper itself.
+
 **Phase 4 - CrossHair on the arithmetic core (stretch).** Symbolically verify
 the evidence-interval arithmetic and the merge-idempotence pure functions for
 proof-grade assurance on the few functions where a single off-by-epsilon is

@@ -3,10 +3,12 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-19 against code, roadmap, and release evidence at
-`distillr==0.19.63`; published performance evidence is the 0.19.50 scale-100
+`distillr==0.19.64`; published performance evidence is the 0.19.50 scale-100
 receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and frozen
 workflow replay through 0.19.63 (paper / video / site / synthesis / verify /
-profile / report).
+profile / report). Write-path fault injection for empty analysis, empty
+transcripts, PDF fetch failure, yt-dlp failure, and malformed structured JSON
+shipped in 0.19.64.
 
 ## The honest answer
 
@@ -76,7 +78,7 @@ at n=20, under [`../performance/`](../performance/). Still open for the 1.0 bar:
 | Golden structural offline gate | Met; do not extend to live model scoring |
 | Mutation testing / deal contracts | Partial (core packages); cadence not PR-blocking |
 | Pyright full package | Blocking basic diagnostics; **central strict only `distill/llm`** (file-level strict is widespread but not complete) |
-| Parse-don't-validate at every boundary | Partial; more surfaces remain |
+| Parse-don't-validate at every boundary | Partial; write paths now refuse empty analysis bodies; more surfaces remain |
 
 ### D. Operator and presentation readiness (evidence, not code volume)
 
@@ -152,6 +154,6 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
 | 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 (including profile and report) published under `docs/performance/`; Linux/macOS and live journeys remain |
-| 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~75% of modules |
+| 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

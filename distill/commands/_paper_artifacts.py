@@ -10,6 +10,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord, build_paper_document
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     artifact_filename,
     base_frontmatter,
@@ -59,6 +60,9 @@ def write_paper_artifacts(
     write_markdown_artifact(paper_dir, "paper", paper_doc, frontmatter=paper_frontmatter)
     existing_insights = find_artifact(paper_dir, "insights")
     has_existing_insights = existing_insights.exists() and existing_insights.stat().st_size > 0
+    if not insight_has_body(insights):
+        console.print("    [red]empty analysis[/red]")
+        return paper_dir
     # Write-time verify hook: ground insight numeric claims against the paper
     # text receipt before committing it. Strict mode refuses the write. When
     # an earlier insight already exists, defer the sidecar so a refusal cannot
