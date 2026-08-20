@@ -126,15 +126,19 @@ run cannot label current editable source with stale package metadata. Windows
 receipts at scale 100, 500, 1_000, and 10_000 with n=20 are published under
 [`../performance/baseline-0.19.60.md`](../performance/baseline-0.19.60.md).
 Linux and macOS repeats, cold-filesystem experiments, malformed and
-threshold-edge fixture expansion, scheduled history, and offline workflow
-replay remain follow-on work.
+threshold-edge fixture expansion, and scheduled history remain follow-on work.
 
 ### 2. Offline workflow replay
 
 Use frozen receipts and deterministic provider responses to replay paper,
 video, site, synthesis, verification, profile, and report paths without network
 or model spend. Report Distill-owned overhead separately from simulated
-provider latency. This is the layer suitable for repeatable CI checks.
+provider latency. This is the layer suitable for repeatable CI checks. The
+repository-only harness lives in `benchmarks/workflow_replay/`. A Windows n=20
+receipt for paper, video, site, paper synthesis, and numeric verify is
+published under
+[`../performance/workflow-replay-0.19.62.md`](../performance/workflow-replay-0.19.62.md).
+Profile and report replays remain follow-on.
 
 ### 3. Live reference journeys
 
