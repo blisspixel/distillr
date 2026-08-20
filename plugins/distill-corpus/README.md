@@ -5,13 +5,13 @@ This is the generated, self-contained distribution of the canonical
 vendor-neutral Agent Plugins 1.0.0 Working Draft. This
 repository distribution is the universal compatibility bundle, so native
 manifests are also included for Codex, Claude Code, Grok Build, and Gemini CLI.
-Version: `0.19.61`.
+Version: `0.19.62`.
 
 The release artifact named
-`distill-corpus-agent-plugin-0.19.61.zip` contains only the portable Agent
+`distill-corpus-agent-plugin-0.19.62.zip` contains only the portable Agent
 Plugins core, documentation, and license. Use that artifact when a client asks
 for a strict Agent Plugins package. The historical
-`distill-corpus-plugin-0.19.61.zip` name remains the universal bundle.
+`distill-corpus-plugin-0.19.62.zip` name remains the universal bundle.
 
 Do not edit this directory by hand. Change the canonical skill or the generator,
 then run:

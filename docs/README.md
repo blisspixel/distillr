@@ -57,6 +57,7 @@ Background and the reasoning behind the design.
 - [Roadmap](roadmap.md) - the area-by-area backlog ([top-level ROADMAP](../ROADMAP.md) is the milestone spine).
 - [Performance and language admission](design/performance-and-language-admission.md) - benchmark contract, optimization order, and evidence gates for Rust, Go, Mojo, and free-threaded Python.
 - [Performance baseline (0.19.60)](performance/baseline-0.19.60.md) - published offline Windows corpus-scale evidence at 100 / 500 / 1_000 / 10_000.
+- [Workflow replay (0.19.62)](performance/workflow-replay-0.19.62.md) - frozen paper, video, site, synthesis, and verify paths with Distill-owned timings.
 - [Design notes](design/) - per-feature design docs (ask loop, entailment tier, decomposition, provider caching, how-we-build).
 
 ## Project

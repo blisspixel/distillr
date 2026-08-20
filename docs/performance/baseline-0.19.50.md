@@ -76,5 +76,5 @@ Scale 500, 1_000, and 10_000 n=20 now live in
 [`baseline-0.19.60.md`](baseline-0.19.60.md). Still required:
 
 1. Linux and macOS repeats of the same seed for runner-variance history
-2. Frozen offline workflow replays with provider stubs
+2. Frozen profile and report replays (paper/video/site/synthesis/verify shipped in [`workflow-replay-0.19.62.md`](workflow-replay-0.19.62.md))
 3. Scheduled live reference journeys as release evidence only

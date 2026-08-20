@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.62 - 2026-08-19
+
+### Added
+
+- **Frozen offline workflow replay for paper, video, site, synthesis, and
+  numeric verify.** `python -m benchmarks.workflow_replay` drives the real
+  Distill functions against synthetic receipts and a deterministic model stub.
+  It does not read a user library, does not call a live model, and fails closed
+  if a sample opens a public socket. Wall time is split into Distill-owned
+  overhead and simulated provider wait. A Windows n=20 receipt is published as
+  [`docs/performance/workflow-replay-0.19.62.md`](performance/workflow-replay-0.19.62.md).
+
 ## 0.19.61 - 2026-08-19
 
 ### Added
