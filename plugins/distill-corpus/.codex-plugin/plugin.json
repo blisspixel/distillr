@@ -1,6 +1,6 @@
 {
   "name": "distill-corpus",
-  "version": "0.19.64",
+  "version": "0.19.65",
   "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs.",
   "author": {
     "name": "Nick Seal",

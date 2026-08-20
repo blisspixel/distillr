@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.65 - 2026-08-20
+
+### Added
+
+- **Cross-platform evidence collection for the 1.0 performance gate.** A
+  manual, non-blocking GitHub Actions matrix runs the canonical n=20
+  corpus-scale suite at 100, 500, 1,000, and 10,000 insights plus the frozen
+  workflow replay on Linux and macOS. It uploads the raw receipts, a readable
+  summary, and a run-bound manifest without using a model or metered API.
+- **Fail-closed benchmark evidence bundles.** The new validator checks receipt
+  schemas, canonical parameters, source fingerprints, result digests,
+  aggregate statistics, offline replay guarantees, installed and project
+  versions, runner identity, and hashes for every published input and output.
+  Timing remains advisory until enough hosted-runner history exists.
+
+### Changed
+
+- **Package metadata now describes the complete current-source corpus.** The
+  PyPI summary covers discovery, capture, verification, synthesis, public
+  sources, and local files instead of naming only the original three adapters.
+
+### Fixed
+
+- **yt-dlp deadline socket cleanup is idempotent.** Repeated close paths no
+  longer close the underlying socket more than once, including deadline expiry
+  and file-view cleanup paths.
+
 ## 0.19.64 - 2026-08-20
 
 ### Fixed

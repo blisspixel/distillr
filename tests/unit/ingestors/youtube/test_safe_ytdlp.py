@@ -195,6 +195,16 @@ def test_operation_deadline_cancel_closes_resources_and_stays_terminal():
     assert second.closed is True
 
 
+def test_operation_deadline_expires_from_its_clock() -> None:
+    moments = iter((0.0, 11.0))
+    deadline = _OperationDeadline(10, clock=lambda: next(moments))
+    try:
+        with pytest.raises(RequestError, match="operation exceeds"):
+            deadline.remaining()
+    finally:
+        deadline.cancel()
+
+
 @pytest.mark.parametrize("value", (0, -1, True, float("nan"), "invalid"))
 def test_operation_deadline_requires_positive_finite_timeout(value):
     with pytest.raises(ValueError, match="positive finite"):
@@ -272,11 +282,24 @@ def test_deadline_socket_binary_io_contract():
         raw = wrapped.makefile("rb", buffering=0)
         assert raw.fileno() == 7
         raw.close()
+        raw.close()
         with pytest.raises(ValueError, match="closed deadline socket"):
             raw.readinto(bytearray(1))
 
         buffered = wrapped.makefile("rb", buffering=32)
         buffered.close()
+    finally:
+        deadline.cancel()
+
+
+def test_deadline_socket_close_without_views_closes_inner_socket() -> None:
+    inner = MagicMock()
+    deadline = _OperationDeadline(10)
+    wrapped = safe_mod._DeadlineSocket(inner, deadline)
+    try:
+        wrapped.close()
+        wrapped.close()
+        inner.close.assert_called_once_with()
     finally:
         deadline.cancel()
 
@@ -439,6 +462,21 @@ def test_dns_resolution_wraps_resolver_failure(monkeypatch):
     try:
         with pytest.raises(RequestError, match="DNS resolution failed"):
             safe_mod._resolve_public_ip_before_deadline("https://www.youtube.com", deadline)
+    finally:
+        deadline.cancel()
+
+
+def test_dns_resolution_returns_bounded_worker_result(monkeypatch) -> None:
+    deadline = _OperationDeadline(10)
+    monkeypatch.setattr(safe_mod, "resolve_public_ip", lambda _url: "203.0.113.10")
+    try:
+        assert (
+            safe_mod._resolve_public_ip_before_deadline(
+                "https://www.youtube.com",
+                deadline,
+            )
+            == "203.0.113.10"
+        )
     finally:
         deadline.cancel()
 

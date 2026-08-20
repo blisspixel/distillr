@@ -242,6 +242,8 @@ class _DeadlineSocket:
             self._close_inner()
 
     def close(self) -> None:
+        if self._closed:
+            return
         self._closed = True
         if self._live_views == 0:
             self._close_inner()

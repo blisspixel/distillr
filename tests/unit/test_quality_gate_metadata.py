@@ -130,3 +130,45 @@ def test_llm_package_is_centrally_strict() -> None:
     strict_paths = pyproject["tool"]["pyright"].get("strict", [])
 
     assert "distill/llm" in strict_paths
+
+
+def test_performance_evidence_workflow_is_manual_canonical_and_non_blocking() -> None:
+    """Cross-host timings stay manual while receipt correctness fails closed."""
+    workflow = _load_yaml(ROOT / ".github" / "workflows" / "performance-evidence.yml")
+    trigger = workflow.get("on", workflow.get("True"))
+    assert _mapping(trigger) == {"workflow_dispatch": None}
+    assert _mapping(workflow["permissions"]) == {"contents": "read"}
+
+    jobs = _mapping(workflow["jobs"])
+    assert list(jobs) == ["canonical"]
+    job = _mapping(jobs["canonical"])
+    assert job.get("continue-on-error", False) is False
+    assert job["timeout-minutes"] == 360
+    strategy = _mapping(job["strategy"])
+    assert strategy["fail-fast"] is False
+    matrix = _mapping(strategy["matrix"])
+    assert _sequence(matrix["os"]) == ["ubuntu-latest", "macos-latest"]
+
+    steps = [_mapping(step) for step in _sequence(job["steps"])]
+    run_text = "\n".join(str(step.get("run", "")) for step in steps)
+    for scale, timeout in ((100, 60), (500, 60), (1000, 120), (10000, 300)):
+        assert f"--scale {scale} --iterations 20 --timeout-seconds {timeout}" in run_text
+    assert "benchmarks.workflow_replay" in run_text
+    assert "--iterations 20 --timeout-seconds 30" in run_text
+    assert "benchmarks.evidence_bundle" in run_text
+
+    uses = [str(step["uses"]) for step in steps if "uses" in step]
+    assert uses == [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    ]
+    checkout = next(
+        step for step in steps if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    assert _mapping(checkout["with"])["persist-credentials"] is False
+    upload = next(step for step in steps if str(step.get("uses", "")).startswith("actions/upload"))
+    assert upload["if"] == "${{ always() }}"
+    upload_with = _mapping(upload["with"])
+    assert upload_with["if-no-files-found"] == "error"
+    assert upload_with["retention-days"] == 30

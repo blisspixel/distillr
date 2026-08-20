@@ -122,8 +122,10 @@ bandit, pip-audit, supported Python matrix, build provenance). Covered v1
 contract snapshots are freeze-ready under the published compatibility policy;
 uncovered pre-1.0 surfaces can still improve additively. Pin versions if you
 integrate on MCP schemas or frontmatter. 1.0 is a future stability commitment,
-not a calendar date:
-[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar).
+not a calendar date. The next dependency-ordered gate is comparable Linux and
+macOS performance evidence from the manual, advisory benchmark workflow:
+[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar) and the
+[`2026-08-20 roadmap review`](docs/research/roadmap-review-2026-08-20.md).
 
 ## License
 

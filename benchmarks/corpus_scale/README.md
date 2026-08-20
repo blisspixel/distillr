@@ -57,3 +57,20 @@ as defined in `docs/design/performance-and-language-admission.md`.
 Timing values never affect the exit code. An operation error or corpus-integrity
 failure returns nonzero so automation can distinguish invalid evidence from a
 valid advisory result.
+
+## Cross-platform canonical evidence
+
+The manual `Performance evidence` GitHub Actions workflow runs the complete
+100, 500, 1,000, and 10,000 matrix at n=20 on Linux and macOS, followed by the
+frozen workflow replay. It is deliberately absent from pull-request and push
+triggers. The workflow has read-only repository permission, uses immutable
+current action-release commits, and does not persist checkout credentials.
+Timings remain advisory and cannot block a change.
+
+`benchmarks.evidence_bundle` validates every raw receipt before upload. It
+requires the canonical seed, sample count, warmup count, operation order,
+successful operations, stable result digests, unchanged source and corpus
+digests, matching checked-out package versions, and the actual runner platform.
+It then writes a concise summary plus a provenance manifest that binds every
+receipt digest to the repository, commit, workflow run, and runner identity.
+Missing or invalid evidence fails the workflow.
