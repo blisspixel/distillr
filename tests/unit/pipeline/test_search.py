@@ -216,6 +216,37 @@ class TestSearchCorpus:
         assert all(isinstance(r, SearchResult) for r in results)
         assert all(r.score > 0 for r in results)
 
+    def test_equal_score_limit_is_stable_under_reversed_traversal(self, tmp_path, monkeypatch):
+        config = DistillConfig(
+            xai_api_key="test",
+            distill_output_dir=tmp_path / "library",
+        )
+        topic_dir = config.topic_dir("test-topic")
+        for index in range(30):
+            _write_artifact(
+                topic_dir / "sources" / f"artifact-{index:02}.md",
+                "commonneedle with identical scoring text",
+            )
+
+        paths = sorted(topic_dir.rglob("*.md"))
+        reverse = False
+        original_rglob = Path.rglob
+
+        def ordered_rglob(path, pattern):
+            if path == topic_dir and pattern == "*.md":
+                ordered = reversed(paths) if reverse else iter(paths)
+                return iter(ordered)
+            return original_rglob(path, pattern)
+
+        monkeypatch.setattr(Path, "rglob", ordered_rglob)
+        first = search_corpus(config, "test-topic", "commonneedle", limit=25)
+        reverse = True
+        second = search_corpus(config, "test-topic", "commonneedle", limit=25)
+
+        expected = [path.relative_to(config.library_dir).as_posix() for path in paths[:25]]
+        assert [result.path for result in first] == expected
+        assert [result.path for result in second] == expected
+
     @pytest.mark.parametrize("filename", ("unsafe_Insights.md", "unsafe_insights.md"))
     def test_skips_insight_with_mismatched_required_verification_binding(self, tmp_path, filename):
         config = DistillConfig(

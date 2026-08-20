@@ -3,7 +3,7 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-20 against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.65`; published performance evidence is the 0.19.50 scale-100
+`distillr==0.19.66`; published performance evidence is the 0.19.50 scale-100
 receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and frozen
 workflow replay through 0.19.63 (paper / video / site / synthesis / verify /
 profile / report). Write-path fault injection for empty analysis, empty

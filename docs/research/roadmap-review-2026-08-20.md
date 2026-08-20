@@ -70,3 +70,13 @@ The external sweep reinforced that priority:
 
 Only steps 1 and 2 are the immediate milestone. Steps 3 through 6 are ordered
 follow-ons, not reasons to widen the current change.
+
+## First-run finding
+
+The first exact-commit run on 0.19.65 completed successfully on Linux and
+macOS, but comparison of the raw receipts found different `search_hit` result
+digests with identical inputs and result counts. Equal-score search results
+inherited filesystem traversal order before the result limit. Publication was
+therefore deferred while 0.19.66 added a portable path representation and
+deterministic path tie-break. The canonical matrix must pass again on the
+fixed merge commit before its receipts become the published baseline.

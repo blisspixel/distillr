@@ -171,7 +171,7 @@ def search_corpus(
             continue
 
         preview = _generate_preview(body, terms)
-        rel_path = str(rel_path_obj)
+        rel_path = rel_path_obj.as_posix()
 
         results.append(
             SearchResult(
@@ -183,7 +183,7 @@ def search_corpus(
             )
         )
 
-    results.sort(key=lambda r: r.score, reverse=True)
+    results.sort(key=lambda result: (-result.score, result.path))
     return results[:limit]
 
 
