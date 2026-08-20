@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.63 - 2026-08-20
+
+### Added
+
+- **Frozen profile preview, profile run, and report synthesis replay.** The
+  workflow-replay harness now plans a recurring research profile from a frozen
+  YouTube handle, feed, domain, repository, and query; executes that plan
+  through Distill's lock and state machine with a no-op child executor; and
+  runs `distill synthesize` over frozen paper insights. Public sockets stay
+  fail-closed. Windows n=20: [`docs/performance/workflow-replay-0.19.63.md`](performance/workflow-replay-0.19.63.md).
+
 ## 0.19.62 - 2026-08-19
 
 ### Added

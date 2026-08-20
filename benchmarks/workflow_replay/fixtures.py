@@ -19,7 +19,7 @@ PAPER_TITLE = "Replay Memory for Agents"
 VIDEO_TITLE = "Warm corpus scan"
 SITE_TITLE = "Coverage note"
 CHANNEL = "replay-channel"
-VIDEO_ID = "dQwReplay000"
+VIDEO_ID = "dQwReplay00"
 SITE_URL = "https://example.test/coverage"
 REPLAY_MODEL = "replay-stub"
 
@@ -72,6 +72,30 @@ SYNTHESIS_BODY = (
 VERIFY_INSIGHT = "Grounded claims: MRR 72.6, 14.22 ms warm scan, and 95.04 percent coverage."
 VERIFY_SOURCE = PAPER_PDF_TEXT + "\n" + VIDEO_TRANSCRIPT + "\n" + SITE_TEXT
 
+PROFILE_NAME = "replay-wiki"
+FEED_URL = "https://example.test/feed.xml"
+REPORT_CONTEXT = "Focus on grounded numbers from the frozen receipts."
+REPORT_SYNTHESIS_BODY = (
+    "The frozen corpus reports MRR 72.6, a 14.22 ms warm scan, and 95.04 percent "
+    "branch coverage. Distill-owned replay does not add live-web findings."
+)
+PROFILE_PAYLOAD: dict[str, object] = {
+    "schema_version": "research-profile.v1",
+    "name": PROFILE_NAME,
+    "topic": TOPIC,
+    "goal_file": "goals/replay-topic.md",
+    "cost_mode": "no-metered",
+    "description": "Frozen replay profile for offline preview and run.",
+    "sources": {
+        "youtube_channels": [{"handle": "@ReplayChannel", "label": "Replay Channel"}],
+        "feeds": [{"url": FEED_URL, "label": "Replay Feed"}],
+        "domains": ["example.test"],
+        "repositories": ["blisspixel/distillr"],
+    },
+    "queries": ["replay memory agents"],
+    "limits": {"max_new_items": 8, "max_metered_usd": 0},
+}
+
 
 def paper_record() -> PaperRecord:
     return PaperRecord(
@@ -110,6 +134,9 @@ def fixture_digest() -> str:
             "synthesis": SYNTHESIS_BODY,
             "verify_insight": VERIFY_INSIGHT,
             "verify_source": VERIFY_SOURCE,
+            "profile": PROFILE_PAYLOAD,
+            "report_context": REPORT_CONTEXT,
+            "report_synthesis": REPORT_SYNTHESIS_BODY,
         },
         ensure_ascii=False,
         sort_keys=True,

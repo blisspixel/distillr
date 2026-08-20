@@ -68,6 +68,8 @@ digests were identical to a 1-iteration probe on the same host.
 
 ## Next slices
 
+Profile preview/run and report synthesis now live in
+[`workflow-replay-0.19.63.md`](workflow-replay-0.19.63.md). Still required:
+
 1. Linux and macOS repeats of this seed-free fixture set
-2. Frozen profile and report replays
-3. Live reference journeys as release evidence only
+2. Live reference journeys as release evidence only

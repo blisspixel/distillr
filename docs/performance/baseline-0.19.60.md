@@ -165,5 +165,5 @@ work in 0.19.45 remains the relevant prior art for reducing this.
 ## Next baseline slices (still required for 1.0)
 
 1. Linux and macOS repeats of the same seed for runner-variance history
-2. Frozen profile and report replays (paper/video/site/synthesis/verify shipped in [`workflow-replay-0.19.62.md`](workflow-replay-0.19.62.md))
+2. Frozen profile and report replays shipped in [`workflow-replay-0.19.63.md`](workflow-replay-0.19.63.md)
 3. Scheduled live reference journeys as release evidence only
