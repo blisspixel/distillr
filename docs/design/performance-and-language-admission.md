@@ -135,10 +135,9 @@ video, site, synthesis, verification, profile, and report paths without network
 or model spend. Report Distill-owned overhead separately from simulated
 provider latency. This is the layer suitable for repeatable CI checks. The
 repository-only harness lives in `benchmarks/workflow_replay/`. A Windows n=20
-receipt for paper, video, site, paper synthesis, and numeric verify is
-published under
-[`../performance/workflow-replay-0.19.62.md`](../performance/workflow-replay-0.19.62.md).
-Profile and report replays remain follow-on.
+receipt for paper, video, site, paper synthesis, numeric verify, profile
+preview/run, and report synthesis is published under
+[`../performance/workflow-replay-0.19.63.md`](../performance/workflow-replay-0.19.63.md).
 
 ### 3. Live reference journeys
 

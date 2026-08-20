@@ -3,9 +3,10 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-19 against code, roadmap, and release evidence at
-`distillr==0.19.62`; published performance evidence is the 0.19.50 scale-100
-receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and the
-0.19.62 frozen workflow replay.
+`distillr==0.19.63`; published performance evidence is the 0.19.50 scale-100
+receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and frozen
+workflow replay through 0.19.63 (paper / video / site / synthesis / verify /
+profile / report).
 
 ## The honest answer
 
@@ -57,13 +58,12 @@ additively under that policy and do not block 1.0.
 `benchmarks/corpus_scale/` exists for deterministic offline scale evidence.
 Published: Windows scale 100 (0.19.50 and 0.19.60), 500, 1_000, and 10_000
 at n=20, plus CLI `--version` process start, and Windows frozen workflow
-replay (paper / video / site / synthesis / numeric verify) at n=20, under
-[`../performance/`](../performance/). Still open for the 1.0 bar:
+replay (paper / video / site / synthesis / numeric verify / profile / report)
+at n=20, under [`../performance/`](../performance/). Still open for the 1.0 bar:
 
 1. Comparable history on more than one host class (Linux and macOS repeats of
    the same seed and the same replay fixtures; p95 only after >=20 samples).
-2. Frozen profile and report replays.
-3. Live reference journeys as *release evidence*, not PR gates (20-paper run,
+2. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
 
 ### C. Quality bar completeness (mostly done; residual ratchets)
@@ -151,7 +151,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 |-------|--------|----------|
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published under `docs/performance/`; Linux/macOS, profile/report replay, live journeys remain |
+| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 (including profile and report) published under `docs/performance/`; Linux/macOS and live journeys remain |
 | 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~75% of modules |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

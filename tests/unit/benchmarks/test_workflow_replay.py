@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -172,3 +173,40 @@ def test_network_guard_refuses_public_connect() -> None:
     install_network_guard()
     with socket.socket() as client, pytest.raises(OSError, match="public network disabled"):
         client.connect(("example.com", 443))
+
+
+def test_profile_preview_digest_is_stable_and_has_candidates() -> None:
+    with temporary_workspace() as workspace:
+        first = run_workflow_replay(
+            workspace,
+            iterations=1,
+            warmups=0,
+            operations=["profile_preview"],
+        )
+    with temporary_workspace() as workspace:
+        second = run_workflow_replay(
+            workspace,
+            iterations=1,
+            warmups=0,
+            operations=["profile_preview"],
+        )
+    row = first["operations"][0]
+    assert row["status"] == "ok", row.get("error")
+    assert row["samples"][0]["result_count"] >= 4
+    assert (
+        row["samples"][0]["result_digest"] == second["operations"][0]["samples"][0]["result_digest"]
+    )
+
+
+def test_report_synthesize_stays_inside_the_temp_library() -> None:
+    with temporary_workspace() as workspace:
+        result = run_workflow_replay(
+            workspace,
+            iterations=1,
+            warmups=0,
+            operations=["report_synthesize"],
+        )
+    operation = result["operations"][0]
+    assert operation["status"] == "ok", operation.get("error")
+    assert not (Path.cwd() / "output" / "synthesis-replay.md").exists()
+    assert operation["samples"][0]["result_count"] == 1

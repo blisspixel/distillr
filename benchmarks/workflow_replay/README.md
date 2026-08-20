@@ -1,8 +1,9 @@
 # Workflow replay
 
-This repository-only harness replays Distill paper, video, site, synthesis, and
-numeric verify paths against frozen receipts and a deterministic model stub. It
-is advisory evidence, not a public product command.
+This repository-only harness replays Distill paper, video, site, synthesis,
+numeric verify, profile preview/run, and report synthesis paths against frozen
+receipts and a deterministic model stub. It is advisory evidence, not a public
+product command.
 
 It does not read a user library, does not call a live model, and fails closed if
 a sample tries to open a public socket. Distill-owned wall time is recorded

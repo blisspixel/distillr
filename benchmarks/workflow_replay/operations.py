@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import email.utils
+import os
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -16,11 +19,15 @@ from benchmarks.workflow_replay.fixtures import (
     PAPER_INSIGHT_BODY,
     PAPER_PDF_TEXT,
     PAPER_TITLE,
+    PROFILE_PAYLOAD,
+    REPORT_CONTEXT,
+    REPORT_SYNTHESIS_BODY,
     SITE_INSIGHT_BODY,
     SYNTHESIS_BODY,
     TOPIC,
     VERIFY_INSIGHT,
     VERIFY_SOURCE,
+    VIDEO_ID,
     VIDEO_INSIGHT_BODY,
     VIDEO_TITLE,
     VIDEO_TRANSCRIPT,
@@ -30,12 +37,19 @@ from benchmarks.workflow_replay.fixtures import (
 from benchmarks.workflow_replay.measure import json_digest
 from benchmarks.workflow_replay.stub import ReplayCallLog, make_llm_call
 from distill.config import DistillConfig
+from distill.ingestors.podcasts.feed import PodcastEpisode, PodcastFeed
+from distill.ingestors.youtube.discovery import VideoInfo
 from distill.library.insights import insight_content_sha256
 from distill.library.paths import find_artifact, strip_frontmatter
+from distill.library.profiles import ResearchProfile
 from distill.llm.router import RouterConfig
 from distill.pipeline.analysis.paper import analyze_paper, synthesize_papers
 from distill.pipeline.analysis.site import analyze_site_page
 from distill.pipeline.analysis.video import analyze_video
+from distill.pipeline.profile_execution import CommandExecution
+from distill.pipeline.profile_preview import ProfilePreviewResult, build_profile_preview
+from distill.pipeline.profile_run import run_profile_preview
+from distill.pipeline.report.synthesize import run_synthesis
 from distill.pipeline.verify import run_verify_hook
 
 OPERATION_NAMES = (
@@ -44,6 +58,9 @@ OPERATION_NAMES = (
     "site_analyze",
     "paper_synthesize",
     "verify_numeric",
+    "profile_preview",
+    "profile_run",
+    "report_synthesize",
 )
 
 type ReplayOperation = Callable[[], tuple[object, int, int]]
@@ -77,6 +94,7 @@ def _patches(
     paper_llm: object | None = None,
     video_llm: object | None = None,
     site_llm: object | None = None,
+    report_llm: object | None = None,
 ) -> list[Any]:
     def frozen_pdf(_url: str) -> str:
         return PAPER_PDF_TEXT
@@ -91,6 +109,11 @@ def _patches(
         patches.append(patch("distill.pipeline.analysis.video.llm_call", video_llm))
     if site_llm is not None:
         patches.append(patch("distill.pipeline.analysis.site.llm_call", site_llm))
+    if report_llm is not None:
+        patches.append(patch("distill.pipeline.report.synthesize.llm_call", report_llm))
+        patches.append(
+            patch("distill.pipeline.report.synthesize._synthesis_model_available", lambda: True)
+        )
     return patches
 
 
@@ -102,6 +125,157 @@ def _apply(patches: list[Any]) -> None:
 def _stop(patches: list[Any]) -> None:
     for item in reversed(patches):
         item.stop()
+
+
+def _recent_rfc() -> str:
+    return email.utils.format_datetime(datetime.now(UTC) - timedelta(hours=1), usegmt=True)
+
+
+def _frozen_feed(_url: str) -> PodcastFeed:
+    return PodcastFeed(
+        title="Replay Feed",
+        link="https://example.test",
+        description="",
+        episodes=[
+            PodcastEpisode(
+                title="Replay episode",
+                guid="replay-episode-1",
+                published=_recent_rfc(),
+                audio_url="https://example.test/episode.mp3",
+                audio_type="audio/mpeg",
+                duration_s=600,
+                description="",
+                link="https://example.test/episode",
+            )
+        ],
+    )
+
+
+def _frozen_youtube(_channel_url: str, **_kwargs: object) -> list[VideoInfo]:
+    day = datetime.now(UTC).strftime("%Y%m%d")
+    return [
+        VideoInfo(
+            video_id=VIDEO_ID,
+            title=VIDEO_TITLE,
+            upload_date=day,
+            duration=600,
+            url=f"https://www.youtube.com/watch?v={VIDEO_ID}",
+            channel_name="Replay Channel",
+            published_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+        )
+    ]
+
+
+def _stable_preview(result: ProfilePreviewResult) -> dict[str, object]:
+    rows = [
+        {
+            "command": candidate.command,
+            "identity": candidate.identity,
+            "kind": candidate.kind,
+            "source": candidate.source,
+            "title": candidate.title,
+            "url": candidate.url,
+        }
+        for candidate in result.candidates
+    ]
+    return {
+        "candidate_count": len(rows),
+        "candidates": rows,
+        "cost_mode": result.cost_mode,
+        "profile": result.profile,
+        "topic": result.topic,
+        "warning_count": len(result.warnings),
+    }
+
+
+def _noop_executor(
+    command: list[str],
+    timeout_seconds: int,
+    environment: Mapping[str, str] | None = None,
+) -> CommandExecution:
+    del command, timeout_seconds, environment
+    return CommandExecution(0, 0.01)
+
+
+def _op_profile_preview() -> tuple[object, int, int]:
+    profile = ResearchProfile.model_validate(PROFILE_PAYLOAD)
+    preview = build_profile_preview(
+        profile,
+        fetch_sources=True,
+        feed_fetcher=_frozen_feed,
+        youtube_discoverer=_frozen_youtube,
+    )
+    value = _stable_preview(preview)
+    count = value["candidate_count"]
+    if not isinstance(count, int):
+        raise TypeError("profile preview candidate_count must be int")
+    return value, count, 0
+
+
+def _op_profile_run(library_root: Path) -> tuple[object, int, int]:
+    profile = ResearchProfile.model_validate(PROFILE_PAYLOAD)
+    preview = build_profile_preview(
+        profile,
+        fetch_sources=True,
+        feed_fetcher=_frozen_feed,
+        youtube_discoverer=_frozen_youtube,
+    )
+    result = run_profile_preview(
+        preview,
+        library_dir=library_root,
+        approved=True,
+        executor=_noop_executor,
+    )
+    commands = [
+        {
+            "key": item.key,
+            "kind": item.kind,
+            "status": item.status,
+            "command": item.command,
+        }
+        for item in result.commands
+    ]
+    value = {
+        "approved": result.approved,
+        "busy": result.busy,
+        "command_count": len(commands),
+        "commands": commands,
+        "executed": result.executed,
+        "succeeded_count": result.succeeded_count,
+    }
+    return value, len(commands), 0
+
+
+def _op_report_synthesize(library_root: Path, wait_ns: int) -> tuple[object, int, int]:
+    config = _config(library_root)
+    paper_dir = config.paper_dir(TOPIC, PAPER_TITLE, PAPER_ID)
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    (paper_dir / "insights.md").write_text(PAPER_INSIGHT_BODY, encoding="utf-8")
+    log = ReplayCallLog()
+    stub = make_llm_call(log, body=REPORT_SYNTHESIS_BODY, wait_ns=wait_ns)
+    started = _patches(report_llm=stub)
+    _apply(started)
+    previous = Path.cwd()
+    resolved: Path | None = None
+    try:
+        os.chdir(library_root)
+        written = run_synthesis([TOPIC], REPORT_CONTEXT, "replay", config)
+        if written is not None:
+            resolved = written.resolve()
+    finally:
+        os.chdir(previous)
+        _stop(started)
+    if resolved is None:
+        raise RuntimeError("report_synthesize produced no artifact")
+    body = resolved.read_text(encoding="utf-8")
+    value = {
+        "body_sha256": json_digest(body),
+        "llm_calls": log.calls,
+        "matches_fixture": body == REPORT_SYNTHESIS_BODY,
+        "relative_parent": resolved.parent.name,
+        "under_library": str(resolved).startswith(str(library_root.resolve())),
+    }
+    return value, 1, log.provider_wait_ns
 
 
 def operations(library_root: Path, *, wait_ns: int) -> list[tuple[str, ReplayOperation]]:
@@ -221,6 +395,9 @@ def operations(library_root: Path, *, wait_ns: int) -> list[tuple[str, ReplayOpe
         ("site_analyze", site),
         ("paper_synthesize", synthesize),
         ("verify_numeric", verify),
+        ("profile_preview", _op_profile_preview),
+        ("profile_run", lambda: _op_profile_run(library_root)),
+        ("report_synthesize", lambda: _op_report_synthesize(library_root, wait_ns)),
     ]
 
 
