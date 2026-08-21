@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Archived evidence integrity checks.** CI recomputes every manifest-bound
   file size and hash and verifies that all published operation counts and
   digests remain identical across the two host bundles.
+- **Manual exact-ref CI verification.** The full CI workflow can be dispatched
+  on demand when GitHub omits normal push delivery, while preserving the
+  existing push and pull-request triggers.
 
 ### Verified
 
