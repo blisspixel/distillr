@@ -16,6 +16,18 @@ model on a loopback endpoint, strips credentials, sets `DISTILL_COST_MODE` to
 pull a missing model. The campaign manifest, provider topology, and final
 ledger independently require paid external spend of exactly `$0.00`.
 
+The campaign can also declare `minimum_decode_tokens_per_second`. When set,
+preflight sends one bounded, non-thinking JSON request to the exact local
+Ollama model and accepts only Ollama-reported token timing at or above that
+rate. This keeps an installed but impractically slow model from entering a
+time-bounded release campaign. A failed provider or throughput preflight does
+not create the disposable evidence library.
+
+The 0.19.68 reference campaign pins `qwen3.5:35b` and requires at least 10
+reported decode tokens per second. That threshold leaves measured variance
+headroom while refusing the dense local route that could not complete the
+20-paper journey within its 12-hour bound on the reference hardware.
+
 Run preflight first:
 
 ```console
