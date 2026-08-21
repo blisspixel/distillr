@@ -391,13 +391,13 @@ def _command_environment(campaign: Campaign, library: Path, scratch: Path) -> di
         for key, value in os.environ.items()
         if _SECRET_NAME_RE.search(key) is None and not key.startswith("COV_CORE_")
     }
+    environment.pop("DISTILL_COST_WORKFLOW_BUDGETS", None)
     environment.update(
         {
             "DISTILL_OUTPUT_DIR": str(library),
             "DISTILL_PROVIDER": campaign.provider,
             "DISTILL_MODEL": campaign.model,
             "DISTILL_COST_MODE": "no-metered",
-            "DISTILL_COST_WORKFLOW_BUDGETS": "papers=0,paper=0,catch-up=0,site-batch=0",
             "DISTILL_VERIFY": campaign.verification_mode,
             "DISTILL_NO_PREFLIGHT": "1",
             "DISTILL_NO_UPDATE_CHECK": "1",
@@ -779,6 +779,13 @@ def _attempt(
         environment=_command_environment(campaign, library, scratch),
         timeout_seconds=journey.timeout_seconds,
     )
+    if process["returncode"] != 0:
+        raise ValueError(
+            "live journey child failed before evidence correlation: "
+            f"returncode={process['returncode']}, "
+            f"stdout_sha256={process['stdout_sha256']}, "
+            f"stderr_sha256={process['stderr_sha256']}"
+        )
     correlation = _correlation(library, offsets)
     cost = _cost(correlation)
     after = _source_state(library, journey.topic)

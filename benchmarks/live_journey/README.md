@@ -12,9 +12,9 @@ performance objectives.
 
 The checked-in campaign is local-only. It requires an exact installed Ollama
 model on a loopback endpoint, strips credentials, sets `DISTILL_COST_MODE` to
-`no-metered`, applies zero-dollar workflow budgets, and rejects every metered or
-unknown-cost ledger row. It will not pull a missing model. Paid external spend
-for this campaign is structurally capped at `$0.00`.
+`no-metered`, and rejects every metered or unknown-cost ledger row. It will not
+pull a missing model. The campaign manifest, provider topology, and final
+ledger independently require paid external spend of exactly `$0.00`.
 
 Run preflight first:
 

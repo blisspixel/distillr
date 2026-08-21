@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -227,6 +230,30 @@ def test_provider_preflight_requires_exact_local_model(tmp_path: Path, monkeypat
     result = runner.provider_preflight(campaign)
     assert result["endpoint_class"] == "http-loopback"
     assert result["no_metered_cost_proven_by"] == "local-loopback-topology"
+
+
+def test_command_environment_bootstraps_no_metered_config(tmp_path: Path, monkeypatch) -> None:
+    campaign = runner.load_campaign(_write_manifest(tmp_path))
+    monkeypatch.setenv("DISTILL_COST_WORKFLOW_BUDGETS", "papers=5")
+    environment = runner._command_environment(campaign, tmp_path / "library", tmp_path)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from distill.config import DistillConfig; print(DistillConfig().distill_cost_mode)",
+        ],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "no-metered"
+    assert "DISTILL_COST_WORKFLOW_BUDGETS" not in environment
+    assert not any("KEY" in name or "TOKEN" in name for name in environment)
+    assert environment["PATH"] == os.environ["PATH"]
 
 
 def test_cost_validator_fails_closed_on_unknown_external_cost() -> None:
