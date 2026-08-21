@@ -670,7 +670,7 @@ def _offsets(library: Path) -> _Offsets:
         phase=_file_size(ops / "phase_telemetry.jsonl"),
         provider=_file_size(ops / "telemetry.jsonl"),
         cost=_file_size(ops / "cost_log.jsonl"),
-        run=_file_size(ops / "run_log.jsonl"),
+        run=_file_size(library / "run_log.jsonl"),
     )
 
 
@@ -811,7 +811,7 @@ def _correlation(library: Path, before: _Offsets) -> dict[str, object]:
     phase = _rows(ops / "phase_telemetry.jsonl", before.phase)
     provider = _rows(ops / "telemetry.jsonl", before.provider)
     cost = _rows(ops / "cost_log.jsonl", before.cost)
-    runs = _rows(ops / "run_log.jsonl", before.run)
+    runs = _rows(library / "run_log.jsonl", before.run)
     run_ids = {
         row.get("run_id")
         for row in [*phase, *provider, *cost, *runs]

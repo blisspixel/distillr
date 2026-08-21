@@ -460,6 +460,30 @@ def test_cost_validator_fails_closed_on_unknown_external_cost() -> None:
         runner._cost(correlation)
 
 
+def test_correlation_reads_root_run_summary_and_operational_logs(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    operations = library / ".distill"
+    operations.mkdir(parents=True)
+    run_id = "correlated-run-id"
+    rows = {
+        operations / "phase_telemetry.jsonl": {"run_id": run_id, "phase": "command"},
+        operations / "telemetry.jsonl": {"run_id": run_id, "model": "local-model"},
+        operations / "cost_log.jsonl": {"run_id": run_id, **_cost_row()},
+        library / "run_log.jsonl": {"run_id": run_id, "command": "papers"},
+    }
+    for path, payload in rows.items():
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    assert runner._offsets(library).run == (library / "run_log.jsonl").stat().st_size
+    correlation = runner._correlation(library, runner._Offsets(0, 0, 0, 0))
+
+    assert correlation["run_id"] == run_id
+    assert correlation["phase_rows_complete"] is True
+    assert correlation["provider_rows_complete"] is True
+    assert correlation["cost_rows_complete"] is True
+    assert correlation["run_rows_complete"] is True
+
+
 def test_bundle_validates_three_complete_zero_cost_receipts(tmp_path: Path) -> None:
     campaign_path = _write_manifest(tmp_path)
     campaign = runner.load_campaign(campaign_path)
