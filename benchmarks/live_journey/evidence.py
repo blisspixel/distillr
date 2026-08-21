@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -57,7 +58,10 @@ def _integer(value: object, label: str) -> int:
 def _number(value: object, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError(f"{label} must be numeric")
-    return float(value)
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"{label} must be finite")
+    return parsed
 
 
 def _identity(identity: ReleaseIdentity) -> None:
@@ -165,6 +169,40 @@ def _validate_receipt(  # noqa: C901 - validates the complete nested evidence co
         or preflight.get("endpoint_class") != "http-loopback"
     ):
         raise ValueError("receipt provider preflight does not match the campaign")
+    if campaign.minimum_decode_tokens_per_second > 0:
+        throughput = _object(preflight.get("throughput_probe"), "throughput probe")
+        measured = _number(
+            throughput.get("decode_tokens_per_second"),
+            "throughput probe decode rate",
+        )
+        minimum = _number(
+            throughput.get("minimum_decode_tokens_per_second"),
+            "throughput probe minimum decode rate",
+        )
+        output_tokens = _integer(throughput.get("output_tokens"), "throughput output tokens")
+        input_tokens = _integer(throughput.get("input_tokens"), "throughput input tokens")
+        prefill_seconds = _number(throughput.get("prefill_seconds"), "throughput prefill seconds")
+        decode_seconds = _number(throughput.get("decode_seconds"), "throughput decode seconds")
+        wall_seconds = _number(throughput.get("wall_seconds"), "throughput wall seconds")
+        rate_matches_tokens = decode_seconds > 0 and math.isclose(
+            measured,
+            output_tokens / decode_seconds,
+            rel_tol=1e-5,
+            abs_tol=1e-5,
+        )
+        if (
+            throughput.get("status") != "ok"
+            or throughput.get("usage_source") != "ollama-reported"
+            or minimum != campaign.minimum_decode_tokens_per_second
+            or measured < minimum
+            or output_tokens <= 0
+            or input_tokens <= 0
+            or prefill_seconds < 0
+            or decode_seconds <= 0
+            or wall_seconds < decode_seconds
+            or not rate_matches_tokens
+        ):
+            raise ValueError("receipt throughput preflight does not satisfy the campaign")
     environment = _object(payload.get("environment"), "receipt environment")
     fingerprint = environment.get("source_fingerprint_sha256")
     if not isinstance(fingerprint, str) or _SHA256_RE.fullmatch(fingerprint) is None:

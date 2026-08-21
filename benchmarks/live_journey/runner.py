@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Any, TypedDict, cast
 from urllib.parse import urlparse
 
 import psutil
@@ -41,6 +41,9 @@ _MARKER_NAME = ".distill-live-evidence-root.json"
 _ID_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?")
 _SECRET_NAME_RE = re.compile(r"(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)", re.I)
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_PROBE_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+_PROBE_TIMEOUT_SECONDS = 600
+_PROBE_OUTPUT_TOKENS = 128
 
 
 class ProcessEvidence(TypedDict):
@@ -81,6 +84,7 @@ class Campaign:
     model: str
     verification_mode: str
     max_paid_usd: float
+    minimum_decode_tokens_per_second: float
     journeys: tuple[Journey, ...]
     manifest_sha256: str
 
@@ -125,6 +129,15 @@ def _boolean(value: object, label: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{label} must be boolean")
     return value
+
+
+def _non_negative_number(value: object, label: str, *, maximum: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"{label} must be numeric")
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0 or parsed > maximum:
+        raise ValueError(f"{label} must be from 0 through {maximum:g}")
+    return parsed
 
 
 def _url(value: object, label: str, *, youtube: bool = False) -> str:
@@ -252,6 +265,7 @@ def load_campaign(path: Path) -> Campaign:  # noqa: C901 - strict union manifest
             "max_paid_usd",
             "provider",
             "model",
+            "minimum_decode_tokens_per_second",
             "verification_mode",
             "journeys",
         },
@@ -289,6 +303,11 @@ def load_campaign(path: Path) -> Campaign:  # noqa: C901 - strict union manifest
         model=_text(data.get("model"), "campaign.model"),
         verification_mode=verification,
         max_paid_usd=maximum,
+        minimum_decode_tokens_per_second=_non_negative_number(
+            data.get("minimum_decode_tokens_per_second", 0),
+            "minimum_decode_tokens_per_second",
+            maximum=1_000,
+        ),
         journeys=journeys,
         manifest_sha256=hashlib.sha256(payload).hexdigest(),
     )
@@ -299,8 +318,22 @@ def _loopback_endpoint(provider: str) -> str:
     default = "http://127.0.0.1:11434" if provider == "ollama" else "http://127.0.0.1:1234"
     endpoint = os.environ.get(variable, default).rstrip("/")
     parsed = urlparse(endpoint)
-    if parsed.scheme != "http" or not parsed.hostname:
-        raise ValueError(f"{provider} evidence endpoint must be an HTTP loopback URL")
+    if (
+        parsed.scheme != "http"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            f"{provider} evidence endpoint must be a root HTTP loopback URL without credentials"
+        )
+    try:
+        _port = parsed.port
+    except ValueError:
+        raise ValueError(f"{provider} evidence endpoint has an invalid port") from None
     try:
         address = ipaddress.ip_address(parsed.hostname)
     except ValueError:
@@ -312,13 +345,97 @@ def _loopback_endpoint(provider: str) -> str:
     return endpoint
 
 
+def _open_loopback(request: urllib.request.Request, *, timeout: float) -> Any:
+    """Open a verified loopback request without consulting proxy configuration."""
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(request, timeout=timeout)
+
+
+def _ollama_throughput_probe(
+    endpoint: str,
+    campaign: Campaign,
+) -> dict[str, object]:
+    prompt = (
+        "Return a compact JSON object with a summary and confidence after reviewing "
+        "this bounded local throughput probe."
+    )
+    payload = json.dumps(
+        {
+            "model": campaign.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "format": "json",
+            "think": False,
+            "options": {
+                "num_ctx": 4096,
+                "num_predict": _PROBE_OUTPUT_TOKENS,
+                "temperature": 0,
+            },
+        },
+        separators=(",", ":"),
+    ).encode()
+    request = urllib.request.Request(
+        f"{endpoint}/api/chat",
+        data=payload,
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        method="POST",
+    )
+    started = time.perf_counter()
+    with _open_loopback(request, timeout=_PROBE_TIMEOUT_SECONDS) as response:
+        raw = response.read(_PROBE_MAX_RESPONSE_BYTES + 1)
+    wall_seconds = time.perf_counter() - started
+    if not raw or len(raw) > _PROBE_MAX_RESPONSE_BYTES:
+        raise ValueError("Ollama throughput probe returned an invalid response size")
+    data = _object(json.loads(raw), "Ollama throughput probe")
+    if data.get("model") != campaign.model or data.get("done") is not True:
+        raise ValueError("Ollama throughput probe did not complete with the exact model")
+    output_tokens = data.get("eval_count")
+    decode_ns = data.get("eval_duration")
+    input_tokens = data.get("prompt_eval_count")
+    prefill_ns = data.get("prompt_eval_duration")
+    if (
+        not isinstance(output_tokens, int)
+        or isinstance(output_tokens, bool)
+        or output_tokens <= 0
+        or not isinstance(decode_ns, int)
+        or isinstance(decode_ns, bool)
+        or decode_ns <= 0
+        or not isinstance(input_tokens, int)
+        or isinstance(input_tokens, bool)
+        or input_tokens < 0
+        or not isinstance(prefill_ns, int)
+        or isinstance(prefill_ns, bool)
+        or prefill_ns < 0
+    ):
+        raise ValueError("Ollama throughput probe omitted valid reported token timing")
+    decode_rate = output_tokens / (decode_ns / 1_000_000_000)
+    minimum = campaign.minimum_decode_tokens_per_second
+    if decode_rate < minimum:
+        raise ValueError(
+            "Ollama model decode throughput is below the campaign minimum: "
+            f"{decode_rate:.2f} < {minimum:.2f} tokens/s"
+        )
+    return {
+        "status": "ok",
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "prefill_seconds": round(prefill_ns / 1_000_000_000, 6),
+        "decode_seconds": round(decode_ns / 1_000_000_000, 6),
+        "decode_tokens_per_second": round(decode_rate, 6),
+        "minimum_decode_tokens_per_second": minimum,
+        "wall_seconds": round(wall_seconds, 6),
+        "usage_source": "ollama-reported",
+    }
+
+
 def provider_preflight(campaign: Campaign) -> dict[str, object]:
     """Prove that the selected exact model is present on a loopback endpoint."""
 
     endpoint = _loopback_endpoint(campaign.provider)
     url = f"{endpoint}/api/tags" if campaign.provider == "ollama" else f"{endpoint}/v1/models"
     request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with _open_loopback(request, timeout=5) as response:
         payload: object = json.loads(response.read(4 * 1024 * 1024))
     data = _object(payload, "provider preflight")
     if campaign.provider == "ollama":
@@ -341,7 +458,7 @@ def provider_preflight(campaign: Campaign) -> dict[str, object]:
             raise ValueError(f"LM Studio model is not installed: {campaign.model}")
         size = None
         digest = ""
-    return {
+    result: dict[str, object] = {
         "status": "ok",
         "provider": campaign.provider,
         "model": campaign.model,
@@ -350,6 +467,11 @@ def provider_preflight(campaign: Campaign) -> dict[str, object]:
         "model_digest": digest if isinstance(digest, str) and _SHA256_RE.fullmatch(digest) else "",
         "no_metered_cost_proven_by": "local-loopback-topology",
     }
+    if campaign.minimum_decode_tokens_per_second > 0:
+        if campaign.provider != "ollama":
+            raise ValueError("decode throughput preflight currently requires Ollama")
+        result["throughput_probe"] = _ollama_throughput_probe(endpoint, campaign)
+    return result
 
 
 def _file_sha256(path: Path) -> str:
@@ -971,8 +1093,8 @@ def run_one_journey(
     executable = executable.resolve(strict=True)
     if not executable.is_file():
         raise ValueError("distill executable is not a file")
-    prepare_library(campaign, library)
     preflight = provider_preflight(campaign)
+    prepare_library(campaign, library)
     with tempfile.TemporaryDirectory(prefix="distill-live-evidence-") as temporary:
         scratch = Path(temporary).resolve()
         journey = _journey_result(
@@ -1019,8 +1141,8 @@ def run_campaign(manifest: Path, library: Path, executable: Path) -> dict[str, o
     executable = executable.resolve(strict=True)
     if not executable.is_file():
         raise ValueError("distill executable is not a file")
-    prepare_library(campaign, library)
     preflight = provider_preflight(campaign)
+    prepare_library(campaign, library)
     with tempfile.TemporaryDirectory(prefix="distill-live-evidence-") as temporary:
         scratch = Path(temporary).resolve()
         journeys = [

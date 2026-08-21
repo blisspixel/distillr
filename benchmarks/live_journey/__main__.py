@@ -70,8 +70,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "preflight":
             campaign = load_campaign(args.manifest)
-            prepare_library(campaign, args.library)
             result = provider_preflight(campaign)
+            prepare_library(campaign, args.library)
             sys.stdout.write(json.dumps(result, sort_keys=True) + "\n")
             return 0
         if args.command == "run":
