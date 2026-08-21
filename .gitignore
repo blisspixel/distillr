@@ -62,6 +62,7 @@ Desktop.ini
 
 # Distill runtime data (per-user, sometimes large)
 /library/
+.release-evidence/
 output/
 tmp/
 

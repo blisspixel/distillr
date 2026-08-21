@@ -6,8 +6,9 @@ on:
 permissions:
   contents: read
 
-# Evidence runs are deliberately serialized per ref. A queued run is useful
-# history, while canceling an in-progress canonical matrix destroys its receipt.
+# Evidence runs are serialized per ref so concurrent matrices cannot contaminate
+# timing. GitHub keeps at most one pending run in a concurrency group, so submit
+# the next run only after the pending run starts. The active run is never canceled.
 concurrency:
   group: performance-evidence-${{ github.ref }}
   cancel-in-progress: false
