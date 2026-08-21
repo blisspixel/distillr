@@ -32,8 +32,9 @@ Current UX priorities:
 - Finish the Pyright strict-mode, boundary-type, and deterministic-core
   verification ratchets while preserving the branch-coverage floor
 - Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
-- Publish the 1.0 performance baseline and optimize measured whole workflows
-  before considering first-party native code
+- Build comparable performance history, add installation and cold-start
+  evidence, and optimize measured whole workflows before considering
+  first-party native code
 - Complete the 1.0 presentation and contributor-onboarding pass
 
 ## Next Up
@@ -434,6 +435,8 @@ per unit of time and cost, not language-level throughput in isolation.
   integrity receipts, checked-out version, runner platform, and stable result
   digests before uploading raw JSON, a summary, and a run-bound hash manifest.
 - [~] **Published 1.0 baseline.** Offline evidence published as
+  [`performance/cross-platform-0.19.66.md`](performance/cross-platform-0.19.66.md)
+  (Linux/macOS corpus scale plus frozen workflow replay from the same commit),
   [`performance/baseline-0.19.60.md`](performance/baseline-0.19.60.md)
   (Windows corpus-scale at 100 / 500 / 1_000 / 10_000, n=20, plus CLI
   `--version` process start),
@@ -441,9 +444,10 @@ per unit of time and cost, not language-level throughput in isolation.
   (paper / video / site / synthesis / numeric verify / profile / report, n=20),
   and the earlier
   [`performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
-  scale-100 receipt. Cross-platform collection is now executable and manual,
-  but the first Linux/macOS receipts are not yet published. Still open:
-  multi-host history, export/install metrics, and live 20-paper / 50-video /
+  scale-100 receipt. The 0.19.66 Linux/macOS run independently validated both
+  bundles and produced identical result counts and digests for all 32 compared
+  operations. Still open: at least five comparable runs per host, export and
+  installation metrics, cold-start evidence, and live 20-paper / 50-video /
   site-batch reference journeys with full hardware and cost metadata.
 - [ ] **Honest regression policy.** Keep live provider, network, and hardware
   journeys as scheduled or release evidence. Allow deterministic offline

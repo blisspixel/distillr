@@ -126,9 +126,12 @@ run cannot label current editable source with stale package metadata. Windows
 receipts at scale 100, 500, 1_000, and 10_000 with n=20 are published under
 [`../performance/baseline-0.19.60.md`](../performance/baseline-0.19.60.md).
 The manual `Performance evidence` workflow now runs that exact matrix on Linux
-and macOS and packages validated raw receipts with run-bound hashes. Publishing
-the first results, cold-filesystem experiments, malformed and threshold-edge
-fixture expansion, and scheduled history remain follow-on work.
+and macOS and packages validated raw receipts with run-bound hashes. The first
+same-commit Linux/macOS result is published under
+[`../performance/cross-platform-0.19.66.md`](../performance/cross-platform-0.19.66.md).
+Its 32 operation results had identical counts and deterministic digests across
+hosts. Cold-filesystem experiments, malformed and threshold-edge fixture
+expansion, and at least five comparable runs per host remain follow-on work.
 
 ### 2. Offline workflow replay
 
@@ -142,7 +145,8 @@ preview/run, and report synthesis is published under
 [`../performance/workflow-replay-0.19.63.md`](../performance/workflow-replay-0.19.63.md).
 The same manual workflow runs the canonical n=20 replay on Linux and macOS and
 validates its offline route, source integrity, sample stability, and provenance
-before artifact upload.
+before artifact upload. The first same-commit cross-platform replay is included
+in [`../performance/cross-platform-0.19.66.md`](../performance/cross-platform-0.19.66.md).
 
 ### 3. Live reference journeys
 

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.67 - 2026-08-20
+
+### Added
+
+- **First published Linux and macOS performance baseline.** The complete
+  fixed-seed corpus-scale matrix and frozen workflow replay are preserved with
+  raw receipts, summaries, runner identities, run-bound manifests, and an
+  explicit account of what timing evidence does and does not prove.
+- **Archived evidence integrity checks.** CI recomputes every manifest-bound
+  file size and hash and verifies that all published operation counts and
+  digests remain identical across the two host bundles.
+
+### Verified
+
+- **Cross-host deterministic outputs.** Both 0.19.66 evidence bundles passed
+  independent hash and receipt validation. All 32 operation result counts and
+  digests match across Linux and macOS, including the equal-score search path
+  that exposed the 0.19.65 traversal-order defect.
+
 ## 0.19.66 - 2026-08-20
 
 ### Fixed

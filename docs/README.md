@@ -56,6 +56,7 @@ Background and the reasoning behind the design.
 - [Invariants](invariants.md) - the design charter: what distill is, is not, and the rules that do not bend.
 - [Roadmap](roadmap.md) - the area-by-area backlog ([top-level ROADMAP](../ROADMAP.md) is the milestone spine).
 - [Performance and language admission](design/performance-and-language-admission.md) - benchmark contract, optimization order, and evidence gates for Rust, Go, Mojo, and free-threaded Python.
+- [Cross-platform performance baseline (0.19.66)](performance/cross-platform-0.19.66.md) - validated Linux and macOS corpus-scale and frozen replay evidence with preserved raw bundles.
 - [Performance baseline (0.19.60)](performance/baseline-0.19.60.md) - published offline Windows corpus-scale evidence at 100 / 500 / 1_000 / 10_000.
 - [Workflow replay (0.19.63)](performance/workflow-replay-0.19.63.md) - frozen paper, video, site, synthesis, verify, profile, and report paths with Distill-owned timings.
 - [Design notes](design/) - per-feature design docs (ask loop, entailment tier, decomposition, provider caching, how-we-build).
