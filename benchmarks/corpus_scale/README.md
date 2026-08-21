@@ -74,3 +74,7 @@ digests, matching checked-out package versions, and the actual runner platform.
 It then writes a concise summary plus a provenance manifest that binds every
 receipt digest to the repository, commit, workflow run, and runner identity.
 Missing or invalid evidence fails the workflow.
+
+The first validated same-commit Linux/macOS n=20 matrix, complete raw bundles,
+and cross-host correctness comparison are published in
+`docs/performance/cross-platform-0.19.66.md`.

@@ -122,10 +122,11 @@ bandit, pip-audit, supported Python matrix, build provenance). Covered v1
 contract snapshots are freeze-ready under the published compatibility policy;
 uncovered pre-1.0 surfaces can still improve additively. Pin versions if you
 integrate on MCP schemas or frontmatter. 1.0 is a future stability commitment,
-not a calendar date. The next dependency-ordered gate is comparable Linux and
-macOS performance evidence from the manual, advisory benchmark workflow:
+not a calendar date. The first comparable Linux and macOS performance baseline
+is now published. The next dependency-ordered gate is at least five comparable
+runs per host class before any honest timing threshold is proposed:
 [`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar) and the
-[`2026-08-20 roadmap review`](docs/research/roadmap-review-2026-08-20.md).
+[`0.19.66 cross-platform baseline`](docs/performance/cross-platform-0.19.66.md).
 
 ## License
 

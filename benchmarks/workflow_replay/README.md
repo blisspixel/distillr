@@ -23,3 +23,7 @@ n=20 replay beside the corpus-scale matrix on Linux and macOS. Before upload,
 `benchmarks.evidence_bundle` verifies the offline route, source integrity,
 operation completion, stable result digests, checked-out package version, and
 runner platform, then hashes the raw receipt into a run-bound manifest.
+
+The first validated same-commit Linux/macOS n=20 replay, complete raw bundles,
+and cross-host correctness comparison are published in
+`docs/performance/cross-platform-0.19.66.md`.

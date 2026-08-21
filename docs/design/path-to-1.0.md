@@ -3,12 +3,12 @@
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 2026-08-20 against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.66`; published performance evidence is the 0.19.50 scale-100
-receipt, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and frozen
-workflow replay through 0.19.63 (paper / video / site / synthesis / verify /
-profile / report). Write-path fault injection for empty analysis, empty
-transcripts, PDF fetch failure, yt-dlp failure, and malformed structured JSON
-shipped in 0.19.64.
+`distillr==0.19.67`; published performance evidence is the 0.19.66 Linux/macOS
+matrix and frozen replay, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000
+matrix, and Windows frozen workflow replay through 0.19.63 (paper / video /
+site / synthesis / verify / profile / report). Write-path fault injection for
+empty analysis, empty transcripts, PDF fetch failure, yt-dlp failure, and
+malformed structured JSON shipped in 0.19.64.
 
 ## The honest answer
 
@@ -58,25 +58,26 @@ additively under that policy and do not block 1.0.
 ### B. Published performance baseline (partial harness, no freeze yet)
 
 `benchmarks/corpus_scale/` exists for deterministic offline scale evidence.
-Published: Windows scale 100 (0.19.50 and 0.19.60), 500, 1_000, and 10_000
-at n=20, plus CLI `--version` process start, and Windows frozen workflow
-replay (paper / video / site / synthesis / numeric verify / profile / report)
-at n=20, under [`../performance/`](../performance/). A manual, non-blocking
-GitHub Actions workflow now runs the exact matrix and replay on Linux and macOS,
-validates correctness and integrity, and uploads raw receipts with a run-bound
-manifest. Still open for the 1.0 bar:
+Published: the [`0.19.66 Linux/macOS matrix and replay`](../performance/cross-platform-0.19.66.md),
+Windows scale 100 (0.19.50 and 0.19.60), 500, 1_000, and 10_000 at n=20,
+plus CLI `--version` process start, and Windows frozen workflow replay (paper /
+video / site / synthesis / numeric verify / profile / report) at n=20, under
+[`../performance/`](../performance/). The manual, non-blocking GitHub Actions
+workflow validates correctness and integrity and uploads raw receipts with a
+run-bound manifest. Still open for the 1.0 bar:
 
-1. Run and publish comparable Linux and macOS receipts from the same merge
-   commit, seed, fixtures, and n=20 profile, then build enough history to
-   characterize hosted-runner variance.
-2. Live reference journeys as *release evidence*, not PR gates (20-paper run,
+1. Accumulate at least five comparable runs per Linux and macOS host class to
+   characterize hosted-runner variance before proposing timing thresholds.
+2. Add cross-platform clean-install, artifact-size, cold-start, and export
+   measurements.
+3. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
 
 ### C. Quality bar completeness (mostly done; residual ratchets)
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met (0.19.56: 6,582 passed at 95.04%; floor remains 95%) |
+| Branch coverage >=95% | Met (0.19.67: 6,840 passed at 95.02%; floor remains 95%) |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
 | Python 3.12-3.14 + OS smoke | Met |
 | Golden structural offline gate | Met; do not extend to live model scoring |
@@ -157,7 +158,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 |-------|--------|----------|
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | Windows scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; manual Linux/macOS collection and validation workflow added; publishing those receipts and live journeys remain |
-| 3 Quality ratchets | partial | 95.04% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
+| 2 Performance baseline v1 | partial | Windows and Linux/macOS scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; multi-run host history, install/cold-start/export evidence, and live journeys remain |
+| 3 Quality ratchets | partial | 95.02% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

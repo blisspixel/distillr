@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.19.66"
+version = "0.19.67"
 description = "Current-source research corpus: discover, capture, verify, and synthesize public sources and local files into durable Markdown."
 readme = "README.md"
 license = "Apache-2.0"

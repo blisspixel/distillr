@@ -2,8 +2,8 @@
 
 ## Decision
 
-The next milestone is cross-platform performance evidence for the 1.0
-stability gate. It comes before new adapters, provider routes, MCP Tasks, or a
+The selected milestone was cross-platform performance evidence for the 1.0
+stability gate. It came before new adapters, provider routes, MCP Tasks, or a
 native-language experiment.
 
 The immediate deliverable is a manual GitHub Actions matrix that runs the
@@ -78,5 +78,13 @@ macOS, but comparison of the raw receipts found different `search_hit` result
 digests with identical inputs and result counts. Equal-score search results
 inherited filesystem traversal order before the result limit. Publication was
 therefore deferred while 0.19.66 added a portable path representation and
-deterministic path tie-break. The canonical matrix must pass again on the
-fixed merge commit before its receipts become the published baseline.
+deterministic path tie-break.
+
+The fixed-commit run
+[`32431022291`](https://github.com/blisspixel/distillr/actions/runs/32431022291)
+then passed on Linux and macOS. Both downloaded bundles independently passed
+hash and receipt validation, and all 32 operation result counts and digests
+matched across hosts. The raw bundles and findings are published in
+[`../performance/cross-platform-0.19.66.md`](../performance/cross-platform-0.19.66.md).
+The next dependency is at least five comparable runs per host class so public
+runner variance is characterized before any timing threshold is proposed.
