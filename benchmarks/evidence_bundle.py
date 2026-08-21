@@ -528,6 +528,44 @@ def build_evidence_bundle(
     return manifest_path, summary_path
 
 
+def load_canonical_receipt(path: Path) -> Mapping[str, object]:
+    """Load one size-limited strict-JSON canonical receipt."""
+
+    return _load_receipt(path)
+
+
+def validate_corpus_receipt(
+    path: Path,
+    *,
+    scale: int,
+    expected_os: str,
+    expected_arch: str,
+) -> Mapping[str, object]:
+    """Validate one canonical corpus-scale receipt for a declared runner."""
+
+    return _validate_corpus_receipt(
+        path,
+        scale=scale,
+        expected_os=expected_os,
+        expected_arch=expected_arch,
+    )
+
+
+def validate_replay_receipt(
+    path: Path,
+    *,
+    expected_os: str,
+    expected_arch: str,
+) -> Mapping[str, object]:
+    """Validate one canonical workflow-replay receipt for a declared runner."""
+
+    return _validate_replay_receipt(
+        path,
+        expected_os=expected_os,
+        expected_arch=expected_arch,
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Validate and package one canonical cross-platform performance run."
@@ -574,5 +612,8 @@ __all__ = [
     "CANONICAL_WARMUPS",
     "RunIdentity",
     "build_evidence_bundle",
+    "load_canonical_receipt",
     "main",
+    "validate_corpus_receipt",
+    "validate_replay_receipt",
 ]

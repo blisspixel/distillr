@@ -138,6 +138,10 @@ def test_performance_evidence_workflow_is_manual_canonical_and_non_blocking() ->
     trigger = workflow.get("on", workflow.get("True"))
     assert _mapping(trigger) == {"workflow_dispatch": None}
     assert _mapping(workflow["permissions"]) == {"contents": "read"}
+    assert _mapping(workflow["concurrency"]) == {
+        "group": "performance-evidence-${{ github.ref }}",
+        "cancel-in-progress": False,
+    }
 
     jobs = _mapping(workflow["jobs"])
     assert list(jobs) == ["canonical"]
@@ -156,6 +160,55 @@ def test_performance_evidence_workflow_is_manual_canonical_and_non_blocking() ->
     assert "benchmarks.workflow_replay" in run_text
     assert "--iterations 20 --timeout-seconds 30" in run_text
     assert "benchmarks.evidence_bundle" in run_text
+
+    uses = [str(step["uses"]) for step in steps if "uses" in step]
+    assert uses == [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    ]
+    checkout = next(
+        step for step in steps if str(step.get("uses", "")).startswith("actions/checkout")
+    )
+    assert _mapping(checkout["with"])["persist-credentials"] is False
+    upload = next(step for step in steps if str(step.get("uses", "")).startswith("actions/upload"))
+    assert upload["if"] == "${{ always() }}"
+    upload_with = _mapping(upload["with"])
+    assert upload_with["if-no-files-found"] == "error"
+    assert upload_with["retention-days"] == 30
+
+
+def test_user_experience_evidence_workflow_is_manual_cross_platform_and_strict() -> None:
+    """Install and export timings remain manual while integrity fails closed."""
+
+    workflow = _load_yaml(ROOT / ".github" / "workflows" / "user-experience-evidence.yml")
+    trigger = workflow.get("on", workflow.get("True"))
+    assert _mapping(trigger) == {"workflow_dispatch": None}
+    assert _mapping(workflow["permissions"]) == {"contents": "read"}
+    assert "concurrency" not in workflow
+
+    jobs = _mapping(workflow["jobs"])
+    assert list(jobs) == ["canonical"]
+    job = _mapping(jobs["canonical"])
+    assert job.get("continue-on-error", False) is False
+    assert job["timeout-minutes"] == 120
+    strategy = _mapping(job["strategy"])
+    assert strategy["fail-fast"] is False
+    matrix = _mapping(strategy["matrix"])
+    assert _sequence(matrix["os"]) == [
+        "ubuntu-latest",
+        "macos-latest",
+        "windows-latest",
+    ]
+
+    steps = [_mapping(step) for step in _sequence(job["steps"])]
+    run_text = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "uv build" in run_text
+    assert "benchmarks.user_experience run" in run_text
+    assert "--iterations 20" in run_text
+    assert "--warmups 1" in run_text
+    assert "--export-scale 1000" in run_text
+    assert "benchmarks.user_experience validate" in run_text
 
     uses = [str(step["uses"]) for step in steps if "uses" in step]
     assert uses == [

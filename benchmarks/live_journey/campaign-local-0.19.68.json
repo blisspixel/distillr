@@ -1,0 +1,51 @@
+{
+  "campaign_id": "performance-1-0-local-0-19-68",
+  "cost_mode": "no-metered",
+  "journeys": [
+    {
+      "expand": true,
+      "expected_items": 20,
+      "id": "papers-20",
+      "kind": "papers",
+      "max_attempts": 2,
+      "query": "retrieval augmented generation evaluation and trustworthy agentic systems",
+      "rerank": true,
+      "sort": "relevance",
+      "timeout_seconds": 43200,
+      "topic": "release-evidence-papers",
+      "workers": 1
+    },
+    {
+      "channel_name": "3Blue1Brown",
+      "channel_url": "https://www.youtube.com/@3blue1brown",
+      "days": 3650,
+      "expected_items": 50,
+      "id": "videos-50",
+      "include_shorts": false,
+      "kind": "videos",
+      "max_attempts": 2,
+      "timeout_seconds": 86400,
+      "topic": "release-evidence-videos"
+    },
+    {
+      "expected_items": 5,
+      "id": "site-batch-5",
+      "kind": "site-batch",
+      "max_attempts": 2,
+      "timeout_seconds": 21600,
+      "topic": "release-evidence-sites",
+      "urls": [
+        "https://docs.python.org/3/library/asyncio.html",
+        "https://docs.python.org/3/library/concurrent.futures.html",
+        "https://docs.python.org/3/library/pathlib.html",
+        "https://docs.python.org/3/library/subprocess.html",
+        "https://docs.python.org/3/library/typing.html"
+      ]
+    }
+  ],
+  "max_paid_usd": 0,
+  "model": "qwen3.8:27b",
+  "provider": "ollama",
+  "schema_version": "live-journey-campaign.v1",
+  "verification_mode": "warn"
+}

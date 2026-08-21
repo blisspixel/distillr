@@ -1,0 +1,84 @@
+name: User-experience evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.11.11"
+  UV_PYTHON: "3.12"
+
+jobs:
+  canonical:
+    name: User experience (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Sync locked source environment
+        run: uv sync --frozen
+
+      - name: Build wheel and source distribution
+        run: uv build
+
+      - name: Measure clean install, cold starts, and exports
+        shell: bash
+        run: |
+          mkdir -p user-experience-evidence
+          wheel=$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)
+          sdist=$(find dist -maxdepth 1 -type f -name '*.tar.gz' -print -quit)
+          test -n "$wheel"
+          test -n "$sdist"
+          uv run --no-sync python -m benchmarks.user_experience run \
+            --wheel "$wheel" \
+            --sdist "$sdist" \
+            --iterations 20 \
+            --warmups 1 \
+            --export-scale 1000 \
+            --output user-experience-evidence/user-experience.json
+
+      - name: Validate and bundle evidence
+        shell: bash
+        env:
+          EVIDENCE_REPOSITORY: ${{ github.repository }}
+          EVIDENCE_COMMIT_SHA: ${{ github.sha }}
+          EVIDENCE_RUN_ID: ${{ github.run_id }}
+          EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVIDENCE_RUNNER_OS: ${{ runner.os }}
+          EVIDENCE_RUNNER_ARCH: ${{ runner.arch }}
+          EVIDENCE_RUNNER_NAME: ${{ runner.name }}
+        run: |
+          uv run --no-sync python -m benchmarks.user_experience validate \
+            --receipt user-experience-evidence/user-experience.json \
+            --output-dir user-experience-evidence \
+            --repository "$EVIDENCE_REPOSITORY" \
+            --commit-sha "$EVIDENCE_COMMIT_SHA" \
+            --workflow-run-id "$EVIDENCE_RUN_ID" \
+            --workflow-run-attempt "$EVIDENCE_RUN_ATTEMPT" \
+            --runner-os "$EVIDENCE_RUNNER_OS" \
+            --runner-arch "$EVIDENCE_RUNNER_ARCH" \
+            --runner-name "$EVIDENCE_RUNNER_NAME"
+
+      - name: Upload canonical receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: user-experience-${{ runner.os }}-${{ github.sha }}
+          path: user-experience-evidence/
+          if-no-files-found: error
+          retention-days: 30
