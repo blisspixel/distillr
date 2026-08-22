@@ -9,6 +9,9 @@ from typing import Literal, cast
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
+from distill.parsing import default_library_dir as _parsing_default_library_dir
+from distill.parsing import resolve_library_dir as _parsing_resolve_library_dir
+
 type CostMode = Literal["auto", "no-metered", "paid-ok"]
 _VALID_COST_MODES: frozenset[str] = frozenset({"auto", "no-metered", "paid-ok"})
 
@@ -105,34 +108,29 @@ def _normalize_cost_workflow_budgets(value: object) -> str:
 def _default_library_dir(package_parent: Path | None = None) -> Path:
     """Return an absolute default library directory.
 
-    From a source checkout (distillr's own ``pyproject.toml`` sits one level
-    up), keep the convenient ``<repo>/library`` so development data stays
-    beside the code. When pip-installed, ``<package>/..`` is
-    ``site-packages`` -- a bad home for user data (wiped on every
-    reinstall/upgrade, may need admin write) -- so default to
-    ``~/.distill/library`` instead. Override with DISTILL_OUTPUT_DIR.
-
-    Two guards harden the checkout heuristic (a downstream integration hit
-    the misfire live, 2026-06-12: a stray ``pyproject.toml`` in
-    ``site-packages`` -- some badly packaged wheels ship one -- made an
-    installed copy claim "source checkout" and the whole library landed
-    inside ``site-packages\\library``): the parent must not be a
-    ``site-packages``/``dist-packages`` tree, and the marker file must
-    actually be distillr's own pyproject.
+    Thin wrapper so tests that patch ``distill.config.__file__`` keep
+    driving the checkout/installed heuristic.
     """
-    fallback = Path.home() / ".distill" / "library"
-    parent = (package_parent or Path(__file__).resolve().parent).parent
-    in_installed_tree = any(
-        part.lower() in {"site-packages", "dist-packages"} for part in parent.parts
+
+    return _parsing_default_library_dir(package_parent or Path(__file__).resolve().parent)
+
+
+def resolve_library_dir(
+    path: Path | str | None = None,
+    *,
+    package_parent: Path | None = None,
+) -> Path:
+    """Return an absolute library directory.
+
+    Unset (or blank) uses the checkout/installed default. Relative values
+    resolve against the process cwd so ``DISTILL_OUTPUT_DIR=library`` from a
+    project directory stays in that project instead of under site-packages.
+    """
+
+    return _parsing_resolve_library_dir(
+        path,
+        package_dir=package_parent or Path(__file__).resolve().parent,
     )
-    marker = parent / "pyproject.toml"
-    if not in_installed_tree and marker.exists():
-        try:
-            if 'name = "distillr"' in marker.read_text(encoding="utf-8"):
-                return parent / "library"
-        except OSError:
-            return fallback
-    return fallback
 
 
 def sanitize_path_component(value: str) -> str:
@@ -241,10 +239,7 @@ class DistillConfig(BaseSettings):
 
     @property
     def library_dir(self) -> Path:
-        path = self.distill_output_dir
-        if not path.is_absolute():
-            path = Path(__file__).resolve().parent.parent / path
-        return path
+        return resolve_library_dir(self.distill_output_dir)
 
     def topics_dir(self) -> Path:
         return self.library_dir / "topics"

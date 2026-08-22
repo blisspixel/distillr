@@ -39,6 +39,7 @@ __all__ = [
     "artifact_identity",
     "artifact_path",
     "atomic_update_text",
+    "atomic_write_json",
     "atomic_write_text",
     "base_frontmatter",
     "dump_frontmatter",
@@ -158,6 +159,18 @@ def atomic_write_text(path: Path, content: str) -> None:
     """
     with text_write_lock(path):
         _atomic_write_text_unlocked(path, content)
+
+
+def atomic_write_json(path: Path, value: object, *, indent: int = 2) -> None:
+    """Serialize ``value`` as UTF-8 JSON and write it atomically.
+
+    ``allow_nan=False`` refuses NaN/Inf so the file stays JSON-compliant.
+    """
+
+    atomic_write_text(
+        path,
+        json.dumps(value, indent=indent, ensure_ascii=False, allow_nan=False) + "\n",
+    )
 
 
 def atomic_update_text[UpdateResult](

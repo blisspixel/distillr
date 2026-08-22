@@ -479,9 +479,9 @@ def test_rigor_threshold():
 def test_site_candidate_rows_do_not_leak_credentials_to_the_prompt() -> None:
     """Candidate rows go verbatim to the rerank model, so they must be sanitized.
 
-    ``canonicalize_url`` deliberately preserves userinfo and query, so the raw
-    seed URL used to carry ``user:pass@`` and ``?token=`` into the provider
-    prompt and prompt telemetry.
+    Seed URLs used to carry ``user:pass@`` and ``?token=`` into the provider
+    prompt and prompt telemetry. Canonical identity now drops userinfo, and
+    candidate rows still render through the persistence sanitizer.
     """
     from distill.ingestors.sites.scraper import SiteSeed
     from distill.pipeline.discovery import (  # pyright: ignore[reportPrivateUsage]

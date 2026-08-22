@@ -59,6 +59,9 @@ from distill.ingestors.sites._site_urls import (
 from distill.ingestors.sites._site_urls import (
     validate_site_crawl_limits as _validate_site_crawl_limits,
 )
+from distill.ingestors.sites._site_urls import (
+    validated_crawl_limit as _validated_crawl_limit,
+)
 from distill.ingestors.sites.browser_extract import (
     bounded_page_expression,
     evaluate_bounded_page,
@@ -66,6 +69,7 @@ from distill.ingestors.sites.browser_extract import (
 from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
 from distill.library.confined import read_confined_bytes
 from distill.library.paths import site_name_from_url
+from distill.parsing import as_whole_number
 from distill.process_resources import (
     ProcessBudgetExceeded,
     assign_windows_memory_job,
@@ -234,7 +238,18 @@ class SiteSeed:
 
     def __post_init__(self) -> None:
         self.crawl_prefix = _normalize_crawl_prefix(self.crawl_prefix)
-        _validate_site_crawl_limits(self.max_depth, self.max_pages)
+        self.max_depth = _validated_crawl_limit(
+            "max_depth",
+            self.max_depth,
+            minimum=0,
+            maximum=MAX_SITE_CRAWL_DEPTH,
+        )
+        self.max_pages = _validated_crawl_limit(
+            "max_pages",
+            self.max_pages,
+            minimum=1,
+            maximum=MAX_SITE_CRAWL_PAGES,
+        )
 
     def resolved_site_name(self) -> str:
         return self.site_name or site_name_from_url(self.url)
@@ -364,10 +379,11 @@ def _validate_manifest_mapping(data: dict[object, object], *, context: str) -> N
     if "crawl" in data and not isinstance(data["crawl"], bool):
         raise ValueError(f"Site seed {context} field 'crawl' must be a boolean.")
     for field_name in integer_fields:
-        if field_name in data and (
-            not isinstance(data[field_name], int) or isinstance(data[field_name], bool)
-        ):
-            raise ValueError(f"Site seed {context} field '{field_name}' must be an integer.")
+        if field_name in data:
+            parsed = as_whole_number(data[field_name])
+            if parsed is None:
+                raise ValueError(f"Site seed {context} field '{field_name}' must be an integer.")
+            data[field_name] = parsed
 
 
 def _validate_manifest_text(value: object, *, field_name: str) -> None:

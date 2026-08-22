@@ -48,7 +48,7 @@ from distill.commands._learning import (
 from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.insights import discover_insights
-from distill.library.paths import artifact_exists, find_artifact
+from distill.library.paths import artifact_exists, atomic_write_json, find_artifact
 from distill.library.state import ChannelState
 from distill.llm.router import RouterConfig
 from distill.pipeline.costs import estimate_synthesis_workflow_cost
@@ -191,7 +191,7 @@ def _save_topic_profile(
         "created_at": created_at,
         "updated_at": datetime.now().isoformat(),
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload)
     return path
 
 

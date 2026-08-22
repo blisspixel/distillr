@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from distill.config import DistillConfig, _default_library_dir
+from distill.config import DistillConfig, _default_library_dir, resolve_library_dir
 from distill.library.paths import sanitize_path_component, slugify_title
 
 
@@ -230,6 +230,17 @@ class TestDistillConfig:
     def test_library_dir_resolves_relative_paths(self):
         config = DistillConfig(distill_output_dir=Path("./library"))
         assert config.library_dir.is_absolute()
+
+    def test_library_dir_relative_paths_resolve_against_cwd(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = DistillConfig(distill_output_dir=Path("library"), _env_file=None)
+        assert config.library_dir == tmp_path / "library"
+
+    def test_resolve_library_dir_blank_uses_default(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("distill.config.__file__", str(tmp_path / "distill" / "config.py"))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+        assert resolve_library_dir("") == tmp_path / "home" / ".distill" / "library"
+        assert resolve_library_dir(None) == tmp_path / "home" / ".distill" / "library"
 
     def test_library_dir_preserves_absolute_paths(self, tmp_path):
         config = DistillConfig(distill_output_dir=tmp_path / "lib")

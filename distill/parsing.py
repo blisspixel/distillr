@@ -14,16 +14,99 @@ __all__ = [
     "MAX_ASCII_UINT_DIGITS",
     "MAX_LOOKBACK_DAYS",
     "MAX_LOOKBACK_HOURS",
+    "as_whole_number",
+    "default_library_dir",
     "parse_ascii_uint",
     "parse_bounded_json_int",
     "parse_iso_day_hour_duration",
     "read_bounded_json_object",
     "read_bounded_jsonl_objects",
     "read_local_utf8_text",
+    "resolve_library_dir",
     "strict_json_loads",
 ]
 
 LENIENT_LOCAL_JSON_ERRORS = (OSError, RecursionError, UnicodeError, ValueError)
+
+
+def as_whole_number(value: object) -> int | None:
+    """Return an int when ``value`` is a finite whole number.
+
+    JSON ``5`` decodes as ``int`` and JSON ``5.0`` as ``float``. Both are
+    whole numbers. Booleans are excluded because ``bool`` is an ``int``
+    subclass and ``true`` must not become ``1``.
+    """
+
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        as_int = int(value)
+        if float(as_int) == value:
+            return as_int
+    return None
+
+
+def default_library_dir(package_dir: Path | None = None) -> Path:
+    """Return an absolute default library directory.
+
+    From a source checkout (distillr's own ``pyproject.toml`` sits one level
+    up), keep the convenient ``<repo>/library`` so development data stays
+    beside the code. When pip-installed, ``<package>/..`` is
+    ``site-packages`` -- a bad home for user data (wiped on every
+    reinstall/upgrade, may need admin write) -- so default to
+    ``~/.distill/library`` instead. Override with DISTILL_OUTPUT_DIR.
+
+    Two guards harden the checkout heuristic (a downstream integration hit
+    the misfire live, 2026-06-12: a stray ``pyproject.toml`` in
+    ``site-packages`` -- some badly packaged wheels ship one -- made an
+    installed copy claim "source checkout" and the whole library landed
+    inside ``site-packages\\library``): the parent must not be a
+    ``site-packages``/``dist-packages`` tree, and the marker file must
+    actually be distillr's own pyproject.
+    """
+
+    distill_pkg = package_dir or Path(__file__).resolve().parent
+    parent = distill_pkg.parent
+    in_installed_tree = any(
+        part.lower() in {"site-packages", "dist-packages"} for part in parent.parts
+    )
+    marker = parent / "pyproject.toml"
+    if not in_installed_tree and marker.exists():
+        try:
+            if 'name = "distillr"' in marker.read_text(encoding="utf-8"):
+                return parent / "library"
+        except OSError:
+            pass
+    try:
+        home = Path.home()
+    except RuntimeError:
+        home = Path.cwd()
+    return home / ".distill" / "library"
+
+
+def resolve_library_dir(
+    path: Path | str | None = None,
+    *,
+    package_dir: Path | None = None,
+) -> Path:
+    """Return an absolute library directory.
+
+    Unset (or blank) uses the checkout/installed default. Relative values
+    resolve against the process cwd so ``DISTILL_OUTPUT_DIR=library`` from a
+    project directory stays in that project instead of under site-packages.
+    """
+
+    if path is None:
+        return default_library_dir(package_dir)
+    text = str(path).strip()
+    if not text:
+        return default_library_dir(package_dir)
+    resolved = Path(text)
+    if not resolved.is_absolute():
+        resolved = Path.cwd() / resolved
+    return resolved
 
 
 def read_local_utf8_text(path: Path) -> str | None:

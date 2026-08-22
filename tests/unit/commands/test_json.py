@@ -144,9 +144,19 @@ class TestExitCodeMapping:
         code = map_exception_to_exit_code(typer.BadParameter("invalid"))
         assert code == ExitCode.USAGE_ERROR
 
+    def test_system_exit_usage_and_runtime(self):
+        assert map_exception_to_exit_code(SystemExit(2)) == ExitCode.USAGE_ERROR
+        assert map_exception_to_exit_code(SystemExit(1)) == ExitCode.RUNTIME_ERROR
+
     def test_runtime_error_default(self):
         code = map_exception_to_exit_code(ValueError("something broke"))
         assert code == ExitCode.RUNTIME_ERROR
+
+    def test_message_substrings_do_not_select_exit_codes(self):
+        assert map_exception_to_exit_code(ValueError("missing config")) == ExitCode.RUNTIME_ERROR
+        assert map_exception_to_exit_code(RuntimeError("topic not found")) == (
+            ExitCode.RUNTIME_ERROR
+        )
 
     def test_budget_exceeded(self):
         code = map_exception_to_exit_code(BudgetExceededError(0.61, 0.5))

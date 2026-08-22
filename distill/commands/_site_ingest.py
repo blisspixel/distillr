@@ -44,6 +44,7 @@ from distill.ingestors.sites.scraper import (
 )
 from distill.library.insights import insight_has_body
 from distill.library.paths import (
+    atomic_write_json,
     base_frontmatter,
     find_artifact,
     site_name_from_url,
@@ -306,7 +307,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         "sections": section_state,
         "section_changes": section_changes,
     }
-    site_manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    atomic_write_json(site_manifest_path, manifest)
     summary.add_output(site_manifest_path)
     if section_changes:
         update_lines = [
@@ -356,7 +357,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         page_meta = page_obj.metadata()
         page_meta["content_hash"] = page_content_hash
         metadata_path = page_dir / "metadata.json"
-        metadata_path.write_text(json.dumps(page_meta, indent=2), encoding="utf-8")
+        atomic_write_json(metadata_path, page_meta)
         summary.add_output(metadata_path)
         page_frontmatter = base_frontmatter(
             artifact_type="content",
@@ -470,7 +471,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
 
     manifest["analyzed_pages"] = analyzed_pages
     manifest["skipped_pages"] = skipped_pages
-    site_manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    atomic_write_json(site_manifest_path, manifest)
     result = SiteIngestResult(
         site_name=site_name,
         page_count=len(pages),

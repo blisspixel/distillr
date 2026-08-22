@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from distill.parsing import (
+    as_whole_number,
     parse_ascii_uint,
     parse_bounded_json_int,
     parse_iso_day_hour_duration,
@@ -36,6 +37,41 @@ from distill.parsing import (
 )
 def test_parse_ascii_uint(raw: str, expected: int | None) -> None:
     assert parse_ascii_uint(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (5, 5),
+        (5.0, 5),
+        (0.0, 0),
+        (-3.0, -3),
+        (5.5, None),
+        (True, None),
+        (False, None),
+        ("5", None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (None, None),
+    ],
+)
+def test_as_whole_number(value: object, expected: int | None) -> None:
+    assert as_whole_number(value) == expected
+
+
+def test_default_library_dir_survives_missing_home(tmp_path, monkeypatch) -> None:
+    from distill.parsing import default_library_dir
+
+    site = tmp_path / "site-packages" / "distill"
+    site.mkdir(parents=True)
+
+    def boom(_cls):
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(Path, "home", classmethod(boom))
+    monkeypatch.chdir(tmp_path)
+
+    assert default_library_dir(site) == tmp_path / ".distill" / "library"
 
 
 def test_parse_ascii_uint_rejects_conversion_limit_input() -> None:
