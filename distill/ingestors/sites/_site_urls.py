@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 from distill.ingestors.net import is_public_web_url, url_for_persistence
 from distill.library.paths import slugify_title
+from distill.parsing import as_whole_number
 from distill.youtube_urls import normalize_youtube_video_url
 
 MAX_SITE_CRAWL_DEPTH = 4
@@ -118,11 +119,12 @@ def validated_crawl_limit(
     minimum: int,
     maximum: int,
 ) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
+    parsed = as_whole_number(value)
+    if parsed is None:
         raise ValueError(f"{name} must be an integer")
-    if value < minimum or value > maximum:
+    if parsed < minimum or parsed > maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
-    return value
+    return parsed
 
 
 def normalized_crawl_prefix(value: str) -> str:
@@ -163,11 +165,14 @@ def canonicalize_url(url: str) -> str:
             port = parsed.port
             if (parsed.scheme.lower(), port) in {("http", 80), ("https", 443)}:
                 port = None
-            host_port = f"{host}:{port}" if port is not None else host
-            userinfo, separator, _authority = parsed.netloc.rpartition("@")
-            netloc = f"{userinfo}@{host_port}" if separator else host_port
+            # Identity is host, optional port, path, and remaining query.
+            # Userinfo is a credential, not a page identity, and must not
+            # reach Playwright goto or the visited-set key.
+            netloc = f"{host}:{port}" if port is not None else host
         except (UnicodeError, ValueError):
-            netloc = parsed.netloc.lower()
+            netloc = parsed.netloc.lower().rpartition("@")[2]
+    elif parsed.netloc:
+        netloc = parsed.netloc.lower().rpartition("@")[2]
     path = parsed.path or "/"
     if path != "/":
         path = path.rstrip("/") or "/"

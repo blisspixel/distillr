@@ -283,9 +283,10 @@ def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     if isinstance(exc, BudgetExceededError):
         return ExitCode.BUDGET_EXCEEDED
 
-    # Check for configuration errors
+    # Type identity only. Message substrings such as "config" or "not found"
+    # are too common in unrelated runtime errors to drive process status.
     exc_type_name = type(exc).__name__
-    if "ConfigurationError" in exc_type_name or "config" in str(exc).lower():
+    if "ConfigurationError" in exc_type_name:
         return ExitCode.CONFIG_ERROR
 
     status_code = _exit_code_from_http_status(_http_status_code(exc))
@@ -299,16 +300,13 @@ def map_exception_to_exit_code(exc: BaseException) -> ExitCode:
     ):
         return ExitCode.NETWORK_ERROR
 
-    # Resource not found
-    if "NotFound" in exc_type_name or "not found" in str(exc).lower():
+    if "NotFound" in exc_type_name:
         return ExitCode.NOT_FOUND
 
-    # Usage errors
-    if isinstance(exc, (typer.BadParameter, SystemExit)):
-        if isinstance(exc, SystemExit) and exc.code == 2:
-            return ExitCode.USAGE_ERROR
-        if isinstance(exc, typer.BadParameter):
-            return ExitCode.USAGE_ERROR
+    if isinstance(exc, typer.BadParameter):
+        return ExitCode.USAGE_ERROR
+    if isinstance(exc, SystemExit) and exc.code == 2:
+        return ExitCode.USAGE_ERROR
 
     return ExitCode.RUNTIME_ERROR
 

@@ -184,17 +184,10 @@ class RouterConfig(BaseSettings):
         """Fall back to ``<library_dir>/.distill`` when ops_dir is unset."""
         if self.ops_dir:
             return self
-        from pathlib import Path as _Path
+        from distill.parsing import resolve_library_dir
 
         env_dir = os.environ.get("DISTILL_OUTPUT_DIR", "").strip()
-        if env_dir:
-            library_dir = _Path(env_dir)
-        else:
-            # Mirrors ``distill.config._default_library_dir``: library/ sits
-            # next to the ``distill`` package on the filesystem.
-            library_dir = _Path(__file__).resolve().parent.parent.parent / "library"
-        if not library_dir.is_absolute():
-            library_dir = _Path.cwd() / library_dir
+        library_dir = resolve_library_dir(env_dir or None)
         # ``model_copy`` would re-trigger validators; mutate the field directly
         # because BaseSettings instances are not frozen.
         object.__setattr__(self, "ops_dir", str(library_dir / ".distill"))

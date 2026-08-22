@@ -25,7 +25,7 @@ from typing import Any, TypedDict, cast
 
 from distill.config import DistillConfig
 from distill.library.paths import atomic_update_text, sanitize_topic, text_write_lock
-from distill.parsing import strict_json_loads
+from distill.parsing import as_whole_number, strict_json_loads
 from distill.youtube_urls import normalize_video_id, normalize_youtube_channel_url
 
 __all__ = [
@@ -166,7 +166,8 @@ def _str(value: object, default: str = "") -> str:
 
 
 def _int(value: object, default: int) -> int:
-    return value if isinstance(value, int) and not isinstance(value, bool) else default
+    parsed = as_whole_number(value)
+    return default if parsed is None else parsed
 
 
 def _float(value: object, default: float) -> float:

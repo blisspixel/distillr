@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from distill.commands._formatting import format_date
+from distill.library.paths import atomic_write_json
 
 if TYPE_CHECKING:
     from distill.ingestors.youtube.discovery import VideoInfo
@@ -60,7 +61,4 @@ def write_video_metadata(
     analysis_mode: str = "full",
 ) -> None:
     metadata = video_metadata(video, channel_name, analysis_mode=analysis_mode)
-    (vid_dir / "metadata.json").write_text(
-        json.dumps(metadata, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(vid_dir / "metadata.json", metadata)

@@ -66,9 +66,6 @@ from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError
 from distill.llm.router import RouterConfig
 from distill.parsing import read_local_utf8_text
-from distill.pipeline.analysis.video import (
-    generate_channel_context,
-)
 from distill.pipeline.costs import (
     BudgetExceededError,
     estimate_routed_video_workflow_cost,
@@ -546,16 +543,7 @@ def run(  # noqa: C901 — legacy, will refactor
                     synthesis_calls=1,
                 )
 
-            # Generate channel context if we don't have one
-            ctx_file = config.channel_dir(t, ch.name) / "channel_context.md"
-            ctx_file.parent.mkdir(parents=True, exist_ok=True)
-            if not ctx_file.exists():
-                console.print("  Generating channel context...")
-                ctx = generate_channel_context(
-                    ch.name, [v.title for v in videos], config, tracker=tracker
-                )
-                ctx_file.write_text(ctx, encoding="utf-8")
-                console.print("  [green]Saved channel context[/green]")
+            _ensure_channel_context(t, ch.name, videos, config, tracker)
 
             # Process each video
             run_eta = ETATracker(total=len(new_to_process)) if new_to_process else None

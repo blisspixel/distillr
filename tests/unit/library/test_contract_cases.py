@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import deal
@@ -14,6 +15,7 @@ from distill.library.paths import (
     apply_frontmatter,
     artifact_candidate_paths,
     artifact_filename,
+    atomic_write_json,
     atomic_write_text,
     dump_frontmatter,
     extract_frontmatter,
@@ -164,6 +166,17 @@ def test_atomic_write_text_creates_parent_and_replaces_atomically(tmp_path: Path
 
     assert target.read_text(encoding="utf-8") == "second"
     assert list(target.parent.glob(f".{target.name}.*.tmp")) == []
+
+
+def test_atomic_write_json_is_compliant_and_refuses_non_finite(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / "metadata.json"
+
+    atomic_write_json(target, {"count": 2})
+
+    assert json.loads(target.read_text(encoding="utf-8")) == {"count": 2}
+    assert target.read_text(encoding="utf-8").endswith("\n")
+    with pytest.raises(ValueError, match="JSON compliant"):
+        atomic_write_json(target, {"count": float("nan")})
 
 
 def test_atomic_write_text_retries_transient_replace_sharing_conflict(

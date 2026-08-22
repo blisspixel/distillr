@@ -528,15 +528,31 @@ def test_router_config_defaults_ops_dir_to_library(monkeypatch: Any, tmp_path: P
 
 
 def test_router_config_defaults_ops_dir_to_repo_library(monkeypatch: Any, tmp_path: Path) -> None:
-    """Without an output override, ops_dir defaults to the repo library path."""
+    """Without an output override, ops_dir uses the shared library-dir default."""
+    from distill.config import _default_library_dir
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DISTILL_OPS_DIR", raising=False)
     monkeypatch.delenv("DISTILL_OUTPUT_DIR", raising=False)
 
     config = RouterConfig(provider="agent")
 
-    expected = Path(router_module.__file__).resolve().parent.parent.parent / "library" / ".distill"
-    assert Path(config.ops_dir) == expected
+    assert Path(config.ops_dir) == _default_library_dir() / ".distill"
+
+
+def test_router_ops_dir_matches_distill_library_dir(monkeypatch: Any, tmp_path: Path) -> None:
+    """Router telemetry and corpus writes share one library root."""
+    from distill.config import DistillConfig
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("DISTILL_OPS_DIR", raising=False)
+    monkeypatch.setenv("DISTILL_OUTPUT_DIR", "library")
+
+    router = RouterConfig(provider="agent")
+    distill_config = DistillConfig(distill_output_dir=Path("library"), _env_file=None)
+
+    assert distill_config.library_dir == tmp_path / "library"
+    assert Path(router.ops_dir) == distill_config.library_dir / ".distill"
 
 
 def test_router_config_relative_output_dir_becomes_absolute(

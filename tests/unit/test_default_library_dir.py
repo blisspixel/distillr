@@ -54,6 +54,23 @@ def test_no_marker_goes_home(tmp_path: Path):
     assert _default_library_dir(pkg) == Path.home() / ".distill" / "library"
 
 
+def test_unreadable_marker_goes_home(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    pkg = _pkg(repo)
+    marker = repo / "pyproject.toml"
+    marker.write_text(_DISTILLR_PYPROJECT, encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    original = Path.read_text
+
+    def boom(self, *args, **kwargs):
+        if self == marker:
+            raise OSError("permission denied")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", boom)
+    assert _default_library_dir(pkg) == tmp_path / "home" / ".distill" / "library"
+
+
 def test_dist_packages_also_guarded(tmp_path: Path):
     dist = tmp_path / "lib" / "python3" / "dist-packages"
     pkg = _pkg(dist)

@@ -130,6 +130,29 @@ def test_load_site_batch_from_json_url_objects(tmp_path):
     assert batch.seeds[0].crawl_prefix == "/agents"
 
 
+def test_load_site_batch_from_json_accepts_whole_floats(tmp_path):
+    path = tmp_path / "sites.json"
+    path.write_text(
+        json.dumps(
+            {
+                "topic": "web-ai",
+                "urls": [
+                    {
+                        "url": "https://example.com/docs",
+                        "max_depth": 2.0,
+                        "max_pages": 6.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    batch = load_site_batch(path)
+
+    assert (batch.seeds[0].max_depth, batch.seeds[0].max_pages) == (2, 6)
+
+
 def test_load_site_batch_from_json_explicit_modes(tmp_path):
     path = tmp_path / "sites.json"
     path.write_text(
@@ -247,6 +270,18 @@ def test_site_seed_accepts_crawl_limit_boundaries():
 
     assert (exact.max_depth, exact.max_pages) == (0, 1)
     assert (maximum.max_depth, maximum.max_pages) == (4, 100)
+
+
+def test_site_seed_accepts_whole_float_crawl_limits():
+    seed = SiteSeed(
+        url="https://example.com/docs",
+        topic="web",
+        max_depth=2.0,
+        max_pages=8.0,
+    )
+    assert (seed.max_depth, seed.max_pages) == (2, 8)
+    assert isinstance(seed.max_depth, int)
+    assert isinstance(seed.max_pages, int)
 
 
 @pytest.mark.parametrize(
@@ -456,6 +491,15 @@ def test_url_helpers_normalize_and_filter():
         == "https://example.com/path?b=2&a=1"
     )
     assert canonicalize_url("HTTPS://EXAMPLE.COM.:443/path/") == "https://example.com/path"
+    assert (
+        canonicalize_url("https://user:pass@example.com/path?token=secret")
+        == "https://example.com/path?token=secret"
+    )
+    assert canonicalize_url("https://user:pass@example.com/path") == canonicalize_url(
+        "https://example.com/path"
+    )
+    assert canonicalize_url("https://user:pass@not a host") == "https://not a host/"
+    assert "pass" not in canonicalize_url("https://user:pass@")
     assert page_id_from_url("https://example.com/some/page")
     assert "pass" not in page_id_from_url("https://user:pass@example.com/")
     assert "user" not in page_id_from_url("https://user:pass@example.com/")

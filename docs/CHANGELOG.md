@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.69 - 2026-08-21
+
+### Fixed
+
+- **Installed Distill no longer splits the corpus from worker telemetry.**
+  `RouterConfig.ops_dir` now uses the same library-dir resolver as
+  `DistillConfig`. Unset `DISTILL_OUTPUT_DIR` still follows the checkout
+  versus `~/.distill/library` heuristic. Relative values resolve against
+  the process cwd, so `DISTILL_OUTPUT_DIR=library` after `pip install`
+  no longer lands under site-packages. Missing `HOME` no longer crashes
+  router construction.
+- **Library JSON counts accept whole numbers such as `5.0`.** Watch days,
+  topic-watch limits, and site crawl depth/pages no longer fall back to
+  defaults when JSON encodes an integer as a float.
+- **CLI exit codes follow exception type and HTTP status, not message
+  text.** A runtime error that happens to mention "config" or "not found"
+  is no longer mapped to a config or not-found status.
+- **Corpus metadata writes are atomic and JSON-compliant.** Paper, video,
+  site, attachment, and topic-profile JSON refuse NaN/Inf and replace the
+  destination file in one rename. Channel context uses the same durable
+  write path.
+- **Site crawl identity no longer keeps URL userinfo.** Canonical page
+  identity, the visited set, and Playwright `goto` drop credentials so a
+  `user:pass@` seed cannot send basic auth or split one page into two.
+
 ## 0.19.68 - 2026-08-21
 
 ### Fixed

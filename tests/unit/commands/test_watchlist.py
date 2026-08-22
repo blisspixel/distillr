@@ -123,6 +123,51 @@ class TestGetWatchlist:
             "https://www.youtube.com/@Legacy"
         )
 
+    def test_whole_json_floats_are_accepted_as_counts(self, config):
+        config.library_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "topics": {},
+            "watchlist": [
+                {
+                    "url": "https://www.youtube.com/@Counts",
+                    "name": "Counts",
+                    "topic": "watch",
+                    "days": 5.0,
+                }
+            ],
+            "topic_watchlist": [
+                {
+                    "name": "weekly",
+                    "query": "agents",
+                    "days": 7.0,
+                    "limit": 10.0,
+                    "channel_cap": 3.0,
+                }
+            ],
+        }
+        (config.library_dir / "library.json").write_text(json.dumps(payload), encoding="utf-8")
+
+        library = Library(config)
+        assert library.get_watchlist()[0].days == 5
+        topic = library.get_topic_watchlist()[0]
+        assert topic.days == 7
+        assert topic.limit == 10
+        assert topic.channel_cap == 3
+
+    def test_fractional_json_counts_fall_back_to_defaults(self, config):
+        config.library_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "topics": {},
+            "watchlist": [
+                {"url": "https://www.youtube.com/@Counts", "name": "Counts", "days": 5.5}
+            ],
+            "topic_watchlist": [],
+        }
+        (config.library_dir / "library.json").write_text(json.dumps(payload), encoding="utf-8")
+
+        library = Library(config)
+        assert library.get_watchlist()[0].days == 14
+
 
 class TestRemoveFromWatchlist:
     def test_remove_by_name(self, config):

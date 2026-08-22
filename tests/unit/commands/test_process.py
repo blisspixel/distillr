@@ -434,8 +434,8 @@ class TestRunCommand:
     def _patch_run_processing(self, monkeypatch):
         monkeypatch.setattr(
             process_mod,
-            "generate_channel_context",
-            lambda *args, **kwargs: "# Channel context\n",
+            "_ensure_channel_context",
+            lambda *args, **kwargs: None,
         )
 
     def test_run_continues_when_one_channel_discovery_fails(self, tmp_path, monkeypatch):
@@ -532,14 +532,14 @@ class TestRunCommand:
         _seed_library(config)
         self._patch_discover(monkeypatch, [_video()])
         monkeypatch.setattr(process_mod, "get_config", lambda: config)
-        generate_context = MagicMock(return_value="# Context\n")
-        monkeypatch.setattr(process_mod, "generate_channel_context", generate_context)
+        ensure_context = MagicMock()
+        monkeypatch.setattr(process_mod, "_ensure_channel_context", ensure_context)
 
         result = runner.invoke(cli.app, ["run", "ai"])
 
         assert result.exit_code == 1
         assert isinstance(result.exception, ProjectedBudgetExceededError)
-        generate_context.assert_not_called()
+        ensure_context.assert_not_called()
 
     def test_run_refresh_and_limit(self, tmp_path, monkeypatch):
         config = _config(tmp_path)

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from distill._console import console
@@ -13,6 +12,7 @@ from distill.ingestors.papers.arxiv import PaperRecord, build_paper_document
 from distill.library.insights import insight_has_body
 from distill.library.paths import (
     artifact_filename,
+    atomic_write_json,
     base_frontmatter,
     find_artifact,
     tags_for,
@@ -32,10 +32,7 @@ def write_paper_artifacts(
 ) -> Path:
     paper_dir = config.paper_dir(topic, paper.title, paper.paper_id)
     paper_dir.mkdir(parents=True, exist_ok=True)
-    (paper_dir / "metadata.json").write_text(
-        json.dumps(paper.metadata(), indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(paper_dir / "metadata.json", paper.metadata())
     paper_doc = document if document is not None else build_paper_document(paper)
     paper_frontmatter = base_frontmatter(
         artifact_type="paper",

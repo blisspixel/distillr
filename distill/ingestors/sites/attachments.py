@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import tempfile
 import time
@@ -20,7 +19,7 @@ from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import MAX_TRANSCRIPT_BYTES, get_transcript
 from distill.library.confined import read_confined_text_prefix
-from distill.library.paths import slugify_title
+from distill.library.paths import atomic_write_json, slugify_title
 from distill.parsing import parse_ascii_uint
 
 __all__ = [
@@ -170,10 +169,7 @@ def write_attachment_manifest(page_dir: Path, attachments: list[AttachmentRecord
     if not attachments:
         return None
     manifest_path = page_dir / "attachments.json"
-    manifest_path.write_text(
-        json.dumps([item.to_dict() for item in attachments], indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(manifest_path, [item.to_dict() for item in attachments])
     return manifest_path
 
 

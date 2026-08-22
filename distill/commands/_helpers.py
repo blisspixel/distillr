@@ -37,6 +37,7 @@ from distill.pipeline.analysis.video import (
 )
 from distill.library.insights import insight_has_body
 from distill.library.paths import (
+    atomic_write_text,
     base_frontmatter,
     find_artifact,
     sanitize_path_component,
@@ -655,7 +656,7 @@ def ensure_channel_context(
         return
     console.print("Generating channel context...")
     ctx = generate_channel_context(channel_name, [v.title for v in videos], config, tracker=tracker)
-    ctx_file.write_text(ctx, encoding="utf-8")
+    atomic_write_text(ctx_file, ctx)
     console.print("[green]Channel context saved[/green]")
 
 
