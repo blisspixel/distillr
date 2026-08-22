@@ -18,6 +18,7 @@ from distill.doctor.adapter_manifest import (
     load_adapter_result_manifest,
     snapshot_scratch_files,
 )
+from distill.process_security import resolve_executable, sanitized_package_env
 
 METERED_API_ENV_VARS: tuple[str, ...] = (
     "OPENAI_API_KEY",
@@ -176,9 +177,21 @@ def _run_subprocess(
     timeout_seconds: int,
     stdin_text: str,
 ) -> AdapterProcessResult:
+    argv_list = list(argv)
+    if not argv_list:
+        return AdapterProcessResult(exit_code=127, stderr="adapter argv is empty")
+    executable = argv_list[0]
+    if not Path(executable).is_absolute():
+        resolved = resolve_executable(executable, env=env)
+        if resolved is None:
+            return AdapterProcessResult(
+                exit_code=127,
+                stderr=f"executable not found: {executable}",
+            )
+        argv_list[0] = resolved
     try:
         result = subprocess.run(
-            list(argv),
+            argv_list,
             cwd=cwd,
             env=dict(env),
             input=stdin_text if stdin_text else None,
@@ -227,9 +240,13 @@ def _scrub_environment(
     environ: Mapping[str, str],
     names: Sequence[str],
 ) -> tuple[dict[str, str], tuple[str, ...]]:
-    scrub = set(names)
-    env = {key: value for key, value in environ.items() if key not in scrub}
-    removed = tuple(sorted(key for key in environ if key in scrub))
+    blocked = {name.upper() for name in names}
+    env = {
+        key: value
+        for key, value in sanitized_package_env(environ).items()
+        if key.upper() not in blocked
+    }
+    removed = tuple(sorted(key for key in environ if key not in env))
     return env, removed
 
 

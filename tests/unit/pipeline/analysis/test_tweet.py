@@ -468,6 +468,22 @@ def test_ingest_tweet_text_only_writes_two_artifacts(tmp_path: Path, capsys) -> 
     assert fm["source_id"] == "12345"
 
 
+def test_ingest_tweet_empty_analysis_keeps_receipt(tmp_path: Path) -> None:
+    config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
+    with (
+        patch("distill.pipeline.analysis.tweet.fetch_tweet", return_value=_tweet()),
+        patch(
+            "distill.pipeline.analysis.tweet.llm_call",
+            _fake_llm("---\ntitle: x\n---\n\n"),
+        ),
+    ):
+        result = ingest_tweet("https://x.com/alice/status/12345", topic="t", config=config)
+
+    assert result.tweet_path.exists()
+    assert result.insights_path is None
+    assert "Empty analysis" in result.skipped_reasons
+
+
 def test_ingest_tweet_skips_receipt_when_frontmatter_read_fails(tmp_path: Path) -> None:
     config = DistillConfig(xai_api_key="x", distill_output_dir=tmp_path / "lib")
     x_dir = config.topic_dir("t") / "x"

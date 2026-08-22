@@ -18,6 +18,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -105,6 +106,11 @@ def ingest_media_file(
 
     # Write-time verify hook: the receipt is the transcript itself.
     from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    if not insight_has_body(response.text):
+        console.print("  [red]empty analysis[/red]")
+        result.skipped_reasons.append("Empty analysis")
+        return result
 
     outcome = run_verify_hook(
         media_dir,

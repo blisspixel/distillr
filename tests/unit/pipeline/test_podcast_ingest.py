@@ -83,6 +83,26 @@ def test_publisher_transcript_preferred_over_audio(config, monkeypatch):
     assert tracker.entries[0].call_type == "podcast_analysis"
 
 
+def test_empty_analysis_keeps_episode_receipt(config, monkeypatch):
+    ep = _episode(transcript_url="https://example.com/ep42.vtt", transcript_type="text/vtt")
+    monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))
+    monkeypatch.setattr(
+        pod_mod, "fetch_transcript", lambda url, transcript_type="": "Guest: we hit 72.6 MRR."
+    )
+    _patch_llm(monkeypatch, text="---\ntitle: x\n---\n\n")
+
+    result = pod_mod.ingest_podcast(
+        "https://example.com/pod.rss",
+        topic="pods",
+        config=config,
+        tracker=CostTracker(),
+    )
+
+    assert result.episode_paths
+    assert result.insight_paths == []
+    assert result.skipped_reasons == ["Empty analysis"]
+
+
 def test_audio_fallback_routes_through_transcribe(config, monkeypatch, tmp_path):
     ep = _episode()  # no transcript_url
     monkeypatch.setattr(pod_mod, "fetch_feed", lambda url: _feed(ep))

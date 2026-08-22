@@ -83,6 +83,18 @@ class TestMediaIngest:
         assert any("refused" in r for r in result.skipped_reasons)
         assert result.transcript_path is not None  # receipt kept
 
+    def test_empty_analysis_keeps_transcript(self, tmp_path, config, monkeypatch):
+        audio = tmp_path / "talk.mp3"
+        audio.write_bytes(b"x")
+        monkeypatch.setattr(media_mod, "transcribe_media", lambda *a, **k: _Transcription())
+        _llm(monkeypatch, media_mod, text="---\ntitle: x\n---\n\n")
+
+        result = media_mod.ingest_media_file(audio, topic="talks", config=config)
+
+        assert result.insights_path is None
+        assert result.skipped_reasons == ["Empty analysis"]
+        assert result.transcript_path is not None
+
     def test_transcription_failure_degrades_cleanly(self, tmp_path, config, monkeypatch):
         from distill.ingestors.transcribe import TranscriptionError
 
@@ -252,6 +264,18 @@ class TestNewsletterIngest:
         assert result.insight_paths == []
         assert any("refused" in r for r in result.skipped_reasons)
         assert len(result.content_paths) == 1  # receipt kept
+
+    def test_empty_analysis_keeps_content(self, config, monkeypatch):
+        feed = parse_feed(_SUBSTACK_RSS)
+        _llm(monkeypatch, nl_mod, text="---\ntitle: x\n---\n\n")
+
+        result = nl_mod.ingest_newsletter(
+            "https://example.substack.com/feed", topic="letters", config=config, feed=feed
+        )
+
+        assert result.insight_paths == []
+        assert result.skipped_reasons == ["Empty analysis"]
+        assert len(result.content_paths) == 1
 
 
 def test_dispatcher_routes_media_and_newsletter(config, monkeypatch, tmp_path):

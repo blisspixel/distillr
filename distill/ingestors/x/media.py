@@ -6,7 +6,12 @@ import urllib.parse
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from distill.ingestors.net import is_public_web_url, pin_host_to_ip, resolve_public_ip
+from distill.ingestors.net import (
+    is_public_web_url,
+    pin_host_to_ip,
+    resolve_public_ip,
+    url_for_diagnostic,
+)
 
 __all__ = ["download_video", "is_reusable_video"]
 
@@ -76,14 +81,14 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
     current = url
     for _ in range(_MAX_REDIRECTS + 1):
         if not _is_allowed_video_url(current):
-            raise ValueError(f"refusing non-allowlisted video URL: {current}")
+            raise ValueError(f"refusing non-allowlisted video URL: {url_for_diagnostic(current)}")
         # Pin the connection to the validated public IP so a DNS rebind between
         # the is_public_web_url check and httpx's connect can't flip the host to
         # an internal address (pin_host_to_ip patches socket.getaddrinfo, which
         # httpx's sync resolver goes through).
         pinned_ip = resolve_public_ip(current)
         if pinned_ip is None:
-            raise ValueError(f"refusing non-public video URL: {current}")
+            raise ValueError(f"refusing non-public video URL: {url_for_diagnostic(current)}")
         host = urllib.parse.urlparse(current).hostname or ""
         with (
             pin_host_to_ip(host, pinned_ip),
@@ -114,14 +119,17 @@ def download_video(url: str, dest: Path, *, timeout: float = 120.0) -> Path:
                     for chunk in resp.iter_bytes(chunk_size=1 << 16):
                         written += len(chunk)
                         if written > _MAX_VIDEO_BYTES:
-                            raise ValueError(f"video exceeds {_MAX_VIDEO_BYTES}-byte cap: {url}")
+                            raise ValueError(
+                                f"video exceeds {_MAX_VIDEO_BYTES}-byte cap: "
+                                f"{url_for_diagnostic(url)}"
+                            )
                         stream.write(chunk)
                 if written == 0:
-                    raise ValueError(f"video response was empty: {url}")
+                    raise ValueError(f"video response was empty: {url_for_diagnostic(url)}")
                 temporary_path.replace(dest)
                 return dest
             except BaseException:
                 if temporary_path is not None:
                     temporary_path.unlink(missing_ok=True)
                 raise
-    raise ValueError(f"too many redirects fetching video: {url}")
+    raise ValueError(f"too many redirects fetching video: {url_for_diagnostic(url)}")

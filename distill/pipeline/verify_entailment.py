@@ -62,6 +62,29 @@ _INLINE_CODE_RE = re.compile(r"`+(?P<text>[^`]+?)`+")
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
+def _prose_lines(body: str) -> list[str]:
+    """Return lines that are not inside a closed fenced code block."""
+
+    prose: list[str] = []
+    pending: list[str] = []
+    in_fence = False
+    for raw_line in body.splitlines():
+        if _FENCE_RE.match(raw_line):
+            if in_fence:
+                pending.clear()
+                in_fence = False
+            else:
+                in_fence = True
+            continue
+        if in_fence:
+            pending.append(raw_line)
+        else:
+            prose.append(raw_line)
+    if in_fence:
+        prose.extend(pending)
+    return prose
+
+
 class EntailmentChecker(Protocol):
     """Scores whether *evidence* supports *claim*; higher means supported."""
 
@@ -123,12 +146,8 @@ def extract_entailment_claims(insight_text: str) -> list[EntailmentClaim]:
     """
     body = strip_frontmatter(insight_text)
     claims: list[EntailmentClaim] = []
-    in_fence = False
-    for raw_line in body.splitlines():
-        if _FENCE_RE.match(raw_line):
-            in_fence = not in_fence
-            continue
-        if in_fence or _HEADING_RE.match(raw_line):
+    for raw_line in _prose_lines(body):
+        if _HEADING_RE.match(raw_line):
             continue
         line = _URL_RE.sub(" ", raw_line)
         line = _BULLET_PREFIX_RE.sub("", line).strip()

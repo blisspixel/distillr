@@ -608,6 +608,8 @@ class TestSiteBatchTool:
 
         assert _is_public_https_seed_url("https://[2606:4700:4700::1111]/docs") is True
         assert _is_public_https_seed_url("https://[::1]/private") is False
+        assert _is_public_https_seed_url("https://[64:ff9b::a9fe:a9fe]/docs") is False
+        assert _is_public_https_seed_url("https://[::ffff:169.254.169.254]/docs") is False
 
     @pytest.mark.parametrize(
         "url",

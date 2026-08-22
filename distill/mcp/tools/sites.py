@@ -13,6 +13,7 @@ import idna
 from mcp.server.mcpserver import Context
 
 from distill.commands._site_ingest import SiteIngestResult
+from distill.ingestors.net import is_public_ip
 from distill.library.confined import read_confined_text, validate_confined_path
 from distill.llm.availability import model_available
 from distill.mcp.server import (
@@ -87,7 +88,7 @@ def _is_public_https_seed_url(url: object) -> bool:
         except (UnicodeError, idna.IDNAError):
             return False
     else:
-        return literal.is_global
+        return is_public_ip(literal)
     if ascii_host in {"localhost", "ip6-localhost", "ip6-loopback"} or ascii_host.endswith(
         (".localhost", ".local", ".internal", ".home.arpa")
     ):

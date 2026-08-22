@@ -35,6 +35,11 @@ def test_execute_command_overlays_environment_without_mutating_parent(monkeypatc
         return _CompletedProcess()
 
     monkeypatch.setattr(profile_execution.subprocess, "Popen", popen)
+    monkeypatch.setattr(
+        profile_execution,
+        "resolve_executable",
+        lambda name, **_kwargs: f"/trusted/{name}",
+    )
 
     result = execute_command(
         ["example"],
@@ -45,6 +50,7 @@ def test_execute_command_overlays_environment_without_mutating_parent(monkeypatc
     child_environment = captured["env"]
     assert isinstance(child_environment, Mapping)
     assert child_environment["DISTILL_TEST_RECEIPT"] == "receipt"
+    assert captured["cwd"]
     assert result.exit_code == 0
     assert result.stdout_tail == "out"
 
@@ -70,6 +76,11 @@ def test_execute_command_escalates_when_process_survives_tree_kill(monkeypatch) 
     process = ResistantProcess()
     monkeypatch.setattr(profile_execution.subprocess, "Popen", lambda *_args, **_kwargs: process)
     monkeypatch.setattr(profile_execution, "_kill_process_tree_root", lambda _process: None)
+    monkeypatch.setattr(
+        profile_execution,
+        "resolve_executable",
+        lambda name, **_kwargs: f"/trusted/{name}",
+    )
 
     result = execute_command(["resistant"], timeout_seconds=0.1)
 

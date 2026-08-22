@@ -29,6 +29,7 @@ from distill.ingestors.podcasts import (
     fetch_transcript,
 )
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -119,6 +120,37 @@ def _resolve_transcript(
             skipped.append(f"{ep.title}: transcription failed ({exc})")
             return "", "none"
         return result.text, f"transcribed ({result.provider}/{result.model})"
+
+
+def _podcast_insight_block_reason(
+    insights_text: str,
+    receipt: str,
+    *,
+    ep_dir: Path,
+    ep_slug: str,
+    episode_path: Path,
+    config: DistillConfig,
+) -> str | None:
+    from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    if not insight_has_body(insights_text):
+        console.print("  [red]empty analysis[/red]")
+        return "Empty analysis"
+    outcome = run_verify_hook(
+        ep_dir,
+        insights_text,
+        receipt,
+        mode=resolve_verify_mode(config.distill_verify),
+        identity=ep_slug,
+        insight_name=artifact_path(ep_dir, "insights", identity=ep_slug).name,
+        source_name=episode_path.name,
+    )
+    if outcome is not None and outcome.has_flags:
+        style = "red" if outcome.refused else "yellow"
+        console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
+    if outcome is not None and outcome.refused:
+        return outcome.summary_line
+    return None
 
 
 def ingest_podcast(
@@ -216,23 +248,16 @@ def ingest_podcast(
         )
         tracker.record(TokenUsage.from_response(response, call_type="podcast_analysis"))
 
-        # Write-time verify hook: the receipt is the transcript + show notes.
-        from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
-
-        outcome = run_verify_hook(
-            ep_dir,
+        blocked = _podcast_insight_block_reason(
             response.text,
             f"{episode_md}\n\n{transcript}",
-            mode=resolve_verify_mode(config.distill_verify),
-            identity=ep_slug,
-            insight_name=artifact_path(ep_dir, "insights", identity=ep_slug).name,
-            source_name=episode_path.name,
+            ep_dir=ep_dir,
+            ep_slug=ep_slug,
+            episode_path=episode_path,
+            config=config,
         )
-        if outcome is not None and outcome.has_flags:
-            style = "red" if outcome.refused else "yellow"
-            console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
-        if outcome is not None and outcome.refused:
-            result.skipped_reasons.append(outcome.summary_line)
+        if blocked:
+            result.skipped_reasons.append(blocked)
             continue
 
         insight_path = write_markdown_artifact(

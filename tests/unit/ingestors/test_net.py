@@ -53,6 +53,10 @@ def _headers() -> http.client.HTTPMessage:
         "https://224.0.0.1/",  # IPv4 multicast
         "https://239.255.255.250/",  # administratively scoped multicast
         "https://[ff02::1]/",  # IPv6 multicast
+        "https://[64:ff9b::7f00:1]/",  # NAT64 loopback 127.0.0.1
+        "https://[64:ff9b::a00:1]/",  # NAT64 RFC1918 10.0.0.1
+        "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/",  # NAT64 metadata
+        "https://[::ffff:169.254.169.254]/latest/meta-data/",  # IPv4-mapped metadata
         "file:///etc/passwd",  # non-http scheme
         "gopher://x/",  # non-http scheme
     ],
@@ -86,8 +90,18 @@ def test_resolve_public_ip() -> None:
     assert resolve_public_ip("https://[2001:db8::1]/") is None
     assert resolve_public_ip("https://224.0.0.1/") is None
     assert resolve_public_ip("https://[ff02::1]/") is None
+    assert resolve_public_ip("https://[64:ff9b::7f00:1]/") is None
+    assert resolve_public_ip("https://[64:ff9b::a00:1]/") is None
+    assert resolve_public_ip("https://[64:ff9b::a9fe:a9fe]/") is None
+    assert resolve_public_ip("https://[::ffff:169.254.169.254]/") is None
     assert resolve_public_ip("file:///etc/passwd") is None
     assert resolve_public_ip("http://localhost/") is None
+
+
+def test_nat64_public_ipv4_still_counts_as_public() -> None:
+    # 8.8.8.8 embedded in the well-known NAT64 prefix remains globally routable.
+    assert resolve_public_ip("https://[64:ff9b::808:808]/") == "64:ff9b::808:808"
+    assert is_public_web_url("https://[64:ff9b::808:808]/") is True
 
 
 def test_host_and_url_normalization_fail_closed_on_malformed_unicode() -> None:
@@ -115,6 +129,22 @@ def test_pin_host_to_ip_matches_case_and_trailing_dot() -> None:
     with pin_host_to_ip("Example.COM", "203.0.113.7"):
         infos = socket.getaddrinfo("example.com.", 443)
         assert all(info[4][0] == "203.0.113.7" for info in infos)
+    assert socket.getaddrinfo is real
+
+
+def test_pin_host_to_ip_rejects_non_ascii_bytes_host() -> None:
+    with (
+        pin_host_to_ip("example.com", "203.0.113.9"),
+        pytest.raises(socket.gaierror),
+    ):
+        socket.getaddrinfo(b"\xff\xfe", 443)
+
+
+def test_pin_host_to_ip_matches_ascii_bytes_host() -> None:
+    real = socket.getaddrinfo
+    with pin_host_to_ip("example.com", "203.0.113.9"):
+        infos = socket.getaddrinfo(b"example.com", 443)
+        assert all(info[4][0] == "203.0.113.9" for info in infos)
     assert socket.getaddrinfo is real
 
 
@@ -287,6 +317,20 @@ def test_redirect_handler_allows_public_target() -> None:
             req, io.BytesIO(), 302, "Found", _headers(), "https://93.184.216.34/"
         )
     assert isinstance(result, urllib.request.Request)
+
+
+def test_redirect_handler_drops_authorization_on_host_change() -> None:
+    handler = _PublicWebRedirectHandler()
+    req = urllib.request.Request(
+        _PUBLIC_IP_URL,
+        headers={"Authorization": "Bearer secret-token"},
+    )
+    with pin_host_to_ip("8.8.8.8", "8.8.8.8"):
+        redirected = handler.redirect_request(
+            req, io.BytesIO(), 302, "Found", _headers(), "https://93.184.216.34/"
+        )
+    assert isinstance(redirected, urllib.request.Request)
+    assert redirected.get_header("Authorization") is None
 
 
 def test_redirect_handler_pins_the_validated_cross_host_address(

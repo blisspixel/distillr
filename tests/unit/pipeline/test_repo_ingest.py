@@ -76,6 +76,16 @@ def test_ingest_repo_writes_receipt_and_verified_insight(config, monkeypatch):
     assert tracker.entries[0].call_type == "repo_analysis"
 
 
+def test_ingest_repo_empty_analysis_keeps_receipt(config, monkeypatch):
+    _patch(monkeypatch, insight_text="---\ntitle: x\n---\n\n")
+
+    result = repo_mod.ingest_repo("https://github.com/o/r", topic="tkg", config=config)
+
+    assert result.insights_path is None
+    assert result.skipped_reasons == ["Empty analysis"]
+    assert result.repo_path.exists()
+
+
 def test_ingest_repo_strict_refuses_unsupported_insight(config, monkeypatch):
     _patch(monkeypatch, insight_text="## Summary\nClaims 99.99 accuracy.")
     config.distill_verify = "strict"

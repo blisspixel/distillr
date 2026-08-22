@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.68 - 2026-08-21
+
+### Fixed
+
+- **NAT64-encoded private addresses no longer pass the public-IP check.**
+  The well-known `64:ff9b::/96` prefix previously classified as global even
+  when it embedded loopback, RFC1918, or link-local metadata such as
+  `169.254.169.254`. Fetch, browser CONNECT, and MCP site-seed checks now
+  unwrap that prefix (and IPv4-mapped / 6to4 / Teredo forms) and apply the
+  same public-IP rule to the embedded v4 identity.
+- **GitHub repo URLs with userinfo or an explicit port parse correctly.**
+  Identity uses the hostname, not the raw netloc, and credentials in the
+  URL are refused.
+- **Empty receipts no longer skip strict verify.** Numeric claims without
+  source evidence are unsupported. An unclosed markdown fence no longer
+  hides every later claim. Empty analysis is refused on local-file, tweet,
+  repo, podcast, newsletter, and media writes, matching paper/video/site.
+- **Adapter and profile children no longer inherit loader-injection env.**
+  Adapter launches resolve an absolute executable and use the sanitized
+  package environment. Package-install children drop `PIP_*` / `UV_*` index
+  overrides. Profile Distill children keep provider credentials but strip
+  `PYTHON*` / Node loader variables and run from a trusted cwd.
+- **Site page ids and legacy directory slugs no longer embed URL
+  credentials.** MCP ingest-allowlist refusals no longer echo a raw URL
+  that could carry userinfo. YouTube and X video error text now use the
+  origin-only diagnostic view.
+- **arXiv PDF downloads ignore env proxies.** Redirect hops still re-check
+  the host allow-list. Cross-host redirects drop `Authorization` /
+  `Cookie`. DNS pins now match ASCII `bytes` hostnames.
+
+### Added
+
+- **Complete performance-evidence program.** Live local-model journeys are
+  gated on measured throughput, child bootstrap and run-log paths are
+  fixed, and the manual user-experience evidence workflow records install
+  and export timings.
+
 ## 0.19.67 - 2026-08-20
 
 ### Added

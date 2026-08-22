@@ -18,6 +18,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.local import extract_local_document
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -86,6 +87,15 @@ def ingest_local_file(
         )
         if tracker is not None:
             tracker.record(TokenUsage.from_response(response, call_type="local"))
+        if not insight_has_body(response.text):
+            console.print("  [red]empty analysis[/red]")
+            return LocalIngestResult(
+                document_path=document_path,
+                insights_path=None,
+                kind=doc.kind,
+                title=doc.title,
+                slug=slug,
+            )
         # Write-time verify hook: ground numeric claims against the extracted
         # document text *before* committing; strict mode refuses the write.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook

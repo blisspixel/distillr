@@ -289,6 +289,8 @@ def _is_arxiv_pdf_url(url: str) -> bool:
     # allow-list (not the scheme) is what bounds SSRF; http redirects to https.
     return (
         parsed.scheme in {"http", "https"}
+        and not parsed.username
+        and not parsed.password
         and (parsed.hostname or "").lower() in _ARXIV_PDF_HOSTS
         and parsed.path.startswith("/pdf/")
     )
@@ -326,6 +328,7 @@ def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
             timeout=60,
             stream=True,
             allow_redirects=False,
+            proxies={"http": "", "https": ""},
         ) as response:
             if 300 <= response.status_code < 400:
                 location = response.headers.get("Location")

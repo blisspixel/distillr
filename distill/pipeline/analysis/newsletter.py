@@ -21,6 +21,7 @@ from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.local import html_to_text
 from distill.ingestors.podcasts import PodcastFeed, fetch_feed
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -154,6 +155,11 @@ def ingest_newsletter(
 
         # Write-time verify hook: the receipt is the captured post body.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+        if not insight_has_body(response.text):
+            console.print("  [red]empty analysis[/red]")
+            result.skipped_reasons.append("Empty analysis")
+            continue
 
         outcome = run_verify_hook(
             post_dir,

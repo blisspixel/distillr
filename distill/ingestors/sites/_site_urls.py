@@ -27,7 +27,7 @@ class CrawlSeedScope(Protocol):
 
 def page_id_from_url(url: str) -> str:
     parsed = urlparse(url)
-    base = parsed.path.strip("/") or parsed.netloc
+    base = parsed.path.strip("/") or (parsed.hostname or "page")
     return slugify_title(base, max_len=20)
 
 

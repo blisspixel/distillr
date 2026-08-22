@@ -76,6 +76,18 @@ def test_owner_and_legacy_metadata_treat_recursive_json_as_unreadable(tmp_path):
     )
 
 
+def test_legacy_page_id_does_not_embed_url_credentials():
+    page = _page(
+        "https://svc:APIKEY123@docs.example.com/",
+        title="",
+    )
+
+    slug = storage_mod._legacy_page_id(page)
+
+    assert "apikey123" not in slug
+    assert "svc" not in slug
+
+
 def test_site_page_id_uses_complete_canonical_url_identity():
     first = "https://shared.example/docs/abcdefgh-first"
     second = "https://shared.example/docs/abcdefgh-second"

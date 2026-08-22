@@ -584,8 +584,9 @@ def host_not_on_ingest_allowlist(url: str) -> str | None:
     if host and any(host == entry or host.endswith("." + entry) for entry in allowlist):
         return None
 
+    shown_host = host or "<missing-host>"
     return (
-        f"Host '{host or url}' is not on DISTILL_MCP_INGEST_ALLOWLIST; "
+        f"Host '{shown_host}' is not on DISTILL_MCP_INGEST_ALLOWLIST; "
         "this server only accepts URL entry points from: " + ", ".join(allowlist) + ". "
         "Ask the operator to extend the allowlist or ingest via the distill CLI."
     )

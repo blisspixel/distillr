@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "NetworkDeadline",
     "NetworkError",
+    "is_public_ip",
     "is_public_web_url",
     "pin_host_to_ip",
     "resolve_public_ip",
@@ -52,6 +53,10 @@ _PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
 _PIN_LOCK = threading.RLock()
 _PIN_STATE = threading.local()
 _DNS_RESOLUTION_SLOTS = threading.BoundedSemaphore(8)
+# RFC 6052 well-known NAT64 prefix. Python's ``ipaddress.is_global`` treats
+# these as public even when the embedded IPv4 is loopback, RFC1918, or
+# link-local metadata (169.254.169.254).
+_NAT64_WELL_KNOWN = ipaddress.IPv6Network("64:ff9b::/96")
 
 
 class NetworkError(Exception):
@@ -150,10 +155,35 @@ class NetworkDeadline:
         self._expire()
 
 
-def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+def _embedded_ipv4(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | None:
+    """Return an IPv4 identity hidden inside a transition IPv6 address."""
+
+    if not isinstance(ip, ipaddress.IPv6Address):
+        return None
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    if ip.sixtofour is not None:
+        return ip.sixtofour
+    teredo = ip.teredo
+    if teredo is not None:
+        return teredo[1]
+    if ip in _NAT64_WELL_KNOWN:
+        return ipaddress.IPv4Address(ip.packed[-4:])
+    return None
+
+
+def is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """Return whether an address is globally routable on the public Internet."""
 
+    embedded = _embedded_ipv4(ip)
+    if embedded is not None:
+        return is_public_ip(embedded)
     return ip.is_global and not ip.is_multicast
+
+
+_is_public_ip = is_public_ip
 
 
 def _resolve_host_to_addrs(host: str) -> list[str]:
@@ -294,13 +324,7 @@ def pin_host_to_ip(
             raise ValueError("cannot pin an invalid IP address") from exc
         pins[normalized_host] = normalized_ip
         _PIN_STATE.pins = pins
-
-        def _patched(h: str | bytes | None, *args: Any, **kwargs: Any) -> Any:
-            normalized = _normalize_host(h) if isinstance(h, str) else h
-            pinned = pins.get(normalized, h) if normalized is not None else h
-            return real_getaddrinfo(pinned, *args, **kwargs)
-
-        socket.getaddrinfo = _patched
+        socket.getaddrinfo = _pinned_getaddrinfo(real_getaddrinfo, pins)
         try:
             yield
         finally:
@@ -311,6 +335,30 @@ def pin_host_to_ip(
                 _PIN_STATE.pins = previous_pins
     finally:
         _PIN_LOCK.release()
+
+
+def _pinned_getaddrinfo(real_getaddrinfo: Any, pins: dict[str, str]) -> Any:
+    """Return a getaddrinfo wrapper that honors the active host-to-IP pin map."""
+
+    def _patched(h: str | bytes | None, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(h, bytes):
+            try:
+                text = h.decode("ascii")
+            except UnicodeDecodeError as exc:
+                raise socket.gaierror(
+                    getattr(socket, "EAI_NONAME", 8),
+                    "Name or service not known",
+                ) from exc
+        elif isinstance(h, str):
+            text = h
+        else:
+            return real_getaddrinfo(h, *args, **kwargs)
+        normalized = _normalize_host(text)
+        if normalized is not None and normalized in pins:
+            return real_getaddrinfo(pins[normalized], *args, **kwargs)
+        return real_getaddrinfo(h, *args, **kwargs)
+
+    return _patched
 
 
 def _normalize_host(host: str) -> str | None:
@@ -374,7 +422,15 @@ class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
             raise urllib.error.HTTPError(
                 newurl, code, "refusing redirect to non-public URL", headers, fp
             )
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is None:
+            return None
+        original_host = _normalize_host(urllib.parse.urlparse(req.full_url).hostname or "")
+        new_host = _normalize_host(urllib.parse.urlparse(redirected.full_url).hostname or "")
+        if original_host != new_host:
+            for header in ("Authorization", "Cookie", "Proxy-Authorization"):
+                redirected.remove_header(header)
+        return redirected
 
 
 class _DeadlineSocketIO(io.RawIOBase):

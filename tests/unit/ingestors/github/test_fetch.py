@@ -19,6 +19,7 @@ class TestParseGitHubUrl:
         [
             "https://github.com/blisspixel/distillr",
             "https://www.github.com/blisspixel/distillr",
+            "https://github.com:443/blisspixel/distillr",
             "github.com/blisspixel/distillr",
             "https://github.com/blisspixel/distillr.git",
             "https://github.com/blisspixel/distillr/tree/main/docs",
@@ -34,6 +35,8 @@ class TestParseGitHubUrl:
             "https://github.com/blisspixel",  # owner only
             "https://github.com/orgs/anthropics/repositories",  # reserved path
             "https://example.com/blisspixel/distillr",
+            "https://user@github.com/blisspixel/distillr",
+            "https://github.com.evil.example/blisspixel/distillr",
             "https://github.com/bad owner/repo",
         ],
     )
