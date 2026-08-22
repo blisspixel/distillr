@@ -93,7 +93,9 @@ def parse_github_url(url: str) -> tuple[str, str] | None:
     rejects gists, reserved top-level paths, and anything not github.com.
     """
     parsed = urllib.parse.urlparse(url if "://" in url else f"https://{url}")
-    host = parsed.netloc.lower().removeprefix("www.")
+    if parsed.username or parsed.password:
+        return None
+    host = (parsed.hostname or "").lower().removeprefix("www.")
     if host != "github.com":
         return None
     parts = [p for p in parsed.path.split("/") if p]

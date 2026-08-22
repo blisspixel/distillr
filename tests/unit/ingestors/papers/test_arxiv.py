@@ -47,6 +47,7 @@ def test_is_arxiv_pdf_url_accepts_http_and_https():
     # Host allow-list still bounds it; non-arxiv hosts and non-pdf paths fail.
     assert arxiv._is_arxiv_pdf_url("https://evil.example.com/pdf/x") is False
     assert arxiv._is_arxiv_pdf_url("https://arxiv.org/abs/2602.12670v1") is False
+    assert arxiv._is_arxiv_pdf_url("https://user:pass@arxiv.org/pdf/2602.12670v1") is False
 
 
 def test_parse_arxiv_id_supports_abs_and_pdf():
@@ -289,7 +290,12 @@ def test_fetch_paper_pdf_text_revalidates_redirect(monkeypatch):
     assert calls == [
         (
             "https://arxiv.org/pdf/2602.12670.pdf",
-            {"timeout": 60, "stream": True, "allow_redirects": False},
+            {
+                "timeout": 60,
+                "stream": True,
+                "allow_redirects": False,
+                "proxies": {"http": "", "https": ""},
+            },
         )
     ]
 

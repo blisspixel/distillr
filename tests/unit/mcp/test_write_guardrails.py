@@ -152,6 +152,23 @@ class TestIngestAllowlist:
         assert refusal is not None
         assert json.loads(refusal)["status"] == "domain_not_allowed"
 
+    def test_refusal_does_not_echo_url_credentials(self, monkeypatch):
+        monkeypatch.setattr(_server, "_config", lambda: self._config_with("youtube.com"))
+        result = json.loads(
+            _server.refuse_if_host_not_allowed("https://user:APIKEY123@evil.example/secret")
+        )
+        blob = json.dumps(result)
+        assert "APIKEY123" not in blob
+        assert result["limit"]["requested_host"] == "evil.example"
+
+        missing_host = json.loads(
+            _server.refuse_if_host_not_allowed("https://user:APIKEY123@/still-secret")
+        )
+        missing_blob = json.dumps(missing_host)
+        assert "APIKEY123" not in missing_blob
+        assert "still-secret" not in missing_blob
+        assert missing_host["limit"]["requested_host"] == ""
+
     def test_off_list_host_refused_with_list_named(self, monkeypatch):
         monkeypatch.setattr(
             _server, "_config", lambda: self._config_with("youtube.com, learn.microsoft.com")

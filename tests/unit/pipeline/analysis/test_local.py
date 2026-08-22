@@ -48,6 +48,17 @@ def test_analyze_writes_insights_and_records_cost(tmp_path: Path):
     assert tracker.entries and tracker.entries[0].call_type == "local"
 
 
+def test_empty_analysis_keeps_document_and_skips_insight(tmp_path: Path):
+    cfg = _cfg(tmp_path)
+    with patch(
+        "distill.pipeline.analysis.local.llm_call",
+        _fake_llm("---\ntitle: x\n---\n\n  \n"),
+    ):
+        res = ingest_local_file(_md(tmp_path), topic="tkg", config=cfg)
+    assert res.document_path.exists()
+    assert res.insights_path is None
+
+
 def test_pdf_routes_to_paper_prompt(tmp_path: Path):
     # A .pdf-kind document should use the paper prompt; capture the prompt text.
     cfg = _cfg(tmp_path)

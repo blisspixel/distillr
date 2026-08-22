@@ -51,6 +51,8 @@ class TestSSRF:
         for url in (
             "http://169.254.169.254/latest/meta-data/",
             "http://[fd00:ec2::254]/latest/meta-data/",  # IMDSv6, unique-local
+            "http://[64:ff9b::a9fe:a9fe]/latest/meta-data/",  # NAT64-encoded IMDSv4
+            "http://[::ffff:169.254.169.254]/latest/meta-data/",  # IPv4-mapped IMDS
             "http://metadata.google.internal/",  # resolves to link-local in practice
         ):
             assert resolve_or_false(url) is False

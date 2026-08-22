@@ -15,9 +15,14 @@ import time
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import IO, Any, Protocol
 
-from distill.process_security import package_install_context, resolve_executable
+from distill.process_security import (
+    distill_child_env,
+    package_install_context,
+    resolve_executable,
+)
 
 __all__ = [
     "MAX_PROFILE_TIMEOUT_SECONDS",
@@ -78,12 +83,19 @@ def execute_command(
     execution_command = (
         [sys.executable, "-P", "-m", "distill", *command[1:]]
         if command and command[0] == "distill"
-        else command
+        else list(command)
     )
-    child_environment = None
-    if environment:
-        child_environment = os.environ.copy()
-        child_environment.update(environment)
+    if execution_command and not Path(execution_command[0]).is_absolute():
+        resolved = resolve_executable(execution_command[0])
+        if resolved is None:
+            return CommandExecution(
+                exit_code=127,
+                elapsed_seconds=0.0,
+                stderr_tail=f"executable not found: {execution_command[0]}",
+            )
+        execution_command[0] = resolved
+    trusted_cwd, _install_env = package_install_context()
+    child_environment = distill_child_env(overlay=environment)
     stdout_tail = _BoundedTextTail()
     stderr_tail = _BoundedTextTail()
     try:
@@ -91,6 +103,7 @@ def execute_command(
             execution_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=trusted_cwd,
             env=child_environment,
             start_new_session=os.name != "nt",
         )

@@ -29,6 +29,7 @@ from rich.markup import escape
 
 from distill._console import console
 from distill.config import DistillConfig
+from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.youtube._yt_dlp_boundary import (
     first_text,
     info_mapping,
@@ -199,7 +200,9 @@ def get_transcript(
     canonical_url = normalize_youtube_video_url(video_url)
     canonical_id = youtube_video_id_from_url(video_url)
     if not canonical_url or normalize_video_id(video_id) != canonical_id:
-        console.print(f"    [red]Refusing non-YouTube URL: {video_url}[/red]")
+        console.print(
+            f"    [red]Refusing non-YouTube URL: {escape(url_for_diagnostic(video_url))}[/red]"
+        )
         return False
 
     transcript = _try_youtube_captions(canonical_url, canonical_id)

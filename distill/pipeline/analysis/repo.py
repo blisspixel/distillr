@@ -18,7 +18,7 @@ from pathlib import Path
 from distill._console import console
 from distill.config import DistillConfig
 from distill.ingestors.github import RepoRecord, fetch_repo, parse_github_url
-from distill.library.insights import receipt_body_sha256
+from distill.library.insights import insight_has_body, receipt_body_sha256
 from distill.library.paths import (
     ProvenanceFields,
     artifact_path,
@@ -136,21 +136,26 @@ def ingest_repo(
         # *before* committing; strict mode refuses the write.
         from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
 
-        outcome = run_verify_hook(
-            repo_dir,
-            response.text,
-            repo_md,
-            mode=resolve_verify_mode(config.distill_verify),
-            identity=slug,
-            insight_name=artifact_path(repo_dir, "insights", identity=slug).name,
-            source_name=repo_name,
-        )
+        if not insight_has_body(response.text):
+            console.print("  [red]empty analysis[/red]")
+            skipped.append("Empty analysis")
+            outcome = None
+        else:
+            outcome = run_verify_hook(
+                repo_dir,
+                response.text,
+                repo_md,
+                mode=resolve_verify_mode(config.distill_verify),
+                identity=slug,
+                insight_name=artifact_path(repo_dir, "insights", identity=slug).name,
+                source_name=repo_name,
+            )
         if outcome is not None and outcome.has_flags:
             style = "red" if outcome.refused else "yellow"
             console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:
             skipped.append(outcome.summary_line)
-        else:
+        elif insight_has_body(response.text):
             insights_path = write_markdown_artifact(
                 repo_dir,
                 "insights",

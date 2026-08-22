@@ -38,6 +38,21 @@ _UNSAFE_PACKAGE_OVERRIDE_NAMES = frozenset(
         "PLAYWRIGHT_NODEJS_PATH",
     }
 )
+_UNSAFE_PACKAGE_INDEX_NAMES = frozenset(
+    {
+        "PIP_INDEX_URL",
+        "PIP_EXTRA_INDEX_URL",
+        "PIP_TRUSTED_HOST",
+        "PIP_CONFIG_FILE",
+        "PIP_FIND_LINKS",
+        "UV_INDEX",
+        "UV_DEFAULT_INDEX",
+        "UV_INDEX_URL",
+        "UV_EXTRA_INDEX_URL",
+        "UV_CONFIG_FILE",
+        "UV_INDEX_STRATEGY",
+    }
+)
 
 
 def _windows_candidate_names(name: str, raw_extensions: str) -> tuple[str, ...]:
@@ -162,4 +177,31 @@ def unsafe_package_overrides(source: Mapping[str, str] | None = None) -> tuple[s
 def package_install_context() -> tuple[str, dict[str, str]]:
     """Return a trusted Python-adjacent cwd and sanitized package environment."""
 
-    return str(Path(sys.executable).resolve().parent), sanitized_package_env()
+    env = {
+        key: value
+        for key, value in sanitized_package_env().items()
+        if key.upper() not in _UNSAFE_PACKAGE_INDEX_NAMES
+    }
+    return str(Path(sys.executable).resolve().parent), env
+
+
+def distill_child_env(
+    source: Mapping[str, str] | None = None,
+    overlay: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Sanitized env for a Distill child that still needs provider credentials."""
+
+    original = os.environ if source is None else source
+    env = sanitized_package_env(original)
+    for key, value in original.items():
+        if key in env:
+            continue
+        upper = key.upper()
+        if upper.startswith("PYTHON") or upper in _UNSAFE_PACKAGE_OVERRIDE_NAMES:
+            continue
+        credential = upper.endswith(("_API_KEY", "_PASSWORD", "_SECRET", "_TOKEN"))
+        if upper in _EXACT_SECRET_NAMES or credential:
+            env[key] = value
+    if overlay:
+        env.update(overlay)
+    return env

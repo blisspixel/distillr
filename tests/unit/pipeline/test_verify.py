@@ -65,6 +65,10 @@ class TestExtraction:
         text = "```\nf1 = 99.9\n```\nReal claim: 88.8 accuracy."
         assert _tokens(text) == ["88.8"]
 
+    def test_unclosed_fence_does_not_hide_later_claims(self):
+        text = "```\nhidden 11.1\nThe model reached 99.7% on 15,514 examples in 2026."
+        assert _tokens(text) == ["11.1", "99.7%", "15,514", "2026"]
+
     def test_skips_urls_and_link_targets(self):
         text = "See [the paper](https://arxiv.org/abs/2604.11544v1) and https://x.test/9.99 -- 0.5 score."
         assert _tokens(text) == ["0.5"]
@@ -172,8 +176,11 @@ class TestSidecarAndHook:
         assert run_verify_hook(tmp_path, "x 99.9", "source", mode="off") is None
         assert list(tmp_path.iterdir()) == []
 
-    def test_hook_empty_source_writes_nothing(self, tmp_path):
-        assert run_verify_hook(tmp_path, "x 99.9", "   ", mode="warn") is None
+    def test_hook_empty_source_still_flags_unsupported_claims(self, tmp_path):
+        outcome = run_verify_hook(tmp_path, "Scores 99.9.", "   ", mode="strict")
+        assert outcome is not None
+        assert outcome.refused
+        assert outcome.report.unsupported[0].token == "99.9"
 
     def test_hook_warn_mode_returns_outcome_and_writes_sidecar(self, tmp_path):
         outcome = run_verify_hook(tmp_path, "Scores 99.9.", "has 72.6", mode="warn")
@@ -470,6 +477,31 @@ def test_run_synthesis_verify_hits_notify_on_mismatch(tmp_path):
     )
     assert res_none is False
     assert not stale.exists()
+
+
+def test_run_synthesis_verify_empty_receipt_keeps_sidecar_in_strict(tmp_path):
+    from distill.library.paths import artifact_path
+    from distill.pipeline.verify import run_synthesis_verify
+
+    prior = artifact_path(tmp_path, "verify", identity="empty", extension="json")
+    prior.write_text('{"prior": true}', encoding="utf-8")
+    notified: list[str] = []
+
+    refused = run_synthesis_verify(
+        tmp_path,
+        "Accuracy was 99.7%.",
+        "   ",
+        verify_mode="strict",
+        identity="empty",
+        insight_name="s.md",
+        source_name="r.md",
+        insight_sha256="2" * 64,
+        notify=notified.append,
+    )
+
+    assert refused is True
+    assert prior.read_text(encoding="utf-8") == '{"prior": true}'
+    assert notified
 
 
 def test_run_synthesis_verify_strict_mismatch_refuses(tmp_path):

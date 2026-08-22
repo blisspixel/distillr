@@ -457,6 +457,8 @@ def test_url_helpers_normalize_and_filter():
     )
     assert canonicalize_url("HTTPS://EXAMPLE.COM.:443/path/") == "https://example.com/path"
     assert page_id_from_url("https://example.com/some/page")
+    assert "pass" not in page_id_from_url("https://user:pass@example.com/")
+    assert "user" not in page_id_from_url("https://user:pass@example.com/")
     assert is_crawlable_url("https://example.com/page") is True
     assert is_crawlable_url("https://example.com/file.pdf") is False
 

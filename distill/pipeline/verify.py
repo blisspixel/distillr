@@ -169,6 +169,33 @@ _URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
 
+def _prose_lines(body: str) -> list[str]:
+    """Yield markdown lines that are not inside a *closed* fenced code block.
+
+    An unclosed fence is treated as prose: otherwise a missing closer would hide
+    every later numeric claim from the verify gate.
+    """
+
+    prose: list[str] = []
+    pending: list[str] = []
+    in_fence = False
+    for raw_line in body.splitlines():
+        if _FENCE_RE.match(raw_line):
+            if in_fence:
+                pending.clear()
+                in_fence = False
+            else:
+                in_fence = True
+            continue
+        if in_fence:
+            pending.append(raw_line)
+        else:
+            prose.append(raw_line)
+    if in_fence:
+        prose.extend(pending)
+    return prose
+
+
 @dataclass(frozen=True)
 class NumericClaim:
     """One load-bearing numeric token found in an insight body."""
@@ -235,13 +262,7 @@ def extract_numeric_claims(insight_text: str) -> list[NumericClaim]:
     """
     body = strip_frontmatter(insight_text)
     claims: list[NumericClaim] = []
-    in_fence = False
-    for raw_line in body.splitlines():
-        if _FENCE_RE.match(raw_line):
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
+    for raw_line in _prose_lines(body):
         line = _URL_RE.sub(" ", raw_line)
         for match in _CLAIM_TOKEN_RE.finditer(line):
             token = match.group(0)
@@ -415,15 +436,15 @@ def run_verify_hook(
 
     The single entry point analysis emit paths call, *before* writing the
     insight artifact (strict mode must be able to refuse the write). Returns
-    ``None`` when the mode is ``off`` or there is no source text to check
-    against (nothing to ground means nothing to claim about grounding).
+    ``None`` when the mode is ``off``. An empty receipt is still checked:
+    numeric claims in the insight are unsupported without source evidence.
     When ``publish_sidecar`` is true, sidecar IO problems are suppressed so
     verification bookkeeping cannot kill an ingest run. The outcome is still
     returned so callers can surface flags and honor refusal. Synthesis callers
     set ``publish_sidecar`` false and publish the bound sidecar only after the
     candidate passes validation.
     """
-    if mode == "off" or not source_text.strip():
+    if mode == "off":
         return None
     report = verify_insight(insight_text, source_text, mode=mode)
     entailment: EntailmentReport | None = None
@@ -499,7 +520,7 @@ def run_synthesis_verify(
     """
     mode = resolve_verify_mode(verify_mode)
     sidecar = artifact_path(directory, "verify", identity=identity, extension="json")
-    if mode == "off" or not receipt.strip():
+    if mode == "off":
         try:
             sidecar_identity = confined_file_identity(sidecar, directory)
             if sidecar_identity is not None:

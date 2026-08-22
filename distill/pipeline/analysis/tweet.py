@@ -23,6 +23,7 @@ from distill.config import DistillConfig
 from distill.ingestors.transcribe import TranscriptionError, transcribe_media
 from distill.ingestors.x.media import download_video, is_reusable_video
 from distill.ingestors.x.syndication import TweetRecord, fetch_tweet
+from distill.library.insights import insight_has_body
 from distill.library.paths import (
     ProvenanceFields,
     apply_frontmatter,
@@ -637,6 +638,11 @@ def _verified_insights_write(
     written and the refusal joins the run's skip reasons.
     """
     from distill.pipeline.verify import resolve_verify_mode, run_verify_hook
+
+    if not insight_has_body(insights_text):
+        skipped.append("Empty analysis")
+        console.print("        [red]empty analysis[/red]")
+        return None
 
     outcome = run_verify_hook(
         post_dir,

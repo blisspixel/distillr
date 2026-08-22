@@ -117,6 +117,14 @@ class TestClaimExtraction:
         assert len(claims) == 1
         assert claims[0].text.startswith("A real claim")
 
+    def test_unclosed_fence_does_not_hide_later_claims(self):
+        body = (
+            "```\nThe model reached ninety-nine percent accuracy on a public benchmark in 2026.\n"
+        )
+        claims = extract_entailment_claims(body)
+        assert len(claims) == 1
+        assert "ninety-nine percent" in claims[0].text
+
     def test_open_questions_are_not_treated_as_claims(self):
         body = (
             "## Open Questions\n"

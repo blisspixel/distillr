@@ -125,8 +125,10 @@ def _safe_existing_directory(path: Path, pages_dir: Path) -> bool:
 
 
 def _legacy_page_id(page: SitePage) -> str:
+    title = page.title.strip() if page.title else ""
+    identity = title or url_for_persistence(page.final_url or page.url)
     return slugify_title(
-        page.title or page.url,
+        identity,
         page_id_from_url(page.final_url or page.url),
         max_len=70,
     )

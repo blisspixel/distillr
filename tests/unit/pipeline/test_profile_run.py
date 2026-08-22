@@ -1446,8 +1446,8 @@ def test_execute_command_normalizes_subprocess_outcomes(monkeypatch):
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("argument list too long")),
     )
     launch_error = execute_command(["oversized"], timeout_seconds=7)
-    assert launch_error.exit_code == 126
-    assert "argument list too long" in launch_error.stderr_tail
+    assert launch_error.exit_code == 127
+    assert "executable not found" in launch_error.stderr_tail
 
 
 def test_execute_command_timeout_is_not_held_open_by_grandchild_pipes() -> None:

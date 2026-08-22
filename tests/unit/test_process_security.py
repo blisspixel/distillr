@@ -11,6 +11,8 @@ import pytest
 
 import distill.process_security as process_security
 from distill.process_security import (
+    distill_child_env,
+    package_install_context,
     resolve_executable,
     sanitized_package_env,
     unsafe_package_overrides,
@@ -278,3 +280,38 @@ def test_sanitized_python_env_prevents_pythonwarnings_startup_import(tmp_path: P
     safe["PYTHONPATH"] = str(tmp_path)
     subprocess.run(command, env=safe, check=True, capture_output=True)
     assert not marker.exists()
+
+
+def test_package_install_context_drops_index_overrides(monkeypatch):
+    monkeypatch.setenv("PIP_INDEX_URL", "https://evil.example/simple")
+    monkeypatch.setenv("UV_INDEX", "https://evil.example/simple")
+    cwd, env = package_install_context()
+    assert cwd
+    assert "PIP_INDEX_URL" not in env
+    assert "UV_INDEX" not in env
+    assert env["PYTHONSAFEPATH"] == "1"
+
+
+def test_distill_child_env_keeps_provider_keys_and_strips_loaders():
+    env = distill_child_env(
+        {
+            "PATH": "trusted-path",
+            "PYTHONPATH": "untrusted-path",
+            "NODE_OPTIONS": "--require untrusted.js",
+            "XAI_API_KEY": "xai-secret",
+            "PIP_INDEX_URL": "https://evil.example/simple",
+        },
+        overlay={"DISTILL_TEST_RECEIPT": "receipt"},
+    )
+
+    assert env["XAI_API_KEY"] == "xai-secret"
+    assert env["DISTILL_TEST_RECEIPT"] == "receipt"
+    assert env["PATH"] == "trusted-path"
+    assert "PYTHONPATH" not in env
+    assert "NODE_OPTIONS" not in env
+
+
+def test_distill_child_env_without_overlay_keeps_credentials():
+    env = distill_child_env({"PATH": "trusted-path", "XAI_API_KEY": "xai-secret"})
+    assert env["XAI_API_KEY"] == "xai-secret"
+    assert env["PATH"] == "trusted-path"

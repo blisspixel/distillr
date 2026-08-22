@@ -66,14 +66,22 @@ def test_adapter_runner_scrubs_env_and_accepts_valid_manifest(tmp_path):
             scratch_root=tmp_path,
             command_class="scratch-write",
         ),
-        environ={"OPENAI_API_KEY": "secret", "PATH": "bin"},
+        environ={
+            "OPENAI_API_KEY": "secret",
+            "PATH": "bin",
+            "PYTHONPATH": "untrusted",
+            "NODE_OPTIONS": "--require untrusted.js",
+        },
         runner=runner,
     )
 
     assert result.ok
     assert "OPENAI_API_KEY" not in seen_env
+    assert "PYTHONPATH" not in seen_env
+    assert "NODE_OPTIONS" not in seen_env
     assert seen_env["PATH"] == "bin"
-    assert result.scrubbed_env_vars == ("OPENAI_API_KEY",)
+    assert "OPENAI_API_KEY" in result.scrubbed_env_vars
+    assert "PYTHONPATH" in result.scrubbed_env_vars
     assert result.workspace_check is not None
     assert result.workspace_check.ok
     assert result.to_dict()["manifest"]["adapter"] == "codex"
@@ -225,7 +233,7 @@ def test_run_subprocess_decodes_timeout_byte_output(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", timeout)
 
-    result = _run_subprocess(("codex",), tmp_path, {}, 1, "")
+    result = _run_subprocess((str(tmp_path / "codex.exe"),), tmp_path, {}, 1, "")
 
     assert result.exit_code == 124
     assert result.timed_out is True
