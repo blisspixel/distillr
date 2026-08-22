@@ -20,6 +20,7 @@ from distill.library.paths import (
     dump_frontmatter,
     extract_frontmatter,
     find_artifact,
+    workspace_output_path,
 )
 from distill.library.wikilinks import parse_wiki_links
 
@@ -40,6 +41,17 @@ _FRONTMATTER_VALUES = st.one_of(
         max_size=4,
     ),
 )
+
+
+def test_workspace_output_path_uses_sibling_output_and_confines_filename(tmp_path: Path) -> None:
+    library_dir = tmp_path / "workspace" / "library"
+
+    result = workspace_output_path(library_dir, "../../escape.md")
+
+    assert result.parent == tmp_path / "workspace" / "output"
+    assert result.name == "-..-escape.md"
+
+
 _FRONTMATTER = st.dictionaries(
     keys=_FRONTMATTER_KEYS,
     values=_FRONTMATTER_VALUES,

@@ -871,7 +871,7 @@ single-call synthesis, use one of these instead:
 distill research-brief -t topic-a,topic-b \
   --context-file private/product-decision.md --name q2-review
 
-# Multi-topic Grok single-call synthesis (corpus-only, no web augmentation)
+# Multi-topic single-call synthesis on the configured route (corpus-only)
 distill synthesize -t topic-a,topic-b \
   --context-file private/lit-review.md --name ai-lit
 
@@ -890,6 +890,10 @@ distill synthesize -t ai --context "Summarize for a VP of Engineering deciding o
 **The context file is the prompt.** Copy [`docs/briefing-contexts/TEMPLATE.md`](briefing-contexts/TEMPLATE.md) as a starting point. Personal/client-specific context files live in [`private/`](../private/) (git-ignored by default).
 
 Output lands in `output/briefing-{name}.md` or `output/synthesis-{name}.md`.
+Here and throughout the docs, `output/` is the directory beside the configured
+library root, even when the command runs from another working directory.
+Distill confines path-like `--name` values to one safe filename and publishes
+the completed file atomically.
 Report-style outputs refuse unresolved numbered citation handles such as
 `[cite: 1]` before writing when Distill has no structural citation map for
 them. The completed model call remains on the cost ledger; the unsafe report,

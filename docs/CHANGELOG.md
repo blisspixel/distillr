@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.71 - 2026-08-22
+
+### Fixed
+
+- **Research briefings and deep syntheses now honor the configured workspace.**
+  Both report writers publish to the `output/` directory beside the configured
+  library instead of the process working directory. Path-like names are
+  confined to one safe filename, and publication is atomic.
+- **Update caches fail closed on invalid time.** Future timestamps, expired
+  entries, and mixed timezone-aware and naive timestamps now trigger a refresh
+  instead of suppressing checks or raising from a CLI command.
+- **Update cache reads and writes are bounded and durable.** Both caches reject
+  files above 64 KiB. Preflight joins the self-update cache on the shared atomic
+  JSON writer, preventing torn state and preserving a symlink target during
+  replacement.
+- **Summary-query and eval caches publish atomically.** Interrupted or
+  concurrent writers can no longer leave partial model-result rows, cache reads
+  have explicit size limits, and replacing a cache-path symlink preserves its
+  target.
+- **Podcast audio filenames no longer trust arbitrary URL suffixes.** Known
+  audio extensions are normalized and every other suffix falls back to
+  `.mp3`, preventing invalid or excessively long enclosure filenames. Binary
+  publication is now atomic and preserves a pre-existing symlink target.
+- **Remaining user-facing text exports publish atomically.** Citation files,
+  packaged latest-video Markdown, HTML dashboards, and optional eval reports
+  now replace their destination in one complete write.
+
 ## 0.19.70 - 2026-08-22
 
 ### Fixed

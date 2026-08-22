@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import email.utils
-import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -255,15 +254,12 @@ def _op_report_synthesize(library_root: Path, wait_ns: int) -> tuple[object, int
     stub = make_llm_call(log, body=REPORT_SYNTHESIS_BODY, wait_ns=wait_ns)
     started = _patches(report_llm=stub)
     _apply(started)
-    previous = Path.cwd()
     resolved: Path | None = None
     try:
-        os.chdir(library_root)
         written = run_synthesis([TOPIC], REPORT_CONTEXT, "replay", config)
         if written is not None:
             resolved = written.resolve()
     finally:
-        os.chdir(previous)
         _stop(started)
     if resolved is None:
         raise RuntimeError("report_synthesize produced no artifact")
@@ -273,7 +269,7 @@ def _op_report_synthesize(library_root: Path, wait_ns: int) -> tuple[object, int
         "llm_calls": log.calls,
         "matches_fixture": body == REPORT_SYNTHESIS_BODY,
         "relative_parent": resolved.parent.name,
-        "under_library": str(resolved).startswith(str(library_root.resolve())),
+        "under_workspace": resolved.is_relative_to(library_root.parent.resolve()),
     }
     return value, 1, log.provider_wait_ns
 

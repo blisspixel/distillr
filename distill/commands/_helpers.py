@@ -40,9 +40,9 @@ from distill.library.paths import (
     atomic_write_text,
     base_frontmatter,
     find_artifact,
-    sanitize_path_component,
     slugify_title,
     tags_for,
+    workspace_output_path,
     write_markdown_artifact,
 )
 from distill.parsing import read_local_utf8_text
@@ -542,10 +542,7 @@ def tty_prompt(message: str, *, default: str, non_tty_default: str | None = None
 
 def output_path(config: DistillConfig, filename: str) -> Path:
     """Return a path inside the output/ folder, creating it if needed."""
-    out_dir = config.library_dir.parent / "output"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    safe_filename = sanitize_path_component(str(filename)).lstrip(". ") or "untitled"
-    return out_dir / safe_filename
+    return workspace_output_path(config.library_dir, filename)
 
 
 def topic_from_query(query: str) -> str:

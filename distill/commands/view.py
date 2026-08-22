@@ -79,6 +79,7 @@ from distill.ingestors.youtube.discovery import resolve_channel_name
 from distill.library import Library
 from distill.library.paths import (
     artifact_exists,
+    atomic_write_text,
     base_frontmatter,
     find_artifact,
     tags_for,
@@ -602,7 +603,7 @@ def package_latest(  # noqa: C901 — legacy, will refactor
     slug = channel or topic
     filename = f"latest-{slug}.md"
     out_path = _output_path(config, filename)
-    out_path.write_text(output_text, encoding="utf-8")
+    atomic_write_text(out_path, output_text)
 
     size_kb = len(output_text.encode("utf-8")) / 1024
     console.print(f"  [green]Packaged {len(selected)} videos -> {out_path}[/green]")

@@ -39,6 +39,7 @@ __all__ = [
     "artifact_identity",
     "artifact_path",
     "atomic_update_text",
+    "atomic_write_bytes",
     "atomic_write_json",
     "atomic_write_text",
     "base_frontmatter",
@@ -59,6 +60,7 @@ __all__ = [
     "strip_frontmatter",
     "tags_for",
     "text_write_lock",
+    "workspace_output_path",
     "write_markdown_artifact",
     "write_text_artifact",
 ]
@@ -97,6 +99,21 @@ def _atomic_write_text_unlocked(path: Path, content: str) -> None:
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        _replace_with_retry(Path(tmp), path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            Path(tmp).unlink()
+        raise
+
+
+def _atomic_write_bytes_unlocked(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
             fh.write(content)
             fh.flush()
             os.fsync(fh.fileno())
@@ -161,6 +178,13 @@ def atomic_write_text(path: Path, content: str) -> None:
         _atomic_write_text_unlocked(path, content)
 
 
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Write binary ``content`` atomically, durably, and serially."""
+
+    with text_write_lock(path):
+        _atomic_write_bytes_unlocked(path, content)
+
+
 def atomic_write_json(path: Path, value: object, *, indent: int = 2) -> None:
     """Serialize ``value`` as UTF-8 JSON and write it atomically.
 
@@ -171,6 +195,15 @@ def atomic_write_json(path: Path, value: object, *, indent: int = 2) -> None:
         path,
         json.dumps(value, indent=indent, ensure_ascii=False, allow_nan=False) + "\n",
     )
+
+
+def workspace_output_path(library_dir: Path, filename: str) -> Path:
+    """Return a confined path in the output directory beside ``library_dir``."""
+
+    output_dir = library_dir.parent / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    safe_filename = sanitize_path_component(str(filename)).lstrip(". ") or "untitled"
+    return output_dir / safe_filename
 
 
 def atomic_update_text[UpdateResult](

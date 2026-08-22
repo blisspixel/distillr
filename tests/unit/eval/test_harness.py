@@ -182,6 +182,29 @@ def test_malformed_cache_entry_recomputes(tmp_path, monkeypatch):
     assert all(not r.cached for r in rows)
 
 
+def test_eval_cache_rejects_oversized_state(tmp_path):
+    cache_file = tmp_path / "oversized.json"
+    cache_file.write_text("{" + " " * harness_mod._MAX_CACHE_BYTES + "}", encoding="utf-8")
+
+    assert harness_mod._load_json(tmp_path, "oversized") is None
+
+
+def test_eval_cache_write_replaces_symlink_without_overwriting_target(tmp_path):
+    target = tmp_path / "operator-notes.txt"
+    target.write_text("preserve me", encoding="utf-8")
+    cache_file = tmp_path / "row.json"
+    try:
+        cache_file.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    harness_mod._save_json(tmp_path, "row", {"output": "safe"})
+
+    assert target.read_text(encoding="utf-8") == "preserve me"
+    assert not cache_file.is_symlink()
+    assert json.loads(cache_file.read_text(encoding="utf-8"))["output"] == "safe"
+
+
 def test_judge_caches_are_bound_to_exact_outputs(tmp_path, monkeypatch):
     pairwise_calls: list[tuple[str, str]] = []
     faithfulness_calls: list[str] = []

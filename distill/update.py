@@ -20,13 +20,14 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from rich.console import Console
 
-from distill.library.paths import atomic_write_text
+from distill.library.paths import atomic_write_json
+from distill.parsing import is_recent_iso_timestamp, read_bounded_json_object
 from distill.process_security import package_install_context, resolve_executable
 
 PACKAGE = "distillr"
@@ -34,6 +35,7 @@ PYPI_URL = f"https://pypi.org/pypi/{PACKAGE}/json"
 UPDATE_CACHE_NAME = ".update_check.json"
 CACHE_TTL_HOURS = 24
 FETCH_TIMEOUT_S = 3.0
+MAX_CACHE_BYTES = 64 * 1024
 
 # Install methods distill can upgrade itself under.
 METHOD_UV = "uv"
@@ -200,32 +202,24 @@ def _cache_path(library_dir: Path | None) -> Path | None:
 
 
 def _read_cache(path: Path | None) -> dict[str, Any]:
-    if path is None or not path.exists():
+    if path is None:
         return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return cast("dict[str, Any]", data) if isinstance(data, dict) else {}
+    return read_bounded_json_object(path, max_bytes=MAX_CACHE_BYTES)
 
 
 def _write_cache(path: Path | None, data: dict[str, Any]) -> None:
     if path is None:
         return
     with contextlib.suppress(Exception):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(path, json.dumps(data))
+        atomic_write_json(path, data)
 
 
 def _is_fresh(entry: dict[str, Any], now: datetime) -> bool:
-    ts = entry.get("checked_at")
-    if not isinstance(ts, str):
-        return False
-    try:
-        checked = datetime.fromisoformat(ts)
-    except ValueError:
-        return False
-    return (now - checked).total_seconds() < CACHE_TTL_HOURS * 3600
+    return is_recent_iso_timestamp(
+        entry.get("checked_at"),
+        now=now,
+        max_age=timedelta(hours=CACHE_TTL_HOURS),
+    )
 
 
 def latest_version_cached(library_dir: Path | None, now: datetime | None = None) -> str | None:

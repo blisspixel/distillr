@@ -14,6 +14,7 @@ from distill.library.paths import (
     artifact_identity,
     artifact_path,
     atomic_update_text,
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     base_frontmatter,
@@ -34,6 +35,7 @@ from distill.library.paths import (
     strip_frontmatter,
     tags_for,
     text_write_lock,
+    workspace_output_path,
     write_markdown_artifact,
     write_text_artifact,
 )
@@ -61,6 +63,7 @@ __all__: list[str] = [
     "artifact_identity",
     "artifact_path",
     "atomic_update_text",
+    "atomic_write_bytes",
     "atomic_write_json",
     "atomic_write_text",
     "base_frontmatter",
@@ -81,6 +84,7 @@ __all__: list[str] = [
     "strip_frontmatter",
     "tags_for",
     "text_write_lock",
+    "workspace_output_path",
     "write_markdown_artifact",
     "write_text_artifact",
 ]

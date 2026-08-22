@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import cast
 
@@ -16,6 +16,7 @@ __all__ = [
     "MAX_LOOKBACK_HOURS",
     "as_whole_number",
     "default_library_dir",
+    "is_recent_iso_timestamp",
     "parse_ascii_uint",
     "parse_bounded_json_int",
     "parse_iso_day_hour_duration",
@@ -27,6 +28,32 @@ __all__ = [
 ]
 
 LENIENT_LOCAL_JSON_ERRORS = (OSError, RecursionError, UnicodeError, ValueError)
+
+
+def is_recent_iso_timestamp(
+    value: object,
+    *,
+    now: datetime,
+    max_age: timedelta,
+) -> bool:
+    """Return whether an ISO timestamp is at or before ``now`` and still recent.
+
+    Cache timestamps are untrusted local state. Invalid values, timestamps from
+    the future, and mixed naive/aware datetimes all fail closed so callers can
+    refresh the cache instead of crashing or trusting it indefinitely.
+    """
+
+    if not isinstance(value, str) or max_age <= timedelta(0):
+        return False
+    normalized = f"{value[:-1]}+00:00" if value.endswith(("Z", "z")) else value
+    try:
+        checked = datetime.fromisoformat(normalized)
+        if (checked.utcoffset() is None) != (now.utcoffset() is None):
+            return False
+        age = now - checked
+    except (OverflowError, TypeError, ValueError):
+        return False
+    return timedelta(0) <= age < max_age
 
 
 def as_whole_number(value: object) -> int | None:

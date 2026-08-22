@@ -81,7 +81,7 @@ from distill.commands.dashboard import (
 from distill.ingestors.youtube.discovery import discover_videos
 from distill.library import Library
 from distill.library.insights import discover_insights
-from distill.library.paths import find_artifact
+from distill.library.paths import atomic_write_text, find_artifact
 from distill.library.state import ChannelInfo, ChannelState
 from distill.llm.cost_policy import require_route_allowed
 from distill.llm.router import RouterConfig
@@ -920,7 +920,7 @@ def dashboard(
     version = _get_version()
     html = render_dashboard_html(version, snapshot)
     html_path = _output_path(config, "dashboard.html")
-    html_path.write_text(html, encoding="utf-8")
+    atomic_write_text(html_path, html)
     console.print(f"[green]Dashboard written: {html_path}[/green]")
     if open_browser:
         webbrowser.open(html_path.resolve().as_uri())
