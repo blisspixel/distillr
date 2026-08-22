@@ -83,7 +83,8 @@ target, which moves Distill's advantage from "plain files" to "verified corpus
 producer." The spine was reordered accordingly: agent legibility promoted out of
 1.0 polish, the verify hook pulled forward to 0.10, breadth behind the trust
 gate at 0.11, and OKF/loop-readiness before any future stability commitment. See
-[`../ROADMAP.md#competitive-landscape-august-2026`](../ROADMAP.md#competitive-landscape-august-2026) for the full analysis.
+[`research/roadmap-review-2026-08-20.md`](research/roadmap-review-2026-08-20.md)
+for the full primary-source review.
 
 Legend: `[ ]` not started, `[~]` partial / in progress, `[x]` shipped (item will
 be moved to `CHANGELOG.md` on next release).
@@ -446,15 +447,19 @@ per unit of time and cost, not language-level throughput in isolation.
   [`performance/baseline-0.19.50.md`](performance/baseline-0.19.50.md)
   scale-100 receipt. The 0.19.66 Linux/macOS run independently validated both
   bundles and produced identical result counts and digests for all 32 compared
-  operations. Still open: at least five comparable runs per host, export and
-  installation metrics, cold-start evidence, and live 20-paper / 50-video /
-  site-batch reference journeys with full hardware and cost metadata.
-- [ ] **Honest regression policy.** Keep live provider, network, and hardware
-  journeys as scheduled or release evidence. Allow deterministic offline
-  benchmarks to block only after at least five comparable runs characterize
-  runner variance, and only for a reproduced regression that exceeds both a
-  relative and meaningful absolute budget. Correctness and resource ceilings
-  remain blocking immediately.
+  operations. Five paired runs per host and the derived advisory policy are now
+  published in
+  [`performance/comparable-history-0.19.70.md`](performance/comparable-history-0.19.70.md).
+  Still open: export and installation metrics, cold-start evidence, and live
+  20-paper / 50-video / site-batch reference journeys with full hardware and
+  cost metadata.
+- [x] **Honest advisory regression policy.** Five paired, semantically
+  comparable Linux and macOS runs characterize hosted-runner variance. The
+  active policy uses run-level medians and requires two consecutive runs to
+  exceed both a 20 percent relative threshold and an operation-specific
+  absolute noise floor before flagging timing. Timing and peak memory remain
+  advisory; correctness, deterministic result identity, source integrity, and
+  receipt integrity remain blocking.
 - [ ] **One-pass corpus manifest.** Reuse a read-only inventory of paths,
   identities, sizes, mtimes, hashes, links, and optional lexical data within a
   command. Any persisted accelerator lives under `.distill/`, is git-ignored,

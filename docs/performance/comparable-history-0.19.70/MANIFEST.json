@@ -1,0 +1,95 @@
+{
+  "created_at": "2026-08-22T16:34:52.155410+00:00",
+  "history": {
+    "bytes": 63292,
+    "path": "HISTORY.json",
+    "sha256": "d687ff4fcd6bb44bfc58aaf7b1dd8539b8634d914554ef2beeb3bc76de22bb23"
+  },
+  "inputs": [
+    {
+      "architecture": "ARM64",
+      "bundle_manifest_sha256": "9575d75d740f92d025e8e60c8bfffa89b201a59c5608b715fe06bbb416c73654",
+      "operating_system": "macOS",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32431022291"
+    },
+    {
+      "architecture": "X64",
+      "bundle_manifest_sha256": "ddb7e2b33c2582f77f69ac82d0f1b16cf99f273104be77ce4d9a045ae43ce2ba",
+      "operating_system": "Linux",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32431022291"
+    },
+    {
+      "architecture": "ARM64",
+      "bundle_manifest_sha256": "0c7861e706fc0edea54dc52673e675a67669b5999b5b33ac653bbbf590fa477f",
+      "operating_system": "macOS",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32489877708"
+    },
+    {
+      "architecture": "X64",
+      "bundle_manifest_sha256": "c175f9e3ed7ac3e27e139c890703f17894abc11e029a5caff7a246a189711fb7",
+      "operating_system": "Linux",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32489877708"
+    },
+    {
+      "architecture": "ARM64",
+      "bundle_manifest_sha256": "415fc924393151c8e5cd7cc40d47c757e6a3968dffbd565c122f983a5294ce42",
+      "operating_system": "macOS",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32489888386"
+    },
+    {
+      "architecture": "X64",
+      "bundle_manifest_sha256": "3ab9dfee4ab2e3b0af15f97f02c222b3289969387fb3c298827b4ad15a465edf",
+      "operating_system": "Linux",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32489888386"
+    },
+    {
+      "architecture": "ARM64",
+      "bundle_manifest_sha256": "aecc50513709c6b3003d3c2383ceef2115c6521446052ca60da9b09221a846fe",
+      "operating_system": "macOS",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32494705846"
+    },
+    {
+      "architecture": "X64",
+      "bundle_manifest_sha256": "b2023816b067bf69d16cdf988fed722339170badd0f09841c5377a73940d6a64",
+      "operating_system": "Linux",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32494705846"
+    },
+    {
+      "architecture": "ARM64",
+      "bundle_manifest_sha256": "a27e7538a04f528ab165c1f09c0db407171b677a9741024db13572fdc2486c20",
+      "operating_system": "macOS",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32501350792"
+    },
+    {
+      "architecture": "X64",
+      "bundle_manifest_sha256": "d2deb37054ba9a4ec129eee2f8e35cff06d9d14e03a79db64caae69731508983",
+      "operating_system": "Linux",
+      "workflow_run_attempt": "1",
+      "workflow_run_id": "32501350792"
+    }
+  ],
+  "schema_version": "performance-history-bundle.v1",
+  "summary": {
+    "bytes": 6412,
+    "path": "SUMMARY.md",
+    "sha256": "3149eedec95723c9e9be418feb8d29169b3a7ff65c39b24321037fa86b2c9180"
+  },
+  "verification": {
+    "advisory_policy_derived": true,
+    "blocking_timing_gate": false,
+    "minimum_comparable_runs_per_host": 5,
+    "paired_workflow_runs_complete": true,
+    "raw_receipt_hashes_complete": true,
+    "required_hosts_complete": true,
+    "semantic_compatibility_complete": true
+  }
+}

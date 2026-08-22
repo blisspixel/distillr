@@ -5,8 +5,6 @@
 [![Python](https://img.shields.io/pypi/pyversions/distillr.svg)](https://pypi.org/project/distillr/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 > Point Distill at a research goal. It finds papers, talks, and pages from
 > operator-trusted sites, captures supplied repos, podcasts, feeds, posts, and
@@ -115,18 +113,20 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 
 ## Status
 
-Active beta with a broad working surface (sources, discovery, verify, synthesis,
-ask, audit, MCP, dashboard, profiles, deferred workers). Every change still
-clears the same release gate (95% branch coverage, ruff, pyright, import-linter,
-bandit, pip-audit, supported Python matrix, build provenance). Covered v1
-contract snapshots are freeze-ready under the published compatibility policy;
-uncovered pre-1.0 surfaces can still improve additively. Pin versions if you
-integrate on MCP schemas or frontmatter. 1.0 is a future stability commitment,
-not a calendar date. The first comparable Linux and macOS performance baseline
-is now published. The next dependency-ordered gate is at least five comparable
-runs per host class before any honest timing threshold is proposed:
-[`ROADMAP.md`](ROADMAP.md#100---stability-commitment--quality-bar) and the
-[`0.19.66 cross-platform baseline`](docs/performance/cross-platform-0.19.66.md).
+Active beta with a broad working surface: sources, discovery, verification,
+synthesis, ask, audit, MCP, dashboard, profiles, and deferred workers. Every
+change clears the same release gate: 95% branch coverage, Ruff, Pyright,
+import-linter, Bandit, pip-audit, the supported Python matrix, and build
+provenance. Covered v1 contract snapshots are freeze-ready under the published
+compatibility policy. Pin versions if you integrate on MCP schemas or
+frontmatter because uncovered pre-1.0 surfaces can still improve additively.
+
+Version 1.0 is a future stability commitment, not a calendar date. Five paired
+Linux and macOS runs now characterize public-runner variance and support an
+advisory regression policy. The remaining gates include cross-platform install,
+cold-start, export, live-journey, accessibility, and freeze-time security
+evidence. See the [`roadmap`](ROADMAP.md#100---stability-commitment--quality-bar)
+and [`comparable performance history`](docs/performance/comparable-history-0.19.70.md).
 
 ## License
 

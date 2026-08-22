@@ -1,0 +1,66 @@
+{
+  "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+  "created_at": "2026-08-21T14:50:37.681816+00:00",
+  "profile": {
+    "iterations": 20,
+    "network": "fail-closed",
+    "provider": "deterministic-stub",
+    "scales": [
+      100,
+      500,
+      1000,
+      10000
+    ],
+    "seed": 20260711,
+    "timing_policy": "advisory",
+    "warmups": 1
+  },
+  "project_version": "0.19.67",
+  "receipts": [
+    {
+      "bytes": 32155,
+      "path": "corpus-scale-100.json",
+      "sha256": "e4cca6c6a960b5d611eee8911555ad6725de1c3003c009255d2ae825f8ab7b46"
+    },
+    {
+      "bytes": 32435,
+      "path": "corpus-scale-500.json",
+      "sha256": "15997493c1ceaefee97e0a128121ebfc8a5198a9aa8ba4b2a63330cd865a69ea"
+    },
+    {
+      "bytes": 32601,
+      "path": "corpus-scale-1000.json",
+      "sha256": "eb380989180bae4a1b355fd709e769994f1c04d4e7752b283f8a61412c628020"
+    },
+    {
+      "bytes": 33004,
+      "path": "corpus-scale-10000.json",
+      "sha256": "c5eb78cb900b46fc939bd7172ad36ff1953227700d22559ed165bc879b506834"
+    },
+    {
+      "bytes": 48918,
+      "path": "workflow-replay.json",
+      "sha256": "a6f6a02f0c3c631a4ec5c8028a88efbbb3d6ab8a779e60b203639a2523c1355c"
+    }
+  ],
+  "repository": "blisspixel/distillr",
+  "runner": {
+    "architecture": "ARM64",
+    "name": "GitHub Actions 1000099305",
+    "operating_system": "macOS"
+  },
+  "schema_version": "performance-evidence-bundle.v1",
+  "summary": {
+    "bytes": 2535,
+    "path": "SUMMARY.md",
+    "sha256": "30a1cfe4de05e58ec144bff30c24987c70dff1f3e23086101e46af88b75f2606"
+  },
+  "verification": {
+    "all_operations_completed": true,
+    "all_result_digests_stable": true,
+    "corpus_integrity_unchanged": true,
+    "source_integrity_unchanged": true
+  },
+  "workflow_run_attempt": "1",
+  "workflow_run_id": "32489877708"
+}
