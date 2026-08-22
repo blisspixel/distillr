@@ -8,6 +8,7 @@ import time
 import urllib.request
 from contextlib import AbstractContextManager
 from dataclasses import asdict, dataclass
+from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 from typing import Protocol
@@ -16,18 +17,25 @@ from urllib.parse import parse_qs, urlparse
 from distill.config import DistillConfig
 from distill.ingestors.local.extract import extract_pdf_text_bounded
 from distill.ingestors.net import NetworkError, is_public_web_url, safe_urlopen
+from distill.ingestors.sites._site_urls import (
+    canonicalize_url,
+    site_embedded_url_for_persistence,
+)
 from distill.ingestors.sites.scraper import SitePage
 from distill.ingestors.youtube.transcripts import MAX_TRANSCRIPT_BYTES, get_transcript
 from distill.library.confined import read_confined_text_prefix
-from distill.library.paths import atomic_write_json, slugify_title
+from distill.library.paths import atomic_write_json, atomic_write_text
 from distill.parsing import parse_ascii_uint
 
 __all__ = [
     "AttachmentRecord",
+    "attachment_text_filename",
     "collect_page_attachments",
     "ingest_page_attachments",
     "write_attachment_manifest",
 ]
+
+_ATTACHMENT_NAME_PREFIX = b"distill-site-attachment-v1\0"
 
 _ATTACHMENT_TEXT_LIMIT = 30_000
 # Cap the on-the-wire download size before any parsing happens. PDFs in the
@@ -79,6 +87,15 @@ class AttachmentRecord:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def attachment_text_filename(url: str, *, suffix: str = ".txt") -> str:
+    """Return a credential-free on-disk name for one attachment extract."""
+
+    if suffix and not suffix.startswith("."):
+        suffix = f".{suffix}"
+    digest = sha256(_ATTACHMENT_NAME_PREFIX + canonicalize_url(url).encode("utf-8")).hexdigest()
+    return f"attachment-{digest}{suffix or '.txt'}"
 
 
 def collect_page_attachments(page: SitePage) -> list[AttachmentRecord]:
@@ -310,13 +327,14 @@ def _ingest_pdf_attachment(
             attachment.status = "failed"
             attachment.note = "PDF downloaded but no extractable text was found"
             return attachment, ""
-        filename = f"{slugify_title(attachment.url, max_len=40)}.txt"
+        filename = attachment_text_filename(attachment.url)
         text_path = attachments_dir / filename
-        text_path.write_text(extracted, encoding="utf-8")
+        atomic_write_text(text_path, extracted)
         attachment.status = "ingested"
-        attachment.text_path = str(text_path.name)
+        attachment.text_path = filename
         attachment.content_chars = len(extracted)
-        return attachment, f"### PDF Attachment: {attachment.url}\n{extracted}"
+        safe_url = site_embedded_url_for_persistence(attachment.url)
+        return attachment, f"### PDF Attachment: {safe_url}\n{extracted}"
     except _AttachmentFetchError as exc:
         attachment.status = "failed"
         attachment.note = exc.note

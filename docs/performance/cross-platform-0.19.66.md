@@ -10,6 +10,11 @@ provider wait, and no metered API was used.
 Timing is advisory. Correctness, input integrity, operation completion, sample
 count, and deterministic output equality are the validated claims.
 
+Update 2026-08-22: the five-run history gate described below is complete. The
+validated receipts and active advisory policy are published in the
+[`0.19.70 comparable history`](comparable-history-0.19.70.md). This document
+retains the original 0.19.66 baseline and its then-current next steps.
+
 ## Provenance
 
 - Release: `distillr==0.19.66`

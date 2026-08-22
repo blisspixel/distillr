@@ -2,13 +2,13 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-2026-08-20 against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.67`; published performance evidence is the 0.19.66 Linux/macOS
-matrix and frozen replay, the 0.19.60 Windows 100 / 500 / 1_000 / 10_000
-matrix, and Windows frozen workflow replay through 0.19.63 (paper / video /
-site / synthesis / verify / profile / report). Write-path fault injection for
-empty analysis, empty transcripts, PDF fetch failure, yt-dlp failure, and
-malformed structured JSON shipped in 0.19.64.
+2026-08-22 against code, roadmap, release evidence, and the live GitHub state at
+`distillr==0.19.69`. Published performance evidence now includes five paired
+Linux/macOS runs with preserved receipts and an active advisory policy, the
+0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
+replay through 0.19.63 (paper / video / site / synthesis / verify / profile /
+report). Write-path fault injection for empty analysis, empty transcripts, PDF
+fetch failure, yt-dlp failure, and malformed structured JSON shipped in 0.19.64.
 
 ## The honest answer
 
@@ -66,12 +66,16 @@ video / site / synthesis / numeric verify / profile / report) at n=20, under
 workflow validates correctness and integrity and uploads raw receipts with a
 run-bound manifest. Still open for the 1.0 bar:
 
-1. Accumulate at least five comparable runs per Linux and macOS host class to
-   characterize hosted-runner variance before proposing timing thresholds.
-2. Add cross-platform clean-install, artifact-size, cold-start, and export
+1. Add cross-platform clean-install, artifact-size, cold-start, and export
    measurements.
-3. Live reference journeys as *release evidence*, not PR gates (20-paper run,
+2. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
+
+The comparable-run gate is complete. The published
+[`0.19.70 history`](../performance/comparable-history-0.19.70.md) revalidates
+five paired Linux/macOS workflows and derives an active advisory policy. Timing
+and resource signals remain non-blocking; correctness and evidence integrity
+remain blocking.
 
 ### C. Quality bar completeness (mostly done; residual ratchets)
 
@@ -158,7 +162,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 |-------|--------|----------|
 | 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
 | 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | Windows and Linux/macOS scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; multi-run host history, install/cold-start/export evidence, and live journeys remain |
+| 2 Performance baseline v1 | partial | Windows and Linux/macOS scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; five-run host history and advisory policy complete; install/cold-start/export evidence and live journeys remain |
 | 3 Quality ratchets | partial | 95.02% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
 | 4 Presentation / a11y / security receipt | partial | prior harden cycles |
 | 5 Ship 1.0.0 | blocked on 2-4 completeness | |

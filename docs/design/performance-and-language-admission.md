@@ -130,8 +130,11 @@ and macOS and packages validated raw receipts with run-bound hashes. The first
 same-commit Linux/macOS result is published under
 [`../performance/cross-platform-0.19.66.md`](../performance/cross-platform-0.19.66.md).
 Its 32 operation results had identical counts and deterministic digests across
-hosts. Cold-filesystem experiments, malformed and threshold-edge fixture
-expansion, and at least five comparable runs per host remain follow-on work.
+hosts. Five paired runs per host, preserved raw receipts, measured variance,
+and the active advisory policy are published under
+[`../performance/comparable-history-0.19.70.md`](../performance/comparable-history-0.19.70.md).
+Cold-filesystem experiments and malformed and threshold-edge fixture expansion
+remain follow-on work.
 
 ### 2. Offline workflow replay
 
@@ -224,13 +227,13 @@ Distill does not need an observability backend to understand its own phases.
 
 ## Regression policy
 
-- Correctness, schema compatibility, stable ordering, and resource ceilings are
-  always blocking.
-- Shared PR runners do not enforce tight microbenchmark thresholds until runner
-  variance has been characterized.
-- Begin with advisory history. After at least five comparable runs, a
-  deterministic regression may block only when it is reproduced and exceeds
-  both 20 percent and a meaningful absolute budget.
+- Correctness, schema compatibility, stable ordering, and explicitly declared
+  safety resource ceilings are always blocking.
+- Shared PR runners do not enforce timing or measured peak-RSS thresholds.
+- The active advisory policy uses the rolling median of at least five comparable
+  run-level p50 values. A timing signal requires two consecutive comparable
+  runs to exceed both 20 percent and the operation-specific absolute noise
+  floor. This signal does not block CI.
 - The controlled scale suite runs on a scheduled runner and before a release.
 - Live model and network journeys remain diagnostic release evidence.
 - Faster output that reduces verification coverage or acceptance rate is a

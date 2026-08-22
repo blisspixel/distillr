@@ -7,7 +7,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
-from hashlib import sha1, sha256
+from hashlib import sha1
 from pathlib import Path
 
 from rich.markup import escape
@@ -24,7 +24,6 @@ from distill.commands._site_page_storage import (
 from distill.config import DistillConfig
 from distill.ingestors.net import url_for_diagnostic
 from distill.ingestors.sites._site_urls import (
-    canonicalize_url,
     site_attachment_context_for_persistence,
     site_embedded_url_for_persistence,
     site_url_for_persistence,
@@ -32,6 +31,7 @@ from distill.ingestors.sites._site_urls import (
 )
 from distill.ingestors.sites.attachments import (
     AttachmentRecord,
+    attachment_text_filename,
     collect_page_attachments,
     ingest_page_attachments,
     write_attachment_manifest,
@@ -160,11 +160,7 @@ def _sanitize_attachment_records(
             original = page_dir / "attachments" / text_path
             if original.exists():
                 suffix = original.suffix or ".txt"
-                digest = sha256(
-                    b"distill-site-attachment-v1\0"
-                    + canonicalize_url(attachment.url).encode("utf-8")
-                ).hexdigest()
-                target = original.with_name(f"attachment-{digest}{suffix}")
+                target = original.with_name(attachment_text_filename(attachment.url, suffix=suffix))
                 if original != target:
                     original.replace(target)
                 text_path = target.name

@@ -9,6 +9,7 @@ from distill.ingestors.sites.attachments import (
     _ingest_pdf_attachment,
     _ingest_youtube_attachment,
     _provider_for_url,
+    attachment_text_filename,
     collect_page_attachments,
     ingest_page_attachments,
     write_attachment_manifest,
@@ -373,6 +374,43 @@ def test_pdf_attachment_success_extracts_and_writes(monkeypatch, tmp_path):
     assert "Extracted text." in context
     assert updated.text_path
     assert (attachments_dir / updated.text_path).read_text(encoding="utf-8") == "Extracted text."
+
+
+def test_pdf_attachment_never_writes_url_secrets_to_name_or_context(monkeypatch, tmp_path):
+    attachments_dir = tmp_path / "attachments"
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    raw_url = "https://user:password@8.8.8.8/private/guide.pdf?signature=QUERY-CANARY#fragment"
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.safe_urlopen",
+        lambda request, **kwargs: _FakeResponse(
+            status_code=200,
+            headers={"Content-Type": "application/pdf"},
+            chunks=[b"%PDF-1.4 data"],
+        ),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.extract_pdf_text_bounded",
+        lambda path, *, max_chars, max_pages, timeout_seconds: "Extracted text.",
+    )
+
+    updated, context = _ingest_pdf_attachment(_pdf_attachment(raw_url), attachments_dir)
+
+    expected_name = attachment_text_filename(raw_url)
+    assert updated.text_path == expected_name
+    assert (attachments_dir / expected_name).read_text(encoding="utf-8") == "Extracted text."
+    persisted = "\n".join([context, *(path.name for path in attachments_dir.iterdir())])
+    for secret in ("user", "password", "QUERY-CANARY"):
+        assert secret not in persisted
+    assert "### PDF Attachment: https://8.8.8.8/private/guide.pdf" in context
+
+
+def test_attachment_text_filename_uses_canonical_url_identity():
+    credentialed = "https://user:password@example.com/guide.pdf#section"
+    public = "https://example.com/guide.pdf"
+
+    assert attachment_text_filename(credentialed) == attachment_text_filename(public)
+    assert attachment_text_filename(public, suffix="md").endswith(".md")
+    assert attachment_text_filename(public, suffix="").endswith(".txt")
 
 
 def test_pdf_download_rejects_unexpected_content_type(monkeypatch, tmp_path):

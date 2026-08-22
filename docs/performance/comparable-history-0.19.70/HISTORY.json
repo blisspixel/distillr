@@ -1,0 +1,1960 @@
+{
+  "generated_at": "2026-08-22T16:34:52.153411+00:00",
+  "hosts": [
+    {
+      "architecture": "X64",
+      "metrics": {
+        "corpus/100/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 5303415,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 62914560,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.192791,
+            "max": 16903146,
+            "median": 15135341,
+            "median_absolute_deviation": 1767805,
+            "min": 9789118,
+            "noise_class": "moderate",
+            "relative_range": 0.470028
+          },
+          "p95_wall_ns": {
+            "max": 18306235,
+            "median": 16002963,
+            "min": 10243473
+          },
+          "peak_rss_bytes": {
+            "max": 47357952,
+            "median": 47284224,
+            "min": 47263744
+          },
+          "run_count": 5
+        },
+        "corpus/100/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 147721749,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 62914560,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.176899,
+            "max": 370669092,
+            "median": 295418678,
+            "median_absolute_deviation": 49240583,
+            "min": 224215095,
+            "noise_class": "moderate",
+            "relative_range": 0.495751
+          },
+          "p95_wall_ns": {
+            "max": 454931709,
+            "median": 341211128,
+            "min": 273115368
+          },
+          "peak_rss_bytes": {
+            "max": 49410048,
+            "median": 47661056,
+            "min": 47517696
+          },
+          "run_count": 5
+        },
+        "corpus/100/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 93206499,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 62914560,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.172533,
+            "max": 214744553,
+            "median": 173330648,
+            "median_absolute_deviation": 31068833,
+            "min": 132861792,
+            "noise_class": "moderate",
+            "relative_range": 0.472408
+          },
+          "p95_wall_ns": {
+            "max": 253329662,
+            "median": 197351916,
+            "min": 150484418
+          },
+          "peak_rss_bytes": {
+            "max": 49324032,
+            "median": 47493120,
+            "min": 47484928
+          },
+          "run_count": 5
+        },
+        "corpus/100/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 115235586,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.170034,
+            "max": 358167291,
+            "median": 287106222,
+            "median_absolute_deviation": 38411862,
+            "min": 220046178,
+            "noise_class": "moderate",
+            "relative_range": 0.48108
+          },
+          "p95_wall_ns": {
+            "max": 410793548,
+            "median": 335019664,
+            "min": 244586536
+          },
+          "peak_rss_bytes": {
+            "max": 52465664,
+            "median": 52400128,
+            "min": 52379648
+          },
+          "run_count": 5
+        },
+        "corpus/100/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 146100879,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.140565,
+            "max": 394402068,
+            "median": 328425276,
+            "median_absolute_deviation": 48700293,
+            "min": 270111100,
+            "noise_class": "moderate",
+            "relative_range": 0.378445
+          },
+          "p95_wall_ns": {
+            "max": 473884372,
+            "median": 379679717,
+            "min": 297332028
+          },
+          "peak_rss_bytes": {
+            "max": 51601408,
+            "median": 51572736,
+            "min": 47587328
+          },
+          "run_count": 5
+        },
+        "corpus/100/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 158674971,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.171834,
+            "max": 402819238,
+            "median": 327316428,
+            "median_absolute_deviation": 52891657,
+            "min": 245273696,
+            "noise_class": "moderate",
+            "relative_range": 0.481325
+          },
+          "p95_wall_ns": {
+            "max": 463222293,
+            "median": 369806616,
+            "min": 264232341
+          },
+          "peak_rss_bytes": {
+            "max": 51515392,
+            "median": 51490816,
+            "min": 47529984
+          },
+          "run_count": 5
+        },
+        "corpus/1000/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 40898343,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 62914560,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.180575,
+            "max": 140468930,
+            "median": 126836149,
+            "median_absolute_deviation": 13632781,
+            "min": 84724409,
+            "noise_class": "moderate",
+            "relative_range": 0.4395
+          },
+          "p95_wall_ns": {
+            "max": 152088142,
+            "median": 128070313,
+            "min": 87859564
+          },
+          "peak_rss_bytes": {
+            "max": 47771648,
+            "median": 47742976,
+            "min": 47697920
+          },
+          "run_count": 5
+        },
+        "corpus/1000/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1826805267,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.167721,
+            "max": 3663832699,
+            "median": 3051473772,
+            "median_absolute_deviation": 608935089,
+            "min": 2310489684,
+            "noise_class": "moderate",
+            "relative_range": 0.443505
+          },
+          "p95_wall_ns": {
+            "max": 3938136337,
+            "median": 3263452484,
+            "min": 2405137678
+          },
+          "peak_rss_bytes": {
+            "max": 52101120,
+            "median": 52006912,
+            "min": 50159616
+          },
+          "run_count": 5
+        },
+        "corpus/1000/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 596720802,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.153197,
+            "max": 2202111444,
+            "median": 1823511344,
+            "median_absolute_deviation": 198906934,
+            "min": 1377547329,
+            "noise_class": "moderate",
+            "relative_range": 0.452185
+          },
+          "p95_wall_ns": {
+            "max": 2739314403,
+            "median": 1945948788,
+            "min": 1470979128
+          },
+          "peak_rss_bytes": {
+            "max": 51666944,
+            "median": 51138560,
+            "min": 51003392
+          },
+          "run_count": 5
+        },
+        "corpus/1000/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1592450292,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 121634816,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.160796,
+            "max": 3619730423,
+            "median": 3023332379,
+            "median_absolute_deviation": 530816764,
+            "min": 2294890011,
+            "noise_class": "moderate",
+            "relative_range": 0.438205
+          },
+          "p95_wall_ns": {
+            "max": 4020891370,
+            "median": 3260951098,
+            "min": 2511527231
+          },
+          "peak_rss_bytes": {
+            "max": 97226752,
+            "median": 97189888,
+            "min": 96206848
+          },
+          "run_count": 5
+        },
+        "corpus/1000/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1710214791,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.170595,
+            "max": 4227850254,
+            "median": 3420127358,
+            "median_absolute_deviation": 570071597,
+            "min": 2597121339,
+            "noise_class": "moderate",
+            "relative_range": 0.476804
+          },
+          "p95_wall_ns": {
+            "max": 4801576186,
+            "median": 3553652950,
+            "min": 2739797085
+          },
+          "peak_rss_bytes": {
+            "max": 54562816,
+            "median": 54435840,
+            "min": 54001664
+          },
+          "run_count": 5
+        },
+        "corpus/1000/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1346602356,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.157959,
+            "max": 4041099235,
+            "median": 3345260004,
+            "median_absolute_deviation": 448867452,
+            "min": 2520212386,
+            "noise_class": "moderate",
+            "relative_range": 0.454639
+          },
+          "p95_wall_ns": {
+            "max": 4399987654,
+            "median": 3521916884,
+            "min": 2795282782
+          },
+          "peak_rss_bytes": {
+            "max": 54001664,
+            "median": 53968896,
+            "min": 49995776
+          },
+          "run_count": 5
+        },
+        "corpus/10000/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 473007153,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.172325,
+            "max": 1429735612,
+            "median": 1272066561,
+            "median_absolute_deviation": 157669051,
+            "min": 880374333,
+            "noise_class": "moderate",
+            "relative_range": 0.431865
+          },
+          "p95_wall_ns": {
+            "max": 1486836479,
+            "median": 1310148304,
+            "min": 899486416
+          },
+          "peak_rss_bytes": {
+            "max": 50520064,
+            "median": 50503680,
+            "min": 50462720
+          },
+          "run_count": 5
+        },
+        "corpus/10000/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 8067831900,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 96468992,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.157349,
+            "max": 38827237603,
+            "median": 30987432374,
+            "median_absolute_deviation": 2689277300,
+            "min": 24041497539,
+            "noise_class": "moderate",
+            "relative_range": 0.477153
+          },
+          "p95_wall_ns": {
+            "max": 39692595097,
+            "median": 32630631356,
+            "min": 25403469469
+          },
+          "peak_rss_bytes": {
+            "max": 76496896,
+            "median": 76451840,
+            "min": 76345344
+          },
+          "run_count": 5
+        },
+        "corpus/10000/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 10928859807,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 92274688,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.170748,
+            "max": 22738097273,
+            "median": 18733144877,
+            "median_absolute_deviation": 3642953269,
+            "min": 14165259686,
+            "noise_class": "moderate",
+            "relative_range": 0.457629
+          },
+          "p95_wall_ns": {
+            "max": 23564576798,
+            "median": 19230323559,
+            "min": 14778059228
+          },
+          "peak_rss_bytes": {
+            "max": 73625600,
+            "median": 73601024,
+            "min": 72704000
+          },
+          "run_count": 5
+        },
+        "corpus/10000/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 11958530625,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 633339904,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.141124,
+            "max": 38013353327,
+            "median": 31962771962,
+            "median_absolute_deviation": 3986176875,
+            "min": 25073560597,
+            "noise_class": "moderate",
+            "relative_range": 0.40484
+          },
+          "p95_wall_ns": {
+            "max": 39130083578,
+            "median": 32778516197,
+            "min": 25561863917
+          },
+          "peak_rss_bytes": {
+            "max": 505733120,
+            "median": 505528320,
+            "min": 505462784
+          },
+          "run_count": 5
+        },
+        "corpus/10000/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 17697689712,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 104857600,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.163672,
+            "max": 41796475177,
+            "median": 34549996152,
+            "median_absolute_deviation": 5899229904,
+            "min": 26246436691,
+            "noise_class": "moderate",
+            "relative_range": 0.450074
+          },
+          "p95_wall_ns": {
+            "max": 42989585022,
+            "median": 35951051990,
+            "min": 27146464673
+          },
+          "peak_rss_bytes": {
+            "max": 83079168,
+            "median": 82993152,
+            "min": 82960384
+          },
+          "run_count": 5
+        },
+        "corpus/10000/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 15141324774,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 100663296,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.164328,
+            "max": 42038012187,
+            "median": 34249182900,
+            "median_absolute_deviation": 5047108258,
+            "min": 25986263903,
+            "noise_class": "moderate",
+            "relative_range": 0.468675
+          },
+          "p95_wall_ns": {
+            "max": 43719781286,
+            "median": 35717838366,
+            "min": 26413948769
+          },
+          "peak_rss_bytes": {
+            "max": 78344192,
+            "median": 78258176,
+            "min": 78217216
+          },
+          "run_count": 5
+        },
+        "corpus/500/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 21724782,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 62914560,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.186854,
+            "max": 71994783,
+            "median": 64753189,
+            "median_absolute_deviation": 7241594,
+            "min": 42538567,
+            "noise_class": "moderate",
+            "relative_range": 0.4549
+          },
+          "p95_wall_ns": {
+            "max": 74583620,
+            "median": 65547484,
+            "min": 44153388
+          },
+          "peak_rss_bytes": {
+            "max": 47550464,
+            "median": 47525888,
+            "min": 47505408
+          },
+          "run_count": 5
+        },
+        "corpus/500/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 685947945,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.176471,
+            "max": 1912415708,
+            "median": 1514280108,
+            "median_absolute_deviation": 228649315,
+            "min": 1146281499,
+            "noise_class": "moderate",
+            "relative_range": 0.50594
+          },
+          "p95_wall_ns": {
+            "max": 2193504687,
+            "median": 1647060540,
+            "min": 1241455290
+          },
+          "peak_rss_bytes": {
+            "max": 50696192,
+            "median": 50589696,
+            "min": 49278976
+          },
+          "run_count": 5
+        },
+        "corpus/500/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 421099617,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.159844,
+            "max": 1088356782,
+            "median": 883307813,
+            "median_absolute_deviation": 140366539,
+            "min": 695152515,
+            "noise_class": "moderate",
+            "relative_range": 0.44515
+          },
+          "p95_wall_ns": {
+            "max": 1263122651,
+            "median": 958033968,
+            "min": 748709487
+          },
+          "peak_rss_bytes": {
+            "max": 50429952,
+            "median": 50040832,
+            "min": 48480256
+          },
+          "run_count": 5
+        },
+        "corpus/500/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 512151639,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 92274688,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.158061,
+            "max": 1756818460,
+            "median": 1430294960,
+            "median_absolute_deviation": 170717213,
+            "min": 1099212990,
+            "noise_class": "moderate",
+            "relative_range": 0.459769
+          },
+          "p95_wall_ns": {
+            "max": 1996425380,
+            "median": 1554511623,
+            "min": 1201199216
+          },
+          "peak_rss_bytes": {
+            "max": 72724480,
+            "median": 72646656,
+            "min": 72499200
+          },
+          "run_count": 5
+        },
+        "corpus/500/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 958357158,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.191639,
+            "max": 2178789501,
+            "median": 1709644328,
+            "median_absolute_deviation": 319452386,
+            "min": 1267399935,
+            "noise_class": "moderate",
+            "relative_range": 0.533087
+          },
+          "p95_wall_ns": {
+            "max": 2332835646,
+            "median": 1847724674,
+            "min": 1350595834
+          },
+          "peak_rss_bytes": {
+            "max": 53002240,
+            "median": 48963584,
+            "min": 48959488
+          },
+          "run_count": 5
+        },
+        "corpus/500/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 741082485,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.174551,
+            "max": 2100046715,
+            "median": 1639010668,
+            "median_absolute_deviation": 247027495,
+            "min": 1284129712,
+            "noise_class": "moderate",
+            "relative_range": 0.497811
+          },
+          "p95_wall_ns": {
+            "max": 2430231497,
+            "median": 1770207134,
+            "min": 1362756020
+          },
+          "peak_rss_bytes": {
+            "max": 52748288,
+            "median": 52719616,
+            "min": 48775168
+          },
+          "run_count": 5
+        },
+        "replay/paper_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 151563555,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 92274688,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.096009,
+            "max": 781620392,
+            "median": 731099207,
+            "median_absolute_deviation": 50521185,
+            "min": 594242152,
+            "noise_class": "low",
+            "relative_range": 0.256297
+          },
+          "p95_wall_ns": {
+            "max": 799384978,
+            "median": 750827259,
+            "min": 606583420
+          },
+          "peak_rss_bytes": {
+            "max": 70959104,
+            "median": 70914048,
+            "min": 70897664
+          },
+          "run_count": 5
+        },
+        "replay/paper_synthesize": {
+          "advisory_regression": {
+            "absolute_floor_ns": 6332130,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.803142,
+            "max": 78799946,
+            "median": 18248973,
+            "median_absolute_deviation": 2110710,
+            "min": 15787738,
+            "noise_class": "high",
+            "relative_range": 3.452918
+          },
+          "p95_wall_ns": {
+            "max": 207542398,
+            "median": 19030375,
+            "min": 16273331
+          },
+          "peak_rss_bytes": {
+            "max": 54050816,
+            "median": 53280768,
+            "min": 53239808
+          },
+          "run_count": 5
+        },
+        "replay/profile_preview": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.07786,
+            "max": 1123562,
+            "median": 978519,
+            "median_absolute_deviation": 12519,
+            "min": 882550,
+            "noise_class": "low",
+            "relative_range": 0.246303
+          },
+          "p95_wall_ns": {
+            "max": 1167896,
+            "median": 1014564,
+            "min": 904964
+          },
+          "peak_rss_bytes": {
+            "max": 52039680,
+            "median": 52027392,
+            "min": 51998720
+          },
+          "run_count": 5
+        },
+        "replay/profile_run": {
+          "advisory_regression": {
+            "absolute_floor_ns": 2670252,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 1.167788,
+            "max": 91381048,
+            "median": 11359114,
+            "median_absolute_deviation": 890084,
+            "min": 10469030,
+            "noise_class": "high",
+            "relative_range": 7.123092
+          },
+          "p95_wall_ns": {
+            "max": 227901706,
+            "median": 13004027,
+            "min": 12876757
+          },
+          "peak_rss_bytes": {
+            "max": 54398976,
+            "median": 54288384,
+            "min": 54259712
+          },
+          "run_count": 5
+        },
+        "replay/report_synthesize": {
+          "advisory_regression": {
+            "absolute_floor_ns": 5451321,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.08295,
+            "max": 28700038,
+            "median": 26882931,
+            "median_absolute_deviation": 1817107,
+            "min": 23130394,
+            "noise_class": "low",
+            "relative_range": 0.207181
+          },
+          "p95_wall_ns": {
+            "max": 29921796,
+            "median": 27567284,
+            "min": 23582836
+          },
+          "peak_rss_bytes": {
+            "max": 57004032,
+            "median": 57004032,
+            "min": 56983552
+          },
+          "run_count": 5
+        },
+        "replay/site_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 6493164,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 79691776,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.095828,
+            "max": 36006607,
+            "median": 33842219,
+            "median_absolute_deviation": 2164388,
+            "min": 28569023,
+            "noise_class": "low",
+            "relative_range": 0.219772
+          },
+          "p95_wall_ns": {
+            "max": 36261371,
+            "median": 34717253,
+            "min": 29558189
+          },
+          "peak_rss_bytes": {
+            "max": 63746048,
+            "median": 61960192,
+            "min": 61935616
+          },
+          "run_count": 5
+        },
+        "replay/verify_numeric": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.103783,
+            "max": 1971511,
+            "median": 1543082,
+            "median_absolute_deviation": 18495,
+            "min": 1524587,
+            "noise_class": "moderate",
+            "relative_range": 0.289631
+          },
+          "p95_wall_ns": {
+            "max": 34753100,
+            "median": 1644899,
+            "min": 1604156
+          },
+          "peak_rss_bytes": {
+            "max": 51994624,
+            "median": 51965952,
+            "min": 51949568
+          },
+          "run_count": 5
+        },
+        "replay/video_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.097201,
+            "max": 3177412,
+            "median": 2907266,
+            "median_absolute_deviation": 270146,
+            "min": 2395641,
+            "noise_class": "low",
+            "relative_range": 0.268902
+          },
+          "p95_wall_ns": {
+            "max": 3272289,
+            "median": 2963410,
+            "min": 2486548
+          },
+          "peak_rss_bytes": {
+            "max": 52092928,
+            "median": 52080640,
+            "min": 52035584
+          },
+          "run_count": 5
+        }
+      },
+      "operating_system": "Linux",
+      "run_count": 5,
+      "workflow_runs": [
+        {
+          "bundle_manifest_sha256": "ddb7e2b33c2582f77f69ac82d0f1b16cf99f273104be77ce4d9a045ae43ce2ba",
+          "commit_sha": "1c72d1125fad079253b441f3595ad587f5aa4686",
+          "created_at": "2026-08-21T01:08:56.952033+00:00",
+          "project_version": "0.19.66",
+          "runner_name": "GitHub Actions 1000098516",
+          "source_fingerprints": [
+            "13e7c27d0ef65ae26c0593ce9ebfadf0bd26637df5fbbb5bfd38d71a813f2f2a",
+            "bb1d2202771ae6b496e66a3e704067a11e2a71223ce8808f1b09179d1bf4eb14"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32431022291"
+        },
+        {
+          "bundle_manifest_sha256": "c175f9e3ed7ac3e27e139c890703f17894abc11e029a5caff7a246a189711fb7",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T14:52:43.747858+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099304",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32489877708"
+        },
+        {
+          "bundle_manifest_sha256": "3ab9dfee4ab2e3b0af15f97f02c222b3289969387fb3c298827b4ad15a465edf",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T15:50:29.234131+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099506",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32489888386"
+        },
+        {
+          "bundle_manifest_sha256": "b2023816b067bf69d16cdf988fed722339170badd0f09841c5377a73940d6a64",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T17:11:49.170155+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099699",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32494705846"
+        },
+        {
+          "bundle_manifest_sha256": "d2deb37054ba9a4ec129eee2f8e35cff06d9d14e03a79db64caae69731508983",
+          "commit_sha": "373ee7ac541c0c40d1fcbedad3991b91b13554a1",
+          "created_at": "2026-08-21T18:19:44.051701+00:00",
+          "project_version": "0.19.68",
+          "runner_name": "GitHub Actions 1000099917",
+          "source_fingerprints": [
+            "f80027011b7f50f45b0b54920fd081519843f0964b842c323242ed86eda4e46a",
+            "fa3c2661fe74abc39751bf9d81f696d5dbb673c1b392c0617f677679d320a51e"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32501350792"
+        }
+      ]
+    },
+    {
+      "architecture": "ARM64",
+      "metrics": {
+        "corpus/100/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1974501,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.096913,
+            "max": 18090750,
+            "median": 17122375,
+            "median_absolute_deviation": 658167,
+            "min": 13574541,
+            "noise_class": "low",
+            "relative_range": 0.263761
+          },
+          "p95_wall_ns": {
+            "max": 25775666,
+            "median": 21543833,
+            "min": 15500458
+          },
+          "peak_rss_bytes": {
+            "max": 52428800,
+            "median": 52363264,
+            "min": 52183040
+          },
+          "run_count": 5
+        },
+        "corpus/100/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 96206376,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.236078,
+            "max": 299834292,
+            "median": 205815958,
+            "median_absolute_deviation": 32068792,
+            "min": 173747166,
+            "noise_class": "moderate",
+            "relative_range": 0.612621
+          },
+          "p95_wall_ns": {
+            "max": 405749250,
+            "median": 310691833,
+            "min": 183579792
+          },
+          "peak_rss_bytes": {
+            "max": 52445184,
+            "median": 52281344,
+            "min": 52281344
+          },
+          "run_count": 5
+        },
+        "corpus/100/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 60130878,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.122751,
+            "max": 186283250,
+            "median": 155622166,
+            "median_absolute_deviation": 20043626,
+            "min": 129528917,
+            "noise_class": "moderate",
+            "relative_range": 0.364693
+          },
+          "p95_wall_ns": {
+            "max": 288115666,
+            "median": 218109500,
+            "min": 174968958
+          },
+          "peak_rss_bytes": {
+            "max": 52330496,
+            "median": 52248576,
+            "min": 52215808
+          },
+          "run_count": 5
+        },
+        "corpus/100/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 70500123,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 75497472,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.146407,
+            "max": 247108416,
+            "median": 223608375,
+            "median_absolute_deviation": 23500041,
+            "min": 171424791,
+            "noise_class": "moderate",
+            "relative_range": 0.338465
+          },
+          "p95_wall_ns": {
+            "max": 393311041,
+            "median": 254375041,
+            "min": 195888042
+          },
+          "peak_rss_bytes": {
+            "max": 57049088,
+            "median": 56918016,
+            "min": 56655872
+          },
+          "run_count": 5
+        },
+        "corpus/100/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 100448874,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.139742,
+            "max": 358566583,
+            "median": 300925250,
+            "median_absolute_deviation": 33482958,
+            "min": 236865542,
+            "noise_class": "moderate",
+            "relative_range": 0.404423
+          },
+          "p95_wall_ns": {
+            "max": 432162541,
+            "median": 408323291,
+            "min": 302833875
+          },
+          "peak_rss_bytes": {
+            "max": 52396032,
+            "median": 52330496,
+            "min": 52183040
+          },
+          "run_count": 5
+        },
+        "corpus/100/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 99449499,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.12737,
+            "max": 315749625,
+            "median": 282599792,
+            "median_absolute_deviation": 33149833,
+            "min": 232750167,
+            "noise_class": "moderate",
+            "relative_range": 0.2937
+          },
+          "p95_wall_ns": {
+            "max": 384400750,
+            "median": 353799500,
+            "min": 267601709
+          },
+          "peak_rss_bytes": {
+            "max": 52445184,
+            "median": 52346880,
+            "min": 52281344
+          },
+          "run_count": 5
+        },
+        "corpus/1000/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 31486875,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.125108,
+            "max": 166774875,
+            "median": 136890875,
+            "median_absolute_deviation": 10495625,
+            "min": 115572250,
+            "noise_class": "moderate",
+            "relative_range": 0.37404
+          },
+          "p95_wall_ns": {
+            "max": 260486292,
+            "median": 176735958,
+            "min": 118032875
+          },
+          "peak_rss_bytes": {
+            "max": 52314112,
+            "median": 52199424,
+            "min": 51904512
+          },
+          "run_count": 5
+        },
+        "corpus/1000/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 252351876,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.120086,
+            "max": 2486383292,
+            "median": 2113270542,
+            "median_absolute_deviation": 84117292,
+            "min": 1700100833,
+            "noise_class": "moderate",
+            "relative_range": 0.372069
+          },
+          "p95_wall_ns": {
+            "max": 2723516709,
+            "median": 2584258166,
+            "min": 1782424750
+          },
+          "peak_rss_bytes": {
+            "max": 56606720,
+            "median": 56442880,
+            "min": 56229888
+          },
+          "run_count": 5
+        },
+        "corpus/1000/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 591713250,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.178044,
+            "max": 1740381875,
+            "median": 1431018667,
+            "median_absolute_deviation": 197237750,
+            "min": 1031656208,
+            "noise_class": "moderate",
+            "relative_range": 0.49526
+          },
+          "p95_wall_ns": {
+            "max": 2027371125,
+            "median": 1665457625,
+            "min": 1086701292
+          },
+          "peak_rss_bytes": {
+            "max": 54476800,
+            "median": 54280192,
+            "min": 54099968
+          },
+          "run_count": 5
+        },
+        "corpus/1000/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 227391501,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 138412032,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.108744,
+            "max": 2380501083,
+            "median": 2079196875,
+            "median_absolute_deviation": 75797167,
+            "min": 1686584709,
+            "noise_class": "moderate",
+            "relative_range": 0.333743
+          },
+          "p95_wall_ns": {
+            "max": 2749548791,
+            "median": 2450895167,
+            "min": 1740622042
+          },
+          "peak_rss_bytes": {
+            "max": 108068864,
+            "median": 107724800,
+            "min": 106217472
+          },
+          "run_count": 5
+        },
+        "corpus/1000/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 592365624,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.158495,
+            "max": 3182479208,
+            "median": 2535197000,
+            "median_absolute_deviation": 197455208,
+            "min": 1948179417,
+            "noise_class": "moderate",
+            "relative_range": 0.486865
+          },
+          "p95_wall_ns": {
+            "max": 3663073375,
+            "median": 3364897458,
+            "min": 1996503083
+          },
+          "peak_rss_bytes": {
+            "max": 54919168,
+            "median": 54837248,
+            "min": 54804480
+          },
+          "run_count": 5
+        },
+        "corpus/1000/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 553491627,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.131444,
+            "max": 2913746834,
+            "median": 2462258667,
+            "median_absolute_deviation": 184497209,
+            "min": 1942118000,
+            "noise_class": "moderate",
+            "relative_range": 0.394609
+          },
+          "p95_wall_ns": {
+            "max": 3375229541,
+            "median": 3288713833,
+            "min": 1995970500
+          },
+          "peak_rss_bytes": {
+            "max": 54476800,
+            "median": 54296576,
+            "min": 54214656
+          },
+          "run_count": 5
+        },
+        "corpus/10000/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 101031000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.040729,
+            "max": 1618324333,
+            "median": 1584647333,
+            "median_absolute_deviation": 33677000,
+            "min": 1464307584,
+            "noise_class": "low",
+            "relative_range": 0.097193
+          },
+          "p95_wall_ns": {
+            "max": 2281357250,
+            "median": 1777003958,
+            "min": 1557804583
+          },
+          "peak_rss_bytes": {
+            "max": 55328768,
+            "median": 54968320,
+            "min": 54706176
+          },
+          "run_count": 5
+        },
+        "corpus/10000/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 5750813376,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 104857600,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.087392,
+            "max": 22697661750,
+            "median": 20187445334,
+            "median_absolute_deviation": 1916937792,
+            "min": 17806328000,
+            "noise_class": "low",
+            "relative_range": 0.242296
+          },
+          "p95_wall_ns": {
+            "max": 27669801458,
+            "median": 24136239083,
+            "min": 18154883375
+          },
+          "peak_rss_bytes": {
+            "max": 82411520,
+            "median": 82182144,
+            "min": 82018304
+          },
+          "run_count": 5
+        },
+        "corpus/10000/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 4132722126,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 100663296,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.119793,
+            "max": 15341349750,
+            "median": 12834296750,
+            "median_absolute_deviation": 1377574042,
+            "min": 11053601000,
+            "noise_class": "moderate",
+            "relative_range": 0.334085
+          },
+          "p95_wall_ns": {
+            "max": 17260110875,
+            "median": 16926374542,
+            "min": 14888689041
+          },
+          "peak_rss_bytes": {
+            "max": 77873152,
+            "median": 77709312,
+            "min": 77676544
+          },
+          "run_count": 5
+        },
+        "corpus/10000/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 4126152372,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 713031680,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.081084,
+            "max": 23490912750,
+            "median": 21634878708,
+            "median_absolute_deviation": 1375384124,
+            "min": 18709714333,
+            "noise_class": "low",
+            "relative_range": 0.220995
+          },
+          "p95_wall_ns": {
+            "max": 28387113541,
+            "median": 26243492167,
+            "min": 21003893833
+          },
+          "peak_rss_bytes": {
+            "max": 568672256,
+            "median": 567050240,
+            "min": 563970048
+          },
+          "run_count": 5
+        },
+        "corpus/10000/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 6028843122,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 113246208,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.127006,
+            "max": 28801958125,
+            "median": 22908767208,
+            "median_absolute_deviation": 2009614374,
+            "min": 20600004209,
+            "noise_class": "moderate",
+            "relative_range": 0.358027
+          },
+          "p95_wall_ns": {
+            "max": 34210917333,
+            "median": 27970418667,
+            "min": 25997877250
+          },
+          "peak_rss_bytes": {
+            "max": 87932928,
+            "median": 87851008,
+            "min": 87621632
+          },
+          "run_count": 5
+        },
+        "corpus/10000/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 328543623,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 104857600,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.055902,
+            "max": 27919833250,
+            "median": 24371635208,
+            "median_absolute_deviation": 109514541,
+            "min": 24262120667,
+            "noise_class": "low",
+            "relative_range": 0.150081
+          },
+          "p95_wall_ns": {
+            "max": 40753481417,
+            "median": 29513560875,
+            "min": 27235556000
+          },
+          "peak_rss_bytes": {
+            "max": 83116032,
+            "median": 83001344,
+            "min": 82952192
+          },
+          "run_count": 5
+        },
+        "corpus/500/check_links": {
+          "advisory_regression": {
+            "absolute_floor_ns": 5140749,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.155197,
+            "max": 83282167,
+            "median": 60626375,
+            "median_absolute_deviation": 1713583,
+            "min": 58912792,
+            "noise_class": "moderate",
+            "relative_range": 0.40196
+          },
+          "p95_wall_ns": {
+            "max": 126730250,
+            "median": 72583875,
+            "min": 65338667
+          },
+          "peak_rss_bytes": {
+            "max": 52379648,
+            "median": 52297728,
+            "min": 51986432
+          },
+          "run_count": 5
+        },
+        "corpus/500/dashboard_snapshot": {
+          "advisory_regression": {
+            "absolute_floor_ns": 617862873,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.197913,
+            "max": 1498561125,
+            "median": 1098667334,
+            "median_absolute_deviation": 205954291,
+            "min": 859428000,
+            "noise_class": "moderate",
+            "relative_range": 0.581735
+          },
+          "p95_wall_ns": {
+            "max": 1803950333,
+            "median": 1390695709,
+            "min": 969243792
+          },
+          "peak_rss_bytes": {
+            "max": 53411840,
+            "median": 53362688,
+            "min": 53133312
+          },
+          "run_count": 5
+        },
+        "corpus/500/discover_insights": {
+          "advisory_regression": {
+            "absolute_floor_ns": 345690873,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.338276,
+            "max": 1181865792,
+            "median": 631459000,
+            "median_absolute_deviation": 115230291,
+            "min": 516228709,
+            "noise_class": "high",
+            "relative_range": 1.054126
+          },
+          "p95_wall_ns": {
+            "max": 1494420333,
+            "median": 724719291,
+            "min": 558730375
+          },
+          "peak_rss_bytes": {
+            "max": 53133312,
+            "median": 53116928,
+            "min": 52969472
+          },
+          "run_count": 5
+        },
+        "corpus/500/near_duplicates": {
+          "advisory_regression": {
+            "absolute_floor_ns": 326877750,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 100663296,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.210643,
+            "max": 1350503292,
+            "median": 945176583,
+            "median_absolute_deviation": 108959250,
+            "min": 836217333,
+            "noise_class": "moderate",
+            "relative_range": 0.544116
+          },
+          "p95_wall_ns": {
+            "max": 1981511792,
+            "median": 1075478625,
+            "min": 908456542
+          },
+          "peak_rss_bytes": {
+            "max": 79839232,
+            "median": 79609856,
+            "min": 78954496
+          },
+          "run_count": 5
+        },
+        "corpus/500/search_hit": {
+          "advisory_regression": {
+            "absolute_floor_ns": 216134499,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.182477,
+            "max": 1520344833,
+            "median": 1448300000,
+            "median_absolute_deviation": 72044833,
+            "min": 975456958,
+            "noise_class": "moderate",
+            "relative_range": 0.376226
+          },
+          "p95_wall_ns": {
+            "max": 1812734250,
+            "median": 1766461958,
+            "min": 1110023833
+          },
+          "peak_rss_bytes": {
+            "max": 53411840,
+            "median": 53395456,
+            "min": 53280768
+          },
+          "run_count": 5
+        },
+        "corpus/500/search_miss": {
+          "advisory_regression": {
+            "absolute_floor_ns": 614163249,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 67108864,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.179922,
+            "max": 1477831625,
+            "median": 1169168458,
+            "median_absolute_deviation": 204721083,
+            "min": 964447375,
+            "noise_class": "moderate",
+            "relative_range": 0.439102
+          },
+          "p95_wall_ns": {
+            "max": 2023561875,
+            "median": 1490321625,
+            "min": 1035649458
+          },
+          "peak_rss_bytes": {
+            "max": 53215232,
+            "median": 53100544,
+            "min": 52887552
+          },
+          "run_count": 5
+        },
+        "replay/paper_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 65585001,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 109051904,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.101449,
+            "max": 477952459,
+            "median": 456090792,
+            "median_absolute_deviation": 21861667,
+            "min": 371186375,
+            "noise_class": "moderate",
+            "relative_range": 0.23409
+          },
+          "p95_wall_ns": {
+            "max": 632990875,
+            "median": 541731500,
+            "min": 423799583
+          },
+          "peak_rss_bytes": {
+            "max": 84721664,
+            "median": 84557824,
+            "min": 84426752
+          },
+          "run_count": 5
+        },
+        "replay/paper_synthesize": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1708875,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 75497472,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.130547,
+            "max": 15521208,
+            "median": 14951583,
+            "median_absolute_deviation": 569625,
+            "min": 11375708,
+            "noise_class": "moderate",
+            "relative_range": 0.277262
+          },
+          "p95_wall_ns": {
+            "max": 21441875,
+            "median": 19355042,
+            "min": 13627125
+          },
+          "peak_rss_bytes": {
+            "max": 57524224,
+            "median": 57360384,
+            "min": 57294848
+          },
+          "run_count": 5
+        },
+        "replay/profile_preview": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.113082,
+            "max": 979542,
+            "median": 879584,
+            "median_absolute_deviation": 99958,
+            "min": 722833,
+            "noise_class": "moderate",
+            "relative_range": 0.291853
+          },
+          "p95_wall_ns": {
+            "max": 1469000,
+            "median": 1143667,
+            "min": 858916
+          },
+          "peak_rss_bytes": {
+            "max": 56688640,
+            "median": 56590336,
+            "min": 56410112
+          },
+          "run_count": 5
+        },
+        "replay/profile_run": {
+          "advisory_regression": {
+            "absolute_floor_ns": 3228750,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.177495,
+            "max": 11214792,
+            "median": 7903833,
+            "median_absolute_deviation": 1076250,
+            "min": 6827583,
+            "noise_class": "moderate",
+            "relative_range": 0.555074
+          },
+          "p95_wall_ns": {
+            "max": 19101792,
+            "median": 11666125,
+            "min": 9874125
+          },
+          "peak_rss_bytes": {
+            "max": 56901632,
+            "median": 56606720,
+            "min": 56262656
+          },
+          "run_count": 5
+        },
+        "replay/report_synthesize": {
+          "advisory_regression": {
+            "absolute_floor_ns": 4553874,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 83886080,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.116375,
+            "max": 17048584,
+            "median": 14663833,
+            "median_absolute_deviation": 1517958,
+            "min": 13145875,
+            "noise_class": "moderate",
+            "relative_range": 0.266145
+          },
+          "p95_wall_ns": {
+            "max": 24437250,
+            "median": 19290500,
+            "min": 13559125
+          },
+          "peak_rss_bytes": {
+            "max": 66732032,
+            "median": 66486272,
+            "min": 66109440
+          },
+          "run_count": 5
+        },
+        "replay/site_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 7561002,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 96468992,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.107659,
+            "max": 21386542,
+            "median": 18866208,
+            "median_absolute_deviation": 2520334,
+            "min": 16224583,
+            "noise_class": "moderate",
+            "relative_range": 0.273609
+          },
+          "p95_wall_ns": {
+            "max": 25249083,
+            "median": 22197084,
+            "min": 17352125
+          },
+          "peak_rss_bytes": {
+            "max": 75104256,
+            "median": 74973184,
+            "min": 74743808
+          },
+          "run_count": 5
+        },
+        "replay/verify_numeric": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.124313,
+            "max": 1592625,
+            "median": 1274667,
+            "median_absolute_deviation": 89626,
+            "min": 1185041,
+            "noise_class": "moderate",
+            "relative_range": 0.319757
+          },
+          "p95_wall_ns": {
+            "max": 2193625,
+            "median": 1699916,
+            "min": 1532458
+          },
+          "peak_rss_bytes": {
+            "max": 56721408,
+            "median": 56541184,
+            "min": 56377344
+          },
+          "run_count": 5
+        },
+        "replay/video_analyze": {
+          "advisory_regression": {
+            "absolute_floor_ns": 1000000,
+            "blocking": false,
+            "candidate_peak_rss_ceiling_bytes": 71303168,
+            "relative_threshold": 0.2
+          },
+          "p50_wall_ns": {
+            "coefficient_of_variation": 0.068875,
+            "max": 1811375,
+            "median": 1717250,
+            "median_absolute_deviation": 94125,
+            "min": 1511084,
+            "noise_class": "low",
+            "relative_range": 0.174867
+          },
+          "p95_wall_ns": {
+            "max": 2381541,
+            "median": 2009708,
+            "min": 1807917
+          },
+          "peak_rss_bytes": {
+            "max": 56868864,
+            "median": 56770560,
+            "min": 56590336
+          },
+          "run_count": 5
+        }
+      },
+      "operating_system": "macOS",
+      "run_count": 5,
+      "workflow_runs": [
+        {
+          "bundle_manifest_sha256": "9575d75d740f92d025e8e60c8bfffa89b201a59c5608b715fe06bbb416c73654",
+          "commit_sha": "1c72d1125fad079253b441f3595ad587f5aa4686",
+          "created_at": "2026-08-21T00:46:52.789150+00:00",
+          "project_version": "0.19.66",
+          "runner_name": "GitHub Actions 1000098515",
+          "source_fingerprints": [
+            "13e7c27d0ef65ae26c0593ce9ebfadf0bd26637df5fbbb5bfd38d71a813f2f2a",
+            "bb1d2202771ae6b496e66a3e704067a11e2a71223ce8808f1b09179d1bf4eb14"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32431022291"
+        },
+        {
+          "bundle_manifest_sha256": "0c7861e706fc0edea54dc52673e675a67669b5999b5b33ac653bbbf590fa477f",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T14:50:37.681816+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099305",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32489877708"
+        },
+        {
+          "bundle_manifest_sha256": "415fc924393151c8e5cd7cc40d47c757e6a3968dffbd565c122f983a5294ce42",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T15:48:27.811265+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099511",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32489888386"
+        },
+        {
+          "bundle_manifest_sha256": "aecc50513709c6b3003d3c2383ceef2115c6521446052ca60da9b09221a846fe",
+          "commit_sha": "3f5d583ce3d6b9e1b8e40fcb869b787b6e78b166",
+          "created_at": "2026-08-21T16:40:51.233517+00:00",
+          "project_version": "0.19.67",
+          "runner_name": "GitHub Actions 1000099698",
+          "source_fingerprints": [
+            "535ebd3cfad75a7fc2397b117a1dd866b7ec26604060c3fb0615edb30a67f6ad",
+            "690dec0e1eb9a8bdbb456060a4ee9c5d4e99019f30ea779c3befd7ac305f1b61"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32494705846"
+        },
+        {
+          "bundle_manifest_sha256": "a27e7538a04f528ab165c1f09c0db407171b677a9741024db13572fdc2486c20",
+          "commit_sha": "373ee7ac541c0c40d1fcbedad3991b91b13554a1",
+          "created_at": "2026-08-21T18:01:13.663739+00:00",
+          "project_version": "0.19.68",
+          "runner_name": "GitHub Actions 1000099918",
+          "source_fingerprints": [
+            "f80027011b7f50f45b0b54920fd081519843f0964b842c323242ed86eda4e46a",
+            "fa3c2661fe74abc39751bf9d81f696d5dbb673c1b392c0617f677679d320a51e"
+          ],
+          "workflow_run_attempt": "1",
+          "workflow_run_id": "32501350792"
+        }
+      ]
+    }
+  ],
+  "minimum_comparable_runs_per_host": 5,
+  "regression_policy": {
+    "absolute_noise_floor": "max(1 ms, three times the historical median absolute deviation)",
+    "baseline": "rolling median of at least five comparable run-level p50 values",
+    "blocking_correctness_gates": true,
+    "blocking_resource_gate": false,
+    "blocking_timing_gate": false,
+    "reason": "hosted-runner timing remains advisory even after variance characterization",
+    "resource_policy": "candidate peak RSS ceiling is 125 percent of the observed maximum rounded to 4 MiB",
+    "status": "active-advisory",
+    "trigger": "two consecutive comparable runs exceed both the 20 percent relative threshold and the operation absolute noise floor"
+  },
+  "schema_version": "performance-history.v1",
+  "semantic_compatibility_signature": "f78c71f84cad35d1cbd363d6a0ecb8c78c48e74154b0356282044313d44b422a",
+  "workflow_run_count": 5
+}

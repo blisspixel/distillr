@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.70 - 2026-08-22
+
+### Fixed
+
+- **PDF attachment extracts no longer write URL secrets into filenames.**
+  Extract names now use one canonical SHA-256 identity at the write boundary,
+  attachment context strips credentials and query values immediately, and the
+  extract is published atomically. The later command-layer sanitizer reuses the
+  same naming function so the two boundaries cannot drift.
+
+### Added
+
+- **Five-run Linux and macOS performance history.** Ten raw host bundles from
+  five paired GitHub workflow runs are preserved and revalidated from their
+  manifests. The generated history derives operation-specific noise floors and
+  an active advisory policy while keeping timing and measured peak memory
+  non-blocking.
+
+### Changed
+
+- **The public roadmap is concise and evidence-led.** Product direction,
+  current priorities, 1.0 gates, security posture, engineering standards, and
+  deliberate exclusions remain at the top level. Historical analysis, design
+  detail, and the itemized backlog stay in linked documents.
+- **README status reflects the completed history gate.** The remaining 1.0
+  evidence is now stated as install, cold-start, export, live-journey,
+  accessibility, and freeze-time security work.
+
 ## 0.19.69 - 2026-08-21
 
 ### Fixed
