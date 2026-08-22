@@ -198,7 +198,7 @@ def test_profile_preview_digest_is_stable_and_has_candidates() -> None:
     )
 
 
-def test_report_synthesize_stays_inside_the_temp_library() -> None:
+def test_report_synthesize_stays_inside_the_temp_workspace() -> None:
     with temporary_workspace() as workspace:
         result = run_workflow_replay(
             workspace,

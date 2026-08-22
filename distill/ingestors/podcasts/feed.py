@@ -25,6 +25,7 @@ from pathlib import Path
 from xml.etree.ElementTree import Element
 
 from distill.ingestors.net import NetworkError, safe_urlopen, url_for_diagnostic
+from distill.library.paths import atomic_write_bytes
 from distill.library.source_ledger import validate_source_id
 from distill.parsing import parse_ascii_uint
 from distill.xml_stream import iter_bounded_xml_events
@@ -64,6 +65,9 @@ _PODCAST_NSES = (
     "{http://podcastindex.org/namespace/1.0}",
 )
 _EPISODE_ID_RE = re.compile(r"[0-9a-f]{40}\Z")
+_AUDIO_SUFFIXES = frozenset(
+    {".aac", ".flac", ".m4a", ".mp3", ".mp4", ".oga", ".ogg", ".opus", ".wav", ".webm"}
+)
 
 
 class PodcastFetchError(RuntimeError):
@@ -439,8 +443,9 @@ def fetch_transcript(url: str, *, transcript_type: str = "") -> str:
 def download_audio(url: str, dest_dir: Path) -> Path:
     """Download an episode enclosure to *dest_dir*; returns the file path."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(urllib.parse.urlparse(url).path).suffix or ".mp3"
+    parsed_suffix = Path(urllib.parse.urlparse(url).path).suffix.lower()
+    suffix = parsed_suffix if parsed_suffix in _AUDIO_SUFFIXES else ".mp3"
     dest = dest_dir / f"episode{suffix}"
     data = _fetch_bytes(url, max_bytes=_MAX_AUDIO_BYTES, what="audio")
-    dest.write_bytes(data)
+    atomic_write_bytes(dest, data)
     return dest

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 from distill._console import console
 from distill.config import DistillConfig
-from distill.library.paths import find_artifact
+from distill.library.paths import atomic_write_text, find_artifact, workspace_output_path
 from distill.library.wikilinks import emit_wiki_link
 from distill.llm.cost_policy import require_route_allowed
 from distill.parsing import read_local_utf8_text
@@ -294,9 +294,8 @@ def run_research_brief(
             console.print(f"[red]Briefing refused:[/red] {refusal}")
             return None
 
-        output_path = Path("output") / f"briefing-{name}.md"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(result_text, encoding="utf-8")
+        output_path = workspace_output_path(config.library_dir, f"briefing-{name}.md")
+        atomic_write_text(output_path, result_text)
         console.print(f"\n[green]Briefing saved to:[/green] {output_path}")
         console.print(f"[dim]Size: {len(result_text):,} chars[/dim]")
         return output_path

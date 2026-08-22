@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -347,7 +346,7 @@ def test_run_research_brief_handles_missing_inputs_and_success(tmp_path, monkeyp
     tracker = CostTracker()
     result = run_research_brief(["ai"], "ctx", "demo", config, tracker=tracker)
 
-    assert result == Path("output") / "briefing-demo.md"
+    assert result == tmp_path / "output" / "briefing-demo.md"
     assert result.read_text(encoding="utf-8") == "brief body"
     assert tracker.gemini_queries == 1
     assert deleted

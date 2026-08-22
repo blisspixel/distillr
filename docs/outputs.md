@@ -1,6 +1,9 @@
 # Output reference
 
-What distill writes to disk. Every artifact is plain Markdown, text, or JSON under a local `library/` directory.
+What distill writes to disk. Corpus artifacts are plain Markdown, text, or JSON
+under a local `library/` directory. User-facing exports go to the sibling
+`output/` directory. Both locations follow the configured library root rather
+than the process working directory.
 
 New Markdown artifacts use globally descriptive filenames and YAML frontmatter so they work well in Markdown knowledge-base tools and AI assistants. Older generic filenames such as `insights.md` and `topic_synthesis.md` are still readable for backwards compatibility, but new writes use names like `<paper-slug>_Insights.md` and `<topic>_Corpus_Synthesis.md`.
 

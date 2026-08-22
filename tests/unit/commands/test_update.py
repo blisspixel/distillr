@@ -453,6 +453,11 @@ class TestUpdateCache:
         cache_file.write_text("not-json", encoding="utf-8")
         assert upd._read_cache(cache_file) == {}
 
+    def test_read_cache_rejects_oversized_state(self, tmp_path):
+        cache_file = tmp_path / "oversized.json"
+        cache_file.write_text("{" + " " * upd.MAX_CACHE_BYTES + "}", encoding="utf-8")
+        assert upd._read_cache(cache_file) == {}
+
     def test_write_cache_replaces_symlink_without_overwriting_target(self, tmp_path):
         target = tmp_path / "operator-notes.txt"
         target.write_text("preserve me", encoding="utf-8")
@@ -472,6 +477,13 @@ class TestUpdateCache:
         now = datetime(2026, 6, 21, 12, 0, 0)
         assert upd._is_fresh({"checked_at": "not-a-date"}, now) is False
         assert upd._is_fresh({}, now) is False
+
+    def test_is_fresh_rejects_future_expired_and_mixed_timezone_values(self):
+        now = datetime(2026, 6, 21, 12, 0, 0)
+        assert upd._is_fresh({"checked_at": (now - timedelta(hours=1)).isoformat()}, now)
+        assert not upd._is_fresh({"checked_at": (now + timedelta(seconds=1)).isoformat()}, now)
+        assert not upd._is_fresh({"checked_at": (now - timedelta(hours=24)).isoformat()}, now)
+        assert not upd._is_fresh({"checked_at": f"{now.isoformat()}+00:00"}, now)
 
 
 class TestCheckForUpdateEdgeCases:

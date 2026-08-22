@@ -35,7 +35,7 @@ from distill.config import DistillConfig
 from distill.library import Library
 from distill.library.citations import collect_paper_citations, render_citations
 from distill.library.okf import export_okf_bundle
-from distill.library.paths import find_artifact
+from distill.library.paths import atomic_write_text, find_artifact
 from distill.llm.cost_policy import (
     LOCAL_PROVIDER_NAMES,
     local_provider_endpoint,
@@ -155,7 +155,7 @@ def _export_citations_cli(config: DistillConfig, topic: str, export_format: str)
         )
     extension = "ris" if normalized_format.strip().lower() == "ris" else "bib"
     citation_path = _output_path(config, f"citations-{topic}.{extension}")
-    citation_path.write_text(content, encoding="utf-8")
+    atomic_write_text(citation_path, content)
     console.print(f"[green]Exported citations: {citation_path}[/green]")
     console.print(f"[dim]{len(content.splitlines())} lines[/dim]")
 

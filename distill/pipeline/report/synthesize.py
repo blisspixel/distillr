@@ -17,6 +17,7 @@ from pathlib import Path
 
 from distill._console import console
 from distill.config import DistillConfig
+from distill.library.paths import atomic_write_text, workspace_output_path
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.citation_refs import unresolved_numbered_citation_reason
@@ -124,9 +125,8 @@ def run_synthesis(
         console.print(f"[red]Synthesis refused:[/red] {refusal}")
         return None
 
-    output_path = Path("output") / f"synthesis-{name}.md"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(result, encoding="utf-8")
+    output_path = workspace_output_path(config.library_dir, f"synthesis-{name}.md")
+    atomic_write_text(output_path, result)
     console.print(f"\n[green]Synthesis saved to:[/green] {output_path}")
     console.print(f"[dim]Size: {len(result):,} chars[/dim]")
     return output_path

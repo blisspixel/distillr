@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from distill.parsing import (
     as_whole_number,
+    is_recent_iso_timestamp,
     parse_ascii_uint,
     parse_bounded_json_int,
     parse_iso_day_hour_duration,
@@ -18,6 +19,40 @@ from distill.parsing import (
     read_local_utf8_text,
     strict_json_loads,
 )
+
+
+def test_is_recent_iso_timestamp_accepts_current_and_recent_values() -> None:
+    now = datetime(2026, 8, 22, 12, 0, 0)
+
+    assert is_recent_iso_timestamp(now.isoformat(), now=now, max_age=timedelta(hours=24))
+    assert is_recent_iso_timestamp(
+        (now - timedelta(hours=23, minutes=59)).isoformat(),
+        now=now,
+        max_age=timedelta(hours=24),
+    )
+
+
+def test_is_recent_iso_timestamp_rejects_future_expired_and_invalid_values() -> None:
+    now = datetime(2026, 8, 22, 12, 0, 0)
+    max_age = timedelta(hours=24)
+
+    assert not is_recent_iso_timestamp(
+        (now + timedelta(seconds=1)).isoformat(), now=now, max_age=max_age
+    )
+    assert not is_recent_iso_timestamp((now - max_age).isoformat(), now=now, max_age=max_age)
+    assert not is_recent_iso_timestamp("not-a-date", now=now, max_age=max_age)
+    assert not is_recent_iso_timestamp(None, now=now, max_age=max_age)
+    assert not is_recent_iso_timestamp(now.isoformat(), now=now, max_age=timedelta(0))
+
+
+def test_is_recent_iso_timestamp_handles_offsets_and_mixed_awareness() -> None:
+    aware_now = datetime(2026, 8, 22, 12, 0, 0, tzinfo=UTC)
+    naive_now = aware_now.replace(tzinfo=None)
+    max_age = timedelta(hours=24)
+
+    assert is_recent_iso_timestamp("2026-08-22T11:00:00Z", now=aware_now, max_age=max_age)
+    assert not is_recent_iso_timestamp("2026-08-22T11:00:00Z", now=naive_now, max_age=max_age)
+    assert not is_recent_iso_timestamp("2026-08-22T11:00:00", now=aware_now, max_age=max_age)
 
 
 @pytest.mark.parametrize(

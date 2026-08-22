@@ -385,6 +385,44 @@ class TestFetchSuccess:
         assert path.name == "episode.mp3"
         assert path.read_bytes() == b"audio-bytes"
 
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("https://example.com/episode.M4A", "episode.m4a"),
+            ("https://example.com/episode.opus?token=secret", "episode.opus"),
+            ("https://example.com/episode.exe", "episode.mp3"),
+            (f"https://example.com/episode.{('x' * 2000)}", "episode.mp3"),
+        ],
+    )
+    def test_download_audio_constrains_url_suffix(self, monkeypatch, tmp_path, url, expected):
+        _stub_urlopen(monkeypatch, b"audio-bytes")
+
+        path = feed_mod.download_audio(url, tmp_path / "audio")
+
+        assert path.name == expected
+        assert path.read_bytes() == b"audio-bytes"
+
+    def test_download_audio_replaces_symlink_without_overwriting_target(
+        self, monkeypatch, tmp_path
+    ):
+        _stub_urlopen(monkeypatch, b"audio-bytes")
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me", encoding="utf-8")
+        audio_path = audio_dir / "episode.mp3"
+        try:
+            audio_path.symlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        path = feed_mod.download_audio("https://example.com/episode.mp3", audio_dir)
+
+        assert path == audio_path
+        assert path.read_bytes() == b"audio-bytes"
+        assert not path.is_symlink()
+        assert target.read_text(encoding="utf-8") == "preserve me"
+
 
 class TestCaptionStripping:
     def test_vtt_cues_removed(self):

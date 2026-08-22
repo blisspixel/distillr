@@ -96,7 +96,9 @@ restart the terminal.
 ## Corpus location and keys
 
 Default library path is `~/.distill/library/` (`<repo>/library/` from a source
-checkout). Override with `DISTILL_OUTPUT_DIR`.
+checkout). Override with `DISTILL_OUTPUT_DIR`. User-facing report and export
+files go to the `output/` directory beside that library. Despite its historical
+name, `DISTILL_OUTPUT_DIR` selects the library root, not the export directory.
 
 Cloud routes read keys from `.env` in your working directory (copy from
 `.env.example`); set only the providers you intend to use:

@@ -13,7 +13,6 @@ only runs the new work.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import math
 from collections.abc import Callable
@@ -29,9 +28,11 @@ from distill.eval.judge import (
     judge_pairwise,
 )
 from distill.eval.scoring import QualityScore, score_output
+from distill.library.paths import atomic_write_json
 from distill.llm import call as llm_call
 from distill.llm.cost_policy import classify_provider, local_provider_endpoint
 from distill.llm.router import RouterConfig
+from distill.parsing import read_bounded_json_object
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.analysis import pass1_extraction_prompt, pass2_synthesis_prompt
 from distill.prompts.ask import ask_prompt
@@ -49,6 +50,7 @@ __all__ = [
 
 # Analysis LLM calls per workload (video is 2-pass).
 _CALLS_PER_WORKLOAD: dict[str, int] = {"paper": 1, "video": 2, "site": 1}
+_MAX_CACHE_BYTES = 2 * 1024 * 1024
 
 
 class UnpricedEvalRouteError(ValueError):
@@ -585,17 +587,13 @@ def _load_json(cache_dir: Path | None, key: str) -> dict | None:
     path = cache_dir / f"{key}.json"
     if not path.exists():
         return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, RecursionError, UnicodeError, ValueError):
-        return None
+    data = read_bounded_json_object(path, max_bytes=_MAX_CACHE_BYTES)
     # Only object-shaped entries are usable cache rows; a valid-JSON list/scalar
     # would crash callers that do ``cached[...]`` / ``cached.get(...)``.
-    return data if isinstance(data, dict) else None
+    return data or None
 
 
 def _save_json(cache_dir: Path | None, key: str, payload: dict) -> None:
     if cache_dir is None:
         return
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / f"{key}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(cache_dir / f"{key}.json", payload)

@@ -76,6 +76,7 @@ def test_run_synthesis_success(tmp_path):
         result = run_synthesis(["ai"], "ctx", "demo", config, tracker=tracker)
 
     assert result is not None
+    assert result == tmp_path / "output" / "synthesis-demo.md"
     assert result.read_text(encoding="utf-8") == "final synthesis"
     assert len(tracker.entries) == 1
     assert tracker.entries[0].call_type == "synthesis"

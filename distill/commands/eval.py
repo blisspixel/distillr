@@ -26,6 +26,7 @@ from distill.commands._helpers import (
 from distill.commands._helpers import tty_confirm as _tty_confirm
 from distill.doctor.hardware import HardwareProfile
 from distill.jsonl import append_jsonl_lines
+from distill.library.paths import atomic_write_text
 from distill.llm.cost_policy import evaluate_route_cost_policy
 from distill.llm.providers._ollama_registry import model_can_complete
 
@@ -347,9 +348,7 @@ def eval_cmd(  # noqa: C901 — CLI: option parse + estimate + run + report + re
 
     if report:
         path = out_dir / f"{workload}_{now.strftime('%Y%m%dT%H%M%S')}.md"
-        path.write_text(
-            render_markdown(summary, now_iso=now.isoformat(), rows=rows), encoding="utf-8"
-        )
+        atomic_write_text(path, render_markdown(summary, now_iso=now.isoformat(), rows=rows))
         console.print(f"\n[dim]Report written to {path}[/dim]")
 
     save_run_log(

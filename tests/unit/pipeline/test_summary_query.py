@@ -333,6 +333,42 @@ class TestSummarizeQuery:
         assert result is not None and not result.cached
         assert len(calls) == 2
 
+    def test_oversized_cache_regenerates(self, config, monkeypatch):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.write_text("{" + " " * sq_mod._MAX_CACHE_BYTES + "}", encoding="utf-8")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert len(calls) == 2
+
+    def test_cache_write_replaces_symlink_without_overwriting_target(
+        self, config, monkeypatch, tmp_path
+    ):
+        _seed(config)
+        calls: list = []
+        _patch_llm(monkeypatch, calls)
+        sq_mod.summarize_query(config, "t", "grounding verification")
+        cache_file = next((config.library_dir / ".distill" / "summary_cache").glob("*.json"))
+        cache_file.unlink()
+        target = tmp_path / "operator-notes.txt"
+        target.write_text("preserve me", encoding="utf-8")
+        try:
+            cache_file.symlink_to(target)
+        except OSError as exc:
+            pytest.skip(f"symlink creation unavailable: {exc}")
+
+        result = sq_mod.summarize_query(config, "t", "grounding verification")
+
+        assert result is not None and not result.cached
+        assert len(calls) == 2
+        assert target.read_text(encoding="utf-8") == "preserve me"
+        assert not cache_file.is_symlink()
+
     def test_corrupt_cache_regenerates(self, config, monkeypatch):
         _seed(config)
         calls: list = []

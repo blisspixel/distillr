@@ -1,7 +1,9 @@
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from distill import preflight
 
@@ -127,6 +129,44 @@ def test_preflight_ytdlp_revalidates_when_version_changed(monkeypatch, tmp_path)
     cache = json.loads(cache_path.read_text())
     assert cache["yt-dlp"]["version"] == "2026.4.20"
     assert cache["yt-dlp"]["warned_age_days"] == 6
+
+
+def test_cache_freshness_rejects_future_expired_and_mixed_timezone_values():
+    now = datetime(2026, 8, 22, 12, 0, 0)
+
+    assert preflight._is_cache_fresh({"checked_at": (now - timedelta(hours=1)).isoformat()}, now)
+    assert not preflight._is_cache_fresh(
+        {"checked_at": (now + timedelta(seconds=1)).isoformat()}, now
+    )
+    assert not preflight._is_cache_fresh(
+        {"checked_at": (now - timedelta(hours=24)).isoformat()}, now
+    )
+    assert not preflight._is_cache_fresh(
+        {"checked_at": datetime(2026, 8, 22, 11, tzinfo=UTC).isoformat()}, now
+    )
+
+
+def test_cache_read_rejects_oversized_state(tmp_path):
+    cache_path = tmp_path / preflight.PREFLIGHT_CACHE_NAME
+    cache_path.write_text("{" + " " * preflight.MAX_CACHE_BYTES + "}", encoding="utf-8")
+
+    assert preflight._read_cache(cache_path) == {}
+
+
+def test_cache_write_replaces_symlink_without_overwriting_target(tmp_path):
+    target = tmp_path / "operator-notes.txt"
+    target.write_text("preserve me", encoding="utf-8")
+    cache_path = tmp_path / preflight.PREFLIGHT_CACHE_NAME
+    try:
+        cache_path.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    preflight._write_cache(cache_path, {"yt-dlp": {"version": "2026.8.22"}})
+
+    assert target.read_text(encoding="utf-8") == "preserve me"
+    assert not cache_path.is_symlink()
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["yt-dlp"]["version"] == "2026.8.22"
 
 
 def test_invalidate_preflight_cache_removes_file(tmp_path):

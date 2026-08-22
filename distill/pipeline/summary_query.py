@@ -17,16 +17,15 @@ or a racy pre-read metadata snapshot.
 from __future__ import annotations
 
 import hashlib
-import json
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 from distill.config import DistillConfig
-from distill.library.paths import strip_frontmatter
+from distill.library.paths import atomic_write_json, strip_frontmatter
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.parsing import read_bounded_json_object
 from distill.pipeline.citation_refs import (
     citation_refusal_reason,
     extract_source_citations,
@@ -40,6 +39,7 @@ __all__ = ["QuerySummary", "summarize_query"]
 _TOP_K = 8
 _MAX_SOURCE_CHARS = 8_000
 _CACHE_DIRNAME = "summary_cache"
+_MAX_CACHE_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -84,10 +84,7 @@ def _cited_sources(summary: str, allowed_stems: list[str]) -> tuple[list[str], s
 
 
 def _load_cached_summary(cache_file: Path, allowed_stems: list[str]) -> QuerySummary | None:
-    data = json.loads(cache_file.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("summary cache row is not an object")
-    row = cast(dict[str, object], data)
+    row = read_bounded_json_object(cache_file, max_bytes=_MAX_CACHE_BYTES)
     summary_value = row.get("summary")
     if not isinstance(summary_value, str):
         raise ValueError("summary cache row is missing a string summary")
@@ -173,9 +170,8 @@ def summarize_query(
             refused_reason=refusal,
         )
 
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(
-        json.dumps({"summary": summary, "sources": cited, "model": response.model}, indent=2),
-        encoding="utf-8",
+    atomic_write_json(
+        cache_file,
+        {"summary": summary, "sources": cited, "model": response.model},
     )
     return QuerySummary(summary=summary, sources=cited, cached=False, model=response.model)
