@@ -38,6 +38,8 @@ __all__ = [
     "artifact_filename",
     "artifact_identity",
     "artifact_path",
+    "atomic_replace_json",
+    "atomic_replace_text",
     "atomic_update_text",
     "atomic_write_bytes",
     "atomic_write_json",
@@ -176,6 +178,26 @@ def atomic_write_text(path: Path, content: str) -> None:
     """
     with text_write_lock(path):
         _atomic_write_text_unlocked(path, content)
+
+
+def atomic_replace_text(path: Path, content: str) -> None:
+    """Atomically replace text in a private single-writer staging directory.
+
+    Unlike :func:`atomic_write_text`, this helper does not create a persistent
+    advisory lock file. Callers must use it only where one process exclusively
+    owns the containing directory.
+    """
+
+    _atomic_write_text_unlocked(path, content)
+
+
+def atomic_replace_json(path: Path, value: object, *, indent: int = 2) -> None:
+    """Serialize strict JSON through :func:`atomic_replace_text`."""
+
+    atomic_replace_text(
+        path,
+        json.dumps(value, indent=indent, ensure_ascii=False, allow_nan=False) + "\n",
+    )
 
 
 def atomic_write_bytes(path: Path, content: bytes) -> None:

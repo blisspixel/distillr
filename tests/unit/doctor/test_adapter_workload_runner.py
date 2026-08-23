@@ -4,6 +4,9 @@ import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+import pytest
+
+from distill.doctor import adapter_workload_runner as adapter_workload_runner_module
 from distill.doctor.adapter_capture import (
     ClaudeCaptureWriteSpec,
     CodexCaptureWriteSpec,
@@ -330,6 +333,69 @@ def test_adapter_workload_runner_blocks_stdin_path_escape(tmp_path):
         "adapter stdin path escapes scratch workspace" in reason
         for reason in result.blocked_reasons
     )
+
+
+def test_adapter_workload_runner_rejects_linked_stdin_before_execution(tmp_path):
+    _stage_workload(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-stdin.txt"
+    outside.write_text("outside", encoding="utf-8")
+    linked = tmp_path / "stdin.txt"
+    try:
+        linked.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    called = False
+
+    def runner(*_args):
+        nonlocal called
+        called = True
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec"),
+            scratch_root=tmp_path,
+            stdin_path=Path("stdin.txt"),
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert not called
+    assert any("adapter stdin must be a confined" in reason for reason in result.blocked_reasons)
+    assert outside.read_text(encoding="utf-8") == "outside"
+
+
+def test_adapter_workload_runner_rejects_oversized_stdin_before_execution(
+    tmp_path,
+    monkeypatch,
+):
+    _stage_workload(tmp_path)
+    (tmp_path / "stdin.txt").write_bytes(b"x" * 5)
+    monkeypatch.setattr(adapter_workload_runner_module, "_ADAPTER_STDIN_MAX_BYTES", 4)
+    called = False
+
+    def runner(*_args):
+        nonlocal called
+        called = True
+        return AdapterProcessResult(exit_code=0)
+
+    result = run_adapter_workload(
+        AdapterWorkloadRunSpec(
+            adapter="codex",
+            argv=("codex", "exec"),
+            scratch_root=tmp_path,
+            stdin_path=Path("stdin.txt"),
+        ),
+        environ={},
+        runner=runner,
+    )
+
+    assert not result.ok
+    assert not called
+    assert any("no larger than 4 bytes" in reason for reason in result.blocked_reasons)
 
 
 def test_adapter_workload_runner_blocks_capture_writer_failure(tmp_path):

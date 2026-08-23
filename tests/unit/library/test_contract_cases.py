@@ -15,6 +15,8 @@ from distill.library.paths import (
     apply_frontmatter,
     artifact_candidate_paths,
     artifact_filename,
+    atomic_replace_json,
+    atomic_replace_text,
     atomic_write_json,
     atomic_write_text,
     dump_frontmatter,
@@ -189,6 +191,18 @@ def test_atomic_write_json_is_compliant_and_refuses_non_finite(tmp_path: Path) -
     assert target.read_text(encoding="utf-8").endswith("\n")
     with pytest.raises(ValueError, match="JSON compliant"):
         atomic_write_json(target, {"count": float("nan")})
+
+
+def test_atomic_replace_helpers_publish_without_persistent_lock_files(tmp_path: Path) -> None:
+    text_path = tmp_path / "scratch" / "result.txt"
+    json_path = tmp_path / "scratch" / "result.json"
+
+    atomic_replace_text(text_path, "result")
+    atomic_replace_json(json_path, {"ok": True})
+
+    assert text_path.read_text(encoding="utf-8") == "result"
+    assert json.loads(json_path.read_text(encoding="utf-8")) == {"ok": True}
+    assert list(text_path.parent.glob(".distill-write-*.lock")) == []
 
 
 def test_atomic_write_text_retries_transient_replace_sharing_conflict(

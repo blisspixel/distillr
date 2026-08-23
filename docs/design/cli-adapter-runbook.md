@@ -532,13 +532,15 @@ metadata: object
 The checked parser lives in `distill.doctor.adapter_workload`. It rejects
 absolute paths, drive-letter paths, empty paths, `.` segments, `..` segments,
 empty source sets, non-positive limits, unknown fields, and read-only workloads
-that declare write paths.
-The workload runner can pass a staged scratch file as stdin without shell
-piping, and rejects stdin paths outside scratch.
+that declare write paths. It caps `max_seconds` at 3,600 and `output_limit` at
+1,000,000 characters. Workload files are confined private regular UTF-8 files
+no larger than 1 MiB. The workload runner can pass a staged scratch file as
+stdin without shell piping; stdin must remain inside scratch, cannot be linked,
+and is capped at 16 MiB.
 
 ```yaml
 schema_version: adapter-result.v1
-adapter: codex|claude|grok|ollama|lmstudio
+adapter: codex|claude|grok|gemini-cli|antigravity|copilot|ollama|lmstudio
 adapter_version: string
 auth_class: local|included-plan|metered-api|unknown
 command_class: read-only|scratch-write
@@ -575,8 +577,14 @@ and `no-metered` results that report metered auth, API-key blockers, metered
 route blockers, or metered usage allowance. If `stop_reason` is `quota`,
 `rate_limit`, or `rate-limit`, the manifest must include
 `quota_stop.reached=true` with a reason. The same module also provides scratch
-before/after snapshot checks so a runner can reject missing declared files or
-unexpected new files without treating pre-staged source files as adapter writes.
+before/after snapshot checks. Snapshots bind file identity, mode, timestamps,
+size, and SHA-256 content while rejecting links, hard links, special files,
+unstable reads, files above 64 MiB, aggregate state above 256 MiB, and traversal
+above 4,096 entries. A runner can therefore reject missing declared files,
+unexpected new files, removed inputs, and undeclared modifications without
+treating trusted post-process capture files as adapter writes. Result manifests
+are confined private UTF-8 files capped at 1 MiB and JSON parsing rejects
+non-finite numbers.
 
 ```yaml
 schema_version: adapter-native-usage.v1
@@ -594,13 +602,17 @@ metadata: object
 
 The checked parser lives in `distill.doctor.adapter_native_usage`. It rejects
 unknown fields, unknown adapters, missing usage signals, absolute paths, and
-scratch path escapes. `distill.doctor.adapter_result_writer` can consume the
-record from scratch when writing the result manifest.
+scratch path escapes. Native usage files are confined private UTF-8 files
+capped at 1 MiB, with strict JSON and guarded YAML parsing.
+`distill.doctor.adapter_result_writer` can consume the record from scratch when
+writing the result manifest.
 The `distill.doctor.adapter_runner` primitive runs exact argv arrays with shell
 disabled inside scratch, strips known metered API-key environment variables,
-enforces a timeout, loads the result manifest, and applies the scratch write
-check. Timeout diagnostics normalize captured text or bytes stdout/stderr into
-strings before result construction. It is a boundary helper, not a route
+enforces the workload timeout and a 2 GiB process-tree memory ceiling, and
+applies the scratch write check. Stdin is capped at 16 MiB. Stdout and stderr
+are drained concurrently and retained only up to 4 MiB each; overflow or
+invalid UTF-8 blocks the run. The isolated process tree is cleaned on success,
+failure, timeout, or supervision error. It is a boundary helper, not a route
 recommendation.
 The adapter doctor also emits structured support-statement details. Treat
 `no_metered_current=false` as a hard block even when the binary, auth markers,
@@ -614,7 +626,9 @@ package, write outside declared outputs, or return a different cost mode.
 `distill.doctor.adapter_result_writer` writes validated `adapter-result.v1`
 manifests from captured CLI output, workload package hashes, and explicit
 native usage metadata or validated native usage files. It does not invent usage
-data or make an adapter eligible.
+data or make an adapter eligible. Input hashing uses bounded confined reads,
+result text must fit the workload output limit, linked output paths are refused,
+and private scratch publication is atomic without persistent lock sidecars.
 `distill.doctor.adapter_capture` contains adapter-specific capture writers.
 The Codex writer converts captured JSONL stdout plus `result.txt` into a
 scratch native usage file and result manifest, and the workload runner can

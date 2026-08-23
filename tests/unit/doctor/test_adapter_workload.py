@@ -5,6 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from distill.doctor import adapter_workload as adapter_workload_module
 from distill.doctor.adapter_workload import (
     ADAPTER_WORKLOAD_SCHEMA_VERSION,
     AdapterWorkloadError,
@@ -97,3 +98,41 @@ def test_adapter_workload_rejects_non_mapping_yaml(tmp_path):
 def test_adapter_workload_requires_positive_limits():
     with pytest.raises(ValidationError, match="limits must be positive"):
         validate_adapter_workload_package(_workload(max_seconds=0))
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"max_seconds": 3601}, "max_seconds cannot exceed 3,600"),
+        ({"output_limit": 1_000_001}, "output_limit cannot exceed 1,000,000"),
+    ],
+)
+def test_adapter_workload_rejects_excessive_resource_limits(override, message):
+    with pytest.raises(ValidationError, match=message):
+        validate_adapter_workload_package(_workload(**override))
+
+
+def test_adapter_workload_rejects_oversized_or_linked_input(tmp_path, monkeypatch):
+    path = tmp_path / "workload.json"
+    path.write_bytes(b"x" * 5)
+    monkeypatch.setattr(adapter_workload_module, "_ADAPTER_WORKLOAD_MAX_BYTES", 4)
+    with pytest.raises(AdapterWorkloadError, match="no larger than 4 bytes"):
+        load_adapter_workload_package(path)
+
+    outside = tmp_path.parent / f"{tmp_path.name}-workload.json"
+    outside.write_text(json.dumps(_workload()), encoding="utf-8")
+    path.unlink()
+    try:
+        path.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    with pytest.raises(AdapterWorkloadError, match="confined private regular"):
+        load_adapter_workload_package(path)
+
+
+def test_adapter_workload_rejects_nonfinite_json(tmp_path):
+    path = tmp_path / "workload.json"
+    path.write_text('{"max_seconds": NaN}', encoding="utf-8")
+
+    with pytest.raises(AdapterWorkloadError, match="invalid structured data"):
+        load_adapter_workload_package(path)

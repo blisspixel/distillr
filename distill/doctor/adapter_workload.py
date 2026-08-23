@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
@@ -10,6 +9,9 @@ from typing import Any, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from distill.library.confined import read_confined_text
+from distill.parsing import strict_json_loads
 
 ADAPTER_WORKLOAD_SCHEMA_VERSION = "adapter-workload.v1"
 ADAPTER_WORKLOADS: tuple[str, ...] = (
@@ -27,6 +29,9 @@ ADAPTER_WORKLOAD_PATH_FIELDS: tuple[str, ...] = (
 )
 
 _WORKLOAD_PATH_RE = re.compile(r"^[A-Za-z]:")
+_ADAPTER_WORKLOAD_MAX_BYTES = 1024 * 1024
+_ADAPTER_WORKLOAD_MAX_SECONDS = 3600
+_ADAPTER_WORKLOAD_MAX_OUTPUT_CHARS = 1_000_000
 
 
 class AdapterWorkloadError(ValueError):
@@ -71,11 +76,24 @@ class AdapterWorkloadPackage(BaseModel):
     def _safe_path_list(cls, values: list[str]) -> list[str]:
         return [_normalize_workload_path(value) for value in values]
 
-    @field_validator("max_seconds", "output_limit")
+    @field_validator("max_seconds")
     @classmethod
-    def _positive_limits(cls, value: int) -> int:
+    def _bounded_seconds(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("limits must be positive")
+        if value > _ADAPTER_WORKLOAD_MAX_SECONDS:
+            raise ValueError(f"max_seconds cannot exceed {_ADAPTER_WORKLOAD_MAX_SECONDS:,}")
+        return value
+
+    @field_validator("output_limit")
+    @classmethod
+    def _bounded_output(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("limits must be positive")
+        if value > _ADAPTER_WORKLOAD_MAX_OUTPUT_CHARS:
+            raise ValueError(
+                f"output_limit cannot exceed {_ADAPTER_WORKLOAD_MAX_OUTPUT_CHARS:,} characters"
+            )
         return value
 
     @model_validator(mode="after")
@@ -112,14 +130,32 @@ def validate_adapter_workload_package(payload: Mapping[str, Any]) -> AdapterWork
     return AdapterWorkloadPackage.model_validate(dict(payload))
 
 
-def load_adapter_workload_package(path: Path) -> AdapterWorkloadPackage:
+def load_adapter_workload_package(
+    path: Path,
+    *,
+    scratch_root: Path | None = None,
+) -> AdapterWorkloadPackage:
     """Load a JSON or YAML adapter workload package from disk."""
 
-    text = path.read_text(encoding="utf-8")
-    if path.suffix.lower() in {".yaml", ".yml"}:
-        payload = yaml.safe_load(text)
-    else:
-        payload = json.loads(text)
+    root = scratch_root.resolve() if scratch_root is not None else path.parent.resolve()
+    candidate = (
+        path
+        if path.is_absolute()
+        else root / (path if scratch_root is not None else Path(path.name))
+    )
+    text = read_confined_text(candidate, root, max_bytes=_ADAPTER_WORKLOAD_MAX_BYTES)
+    if text is None:
+        raise AdapterWorkloadError(
+            "adapter workload must be a confined private regular UTF-8 file "
+            f"no larger than {_ADAPTER_WORKLOAD_MAX_BYTES:,} bytes"
+        )
+    try:
+        if candidate.suffix.lower() in {".yaml", ".yml"}:
+            payload = yaml.safe_load(text)
+        else:
+            payload = strict_json_loads(text)
+    except (RecursionError, ValueError, yaml.YAMLError) as exc:
+        raise AdapterWorkloadError("adapter workload is invalid structured data") from exc
     if not isinstance(payload, Mapping):
         raise AdapterWorkloadError("adapter workload package must be a mapping")
     return validate_adapter_workload_package(payload)

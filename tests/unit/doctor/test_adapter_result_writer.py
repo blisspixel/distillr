@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from distill.doctor import adapter_result_writer as adapter_result_writer_module
 from distill.doctor.adapter_manifest import (
     AdapterQuotaStop,
     AdapterUsage,
@@ -199,6 +200,155 @@ def test_adapter_result_writer_records_quota_stop(tmp_path):
         ]
         == 3600
     )
+
+
+def test_adapter_result_writer_enforces_workload_output_limit(tmp_path):
+    _stage_inputs(tmp_path)
+
+    with pytest.raises(ValueError, match="5-character output limit"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(output_limit=5),
+                native={"event_count": 1},
+            )
+        )
+
+
+def test_adapter_result_writer_rejects_linked_result_without_touching_target(tmp_path):
+    _stage_inputs(tmp_path)
+    target = tmp_path / "target.txt"
+    target.write_text("outside result", encoding="utf-8")
+    result_path = tmp_path / "result.txt"
+    result_path.unlink()
+    try:
+        result_path.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="linked component"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
+
+    assert target.read_text(encoding="utf-8") == "outside result"
+
+
+def test_adapter_result_writer_rejects_linked_manifest_without_touching_target(tmp_path):
+    _stage_inputs(tmp_path)
+    target = tmp_path / "target.json"
+    target.write_text('{"preserved": true}', encoding="utf-8")
+    manifest_path = tmp_path / "linked-manifest.json"
+    try:
+        manifest_path.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="linked component"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(result_manifest_path="linked-manifest.json"),
+                native={"event_count": 1},
+            )
+        )
+
+    assert target.read_text(encoding="utf-8") == '{"preserved": true}'
+
+
+def test_adapter_result_writer_rejects_missing_prompt_or_source(tmp_path):
+    _stage_inputs(tmp_path)
+    (tmp_path / "prompt.md").unlink()
+
+    with pytest.raises(ValueError, match="adapter input must be a confined"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
+
+    (tmp_path / "prompt.md").write_text("prompt", encoding="utf-8")
+    (tmp_path / "sources" / "input.md").unlink()
+    with pytest.raises(ValueError, match="adapter source must be a confined"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
+
+
+def test_adapter_result_writer_enforces_source_aggregate_limit(tmp_path, monkeypatch):
+    _stage_inputs(tmp_path)
+    monkeypatch.setattr(adapter_result_writer_module, "_ADAPTER_INPUT_TOTAL_MAX_BYTES", 1)
+
+    with pytest.raises(ValueError, match="1-byte aggregate limit"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
+
+
+def test_adapter_result_writer_rejects_invalid_result_encoding(tmp_path):
+    _stage_inputs(tmp_path)
+    (tmp_path / "result.txt").write_bytes(b"\xff")
+
+    with pytest.raises(ValueError, match="adapter result must be a confined"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
+
+
+def test_adapter_result_writer_enforces_manifest_byte_limit(tmp_path, monkeypatch):
+    _stage_inputs(tmp_path)
+    monkeypatch.setattr(adapter_result_writer_module, "_ADAPTER_MANIFEST_MAX_BYTES", 1)
+
+    with pytest.raises(ValueError, match="adapter manifest exceeds the 1-byte limit"):
+        write_adapter_result_manifest(
+            AdapterResultWriteSpec(
+                adapter="codex",
+                adapter_version="codex 0.140.0",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                native={"event_count": 1},
+            )
+        )
 
 
 def _stage_inputs(root: Path) -> None:

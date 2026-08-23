@@ -5,6 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from distill.doctor import adapter_manifest as adapter_manifest_module
 from distill.doctor.adapter_manifest import (
     ADAPTER_RESULT_SCHEMA_VERSION,
     AdapterManifestError,
@@ -12,6 +13,7 @@ from distill.doctor.adapter_manifest import (
     check_adapter_workspace_writes,
     load_adapter_result_manifest,
     snapshot_scratch_files,
+    snapshot_scratch_state,
     validate_adapter_result_manifest,
 )
 
@@ -67,6 +69,9 @@ def test_adapter_manifest_loads_json_and_reports_contract(tmp_path):
     assert "quota_stop" in contract["optional_fields"]
     assert "files_written" in contract["path_fields"]
     assert "blocked_metered_routes" in contract["policy_fields"]
+    assert contract["workspace_write_check"]["flags_undeclared_modifications"] is True
+    assert contract["workspace_write_check"]["flags_removed_files"] is True
+    assert contract["workspace_write_check"]["rejects_links_and_special_files"] is True
 
 
 def test_adapter_manifest_requires_usage_signal():
@@ -218,6 +223,107 @@ def test_adapter_manifest_rejects_non_mapping_file(tmp_path):
 
     with pytest.raises(AdapterManifestError, match="must be a mapping"):
         load_adapter_result_manifest(manifest_path)
+
+
+def test_adapter_manifest_rejects_oversized_file_before_parse(tmp_path, monkeypatch):
+    manifest_path = tmp_path / "adapter-result.json"
+    manifest_path.write_bytes(b"x" * 5)
+    monkeypatch.setattr(adapter_manifest_module, "_ADAPTER_MANIFEST_MAX_BYTES", 4)
+
+    with pytest.raises(AdapterManifestError, match="no larger than 4 bytes"):
+        load_adapter_result_manifest(manifest_path, scratch_root=tmp_path)
+
+
+def test_adapter_manifest_rejects_symlink_without_reading_target(tmp_path):
+    outside = tmp_path.parent / f"{tmp_path.name}-manifest.json"
+    outside.write_text(json.dumps(_manifest()), encoding="utf-8")
+    manifest_path = tmp_path / "adapter-result.json"
+    try:
+        manifest_path.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(AdapterManifestError, match="confined private regular"):
+        load_adapter_result_manifest(manifest_path, scratch_root=tmp_path)
+
+
+def test_adapter_manifest_wraps_malformed_yaml_and_rejects_nonfinite_json(tmp_path):
+    manifest_path = tmp_path / "adapter-result.yaml"
+    manifest_path.write_text("value: [", encoding="utf-8")
+    with pytest.raises(AdapterManifestError, match="invalid structured data"):
+        load_adapter_result_manifest(manifest_path)
+
+    manifest_path = tmp_path / "adapter-result.json"
+    manifest_path.write_text('{"elapsed_ms": NaN}', encoding="utf-8")
+    with pytest.raises(AdapterManifestError, match="invalid structured data"):
+        load_adapter_result_manifest(manifest_path)
+
+
+def test_scratch_snapshot_accepts_binary_and_tracks_exact_revision(tmp_path):
+    binary = tmp_path / "result.bin"
+    binary.write_bytes(b"\x00\xff")
+
+    before = snapshot_scratch_state(tmp_path)
+    binary.write_bytes(b"\x00\xfe")
+    after = snapshot_scratch_state(tmp_path)
+
+    assert before["result.bin"].size == 2
+    assert before["result.bin"].sha256 != after["result.bin"].sha256
+
+
+def test_scratch_snapshot_accepts_missing_workspace(tmp_path):
+    assert snapshot_scratch_state(tmp_path / "missing") == {}
+
+
+def test_scratch_snapshot_rejects_non_directory_root(tmp_path):
+    scratch_file = tmp_path / "scratch.txt"
+    scratch_file.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(AdapterManifestError, match="must be a regular directory"):
+        snapshot_scratch_state(scratch_file)
+
+
+def test_scratch_snapshot_enforces_entry_and_aggregate_limits(tmp_path, monkeypatch):
+    scratch_file = tmp_path / "result.bin"
+    scratch_file.write_bytes(b"ab")
+    monkeypatch.setattr(adapter_manifest_module, "_SCRATCH_MAX_ENTRIES", 0)
+
+    with pytest.raises(AdapterManifestError, match="0-entry limit"):
+        snapshot_scratch_state(tmp_path)
+
+    monkeypatch.setattr(adapter_manifest_module, "_SCRATCH_MAX_ENTRIES", 10)
+    monkeypatch.setattr(adapter_manifest_module, "_SCRATCH_TOTAL_MAX_BYTES", 1)
+    with pytest.raises(AdapterManifestError, match="1-byte aggregate limit"):
+        snapshot_scratch_state(tmp_path)
+
+
+def test_scratch_snapshot_enforces_per_file_limit(tmp_path, monkeypatch):
+    (tmp_path / "result.bin").write_bytes(b"ab")
+    monkeypatch.setattr(adapter_manifest_module, "_SCRATCH_FILE_MAX_BYTES", 1)
+
+    with pytest.raises(AdapterManifestError, match="1-byte limit"):
+        snapshot_scratch_state(tmp_path)
+
+
+def test_scratch_snapshot_rejects_hard_linked_file(tmp_path):
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"content")
+    linked = tmp_path / "linked.bin"
+    try:
+        linked.hardlink_to(source)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+
+    with pytest.raises(AdapterManifestError, match="non-private regular file"):
+        snapshot_scratch_state(tmp_path)
+
+
+def test_scratch_snapshot_rejects_unstable_confined_read(tmp_path, monkeypatch):
+    (tmp_path / "result.bin").write_bytes(b"content")
+    monkeypatch.setattr(adapter_manifest_module, "read_confined_bytes", lambda *_a, **_kw: None)
+
+    with pytest.raises(AdapterManifestError, match="not a stable private regular file"):
+        snapshot_scratch_state(tmp_path)
 
 
 def test_workspace_write_check_accepts_declared_adapter_outputs(tmp_path):
