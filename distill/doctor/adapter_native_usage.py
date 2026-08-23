@@ -11,6 +11,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from distill.doctor.adapter_manifest import AdapterUsage
+from distill.library.confined import read_confined_text
+from distill.parsing import strict_json_loads
 
 ADAPTER_NATIVE_USAGE_SCHEMA_VERSION = "adapter-native-usage.v1"
 ADAPTER_NATIVE_USAGE_REQUIRED_FIELDS: tuple[str, ...] = (
@@ -19,6 +21,7 @@ ADAPTER_NATIVE_USAGE_REQUIRED_FIELDS: tuple[str, ...] = (
     "source",
     "usage",
 )
+_ADAPTER_NATIVE_USAGE_MAX_BYTES = 1024 * 1024
 
 _ADAPTER_NAMES = frozenset(
     {
@@ -261,11 +264,21 @@ def load_adapter_native_usage(
     """Load a JSON or YAML native usage record from scratch."""
 
     usage_path = _resolve_usage_path(path, scratch_root=scratch_root)
-    text = usage_path.read_text(encoding="utf-8")
-    if usage_path.suffix.lower() in {".yaml", ".yml"}:
-        payload = yaml.safe_load(text)
-    else:
-        payload = json.loads(text)
+    root = scratch_root.resolve() if scratch_root is not None else usage_path.parent.resolve()
+    candidate = usage_path if usage_path.is_absolute() else root / usage_path.name
+    text = read_confined_text(candidate, root, max_bytes=_ADAPTER_NATIVE_USAGE_MAX_BYTES)
+    if text is None:
+        raise AdapterNativeUsageError(
+            "adapter native usage must be a confined private regular UTF-8 file "
+            f"no larger than {_ADAPTER_NATIVE_USAGE_MAX_BYTES:,} bytes"
+        )
+    try:
+        if candidate.suffix.lower() in {".yaml", ".yml"}:
+            payload = yaml.safe_load(text)
+        else:
+            payload = strict_json_loads(text)
+    except (RecursionError, ValueError, yaml.YAMLError) as exc:
+        raise AdapterNativeUsageError("adapter native usage is invalid structured data") from exc
     if not isinstance(payload, Mapping):
         raise AdapterNativeUsageError("adapter native usage must be a mapping")
     return validate_adapter_native_usage(payload)
@@ -277,14 +290,11 @@ def _resolve_usage_path(path: Path, *, scratch_root: Path | None) -> Path:
     if path.is_absolute():
         raise AdapterNativeUsageError(f"adapter native usage path must be scratch relative: {path}")
     root = scratch_root.resolve()
-    candidate = (root / path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
+    if path.drive or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise AdapterNativeUsageError(
             f"adapter native usage path escapes scratch workspace: {path}"
-        ) from exc
-    return candidate
+        )
+    return root.joinpath(*path.parts)
 
 
 def _parse_codex_jsonl_event(line: str, line_number: int) -> Mapping[str, Any] | None:

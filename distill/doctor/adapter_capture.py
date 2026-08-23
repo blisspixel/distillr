@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -20,6 +21,7 @@ from distill.doctor.adapter_result_writer import (
     write_adapter_result_manifest,
 )
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
+from distill.library.paths import atomic_replace_json, atomic_replace_text
 
 __all__ = [
     "AntigravityCaptureWriteSpec",
@@ -355,17 +357,14 @@ def write_stdout_captured_result(spec: StdoutCaptureWriteSpec) -> AdapterResultM
 def _write_native_usage_file(root: Path, path: Path, usage_record) -> Path:
     usage_path = _resolve_scratch_path(root, path)
     usage_path.parent.mkdir(parents=True, exist_ok=True)
-    usage_path.write_text(
-        json.dumps(usage_record.to_dict(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    atomic_replace_json(usage_path, usage_record.to_dict())
     return usage_path.relative_to(root)
 
 
 def _write_result_text_file(root: Path, path: Path, text: str) -> Path:
     result_path = _resolve_scratch_path(root, path)
     result_path.parent.mkdir(parents=True, exist_ok=True)
-    result_path.write_text(text, encoding="utf-8")
+    atomic_replace_text(result_path, text)
     return result_path.relative_to(root)
 
 
@@ -398,11 +397,34 @@ def _result_output_text(output: dict[str, Any] | str) -> str:
 
 
 def _resolve_scratch_path(root: Path, path: Path) -> Path:
-    if path.is_absolute():
+    if path.is_absolute() or path.drive:
         raise ValueError(f"adapter capture path must be scratch relative: {path}")
-    candidate = (root / path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(f"adapter capture path escapes scratch workspace: {path}") from exc
+    if not path.parts or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"adapter capture path escapes scratch workspace: {path}")
+    candidate = root.joinpath(*path.parts)
+    current = root
+    for index, part in enumerate(path.parts):
+        current /= part
+        try:
+            file_stat = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise ValueError(f"adapter capture path cannot be inspected safely: {path}") from exc
+        if _is_link_like(current, file_stat):
+            raise ValueError(f"adapter capture path contains a linked component: {path}")
+        if index < len(path.parts) - 1 and not stat.S_ISDIR(file_stat.st_mode):
+            raise ValueError(f"adapter capture path contains a non-directory component: {path}")
     return candidate
+
+
+def _is_link_like(path: Path, file_stat: object) -> bool:
+    mode = getattr(file_stat, "st_mode", 0)
+    attributes = getattr(file_stat, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    is_junction = getattr(path, "is_junction", None)
+    return bool(
+        stat.S_ISLNK(mode)
+        or (reparse_flag and attributes & reparse_flag)
+        or (callable(is_junction) and is_junction())
+    )

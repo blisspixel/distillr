@@ -529,17 +529,23 @@ markers, reporting marker names without secret values. The manifest contract
 includes no-metered rejection of API-key blockers, broader metered-route
 blockers, metered auth, and metered usage allowance, plus the before/after
 scratch write check future runners must use and structured `quota_stop`
-metadata for future quota and rate-limit stops. A reusable runner
-primitive can execute exact argv
-arrays inside scratch with shell disabled and API-key environment variables
-stripped. A workload runner can load a checked `adapter-workload.v1` package,
-execute an exact argv in scratch, and reject results that read outside the
-package, write outside declared outputs, or report a different cost mode. A
+metadata for future quota and rate-limit stops. The scratch check records exact
+file identity and content before and after the child, so read-only runs cannot
+silently change or remove staged inputs. It rejects links, hard links, special
+files, unsafe expansion, missing declared outputs, and unexpected writes.
+
+A reusable runner primitive executes exact argv arrays inside scratch with
+shell disabled and API-key environment variables stripped. It bounds the
+process tree, timeout, stdin, and captured output while draining both output
+pipes and cleaning descendants. Workload, native-usage, result, and manifest
+files use bounded confined reads; capture publication is atomic. A workload
+runner rejects results that read outside the package, write outside declared
+outputs, mutate undeclared existing files, or report a different cost mode. A
 native result writer can turn captured CLI output plus explicit native usage
 metadata or a validated `adapter-native-usage.v1` scratch file into a validated
-`adapter-result.v1` scratch manifest. A
-ledger helper can convert verified adapter manifests into cost-tracker rows and
-metadata. The Codex read-only command planner records the future
+`adapter-result.v1` scratch manifest. A ledger helper can convert verified
+adapter manifests into cost-tracker rows and metadata. The Codex read-only
+command planner records the future
 `codex exec --sandbox read-only` argv shape, the Claude planner records a
 blocked `claude -p --input-format text --output-format json` shape, and the
 Grok planner records a blocked `grok --no-auto-update --prompt-file ...

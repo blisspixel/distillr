@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -17,11 +18,18 @@ from distill.doctor.adapter_manifest import (
 )
 from distill.doctor.adapter_native_usage import load_adapter_native_usage
 from distill.doctor.adapter_workload import AdapterWorkloadPackage
+from distill.library.confined import read_confined_bytes, read_confined_text
+from distill.library.paths import atomic_replace_text
 
 __all__ = [
     "AdapterResultWriteSpec",
     "write_adapter_result_manifest",
 ]
+
+_ADAPTER_RESULT_FILE_MAX_BYTES = 4 * 1024 * 1024
+_ADAPTER_INPUT_FILE_MAX_BYTES = 64 * 1024 * 1024
+_ADAPTER_INPUT_TOTAL_MAX_BYTES = 256 * 1024 * 1024
+_ADAPTER_MANIFEST_MAX_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -56,7 +64,8 @@ def write_adapter_result_manifest(spec: AdapterResultWriteSpec) -> AdapterResult
 
     root = spec.scratch_root.resolve()
     result_path = _resolve_scratch_path(root, spec.result_text_path)
-    output = spec.output if spec.output is not None else result_path.read_text(encoding="utf-8")
+    output = spec.output if spec.output is not None else _read_result_text(root, result_path, spec)
+    _validate_output_limit(output, spec.workload.output_limit)
     usage = _usage_from_spec(spec, root)
     payload = {
         "schema_version": ADAPTER_RESULT_SCHEMA_VERSION,
@@ -87,9 +96,11 @@ def write_adapter_result_manifest(spec: AdapterResultWriteSpec) -> AdapterResult
 
     manifest = validate_adapter_result_manifest(payload, scratch_root=root)
     manifest_path = _resolve_scratch_path(root, Path(spec.workload.result_manifest_path))
-    manifest_path.write_text(
-        json.dumps(manifest.to_dict(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    _write_bounded_json(
+        manifest_path,
+        manifest.to_dict(),
+        max_bytes=_ADAPTER_MANIFEST_MAX_BYTES,
+        label="adapter manifest",
     )
     return manifest
 
@@ -128,26 +139,115 @@ def _usage_from_spec(spec: AdapterResultWriteSpec, root: Path) -> AdapterUsage:
 
 def _hash_file(root: Path, rel_path: str) -> str:
     path = _resolve_scratch_path(root, Path(rel_path))
+    content = read_confined_bytes(path, root, max_bytes=_ADAPTER_INPUT_FILE_MAX_BYTES)
+    if content is None:
+        raise ValueError(
+            "adapter input must be a confined private regular file "
+            f"no larger than {_ADAPTER_INPUT_FILE_MAX_BYTES:,} bytes: {rel_path}"
+        )
     digest = hashlib.sha256()
-    digest.update(path.read_bytes())
+    digest.update(content)
     return f"sha256:{digest.hexdigest()}"
 
 
 def _hash_sources(root: Path, rel_paths: list[str]) -> str:
     digest = hashlib.sha256()
+    total_bytes = 0
     for rel_path in sorted(rel_paths):
         path = _resolve_scratch_path(root, Path(rel_path))
+        content = read_confined_bytes(path, root, max_bytes=_ADAPTER_INPUT_FILE_MAX_BYTES)
+        if content is None:
+            raise ValueError(
+                "adapter source must be a confined private regular file "
+                f"no larger than {_ADAPTER_INPUT_FILE_MAX_BYTES:,} bytes: {rel_path}"
+            )
+        total_bytes += len(content)
+        if total_bytes > _ADAPTER_INPUT_TOTAL_MAX_BYTES:
+            raise ValueError(
+                "adapter sources exceed the "
+                f"{_ADAPTER_INPUT_TOTAL_MAX_BYTES:,}-byte aggregate limit"
+            )
         digest.update(rel_path.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(content)
         digest.update(b"\0")
     return f"sha256:{digest.hexdigest()}"
 
 
 def _resolve_scratch_path(root: Path, path: Path) -> Path:
-    candidate = (root / path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(f"adapter result path escapes scratch workspace: {path}") from exc
+    if (
+        path.is_absolute()
+        or path.drive
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise ValueError(f"adapter result path escapes scratch workspace: {path}")
+    candidate = root.joinpath(*path.parts)
+    current = root
+    for index, part in enumerate(path.parts):
+        current /= part
+        try:
+            file_stat = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise ValueError(f"adapter result path cannot be inspected safely: {path}") from exc
+        if _is_link_like(current, file_stat):
+            raise ValueError(f"adapter result path contains a linked component: {path}")
+        if index < len(path.parts) - 1 and not stat.S_ISDIR(file_stat.st_mode):
+            raise ValueError(f"adapter result path contains a non-directory component: {path}")
     return candidate
+
+
+def _read_result_text(root: Path, path: Path, spec: AdapterResultWriteSpec) -> str:
+    byte_limit = min(_ADAPTER_RESULT_FILE_MAX_BYTES, spec.workload.output_limit * 4)
+    output = read_confined_text(path, root, max_bytes=byte_limit)
+    if output is None:
+        raise ValueError(
+            "adapter result must be a confined private regular UTF-8 file "
+            f"within the {spec.workload.output_limit:,}-character output limit"
+        )
+    return output
+
+
+def _validate_output_limit(output: dict[str, Any] | str, limit: int) -> None:
+    serialized = (
+        output
+        if isinstance(output, str)
+        else json.dumps(
+            output,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+    )
+    if len(serialized) > limit:
+        raise ValueError(f"adapter result exceeds the {limit:,}-character output limit")
+
+
+def _write_bounded_json(path: Path, value: object, *, max_bytes: int, label: str) -> None:
+    content = (
+        json.dumps(
+            value,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    )
+    if len(content.encode("utf-8")) > max_bytes:
+        raise ValueError(f"{label} exceeds the {max_bytes:,}-byte limit")
+    atomic_replace_text(path, content)
+
+
+def _is_link_like(path: Path, file_stat: object) -> bool:
+    mode = getattr(file_stat, "st_mode", 0)
+    attributes = getattr(file_stat, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    is_junction = getattr(path, "is_junction", None)
+    return bool(
+        stat.S_ISLNK(mode)
+        or (reparse_flag and attributes & reparse_flag)
+        or (callable(is_junction) and is_junction())
+    )

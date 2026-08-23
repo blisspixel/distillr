@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.72 - 2026-08-22
+
+### Fixed
+
+- **Read-only adapter runs can no longer hide scratch mutations.** The runner
+  records bounded file identities before and immediately after the child
+  process. Undeclared changes to existing prompts or sources, removed files,
+  links, hard links, special files, and unsafe scratch expansion now block the
+  result instead of passing a filename-only comparison.
+- **Adapter subprocess output and process trees are bounded.** Exact-argv
+  workers now drain stdout and stderr without retaining unbounded output,
+  enforce a 2 GiB process-tree memory ceiling and the workload timeout, reject
+  oversized or invalid stdin, and clean the isolated child tree on every exit.
+- **Adapter structured files fail closed before parsing.** Workload packages,
+  native usage records, and result manifests use bounded, confined UTF-8 reads.
+  JSON rejects non-finite values, malformed YAML is converted to a stable
+  boundary error, and symlinks, hard links, oversized files, and inode swaps
+  are refused.
+- **Adapter capture publication is atomic and link-safe.** Result text, native
+  usage, and manifests are replaced through private single-writer staging
+  writes. Linked destinations are rejected without changing their targets,
+  result size follows the workload limit, and prompt/source hashing uses
+  bounded confined reads.
+
+### Changed
+
+- **Adapter workload limits now have explicit ceilings.** Workloads allow at
+  most 3,600 seconds and 1,000,000 output characters. Staged stdin is capped at
+  16 MiB, each captured output stream at 4 MiB, each scratch file at 64 MiB,
+  aggregate scratch state at 256 MiB, and scratch traversal at 4,096 entries.
+
 ## 0.19.71 - 2026-08-22
 
 ### Fixed

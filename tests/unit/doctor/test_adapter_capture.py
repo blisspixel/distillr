@@ -259,6 +259,34 @@ def test_write_stdout_captured_result_rejects_result_path_escape(tmp_path):
         )
 
 
+def test_write_stdout_captured_result_rejects_linked_result_without_touching_target(tmp_path):
+    _stage_inputs(tmp_path)
+    _stage_native_usage(tmp_path, adapter="grok")
+    target = tmp_path / "target.txt"
+    target.write_text("preserved", encoding="utf-8")
+    result_path = tmp_path / "result.txt"
+    result_path.unlink()
+    try:
+        result_path.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="linked component"):
+        write_stdout_captured_result(
+            StdoutCaptureWriteSpec(
+                adapter="grok",
+                adapter_version="grok 0.2.50",
+                auth_class="included-plan",
+                scratch_root=tmp_path,
+                workload=_workload(),
+                stdout_text="captured stdout result",
+                native_usage_path=Path("native-usage.json"),
+            )
+        )
+
+    assert target.read_text(encoding="utf-8") == "preserved"
+
+
 def _stage_inputs(root: Path) -> None:
     (root / "sources").mkdir()
     (root / "schemas").mkdir()

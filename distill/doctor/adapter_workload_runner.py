@@ -36,6 +36,7 @@ from distill.doctor.adapter_workload import (
     AdapterWorkloadPackage,
     load_adapter_workload_package,
 )
+from distill.library.confined import read_confined_text
 
 __all__ = [
     "AdapterWorkloadRunResult",
@@ -46,6 +47,7 @@ __all__ = [
 ]
 
 WorkloadCaptureWriter = Callable[[AdapterProcessResult, Path, AdapterWorkloadPackage], None]
+_ADAPTER_STDIN_MAX_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -111,7 +113,7 @@ def run_adapter_workload(
 
     workload: AdapterWorkloadPackage | None = None
     try:
-        workload = load_adapter_workload_package(workload_path)
+        workload = load_adapter_workload_package(workload_path, scratch_root=scratch_root)
     except (
         AdapterWorkloadError,
         AdapterManifestError,
@@ -138,15 +140,22 @@ def run_adapter_workload(
                     f"adapter stdin path escapes scratch workspace: {spec.stdin_path}"
                 ],
             )
-        try:
-            stdin_text = stdin_path.read_text(encoding="utf-8")
-        except OSError as exc:
+        stdin_value = read_confined_text(
+            stdin_path,
+            scratch_root,
+            max_bytes=_ADAPTER_STDIN_MAX_BYTES,
+        )
+        if stdin_value is None:
             return AdapterWorkloadRunResult(
                 adapter=spec.adapter,
                 workload=workload,
                 adapter_result=None,
-                blocked_reasons=[str(exc)],
+                blocked_reasons=[
+                    "adapter stdin must be a confined private regular UTF-8 file "
+                    f"no larger than {_ADAPTER_STDIN_MAX_BYTES:,} bytes"
+                ],
             )
+        stdin_text = stdin_value
 
     adapter_result = run_adapter_command(
         AdapterRunSpec(
@@ -229,12 +238,14 @@ def _bind_capture_writer(
 
 
 def _resolve_under_scratch(root: Path, path: Path) -> Path | None:
-    candidate = (root / path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError:
+    if (
+        path.is_absolute()
+        or path.drive
+        or not path.parts
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
         return None
-    return candidate
+    return root.joinpath(*path.parts)
 
 
 def get_default_capture_writer(adapter: str) -> WorkloadCaptureWriter | None:

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from distill.doctor import adapter_native_usage as adapter_native_usage_module
 from distill.doctor.adapter_native_usage import (
     AdapterNativeUsageError,
     adapter_native_usage_contract,
@@ -139,6 +140,40 @@ def test_load_adapter_native_usage_rejects_path_escape(tmp_path):
 def test_load_adapter_native_usage_rejects_absolute_path_with_scratch_root(tmp_path):
     with pytest.raises(AdapterNativeUsageError, match="must be scratch relative"):
         load_adapter_native_usage(tmp_path / "native-usage.json", scratch_root=tmp_path)
+
+
+def test_load_adapter_native_usage_rejects_oversized_file(tmp_path, monkeypatch):
+    path = tmp_path / "native-usage.json"
+    path.write_bytes(b"x" * 5)
+    monkeypatch.setattr(adapter_native_usage_module, "_ADAPTER_NATIVE_USAGE_MAX_BYTES", 4)
+
+    with pytest.raises(AdapterNativeUsageError, match="no larger than 4 bytes"):
+        load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+
+
+def test_load_adapter_native_usage_rejects_symlink_without_reading_target(tmp_path):
+    outside = tmp_path.parent / f"{tmp_path.name}-usage.json"
+    outside.write_text(json.dumps(_usage_payload()), encoding="utf-8")
+    path = tmp_path / "native-usage.json"
+    try:
+        path.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(AdapterNativeUsageError, match="confined private regular"):
+        load_adapter_native_usage(Path("native-usage.json"), scratch_root=tmp_path)
+
+
+def test_load_adapter_native_usage_wraps_malformed_structured_data(tmp_path):
+    path = tmp_path / "native-usage.yaml"
+    path.write_text("usage: [", encoding="utf-8")
+    with pytest.raises(AdapterNativeUsageError, match="invalid structured data"):
+        load_adapter_native_usage(path)
+
+    path = tmp_path / "native-usage.json"
+    path.write_text('{"usage": NaN}', encoding="utf-8")
+    with pytest.raises(AdapterNativeUsageError, match="invalid structured data"):
+        load_adapter_native_usage(path)
 
 
 def test_codex_jsonl_native_usage_collects_turn_completed_usage():

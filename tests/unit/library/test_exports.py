@@ -15,6 +15,8 @@ def test_library_public_exports_include_path_and_state_helpers():
         "TopicWatchEntry",
         "WatchEntry",
         "artifact_path",
+        "atomic_replace_json",
+        "atomic_replace_text",
         "sanitize_topic",
         "write_markdown_artifact",
     }
