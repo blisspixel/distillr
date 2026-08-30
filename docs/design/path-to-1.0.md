@@ -2,8 +2,8 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-2026-08-22 against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.69`. Published performance evidence now includes five paired
+2026-08-30 against code, roadmap, release evidence, and the live GitHub state at
+`distillr==0.19.72`. Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
 replay through 0.19.63 (paper / video / site / synthesis / verify / profile /
@@ -38,6 +38,7 @@ stability promise:
 | Route orchestration strategies (ensemble, critic) | 2.0 spine after freeze |
 | MCP Tasks extension | Official SDK package not shipped; long-run UX, not contract freeze |
 | New source adapters (OpenAlex, PubMed, etc.) | Feature breadth; after freeze |
+| Research program, portfolio selection, and field-model compiler | Product-quality evolution; evaluate now, ship after stable contracts |
 | Email/Slack notifications, multi-topic channels | Parked / maybe-later |
 | Database of record, SaaS, multi-user auth | Intentionally never |
 
@@ -119,7 +120,8 @@ Phase 4  Operator presentation + a11y + freeze-time security receipt
 Phase 5  1.0.0 release: freeze covered contracts, ship migration note,
          publish baseline, tag under SemVer major
     |
-Beyond   2.0: plan-quota routes, orchestration, stewardship loops
+Beyond   2.0: research program, evidence portfolio, field model,
+         meaningful refresh, navigation, bounded stewardship loops
          3.0: recipes, corpus merge, plugin ecosystem
 ```
 
@@ -141,8 +143,14 @@ All must be true and linked from the release notes:
 
 Do not reopen contracts casually. Next work is **2.0-shaped**:
 
+- Establish the research-desk evaluation baseline before changing discovery or
+  synthesis behavior.
+- Build inquiry maps, source-role and contribution handoffs, evidence-portfolio
+  selection, one field model, meaningful refresh, and reading paths in that
+  dependency order.
 - Live plan-quota adapters only when vendor evidence exists.
-- Route orchestration scored by `distill eval` cost per accepted change.
+- Route orchestration judged by `distill eval` faithfulness and research-desk
+  fixtures, with cost per accepted material change recorded separately.
 - Stewardship loops remaining external; Distill stays the loopable primitive.
 - Optional MCP Tasks when the official extension package ships.
 

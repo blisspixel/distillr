@@ -6,7 +6,8 @@ operational source of truth; this document is the longer horizon -- what each
 major version *promises*, in what order, and where the detail for each piece
 lives or will live. Versions are ordered by dependency, never by calendar.
 Anchored to [`../invariants.md`](../invariants.md): the invariants hold across
-every era below, or the era is wrong.
+every era below, or the era is wrong. The human-role and product-quality test
+lives in [`research-desk-doctrine.md`](research-desk-doctrine.md).
 
 ## The eras, by promise
 
@@ -16,13 +17,17 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. As of 0.19.21, the feature spine is
+agent-legible, self-auditing local corpus. As of 0.19.72, the feature spine is
 complete through OKF export/validation, loop-ready audit next-actions,
 recurring research profiles, cost-mode routing, adapter doctors, and the route
 availability primitives. The remaining 0.x work is an evidence-driven
 refinement program: keep candidate contracts open while UX, security,
 reliability, observability, accessibility, operator recovery, Pyright
 strictness, parse-don't-validate boundaries, and verification depth improve.
+Claim-generation currentness and derived-origin preservation are part of this
+trust refinement: removed assertions must not survive refresh, and a promoted
+answer must not become apparent independent evidence when claims are
+re-extracted from it.
 The branch-coverage floor has reached 95%. A published performance baseline,
 compatibility and migration evidence, and representative onboarding and
 presentation work remain readiness conditions for a future stability decision.
@@ -52,30 +57,42 @@ Full spec: [`../../ROADMAP.md`](../../ROADMAP.md), "1.0.0 -- Stability
 commitment + quality bar". Decision due before the 1.0 stability commitment:
 the project name (rename window closes at 1.0).
 
-### 2.0 -- "Runs on whatever you have, unattended, and compounds"
+### 2.0 -- "The corpus explains the field and compounds"
 
-The promise: **provider-plural, loop-native, and self-improving under audit.**
-Everything here exists in committed-direction form already; 2.0 is where the
-promises graduate from additive surfaces to default posture:
+The promise: **Distillr behaves like an exceptional research desk.** It builds
+the smallest trustworthy evidence portfolio that is sufficient for the current
+intent, explains the field represented by that evidence, and reports meaningful
+changes over time. Provider plurality and agentic loops are enabling
+capabilities, not the product promise:
 
-- **Provider breadth + plan-quota compute** (the committed post-1.0
-  milestone): 0.19 establishes no-metered-cost policy and the first adapter
-  contract; 2.0 broadens it across cloud adapters (xAI, Google, Anthropic,
-  OpenAI, Bedrock, Foundry) and plan-quota CLIs your subscriptions already
-  license. Every backend graduates only through `distill eval`. The 2.0-level
-  promise: *the default route is whatever clears the quality bar cheapest on
-  your hardware and plans*, re-evaluated by the eval harness, not by vibes.
-- **Stewardship loops mature**: goal-file watch refresh, scheduled audit, and
-  reconcile behavior (assess -> plan -> act -> verify) folded into the core
-  workflows. Distill remains the loopable primitive; the loop runner stays
-  external.
-- **The trust ceiling rises**: audit gains trend lines, evaluator calibration
-  improves, and external loop transcripts become fixtures for improving tool
-  descriptions and next-action schemas.
-- **The semantic layer**: alias resolution over `mentions.jsonl` (the staged
-  symbolic+semantic pipeline already specced), Tier-2 concept/entity playbooks
-  maintained at scale, shared LLM-intermediate caching as the load-bearing
-  pattern that makes loops affordable.
+- **A research program organizes acquisition.** Operator intent remains stable;
+  model-proposed lines of inquiry identify what evidence matters and why.
+- **Discovery curates an evidence portfolio.** Candidate plans expose source
+  role, expected distinct contribution, independence or derivation, redundancy,
+  and likely effect on the field model. Realized contribution is assessed after
+  ingest.
+- **One field model spans supported source types.** A small contribution
+  envelope lets source-sensitive paper, talk, site, repository, feed, podcast,
+  post, and local-file analysis inform one view of established, contested,
+  scope-dependent, emerging, unsupported, and unknown conclusions.
+- **Refresh reports intellectual change.** Profiles distinguish new,
+  strengthened, weakened, qualified, reframed, resolved, and unchanged findings
+  and avoid repeatedly processing stable inquiries without evidence of value.
+- **Research navigation becomes a first-class output.** The corpus can produce
+  bounded reading paths for a beginner, practitioner, researcher, historical
+  review, frontier update, or contested conclusion.
+- **Stewardship loops mature.** Assessment, approved action, verification,
+  resynthesis, and honest stopping compose inside existing workflows while the
+  loop runner stays external.
+- **The trust ceiling rises.** Mature provenance adds digest-bound evidence
+  anchors, explicit source-versus-derived origin, typed scope and time, and
+  unknown-safe source-lineage assessments. A narrow semantic firewall admits
+  model-proposed relations through schema, domain, semantic, authority, and
+  commit gates without adding an ontology platform or graph database.
+- **Compute becomes substitutable.** Cloud providers and plan-quota workers
+  graduate only through `distill eval`, with no-metered mode failing closed on
+  ambiguous billing. The router chooses among qualified routes; route breadth
+  does not substitute for research quality.
 
 ### 3.0 -- "Corpora outlive the tool" (directional, honestly speculative)
 
@@ -122,15 +139,17 @@ speculatively. Current state:
 
 | Area | Design doc | Status |
 |---|---|---|
-| Whole-pipeline agentic plan (P1-P8) | [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) | Live; P1-P3/P6/P7 shipped, P4/P5 partial (deterministic verify shipped) |
-| Synthesis depth / thesis loop | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; thesis rung shipped, loop pending |
+| Research-desk product doctrine | [`research-desk-doctrine.md`](research-desk-doctrine.md) | Live; feature-admission and evaluation frame |
+| Whole-pipeline agentic plan (P1-P8) | [`agentic-distill-master-plan.md`](agentic-distill-master-plan.md) | Live; P1-P3/P6/P7 shipped, P4/P5 partial |
+| Bounded field-model reconciliation | [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) | Live; current synthesis shipped, loop pending |
 | Version horizon (this doc) | `version-architecture.md` | Live |
 | Path to 1.0 (gates + order) | [`path-to-1.0.md`](path-to-1.0.md) | Live; operational checklist |
 | Contract compatibility | [`../contracts/COMPATIBILITY.md`](../contracts/COMPATIBILITY.md) | Live; freeze-ready policy |
 | Offline performance baseline | [`../performance/baseline-0.19.50.md`](../performance/baseline-0.19.50.md) | Partial scale-100 evidence |
 | Entailment verification tier | [`entailment-tier.md`](entailment-tier.md) | Shipped 0.13.0 and 0.13.1 |
 | `distill ask` + re-ingest gating | [`ask-loop.md`](ask-loop.md) | Live; shipped 0.12.0 |
-| OKF interop + loop-readable stewardship | [`okf-loop-readiness.md`](okf-loop-readiness.md) | Next build slice |
+| OKF interop + loop-readable stewardship | [`okf-loop-readiness.md`](okf-loop-readiness.md) | Shipped 0.17; OKF v0.2 current |
+| Evidence anchors, semantic firewall, and atomic-claim handoff | [`evidence-anchors-and-claim-handoff.md`](evidence-anchors-and-claim-handoff.md) | Accepted direction; generation/origin fix current, relation experiments and packet post-1.0 |
 | Recurring profiles + no-metered-cost routing | [`recurring-profiles-cost-routing.md`](recurring-profiles-cost-routing.md) | 0.19 slice |
 | Performance + implementation-language admission | [`performance-and-language-admission.md`](performance-and-language-admission.md) | 1.0 decision charter; baseline pending |
 | Provider-adapter breadth | -- | 2.0-era expansion after the 0.19 contract proves out |
@@ -140,10 +159,12 @@ speculatively. Current state:
 
 Dependency-ordered, no calendar: OKF export/validation + loop-readable
 next-actions -> finish `_logic.py` decomposition -> batch progress/cost UX ->
-recurring profiles + no-metered-cost routing -> 1.0 freeze (name decision,
-contract/version policy, quality gate, presentation) -> provider breadth
-(2.0 spine) -> stewardship loops + semantic layer (2.0 completion) ->
-recipes/merge/plugins (3.0). Every step ships behind the same CI gate, starts
-with its dogfood corpus and design doc where the work is architectural, and
-respects the invariants. That is what "built out exceptionally well" means
-operationally.
+recurring profiles + no-metered-cost routing -> claim-generation currentness
+and derived-origin correction -> 1.0 freeze (name decision, contract/version
+policy, quality gate, presentation) -> research-desk evaluation baseline ->
+evidence anchors and unified contribution handoff -> research program and
+portfolio selection -> field model, meaningful refresh, and reading paths ->
+bounded stewardship loops -> qualified provider breadth -> recipes, merge, and
+plugins. Every step ships behind the same CI gate, starts with its dogfood
+corpus and design doc where the work is architectural, and respects the
+invariants. That is what "built out exceptionally well" means operationally.

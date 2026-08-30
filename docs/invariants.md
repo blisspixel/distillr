@@ -6,8 +6,9 @@ can build against without expecting churn. Features change; these don't.
 
 ## In one line
 
-**Distill helps you get insights from specific things and topics - and keep them current -
-by turning sources into a local, plain-Markdown corpus you and your agents can query.**
+**Distill helps you build and maintain a trustworthy body of research on a
+subject by turning sources into a local, plain-Markdown corpus you and your
+agents can inspect, query, and keep current.**
 
 You point it at things you care about (a paper, a channel, a vendor's docs, a research
 goal), it captures and analyzes them into structured insights with provenance, synthesizes
@@ -34,12 +35,20 @@ point-an-agent-at-a-folder tools leave to improvisation.
   filesystem - and that humans browse in Obsidian/grep. It is the corpus other tools
   consult, not a chat agent itself, and deliberately not a conversation "memory layer"
   (a different category - see the roadmap's competitive landscape).
+- A **research-desk substrate** that should help users curate what is worth
+  keeping, understand the body of evidence, see meaningful change, and decide
+  what to read or investigate next. The complete product doctrine is
+  [`design/research-desk-doctrine.md`](design/research-desk-doctrine.md).
 - **Provenance-first and verifiable.** Every artifact carries its source, URL, and the
-  `prompt_id` / `model_version` that produced it. You can always trace a claim to a source.
+  `prompt_id` / `model_version` that produced it. Extracted atomic claims trace to their
+  source insight and available receipt. An exact span is claimed only when a
+  digest-bound locator exists.
 - **Compounding.** Outputs can become inputs - a good answer can be filed back as a
-  first-class source - so the corpus gets richer with use, gated by a grounding check.
-- **Stay-current by design.** Topics refresh on a cadence; "what changed" is a first-class
-  question (`diff`, `trends`, watch-alerts), not a re-run from scratch.
+  first-class source - so the corpus becomes more useful with use, gated by a grounding
+  check. More files alone are not compounding.
+- **Stay-current by design.** Topics refresh on a cadence; meaningful change in the body
+  of evidence is the target, while file-level `diff`, `trends`, and watch alerts provide
+  the current structural foundation.
 
 ## What distill IS NOT
 
@@ -72,10 +81,12 @@ point-an-agent-at-a-folder tools leave to improvisation.
 5. **Deterministic, idempotent merges.** Knowledge-layer rollups (`mentions.jsonl`,
    `claims.jsonl`, concept/entity notes) are pure functions of append-only row logs;
    re-running a merge is order-independent and changes nothing.
-6. **LLM proposes, Python decides.** Models emit rows and prose; structural decisions -
-   merge, dedup, canonicalization, thresholds, verification - are deterministic code.
-   (The rule-vs-agent boundary this draws, grounded in current best practice, is the
-   charter in [`design/agentic-balance.md`](design/agentic-balance.md).)
+6. **Models judge semantics; Python owns irreversible boundaries.** Models judge source
+   fit, novelty, quality, faithfulness, contradiction, and other questions of meaning.
+   Python parses and validates schemas, enforces path, identity, cost, approval, and
+   write rules, aggregates per-criterion verdicts, and commits or refuses the change.
+   The full boundary is the charter in
+   [`design/agentic-balance.md`](design/agentic-balance.md).
 7. **No off-ledger spend.** Every model and transcription call is cost-tracked.
 8. **Verification gates re-ingestion.** A generated answer becomes corpus only after a
    grounding check against its cited sources.

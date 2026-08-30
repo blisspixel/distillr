@@ -1,14 +1,16 @@
-# Distill: agentic & exceptional on any topic - master refinement plan
+# Agentic pipeline refinement plan
 
-Status: design / RFC. The vision plan for turning distill from a linear,
-single-shot, fixed-persona pipeline into a **goal-driven, adaptive** research
-system that produces better output on *any* topic - research, competitive intel,
-academic, or hobby.
+Status: design / RFC. This is the implementation plan for turning Distill from
+a linear, single-shot, fixed-persona pipeline into a goal-driven, adaptive
+research-corpus system. Agentic execution is a technique in service of the
+research desk, not the product identity or success condition.
 
 Companion spec: [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md) is the
 detailed design for Pillar 3 (the synthesis loop); this doc is the whole-pipeline
 plan that contains it. Anchored to [`../invariants.md`](../invariants.md) and the
 [`../../ROADMAP.md`](../../ROADMAP.md).
+The product outcomes, human role, research-state boundaries, and feature rubric
+are defined in [`research-desk-doctrine.md`](research-desk-doctrine.md).
 
 ## Status: shipped vs. planned (read this first)
 
@@ -21,7 +23,8 @@ Be precise about the word "agentic" - most of this doc is still plan, not built.
     `general`) instead of one hardcoded enterprise persona (Pillar 2).
   - **Goal-aware end-to-end** - a persisted `CorpusIntent` flows into analysis,
     so the pipeline is no longer goal-blind after discovery (Pillar 1).
-  - **Deeper synthesize output** - the thesis / white-space rung (Pillar 3).
+  - **Deeper synthesize output** - a thesis / white-space section (Pillar 3).
+    Future revisions must allow the evidence to support no novel thesis.
   - **Graceful failure** - clean provider errors + opt-in local fallback (Pillar 7).
 - **NOT built - still plan:** the self-correcting *loop* (verify → find gaps →
   re-search → re-synthesize → converge). Today each pipeline step still runs a
@@ -32,12 +35,12 @@ Be precise about the word "agentic" - most of this doc is still plan, not built.
 So today's honest claim: **same core process, materially better and more
 goal-aware outputs - not an autonomous loop.**
 
-## The one-line goal (the vision, not today's state)
+## The one-line implementation goal
 
-A user declares an *intent* and distill **reconciles a corpus toward it** -
-discovering, analyzing, verifying, synthesizing, re-searching until it is good
-enough, then keeping it that way. The self-correcting half of this is the planned
-work above, not what ships today.
+A user declares an intent and Distill reconciles a bounded evidence portfolio
+toward it: discovering, curating, analyzing, verifying, synthesizing, and
+researching again only when another pass is likely to matter. The
+self-correcting half remains planned work, not shipped behavior.
 
 ## What the 2026-06-09 dogfood found
 
@@ -58,10 +61,10 @@ truth; this table preserves the evidence that motivated the work.
 At the time, the throughline was: **distill assumed one lens, ran once, trusted
 itself, and broke loudly.** Every pillar below removes one of those assumptions.
 
-## The reframe: one desired-state object, flowing through agentic stages
+## The reframe: stable intent plus evolving research state
 
-Today intent is a transient string in `discover`. Make it a first-class object,
-`CorpusIntent`, that **every stage consumes**:
+Intent was once a transient string in `discover`. `CorpusIntent` made the
+operator-owned desired state first-class and available to every stage:
 
 ```
 CorpusIntent {
@@ -69,14 +72,19 @@ CorpusIntent {
   lens:        research | competitive-intel | practitioner | academic | market | exec | …
   audience:    who reads the output (shapes register, not facts)
   rigor:       strict | balanced | loose  (relevance floor + verification depth)
-  quality_bar: convergence criteria (coverage, grounding %, thesis stability)
-  budget:      per-run ceiling (usd / tokens / iterations)
+  budget:      per-run ceiling (usd / tokens / iterations / wall clock)
 }
 ```
 
-Then every stage becomes a small **assess → plan → act → converge** loop over that
-intent, instead of a one-shot transform. The same reconcile engine powers
-discovery and synthesis (Pillar 4). That is the agentic spine.
+Do not overload `CorpusIntent` with changing judgments about coverage, quality,
+or thesis stability. A model-proposed research program decomposes the intent
+into inquiries. A regenerated corpus assessment records what is established,
+contested, scope-dependent, or unknown. A bounded research plan proposes exact
+next actions. Intent stays operator-owned while those derived views evolve.
+
+When a loop is justified, its shape is **assess -> plan -> act -> reassess**.
+The same bounded control pattern can serve discovery and synthesis without
+pretending that every workflow needs autonomous reconciliation.
 
 ## The eight pillars
 
@@ -86,9 +94,9 @@ discovery and synthesis (Pillar 4). That is the agentic spine.
 boundary per the 1.0 "parse, don't validate" rule). Thread it through
 discover → analyze → synthesize → deepen. Persist it as `topics/<t>/intent.json`
 so refreshes, audits, and the orchestrator all read the same desired state.
-**Why it generalizes:** the intent is the *only* thing that should differ between a
-physics corpus and a competitive-intel corpus. Make it explicit and everything
-downstream can adapt.
+**Why it generalizes:** intent defines why the corpus exists, while a separate
+research program captures what must be understood. Making both roles explicit
+lets downstream work adapt without mixing operator input with model judgment.
 **Phase:** 1 (foundation; everything else reads it). Shipped 0.9.24/0.9.25.
 **Follow-up (with the P4 loop work): intent-driven source-mix policy.** Today the
 papers/videos/sites mix per goal is emergent - whatever search returns, shaped by
@@ -108,36 +116,42 @@ Evidence / Limitation / Open-question sections; `practitioner` emits
 How-it-works / Gotchas / When-to-use; etc. Default lens is inferred from the goal
 when unset. Per-item analysis also receives the goal so extraction prioritizes
 goal-relevant signal (today it extracts "everything of substance," goal-blind).
-**Why it generalizes:** this is *the* change that makes output good on any topic.
-The quality floor stops fighting the subject matter.
+**Why it generalizes:** the stable envelope stays inspectable while the model
+preserves what makes a paper, lecture, repository, postmortem, or commentary
+worth having. Adaptive analysis must not flatten every source into a different
+fixed persona template.
 **Phase:** 1 (highest single-change leverage).
 
-### P3 - Depth ladder + thesis rung (the exceptional output)
+### P3 - Depth ladder + field model
 **Problem:** F3. No top rung.
 **Change:** Promote the implicit ladder to explicit artifacts:
 **Facts** (`claims.jsonl`, exists) → **Patterns** (comparison matrix, blind spots,
-exists) → **Insights** ("what no single source says," exists) → **Thesis /
-white-space** (NEW: the defensible novel position, the unoccupied space,
-falsifiable hypotheses). Each thesis claim cites the rungs below it and carries a
-grounding status. Full spec in
+exists) → **Field model** (established, contested, scope-dependent, emerging,
+unsupported, unknown, trajectory, implications, and optional hypotheses or
+white space). Each compiled claim cites the rungs below it and carries an
+honest grounding state. Full spec in
 [`agentic-deep-synthesis.md`](agentic-deep-synthesis.md).
-**Why it generalizes:** "what's the defensible new thesis / where's the white
-space" is the payoff of *any* serious synthesis, not just OpenSteward's.
-**Phase:** 1 (prompt-only thesis rung) → 3 (loop-driven).
+**Why it generalizes:** serious synthesis explains the body of evidence. A
+novel thesis can be valuable, but requiring one creates novelty theater. The
+correct result may be convergence, a scope-explained disagreement, or
+insufficient evidence.
+**Phase:** 1 (deeper prompt, shipped) → 3 (bounded field-model reconciliation).
 
-### P4 - Agentic loops everywhere (one reconcile engine)
+### P4 - Bounded reconciliation where it earns its keep
 **Problem:** F4. Linear & single-shot.
-**Change:** Build one `reconcile(intent, corpus)` engine - assess gap to desired
-state → emit a plan (diff) → act → re-assess → converge - and use it twice:
+**Change:** Build one bounded `reconcile(intent, program, corpus)` control
+pattern: assess the field model, identify an important uncertainty, emit a
+reviewable plan, act within limits, then reassess. Candidate uses are:
 - **Discovery loop:** ingest → assess coverage vs. goal (reuse `research_gaps`) →
-  gap-fill via `discover --from-gaps` → converge when no new high-value source
-  clears the rigor floor.
+  gap-fill via `discover --from-gaps` → stop when a model judges that no
+  accessible candidate is likely to materially improve an important inquiry.
 - **Synthesis loop:** the deep-synthesis reconciliation (verify-inward + receipted
-  discover-outward + reference-chase + re-synthesize → converge).
-Both terminate on the same guarantees: budget ceiling, iteration cap, idempotent
-no-op at steady state.
-**Why it generalizes:** convergence ("keep going until the corpus actually serves
-the goal") is topic-independent.
+  discover-outward + reference-chase + re-synthesize → reassess).
+Both terminate under deterministic budget, time, source, and iteration caps.
+A semantic sufficiency verdict is recorded separately from the mechanical
+reason the run stopped.
+**Why it generalizes:** bounded reassessment is useful across topics, while an
+always-on loop would increase cost and activity without proving research value.
 **Phase:** 3.
 
 ### P5 - Verification fabric (the trust layer)
@@ -145,8 +159,10 @@ the goal") is topic-independent.
 enters it.
 **Change:** Implement the 0.10 run-time verify hook as a reusable pass: extract
 load-bearing claims (numbers, named entities, dates) and ground each against its
-source receipt (grep/regex first, small local model second - never an
-LLM-as-judge-of-record, per the invariants). Emit `_verify.json` sidecars;
+source receipt. Deterministic checks own exact structural facts such as number
+and span presence; configured model judges own semantic support, with Python
+aggregating and enforcing the verdict. No model self-certifies the artifact it
+just wrote. Emit `_verify.json` sidecars;
 `--verify warn|strict|off`. The synthesis loop and the `ask`/re-ingest loop both
 gate on it. Outward search during a loop **ingests receipted artifacts** before
 informing prose - never free-floating web claims.
@@ -194,7 +210,7 @@ loops on coverage gaps. The reconcile / verify / thesis behavior folds into the
 commands that already own each step:
 - discovery loop → inside `discover` (it already re-ranks against the goal and can
   gap-fill),
-- verify + thesis rung → inside `synthesize` / `resynthesize`,
+- verify + field-model refinement → inside `synthesize` / `resynthesize`,
 - the assess/critique step → as a future extension of the existing `audit`
   surface.
 So "more agentic" shows up in the tools people already use, with no new command.
@@ -208,17 +224,22 @@ already cover the common case.
 
 ## Phased build order (each phase shippable, dependency-ordered)
 
-- **Phase 1 - Adaptive quality (biggest visible jump, low risk):**
-  P1 `CorpusIntent` + P2 adaptive lens + P3 thesis-rung prompt. After this,
-  outputs are good on any topic and synthesis has a top rung - with zero new
-  control flow. *This is what I'd build first.*
+- **Phase 1 - Adaptive quality (shipped foundation):**
+  P1 `CorpusIntent` + P2 adaptive lens + the first P3 deeper-synthesis prompt.
+  The next revision treats that output as a field model and makes novel theses
+  optional.
 - **Phase 2 - Trust & resilience:** P5 verify fabric + P6 dedup/determinism/cache
   + P7 robustness. Makes the corpus trustworthy and runs survivable.
-- **Phase 3 - Agentic loops:** P4 reconcile engine → discovery loop + synthesis
-  loop. Distill now self-drives to convergence.
-- **Phase 4 - Fold the loop into existing commands:** discovery loop inside
-  `discover`, verify + thesis inside `synthesize`/`resynthesize`, the assess step
-  inside `audit`. No new command; the core process just self-corrects.
+- **Phase 3 - Research-desk baseline:** representative mature, fast-moving, and
+  contested-field fixtures for portfolio selection, source contribution,
+  disagreement, meaningful change, reading paths, and stopping.
+- **Phase 4 - Bounded reconciliation:** P4 control pattern inside discovery and
+  synthesis only after the research-desk fixtures show that another pass adds
+  material value.
+- **Phase 5 - Fold earned behavior into existing commands:** discovery planning
+  inside `discover`, field-model refinement inside `synthesize`/`resynthesize`,
+  and bounded next actions inside `audit`. No new command unless an existing
+  owner cannot express the proven workflow.
 
 ## Invariant compliance (must not break the charter)
 
@@ -227,7 +248,9 @@ already cover the common case.
 - **No cheap mode:** lenses and loops reuse calibrated prompts; new prompts
   (thesis, critic, lens variants) are `prompt_id`-versioned and enter the golden
   eval gate. Adaptive lens is not "shorter/cheaper," it's "right-shaped."
-- **No LLM-as-verifier-of-record:** P5 is grep/regex-first, small-model-second.
+- **Judgment then rule for semantic verification:** P5 uses deterministic
+  checks for structural facts and separate model verdicts for semantic support;
+  Python owns aggregation and the write gate.
 - **Calibration debt:** each new lens is calibration surface; cap the lens set
   (≈5) and gate additions on `distill eval`, mirroring the source-adapter cap.
 - **Termination & budget:** every loop is iteration- and budget-bounded and
@@ -235,17 +258,22 @@ already cover the common case.
 
 ## What "exceptional" measures (success criteria)
 
-- A research topic produces zero pre-sales sections; lens matches intent. (P2)
-- Every synthesis has a thesis rung with a falsifiable claim and a named white
-  space. (P3)
+- A research topic produces zero pre-sales sections; analysis preserves the
+  source's actual contribution and matches intent. (P2)
+- Synthesis distinguishes established, contested, scope-dependent, emerging,
+  unsupported, and unknown findings; it emits a novel thesis only when the
+  evidence warrants one. (P3)
 - Every load-bearing number in a synthesis is grounded to a receipt or flagged.
   (P5)
-- Re-running `discover` / `synthesize` on a converged corpus is a near-free no-op;
-  re-running with a new source ingests only the delta. (P4/P6)
+- Discovery explains why selected sources belong, avoids redundant spend, and
+  records expected versus realized contribution. (P4/P6)
+- A refresh distinguishes meaningful change from new-document volume. (P4)
+- Re-running on an unchanged evidence set is a near-free no-op. (P4/P6)
 - A provider outage degrades to local or a clean message, never a traceback, and
   resumes. (P7)
-- One declarative recipe takes any intent from empty to an exceptional, maintained
-  corpus. (P8)
+- A bounded recipe takes an intent from empty to a trustworthy, navigable,
+  maintained evidence portfolio and reports honestly when important gaps
+  remain. (P8)
 
 ## QA findings index
 

@@ -54,7 +54,9 @@ Background and the reasoning behind the design.
 
 - [Architecture](architecture.md) - data flow, the report pipeline, model routing, security hardening.
 - [Invariants](invariants.md) - the design charter: what distill is, is not, and the rules that do not bend.
+- [Research desk doctrine](design/research-desk-doctrine.md) - the human role, product outcomes, research loop, evaluation model, and feature-admission rubric.
 - [Roadmap](roadmap.md) - the area-by-area backlog ([top-level ROADMAP](../ROADMAP.md) is the milestone spine).
+- [Evidence anchors and atomic-claim handoff](design/evidence-anchors-and-claim-handoff.md) - exact provenance, derived-origin safety, a narrow semantic firewall for typed relations, and the planned read-only claim packet.
 - [Performance and language admission](design/performance-and-language-admission.md) - benchmark contract, optimization order, and evidence gates for Rust, Go, Mojo, and free-threaded Python.
 - [Cross-platform performance baseline (0.19.66)](performance/cross-platform-0.19.66.md) - validated Linux and macOS corpus-scale and frozen replay evidence with preserved raw bundles.
 - [Comparable performance history (0.19.70)](performance/comparable-history-0.19.70.md) - five paired Linux/macOS runs, preserved receipts, measured variance, and the active advisory policy.

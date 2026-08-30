@@ -25,14 +25,19 @@ Three kinds of tools orbit this space, and Distill is deliberately none of them:
 
 The short version: those are **report and search layers**; Distill is the
 **corpus layer underneath repeated research** (capture, per-source insights,
-cross-source synthesis, refresh, receipts). Plain Markdown is the substrate,
-not the moat: anyone can write Markdown. The moat is the
-acquisition-and-maintenance loop that fills it and keeps it current.
+cross-source synthesis, refresh, receipts). Its human analogue is a research
+librarian, literature analyst, and research desk. Plain Markdown is the
+substrate, not the moat: anyone can write Markdown. The durable advantage is
+goal-aware acquisition, inspectable curation decisions, receipt-bound trust,
+and a field model that becomes more useful across refreshes.
 
-That matters for thesis work, competitive analysis, technical due diligence, or
-a startup knowledge base: you can verify the receipts, watch how a topic
-evolves, query the same folder through MCP from Claude Desktop / Cursor / other
-agents, and open it in Obsidian, Logseq, VS Code, or plain filesystem search.
+That matters for literature review, technical research, thesis work, or a
+maintained topic corpus: you can verify the receipts, watch how a topic evolves,
+query the same folder through MCP from agent clients, and open it in Obsidian,
+Logseq, VS Code, or plain filesystem search. Distill can build an evidence
+corpus about a company, but company-specific strategic interpretation and
+diligence conclusions belong to a company-analysis product rather than the
+corpus layer.
 Reports and briefs export to Word for stakeholder delivery
 (`distill export <topic> --what report`), and paper topics export to BibTeX or
 RIS for Zotero and reference managers
@@ -45,5 +50,8 @@ configuring one permitted model route, either a cloud key or a local provider
 plus an exact model. If you want a one-click app, this is not that. The corpus
 it builds is plain files precisely so the tools you already use can be the
 interface.
+
+The product doctrine and feature-admission test are in
+[research-desk-doctrine.md](design/research-desk-doctrine.md).
 
 See also the design charter in [invariants.md](invariants.md).

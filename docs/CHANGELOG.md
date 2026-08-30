@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.19.73 - 2026-08-30
+
+### Added
+
+- **Research-desk product doctrine.** The human analogue, evidence-portfolio
+  model, research-state boundaries, source contribution contract, field-model
+  synthesis, meaningful-change vocabulary, stopping states, evaluation
+  fixtures, product boundaries, and feature-admission rubric now form one
+  explicit product-quality standard.
+- **Evidence-anchor and atomic-claim handoff design.** The accepted direction
+  separates source assertions from downstream judgment, defines current claim
+  generations and derived-origin preservation as the first trust correction,
+  and stages digest-bound anchors, lineage, typed relations, and a versioned
+  read-only claim packet behind semantic and authority gates.
+
+### Changed
+
+- **The roadmap now starts from the research role.** Near-term work finishes
+  evidence correctness and 1.0 stability first. Post-1.0 work proceeds through
+  a research-desk evaluation baseline, inquiry maps, source-role handoffs,
+  portfolio selection, one cross-source field model, meaningful refresh,
+  selective updates, reading paths, and honest stopping.
+- **Agentic synthesis is framed as bounded field-model reconciliation.** A
+  novel thesis is optional, research sufficiency is a semantic judgment, and
+  deterministic code owns identities, budgets, approvals, exact actions, and
+  stop limits. Provider breadth and autonomous activity are enabling
+  capabilities rather than product outcomes.
+
+### Validation
+
+- **Native plugin evaluation waiver.** The required
+  `claude plugin eval` command returned its early-access block before running.
+  Publication proceeds under the explicit human waiver granted on 2026-08-30.
+  Substitute evidence includes the current generated-distribution check,
+  deterministic agent archive build, isolated Python 3.12 wheel smoke test,
+  complete static and security gates, and the full branch-coverage suite.
+
 ## 0.19.72 - 2026-08-22
 
 ### Fixed

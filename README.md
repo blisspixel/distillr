@@ -6,12 +6,12 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-> Point Distill at a research goal. It finds papers, talks, and pages from
-> operator-trusted sites, captures supplied repos, podcasts, feeds, posts, and
-> local files, analyzes each into structured insights with source receipts,
-> verifies claims before write, and synthesizes a plain-Markdown corpus on your
-> disk. Browse it in Obsidian, query it over MCP, ask cited questions that can
-> re-enter the corpus, and refresh on a cadence instead of going stale.
+> Distill turns a research goal into a persistent, verifiable body of evidence.
+> It finds papers, talks, and pages from operator-trusted sites, captures
+> supplied repos, podcasts, feeds, posts, and local files, analyzes them with
+> source receipts, verifies claims before write, and synthesizes a local
+> plain-Markdown corpus. Use it to understand a field, inspect the evidence,
+> ask cited questions, and keep the research current across repeated runs.
 
 *PyPI package [`distillr`](https://pypi.org/project/distillr/); CLI is `distill`
 (plus `distill-mcp`).*
@@ -35,10 +35,6 @@ current: ad hoc commands at the keyboard, `distill profile refresh --max-hours
 spend is OK, the same pipeline goes wide and fast. When the shortlist looks
 right:
 
-Hard dollar budgets cover registered token-priced calls. Gemini Deep Research
-has no provider request-side dollar ceiling, so Distill refuses that agent
-before remote setup whenever a hard workflow or MCP budget is active.
-
 ```bash
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20 --workers 3
@@ -49,6 +45,10 @@ set in minutes instead of hours. Paper analysis stays one-at-a-time by default.
 After reviewing the projected total, `--workers 2` or `--workers 3` analyzes
 independent papers in a small bounded group. Discovery, artifact writes,
 verification, synthesis, and report sections remain serialized.
+
+Hard dollar budgets cover registered token-priced calls. Gemini Deep Research
+has no provider request-side dollar ceiling, so Distill refuses that agent
+before remote setup whenever a hard workflow or MCP budget is active.
 
 ![distill papers CLI demo with synthetic paper titles, progress lines, cost summary, and Markdown corpus artifacts](docs/assets/cli-papers-demo.png)
 
@@ -80,6 +80,12 @@ profiles expose the same durable corpus to agents. Artifact layout and samples:
 [`docs/outputs.md`](docs/outputs.md). Real example corpus:
 [`examples/`](examples/README.md).
 
+The product direction is an exceptional research desk, not a larger pile of
+files: better source curation, clearer disagreement and lineage, meaningful
+change across refreshes, and guidance on what to read or investigate next. The
+development doctrine and feature-admission test are in
+[`docs/design/research-desk-doctrine.md`](docs/design/research-desk-doctrine.md).
+
 Agent distribution uses one canonical Agent Skill plus an
 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) portable package
 and separate client compatibility surfaces. The specification is currently a
@@ -105,6 +111,7 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 | [`docs/outputs.md`](docs/outputs.md) | What every artifact contains |
 | [`docs/architecture.md`](docs/architecture.md) | Data flow and routing |
 | [`docs/invariants.md`](docs/invariants.md) | Design charter |
+| [`docs/design/research-desk-doctrine.md`](docs/design/research-desk-doctrine.md) | Product doctrine and feature rubric |
 | [`docs/interoperability.md`](docs/interoperability.md) | Agent Plugins and OKF baselines |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Trust boundaries and disclosure |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Dev setup and quality gates |

@@ -9,22 +9,33 @@ evidence gate for 1.0. Shipped work belongs in the
 ## Product direction
 
 Distill is the persistent, verifiable research-corpus layer for people and
-agents. It discovers and captures current public sources and local files,
-analyzes them through a configured model route, verifies claims against source
-receipts, and maintains a plain-Markdown corpus that remains readable without
-Distill.
+agents. Its human analogue is an exceptional research librarian, literature
+analyst, and research desk. It discovers and captures current public sources
+and local files, analyzes them through a configured model route, verifies
+claims against source receipts, and maintains a plain-Markdown corpus that
+remains readable without Distill.
+
+The long-term product is not the largest possible corpus. It is the smallest
+trustworthy body of research that preserves what matters in a field: canonical
+sources, competing views, evidence, gaps, history, and meaningful changes. The
+research-desk doctrine and feature-admission rubric live in
+[`docs/design/research-desk-doctrine.md`](docs/design/research-desk-doctrine.md).
 
 The near-term product goals are:
 
-1. Keep fast-moving topics current through goal-aware discovery and recurring
-   profiles.
-2. Make bounded source-set ingestion easy to preview, approve, resume, and
-   audit.
-3. Improve corpus trust through exact source identity, write-time verification,
-   contradiction handling, and durable evidence.
-4. Keep local inference genuinely no-metered while failing closed when billing
+1. Improve corpus trust through current claim generations, derived-origin
+   preservation, exact source identity, write-time verification, contradiction
+   handling, and durable evidence.
+2. Keep fast-moving topics current through goal-aware discovery and recurring
+   profiles while distinguishing new documents from meaningful new knowledge.
+3. Make bounded source-set ingestion easy to preview, approve, resume, and
+   audit, with a future path toward inquiry maps and visible source-selection
+   rationale.
+4. Preserve the distinct contribution of every source family while compiling
+   one cross-source view of the field.
+5. Keep local inference genuinely no-metered while failing closed when billing
    status is ambiguous.
-5. Finish the evidence needed for a credible 1.0 compatibility commitment.
+6. Finish the evidence needed for a credible 1.0 compatibility commitment.
 
 The native corpus remains the source of truth. MCP, Agent Skills, Agent Plugins,
 OKF exports, dashboard views, and future indexes are interfaces or projections
@@ -48,6 +59,8 @@ for semantic judgment. The complete rule and remediation ledger are in
 
 | Priority | Outcome | Exit evidence |
 |---|---|---|
+| Correct active derived evidence | Removed or rewritten assertions do not survive a successful refresh, and corpus-derived answers never become apparent independent evidence | Generation and zero-claim retirement tests, origin-preservation tests, legacy compatibility, and full CI |
+| Establish the research-desk baseline | Product work is judged on source selection, redundancy, disagreement, meaningful change, navigation, and stopping rather than source volume | Representative mature, fast-moving, and contested-field fixtures with per-case findings |
 | Harden public boundaries | No credential persistence, unsafe paths, partial metadata publication, or silent malformed-input fallback | Focused regression tests, full CI, and release notes |
 | Complete performance evidence | Characterize hosted-runner variance and measure install, cold start, export, and live reference journeys | Published, hash-bound receipts and an advisory policy |
 | Finish type and parse ratchets | External values are parsed once into strict domain types before core logic sees them | Pyright coverage, boundary tests, and no reduction in branch coverage |
@@ -172,11 +185,18 @@ Contributor setup and exact local commands are in
 
 ## Looking beyond 1.0
 
-Post-1.0 work can include plan-quota adapters after billing proof, richer route
+Post-1.0 product work can turn the stable corpus into a stronger research desk:
+inquiry maps in discovery preview, source-role and expected-contribution
+judgments, portfolio-level selection, one contribution envelope across source
+families, a field model over all current evidence, meaningful change briefs,
+selective refresh, and reading paths through existing query and report
+surfaces.
+
+Enabling work can include plan-quota adapters after billing proof, richer route
 orchestration after eval graduation, optional MCP Tasks support after official
 SDK support, semantic alias proposals, additional scientific discovery sources,
 and explicitly versioned plugin boundaries. These remain behind the same cost,
-verification, and compatibility rules.
+verification, research-value, and compatibility rules.
 
 ## Intentionally not in scope
 

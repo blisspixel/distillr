@@ -8,7 +8,14 @@ Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md) (the 0.1.0 entry covers the
 
 ## Current Direction
 
-Distill is a source-to-intelligence platform with eight source types on one trust pipeline:
+Distillr augments a research librarian, literature analyst, and research desk.
+Its job is to build and maintain the smallest trustworthy body of research that
+preserves what matters in a field: canonical sources, competing views,
+evidence, gaps, history, and meaningful changes. The product doctrine and
+feature-admission test live in
+[`design/research-desk-doctrine.md`](design/research-desk-doctrine.md).
+
+The current acquisition and trust foundation covers eight source types:
 
 - YouTube for staying current on channels and topics
 - Websites for vendor, lab, and research-corpus distillation
@@ -19,11 +26,16 @@ Distill is a source-to-intelligence platform with eight source types on one trus
 - Newsletters / feed posts via the same feed dispatcher
 - Local files and media via `distill ingest <path>`
 
-Current UX priorities:
+Current product priorities:
 
+- Finish the 1.0 stability evidence without expanding the public surface
+- Correct active claim generations and preserve source-versus-derived origin
+- Establish expert-authored research-desk evaluation fixtures before changing
+  discovery and synthesis behavior
 - Make the website workflow feel first-class instead of command-by-command
 - Keep the YouTube "stay current" path fast and obvious
-- Goal-aware discovery as the front door when the user has a research goal rather than a keyword query
+- Use goal-aware discovery as the front door when the user has a research goal
+  rather than a keyword query
 - Maintain the shipped MCP 2026-07-28 and legacy dual-era boundary while the
   optional Tasks extension waits for official SDK support
 - Keep the covered CLI, MCP, artifact, configuration, and state snapshots
@@ -31,7 +43,9 @@ Current UX priorities:
   without weakening existing promises
 - Finish the Pyright strict-mode, boundary-type, and deterministic-core
   verification ratchets while preserving the branch-coverage floor
-- Continue the Obsidian-native living-wiki shape while keeping Distill's native corpus as the source of truth
+- Continue the Obsidian-native living-wiki shape while keeping Distill's native
+  corpus as the source of truth and usefulness, rather than file count, as the
+  compounding measure
 - Build comparable performance history, add installation and cold-start
   evidence, and optimize measured whole workflows before considering
   first-party native code
@@ -39,22 +53,25 @@ Current UX priorities:
 
 ## Next Up
 
-The work ahead is ordered around the product's three core jobs:
+The work ahead is ordered around the outcomes a strong research desk provides:
 
-1. Stay current on fast-moving topics
-2. Learn a source set quickly
-3. Build a reusable corpus for deeper reporting and agent workflows
+1. Frame the important lines of inquiry.
+2. Curate an evidence portfolio instead of accumulating relevant files.
+3. Explain the body of evidence, including disagreements and history.
+4. Report what meaningfully changed.
+5. Guide the next reading or research action.
+6. Stop honestly when another pass is unlikely to be valuable.
 
-The broader direction is for Distill to work well as the research-and-corpus layer
-in multi-agent systems - a tool other agents can query via MCP to get grounded,
-structured intelligence without duplicating ingestion work. The priorities below
-build toward that: tighter outputs, cleaner handoffs, and interoperability with
-orchestration layers.
+Distillr also serves as a research-and-corpus layer for agents through MCP.
+That is a distribution and composition advantage, not the defining human role.
+The priorities below build toward better source choices, cleaner evidence
+handoffs, a stronger field model, and durable interoperability.
 
-The direction is **more agentic**, but not more self-certifying. Open-ended
+The implementation direction is more agentic where judgment helps, but not
+more self-certifying. Open-ended
 judgment moves toward models: source fit, query expansion, analysis lensing,
-synthesis planning, contradiction interpretation, and future deep-synthesis
-loops. Structural and irreversible boundaries stay rule-owned: schemas, path
+synthesis planning, contradiction interpretation, information value, and
+research sufficiency. Structural and irreversible boundaries stay rule-owned: schemas, path
 and URL safety, cost-mode refusal, action ids, exact commands, audit rollups,
 approval class, receipts, and verifier stop conditions. Each backlog item
 should be legible as one of three shapes:
@@ -66,9 +83,8 @@ should be legible as one of three shapes:
 - **Judgment-then-rule:** a model returns per-criterion verdicts, then Python
   aggregates, thresholds, records, and gates.
 
-That split is product direction, not implementation trivia. "More agentic" means
-more model judgment where flexibility helps, plus tighter rule-owned boundaries
-around writes, spend, ingestion, and completion.
+That split is product direction, not implementation trivia. Agentic execution is
+an implementation technique. Research quality is the product outcome.
 
 **Competitive context (August 2026).** The "local-first LLM Wiki" space saturated
 within weeks of Karpathy's April gist (47k-star official Obsidian skills, a
@@ -203,6 +219,61 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
 - [~] **Complete usage ledger.** Cost-log rows now record provider breakdowns, route-class breakdowns, no-metered call counts, local transcription counts, and zero-dollar `profile-run` orchestration rows. The adapter manifest contract has a strict `quota_stop` field for rate-limit and quota exhaustion, verified native usage files can feed manifest writing, Codex JSONL and Claude JSON usage can be normalized and written to scratch manifests from workload capture hooks, and verified manifests can be converted into included-plan cost-tracker rows. Adapter-specific native usage parsing and capture for Grok, Gemini, and Antigravity output shapes are wired, with strict rejection of boolean or non-integer token counts on Gemini-family usage fields. Route-pool admission now carries allowed and blocked entries as a loop-readable ledger, and `distill.eval.route_availability` normalizes local service status, installed local models, portable quota windows, stale evidence, and manifest quota stops so a selected pool can evict exhausted routes. Portable `route-availability.v1` snapshots reject account-bearing quota metadata, and focused boundary tests now cover open signals, missing-model local evidence, no-quota manifests, JSON loading, nested identity metadata, and invalid quota rows. Remaining: wiring live workload manifests and optional external quota snapshots into route availability signals during orchestration.
 - [x] **Provider caching research.** Provider-side prompt and context caching policy is documented in [`design/provider-caching.md`](design/provider-caching.md). The gate is provider-specific, cost-mode aware, and lifecycle-bound: cache writes, storage TTL, retention policy, cached-token telemetry, rate-limit behavior, and cleanup semantics differ across Anthropic, OpenAI, Azure OpenAI in Microsoft Foundry, Gemini, Bedrock, and xAI. Provider cache discounts do not make a route no-metered, and local durable intermediate caches stay separate from opaque provider caches.
 - [x] **Loop handoff.** Emit profile-related next-action rows compatible with the 0.17 schema so external loops can steward recurring topics without scraping console output.
+
+### Research-desk program
+
+Design: [`design/research-desk-doctrine.md`](design/research-desk-doctrine.md),
+with the bounded loop in
+[`design/agentic-deep-synthesis.md`](design/agentic-deep-synthesis.md).
+
+The evaluation baseline can begin during 0.x because it changes no public
+contract. Product behavior ships after the 1.0 stability commitment in the
+dependency order below. Do not add a new command or a scalar corpus-quality
+score merely to expose these capabilities.
+
+- [ ] **Research-desk evaluation baseline.** Build expert-authored fixtures for
+  source selection, canonical versus peripheral role, redundancy, method and
+  viewpoint coverage, disagreement causes, field-model quality, meaningful
+  change, reading order, honest gaps, and stopping. Record the current system's
+  performance before changing prompts or orchestration.
+- [ ] **Inquiry map.** Derive revisable lines of inquiry from operator-owned
+  intent, including why each matters, useful evidence roles, current support,
+  and important unknowns. The model owns the semantic decomposition. Python
+  owns schema, intent identity, versioning, and exact action boundaries.
+- [ ] **Source-role and contribution handoff.** Give each supported source type
+  a small common envelope for role, inquiries served, distinct contribution,
+  evidence or reasoning, limitations, lineage, time, and producer origin. Keep
+  the source-sensitive analysis that makes a paper, lecture, repository, and
+  postmortem useful for different reasons.
+- [ ] **Portfolio discovery.** Replace relevance-only ranking with model-judged
+  evidence-portfolio selection. Preview should distinguish essential core,
+  gap-closing additions, method or perspective breadth, and peripheral or
+  redundant candidates, with expected contribution and rationale.
+- [ ] **Expected-versus-realized contribution.** After ingest, assess whether a
+  selected source materially changed the field model, filled a gap, added
+  independent support, clarified scope, explained a contradiction, added only
+  context, proved redundant, proved off-goal, or could not be evaluated.
+- [ ] **Unified field model.** Compile all admitted source types into one
+  provenance-preserving view of established, contested, scope-dependent,
+  emerging, unsupported, and unknown conclusions, plus methodological fault
+  lines, intellectual lineage, history, practical implications, and optional
+  hypotheses when warranted.
+- [ ] **Meaningful change.** Refresh should classify findings as new,
+  strengthened, weakened, qualified, reframed, resolved, or unchanged. Each
+  classification names the affected inquiry and resolves to current evidence.
+  Publication count remains operational metadata.
+- [ ] **Selective refresh.** Prioritize profile work by field volatility, source
+  velocity, inquiry importance, last material change, open disagreement, and
+  operator interest. Stable areas should not consume repeated analysis merely
+  because new documents exist.
+- [ ] **Research navigation.** Produce bounded reading paths for beginner,
+  practitioner, researcher, historical, frontier, contrarian, and
+  evidence-behind-a-conclusion needs through an existing report or ask surface
+  before considering a new verb.
+- [ ] **Honest stopping.** Let a model judge sufficiency for current intent and
+  preserve states such as evidence too weak, source access blocked, budget
+  limited, and next pass likely valuable. Python enforces pass, budget, tool,
+  action-id, approval, and verification limits.
 
 ### 1. Make "Stay Current" a first-class workflow
 
@@ -367,6 +438,31 @@ Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-
   into eval rows, append-only JSONL results, and report artifacts, and emits
   review findings from existing judge signals for unfaithful, minor,
   unjudged-risk, and route-disagreement rows.
+- [ ] **Required current refinement: active claim generations and derived
+  origin.** Follow
+  [`design/evidence-anchors-and-claim-handoff.md`](design/evidence-anchors-and-claim-handoff.md).
+  A successful refresh, including a zero-claim refresh, must retire the prior
+  active generation for that artifact. Preserve external versus corpus-derived
+  origin through claim extraction, and do not let derived answers increase
+  apparent independent-source counts. Review the equivalent generation risk in
+  concept mentions before calling the trust defect closed.
+- [ ] **Post-1.0 additive trust layer: exact anchors and bounded
+  explanation.** Add digest-bound locators over normalized artifacts first,
+  then source-native page, timestamp, or repository coordinates only after the
+  capture path preserves them. Keep structural anchor validity distinct from
+  semantic verification, add typed scope and valid-time fields, and expose
+  backward explanation through existing read surfaces.
+- [ ] **Experimental semantic firewall for provenance and claim relations.**
+  Admit model-proposed lineage, support, contradiction, qualification, and
+  supersession records through strict schema, deterministic domain checks,
+  semantic adjudication, separate spend and write authority gates, and atomic
+  commit. Keep the implementation Python-native and feature-local. Do not add a
+  graph database, general ontology engine, or automatic ontology extension.
+- [ ] **Post-dogfood current-view integration and atomic handoff.** Let existing
+  synthesis, concept, report, audit, and explain surfaces consume accepted
+  relations only after per-case evals show measurable quality or efficiency
+  value. Publish a versioned read-only claim packet after native semantics
+  settle. Do not add parallel `validate`, `map`, `garden`, or graph commands.
 
 ### 8. Expand cross-source intelligence
 
@@ -549,6 +645,10 @@ an 18K-token playbook compressed to 122 tokens lost most of its recall).
 - [x] Concept/entity graph export - shipped 0.8: `concepts.jsonl` and `entities.jsonl` rollups for downstream agent and programmatic consumption.
 - [x] Local file ingest - shipped 0.9: `distill ingest <path>` handles PDF, Markdown, text, clipped HTML, and later local media through the same verified pipeline.
 - [ ] Semantic alias resolution over `mentions.jsonl`: model-assisted grouping for cases mechanical normalization cannot safely resolve, with Python only owning graph assembly and invariant checks.
+- [ ] Typed concept relations are a separate experiment from alias resolution.
+  Start only after provenance and claim-relation admission is reliable, and
+  promote them only if an existing synthesis or query surface measurably
+  improves. The model may nominate a vocabulary change but cannot install it.
 - [x] OKF projection of concept/entity playbooks: exported concept docs map to `Concept Playbook` and `Entity Playbook` OKF types, wikilinks rewrite to bundle-relative Markdown links, grouped `index.md` navigation, living `log.md` from profile run state and cost history, optional `llms.txt` pointer, and `okf_export: true` on profile runs.
 
 *Tier 3 - explicitly not in scope*
