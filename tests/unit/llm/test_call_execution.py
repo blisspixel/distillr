@@ -194,6 +194,23 @@ def test_remote_local_adapter_receives_per_attempt_usage_sink() -> None:
     assert provider.kwargs["usage_sink"] is options.usage_sink
 
 
+def test_openrouter_receives_run_id_as_sticky_session_id() -> None:
+    provider = _CapturingEndpointProvider(
+        LLM_Response(
+            text="ok",
+            input_tokens=10,
+            output_tokens=20,
+            model="x-ai/grok-4.6",
+        ),
+        "https://openrouter.ai/api/v1",
+    )
+    options = _options(provider, [])
+
+    execute_call(options, "openrouter", "x-ai/grok-4.6")
+
+    assert provider.kwargs["session_id"] == "run"
+
+
 def test_provider_supplied_success_attempt_is_normalized_and_emitted() -> None:
     supplied = replace(
         _attempt(outcome="success", attempt_id="provider-attempt"),
@@ -394,6 +411,30 @@ def test_route_telemetry_falls_back_to_response_usage_without_attempt_rows(monke
     assert captured["input_tokens"] == 7
     assert captured["output_tokens"] == 9
     assert captured["usage_source"] == "unavailable"
+    assert captured["billed_cost_usd"] is None
+    assert captured["upstream_provider"] == ""
+
+
+def test_route_telemetry_retains_provider_reported_cost_and_upstream(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        call_execution,
+        "_emit_telemetry",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    response = LLM_Response(
+        text="ok",
+        input_tokens=7,
+        output_tokens=9,
+        model="x-ai/grok-4.6",
+        billed_cost_usd=0.000123,
+        upstream_provider="Example Cloud",
+    )
+
+    execute_call(_options(_Provider(response), []), "openrouter", "x-ai/grok-4.6")
+
+    assert captured["billed_cost_usd"] == pytest.approx(0.000123)
+    assert captured["upstream_provider"] == "Example Cloud"
 
 
 @pytest.mark.parametrize(

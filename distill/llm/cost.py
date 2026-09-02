@@ -42,6 +42,7 @@ PRICING_SOURCE_URLS: dict[str, str] = {
     "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
     "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
     "openai": "https://developers.openai.com/api/docs/models/compare",
+    "openrouter": "https://openrouter.ai/models",
 }
 
 # Cloud speech-to-text pricing, USD per hour of audio (batch rates). Local
@@ -343,7 +344,9 @@ def is_nonbinding_planning_price(model: str) -> bool:
 
 
 def _resolve_known_pricing(model: str) -> dict[str, float] | None:
-    normalized = model.strip().lower()
+    from distill.llm.openrouter_policy import underlying_model_id
+
+    normalized = underlying_model_id(model)
     if not normalized:
         return None
     if _is_intro_priced_gemini_flash_model(normalized):
@@ -364,6 +367,8 @@ def pricing_source_for_model(model: str) -> str:
     """Return the authoritative pricing page for a cloud model, if known."""
 
     normalized = model.strip().lower()
+    if "/" in normalized:
+        return PRICING_SOURCE_URLS["openrouter"]
     if normalized.startswith("grok-"):
         return PRICING_SOURCE_URLS["xai"]
     if normalized.startswith(("gemini-", "deep-research")):

@@ -26,6 +26,8 @@ class LLMUsageAttempt:
     outcome: UsageOutcome
     error_type: str = ""
     attempt_id: str = ""
+    billed_cost_usd: float | None = None
+    upstream_provider: str = ""
 
     def with_identity(self) -> LLMUsageAttempt:
         """Return this attempt with a collision-resistant ledger identity."""
@@ -42,6 +44,8 @@ class LLMUsageAttempt:
             outcome=self.outcome,
             error_type=self.error_type,
             attempt_id=uuid4().hex,
+            billed_cost_usd=self.billed_cost_usd,
+            upstream_provider=self.upstream_provider,
         )
 
 

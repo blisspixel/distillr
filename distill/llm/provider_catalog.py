@@ -26,6 +26,7 @@ _CLOUD_MODEL_PREFIXES: tuple[tuple[str, str], ...] = (
 __all__ = [
     "DEFAULT_MODEL_FOR_PROVIDER",
     "PROVIDER_HELP",
+    "PROVIDER_KEY_REQUIREMENTS",
     "ROUTABLE_PROVIDERS",
     "default_model_for_provider",
     "infer_cloud_provider_for_model",
@@ -40,6 +41,7 @@ ROUTABLE_PROVIDERS: tuple[str, ...] = (
     "xai",
     "gemini",
     "anthropic",
+    "openrouter",
     "ollama",
     "lmstudio",
     "agent",
@@ -49,9 +51,20 @@ PROVIDER_HELP: dict[str, str] = {
     "xai": "xAI Grok cloud API (default)",
     "gemini": "Google Gemini cloud API",
     "anthropic": "Anthropic Claude API (metered opt-in)",
+    "openrouter": "OpenRouter multi-model API (metered opt-in)",
     "ollama": "Local Ollama server (loopback)",
     "lmstudio": "Local LM Studio server (loopback)",
     "agent": "Deferred host-session worker (host-managed billing)",
+}
+
+PROVIDER_KEY_REQUIREMENTS: dict[str, tuple[str | None, str | None]] = {
+    "xai": ("xai_api_key", "XAI_API_KEY"),
+    "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
+    "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+    "openrouter": ("openrouter_api_key", "OPENROUTER_API_KEY"),
+    "agent": (None, None),
+    "ollama": (None, None),
+    "lmstudio": (None, None),
 }
 
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
@@ -188,11 +201,16 @@ def validate_provider_route(provider: str, model: str) -> tuple[str, str]:
 
         raise ValueError(xai_media_generation_refusal(model_id))
 
+    if name == "openrouter":
+        from distill.llm.openrouter_policy import validate_openrouter_model_id
+
+        return name, validate_openrouter_model_id(model_id)
+
     expected = _cloud_provider_for_model(model_id)
     if expected == "openai":
         raise ValueError(
             "Provider 'openai' is not implemented yet. "
-            "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
+            "Use xai, gemini, anthropic, openrouter, agent, ollama, or lmstudio."
         )
     if name in {"xai", "gemini", "anthropic"} and expected and expected != name:
         raise ValueError(f"Model '{model_id}' belongs to provider '{expected}', not '{name}'.")

@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 # HTTP status codes and exception types that should never be retried.
-PERMANENT_ERRORS: tuple[int, ...] = (400, 401, 403, 404, 422)
+PERMANENT_ERRORS: tuple[int, ...] = (400, 401, 402, 403, 404, 422)
 
 
 def is_permanent_error(exc: Exception) -> bool:

@@ -115,6 +115,8 @@ def report_router_config(config: DistillConfig) -> RouterConfig:
         gemini_api_key=config.gemini_api_key.get_secret_value(),
         anthropic_api_key=config.anthropic_api_key.get_secret_value(),
         openai_api_key=config.openai_api_key.get_secret_value(),
+        openrouter_api_key=config.openrouter_api_key.get_secret_value(),
+        openrouter_zdr=config.distill_openrouter_zdr,
         cost_mode=config.distill_cost_mode,
         fast_model=config.xai_fast_model,
         premium_model=config.xai_premium_model,

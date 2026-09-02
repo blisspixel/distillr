@@ -20,7 +20,9 @@ type RouteCostClass = Literal[
 
 VALID_COST_MODES: frozenset[str] = frozenset({"auto", "no-metered", "paid-ok"})
 LOCAL_PROVIDER_NAMES: frozenset[str] = frozenset({"ollama", "lmstudio"})
-METERED_API_PROVIDER_NAMES: frozenset[str] = frozenset({"xai", "gemini", "openai", "anthropic"})
+METERED_API_PROVIDER_NAMES: frozenset[str] = frozenset(
+    {"xai", "gemini", "openai", "anthropic", "openrouter"}
+)
 CREDIT_METERED_PROVIDER_NAMES: frozenset[str] = frozenset({"copilot"})
 PLAN_QUOTA_PROVIDER_NAMES: frozenset[str] = frozenset(
     {"codex", "claude", "grok", "gemini-cli", "antigravity"}

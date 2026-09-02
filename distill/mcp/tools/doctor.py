@@ -54,6 +54,7 @@ def doctor() -> str:
         ("gemini", "gemini_api_key"),
         ("anthropic", "anthropic_api_key"),
         ("openai", "openai_api_key"),
+        ("openrouter", "openrouter_api_key"),
     ):
         status, detail = doctor_validate_key(provider, config, live=False)
         entry: DoctorCheck = {"check": label, "status": status}

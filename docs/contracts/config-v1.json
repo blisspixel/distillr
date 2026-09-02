@@ -66,6 +66,10 @@
         "canonical_name": "DISTILL_MCP_READ_ONLY",
         "validation_alias": null
       },
+      "distill_openrouter_zdr": {
+        "canonical_name": "DISTILL_OPENROUTER_ZDR",
+        "validation_alias": null
+      },
       "distill_output_dir": {
         "canonical_name": "DISTILL_OUTPUT_DIR",
         "validation_alias": null
@@ -80,6 +84,10 @@
       },
       "openai_api_key": {
         "canonical_name": "OPENAI_API_KEY",
+        "validation_alias": null
+      },
+      "openrouter_api_key": {
+        "canonical_name": "OPENROUTER_API_KEY",
         "validation_alias": null
       },
       "scribe_path": {
@@ -269,6 +277,10 @@
         "default": false,
         "type": "boolean"
       },
+      "distill_openrouter_zdr": {
+        "default": true,
+        "type": "boolean"
+      },
       "distill_output_dir": {
         "default": "<topology-dependent; see default cases>",
         "format": "path",
@@ -285,6 +297,12 @@
         "writeOnly": true
       },
       "openai_api_key": {
+        "default": "",
+        "format": "password",
+        "type": "string",
+        "writeOnly": true
+      },
+      "openrouter_api_key": {
         "default": "",
         "format": "password",
         "type": "string",

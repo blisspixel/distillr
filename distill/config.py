@@ -156,6 +156,7 @@ class DistillConfig(BaseSettings):
     gemini_api_key: SecretStr = SecretStr("")
     anthropic_api_key: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
+    openrouter_api_key: SecretStr = SecretStr("")
     scribe_path: str = ""
     distill_output_dir: Path = _default_library_dir()
     distill_default_months: int = 1
@@ -183,6 +184,10 @@ class DistillConfig(BaseSettings):
     # Comma-separated command caps, for example:
     # DISTILL_COST_WORKFLOW_BUDGETS="report=5,discover=2"
     distill_cost_workflow_budgets: str = ""
+    # OpenRouter sends current source and local-file content through an
+    # aggregator and an upstream provider. Restrict routing to zero-retention
+    # endpoints unless the operator explicitly opts out.
+    distill_openrouter_zdr: bool = True
     # MCP posture (DISTILL_MCP_READ_ONLY): serve only the read surface --
     # write-side tools (spend/ingest/mutation) refuse with a clear message.
     # The recommended setting for agent-facing deployments.

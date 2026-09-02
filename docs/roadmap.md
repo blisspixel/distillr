@@ -203,6 +203,15 @@ be moved to `CHANGELOG.md` on next release).
 
 Design: [`design/recurring-profiles-cost-routing.md`](design/recurring-profiles-cost-routing.md).
 
+- [x] **Optional OpenRouter metered route.** Add an explicit, non-default
+  OpenRouter provider for concrete `author/model` slugs. Keep it blocked in
+  `no-metered`, enforce registered prices before hard-budget calls, request
+  privacy-constrained upstream routing, preserve exact provider-reported cost
+  and upstream identity, shape strict cross-family requests from the no-cost
+  endpoint capability catalog, preserve per-run upstream affinity, and cover
+  doctor plus eval. Design:
+  [`design/openrouter-provider.md`](design/openrouter-provider.md).
+
 - [x] **Research profile schema.** Store recurring source plans as versioned files: topic, goal file, trusted feeds including Substack-class newsletters, YouTube channels, domains, repos, queries, freshness policy, output preferences, and cost mode. Shipped as the pure `distill.library.profiles` parser and validator.
 - [x] **Checked-in example profiles.** Ship `ai-developer-news`, `live-agentic-dev`, and `vendor-docs-watch` examples that use public sources, newsletter/feed sources such as Latent Space-class posts, and preview-only defaults.
 - [x] **Fresh-source local mode documentation.** Make user-facing docs and agent instructions explicit that local Ollama/LM Studio analysis still starts from current fetched receipts, not stale model memory.
@@ -606,7 +615,9 @@ operational product becomes real. No Mojo code enters without an owned measured
 tensor or accelerator kernel; evaluating MAX as a provider route uses the
 existing doctor, ledger, cost-policy, and `distill eval` gates. Python 3.14t is
 an optional compatibility and benchmark lane, not a supported default, until
-whole-workflow evidence and stress testing justify it.
+whole-workflow evidence and stress testing justify it. Python 3.15 prereleases
+run in a separate advisory Linux CI lane. Promote 3.15 into the blocking matrix
+after the final runtime and required cross-platform dependency wheels ship.
 
 ### 10. Living Wiki Corpus (Obsidian-native, LLM-maintained)
 

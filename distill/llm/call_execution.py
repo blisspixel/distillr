@@ -19,7 +19,7 @@ from distill.llm._usage_accounting import (
     normalize_success_attempts as _normalize_success_attempts,
 )
 from distill.llm.async_compat import run_coroutine_sync
-from distill.llm.cost_policy import classify_provider
+from distill.llm.cost_policy import METERED_API_PROVIDER_NAMES, classify_provider
 from distill.llm.fallback import (
     FallbackConfig,
     fallback_failure_to_surface,
@@ -41,8 +41,6 @@ from distill.llm.usage import (
 )
 
 logger = logging.getLogger(__name__)
-
-_DIRECT_METERED_PROVIDERS: frozenset[str] = frozenset({"xai", "gemini", "anthropic"})
 
 
 class _PostResponseAccountingError(Exception):
@@ -142,9 +140,15 @@ def _provider_reasoning_effort(
     model: str,
 ) -> str | None:
     normalized_model = model.strip().lower()
-    if provider_name == "xai" and normalized_model.startswith(("grok-4.6", "grok-4.5", "grok-4.3")):
+    if provider_name == "openrouter":
+        from distill.llm.openrouter_policy import underlying_model_id
+
+        normalized_model = underlying_model_id(normalized_model)
+    if provider_name in {"xai", "openrouter"} and normalized_model.startswith(
+        ("grok-4.6", "grok-4.5", "grok-4.3")
+    ):
         return resolve_xai_reasoning_effort(config, workload_tag)
-    if provider_name == "anthropic" and normalized_model.startswith(
+    if provider_name in {"anthropic", "openrouter"} and normalized_model.startswith(
         (
             "claude-sonnet-5",
             "claude-opus-5",
@@ -173,7 +177,7 @@ def _run_provider_call(
             model,
             strict_budget=False,
         )
-    if provider_name not in _DIRECT_METERED_PROVIDERS:
+    if provider_name not in METERED_API_PROVIDER_NAMES:
         if classify_provider(provider_name) == "local":
             return _run_admitted_provider_call(
                 options,
@@ -228,9 +232,7 @@ def _run_admitted_provider_call(
     call_kwargs: dict[str, object] = {
         "max_tokens": options.max_tokens,
         "timeout": effective_timeout,
-        # A strict dollar budget admits one bounded attempt at a time. Provider
-        # retries would be additional billable attempts hidden inside this call,
-        # so callers may still use the router's separately admitted fallback.
+        # Strict budgets admit one attempt; router fallback is admitted separately.
         "retries": 0 if strict_budget else options.retries,
         "temperature": options.temperature,
         "call_type": options.call_type,
@@ -243,6 +245,8 @@ def _run_admitted_provider_call(
     }
     if provider_type != "local":
         call_kwargs["usage_sink"] = options.usage_sink
+    if provider_name == "openrouter" and options.run_id:
+        call_kwargs["session_id"] = options.run_id
     coroutine = provider.call(model, options.prompt, **call_kwargs)
     try:
         response = run_coroutine_sync(coroutine)
@@ -270,6 +274,8 @@ def _run_admitted_provider_call(
                 provider_type=provider_type,
                 usage_source=successful_attempt.usage_source,
                 usage_attempts=attempts,
+                billed_cost_usd=successful_attempt.billed_cost_usd,
+                upstream_provider=successful_attempt.upstream_provider,
             )
             raise _PostResponseAccountingError(exc, response) from exc
         if not attempts:
@@ -423,6 +429,12 @@ def _record_route(
         if any(row.usage_source == "conservative" for row in attempts)
         else (attempts[-1].usage_source if attempts else "unavailable")
     )
+    reported_costs = [row.billed_cost_usd for row in attempts if row.billed_cost_usd is not None]
+    billed_cost_usd = sum(reported_costs) if reported_costs else None
+    upstream_provider = next(
+        (row.upstream_provider for row in reversed(attempts) if row.upstream_provider),
+        response.upstream_provider if response is not None else "",
+    )
     _emit_telemetry(
         ops_dir=options.ops_dir,
         model=response.model if response is not None else model,
@@ -438,6 +450,8 @@ def _record_route(
         provider_name=effective_provider_name,
         tokens_per_second=round(tokens_per_second, 2),
         usage_source=usage_source,
+        billed_cost_usd=billed_cost_usd,
+        upstream_provider=upstream_provider,
     )
 
 
@@ -457,6 +471,8 @@ def _emit_telemetry(
     provider_name: str,
     tokens_per_second: float,
     usage_source: str,
+    billed_cost_usd: float | None = None,
+    upstream_provider: str = "",
 ) -> None:
     if not ops_dir:
         return
@@ -478,5 +494,7 @@ def _emit_telemetry(
             provider_name=provider_name,
             tokens_per_second=tokens_per_second,
             usage_source=usage_source,
+            billed_cost_usd=billed_cost_usd,
+            upstream_provider=upstream_provider,
         ),
     )

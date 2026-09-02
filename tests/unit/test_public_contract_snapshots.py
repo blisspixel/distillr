@@ -100,6 +100,7 @@ def test_config_contract_snapshot_is_tracked_without_secret_values() -> None:
         "anthropic_api_key",
         "gemini_api_key",
         "openai_api_key",
+        "openrouter_api_key",
         "xai_api_key",
     }
     assert {name for name, field in properties.items() if field.get("writeOnly")} == secret_fields

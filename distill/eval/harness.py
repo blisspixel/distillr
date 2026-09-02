@@ -16,7 +16,7 @@ import hashlib
 import logging
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from distill.eval._models import LOCAL_PROVIDERS, provider_for_model
@@ -70,12 +70,20 @@ def _eval_model_is_no_metered(model: str) -> bool:
 
 
 def _require_known_eval_cost(model: str) -> None:
+    from distill.llm.cost import has_known_pricing
+
     provider = provider_for_model(model)
     if provider in LOCAL_PROVIDERS and _eval_provider_type(provider) == "unknown":
         raise UnpricedEvalRouteError(
             f"Cannot evaluate cost for model '{model}' through a non-loopback {provider} "
             "endpoint because its external price is unknown. Use a loopback endpoint "
             "or a provider with a configured price contract."
+        )
+    if provider == "openrouter" and not has_known_pricing(model):
+        raise UnpricedEvalRouteError(
+            f"Cannot evaluate cost for OpenRouter model '{model}' because Distill has "
+            "no verified pre-call price ceiling for that exact slug. Select a registered "
+            "model before running a paid eval."
         )
 
 
@@ -249,7 +257,7 @@ def _analyze(
             # Malformed cache entry (missing/ill-typed fields): ignore it and
             # recompute rather than crashing the sweep on a poisoned/corrupt row.
             logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
-    row_tracker = CostTracker()
+    row_tracker = run_tracker.concurrent_child()
     rc = RouterConfig(provider=provider, model=model)
     if provider == "adapter" and runner is _run_analysis:
         # Adapter plan-quota routes require a live adapter analyzer. A synthetic
@@ -269,7 +277,7 @@ def _analyze(
     try:
         output = runner(fixture, rc, row_tracker)
     except Exception as exc:
-        external_cost_unavailable = _merge_eval_usage(row_tracker, run_tracker, provider)
+        external_cost_unavailable = _normalize_eval_usage(row_tracker, provider)
         logger.warning("eval analysis failed for %s on %s: %s", model, fixture.id, exc)
         error = f"{type(exc).__name__}: {exc}"[:200]
         if external_cost_unavailable:
@@ -282,7 +290,7 @@ def _analyze(
             cached=False,
             error=error,
         )
-    external_cost_unavailable = _merge_eval_usage(row_tracker, run_tracker, provider)
+    external_cost_unavailable = _normalize_eval_usage(row_tracker, provider)
     if external_cost_unavailable:
         return _Analysis(
             output="",
@@ -314,33 +322,18 @@ def _analyze(
     return analysis
 
 
-def _merge_eval_usage(
-    row_tracker: CostTracker,
-    run_tracker: CostTracker,
-    provider: str,
-) -> bool:
-    """Normalize route identity, merge every attempt, and flag unknown cost."""
+def _normalize_eval_usage(row_tracker: CostTracker, provider: str) -> bool:
+    """Normalize the child ledger identity and flag unknown external cost."""
 
     route_type = _eval_provider_type(provider)
-    normalized: list[TokenUsage] = []
     for entry in row_tracker.entries:
         if provider in LOCAL_PROVIDERS:
-            normalized_entry = replace(
-                entry,
-                provider_name=provider,
-                provider_type=route_type,
-            )
+            entry.provider_name = provider
+            entry.provider_type = route_type
         else:
-            normalized_entry = replace(
-                entry,
-                provider_name=entry.provider_name or provider,
-                provider_type=entry.provider_type or route_type,
-            )
-        normalized.append(normalized_entry)
-    row_tracker.entries[:] = normalized
-    for entry in normalized:
-        run_tracker.record(entry)
-    return any(entry.external_cost_unavailable for entry in normalized)
+            entry.provider_name = entry.provider_name or provider
+            entry.provider_type = entry.provider_type or route_type
+    return any(entry.external_cost_unavailable for entry in row_tracker.entries)
 
 
 def _heuristic_summary(qs: QualityScore) -> str:

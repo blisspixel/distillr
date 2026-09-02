@@ -2,6 +2,8 @@
 
 Distill runs on a mix of free and paid stages. YouTube captions and local PDF
 extraction are free. xAI, Anthropic, and Gemini model calls are token-metered.
+OpenRouter calls are also metered and may route the selected model across
+eligible upstream providers.
 Google bills Deep Research for its underlying model inference and tool usage.
 Google no longer publishes a typical dollar range for the current agents and
 does not expose a request-side dollar ceiling. Distill may show a non-binding
@@ -64,6 +66,7 @@ analysis, a finite overnight window, leftover work tomorrow.
 | Local model servers, Ollama and LM Studio | Yes | No incremental vendor API bill only for strict loopback endpoints | Uses local hardware, electricity, and time. Remote or malformed endpoint overrides are classified as unknown, not local. Quality must clear `distill eval` before a workload should default to it. |
 | Calibrated cloud routes, xAI and Gemini | Yes | Metered API spend | Default quality floor for analysis and Deep Research style work. |
 | Opt-in Anthropic API route | Yes | Metered API spend | Claude Sonnet 5 is wired for explicit opt-in use, but it is not a calibrated default. |
+| Opt-in OpenRouter API route | Yes | Metered API spend | Requires a concrete `author/model` slug. Distill requests privacy-constrained, price-sorted upstream routing, records reported billed cost, and never selects it automatically. |
 | Reserved OpenAI analysis route | No | Metered API spend when implemented | OpenAI is not a live analysis provider yet. OpenAI Whisper transcription is separate. |
 | Remote Ollama or LM Studio adapter | Yes in `auto` or `paid-ok` | External cost unavailable | Distill records attempts but cannot prove host billing or price the external service. Eval refuses these unpriced routes. |
 | Deferred `agent` task-file route plus active host worker | Yes, explicit handoff | Host-managed; external cost unavailable | This writes a structured task, lets an already active agent session claim it into scratch through `distill worker`, and accepts only a validated result plus receipt. Distill does not execute the assistant or inspect its auth, so the route remains blocked in `no-metered`. |
@@ -92,7 +95,7 @@ does not have to classify the error message.
 - `no-metered` - refuse routes that would bill an API or have ambiguous billing
   semantics. Today that allows Ollama and LM Studio only at strict loopback
   HTTP(S) endpoints, and blocks remote or malformed endpoint overrides, xAI,
-  Gemini, OpenAI, Anthropic, `agent`, and unproven adapter routes.
+  Gemini, OpenAI, Anthropic, OpenRouter, `agent`, and unproven adapter routes.
 - `paid-ok` - allow metered provider routes, subject to explicit workflow caps.
 
 When a remote Ollama or LM Studio compatible endpoint is permitted, the local
@@ -202,7 +205,7 @@ synthesize`, `distill topic brief`, and on-demand
 `distill synthesis` generation check their known synthesis-call estimates before
 model execution; and `distill discover` checks saved preview estimates and
 freshly ranked ingest-plan estimates before ingest. Second, direct xAI, Gemini
-chat, and Anthropic calls on a budgeted tracker are admitted one attempt at a
+chat, Anthropic, and OpenRouter calls on a budgeted tracker are admitted one attempt at a
 time. Distill conservatively bounds the prompt and maximum configured output,
 atomically reserves that amount, and does so before provider-client
 construction. Hidden provider retries are disabled while a dollar cap is
@@ -221,6 +224,10 @@ reuse already-held workflow or item headroom, while concurrent workers cannot
 authorize the same remaining dollars independently.
 
 Provider-reported usage is still the ledger source of truth after a call.
+OpenRouter additionally reports billed dollar cost and the selected upstream
+provider. Distill records that exact billed cost when it is finite and
+nonnegative; registered token pricing remains the conservative fallback when
+the field is absent or invalid.
 Distill records conservative maximum usage when a provider omits valid usage
 metadata. An exceptional provider response that violates the admitted token
 bound is recorded and then raises a budget crossing. Deep Research is

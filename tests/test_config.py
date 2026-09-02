@@ -4,6 +4,27 @@ import pytest
 
 from distill.config import DistillConfig, _default_library_dir, resolve_library_dir
 from distill.library.paths import sanitize_path_component, slugify_title
+from distill.llm.router import RouterConfig
+
+
+def test_env_example_covers_primary_settings_surface() -> None:
+    template = (Path(__file__).parents[1] / ".env.example").read_text(encoding="utf-8")
+    expected = {field.upper() for field in DistillConfig.model_fields}
+    unprefixed_keys = {
+        "xai_api_key",
+        "gemini_api_key",
+        "anthropic_api_key",
+        "openai_api_key",
+        "openrouter_api_key",
+    }
+    expected.update(
+        field.upper() if field in unprefixed_keys else f"DISTILL_{field.upper()}"
+        for field in RouterConfig.model_fields
+    )
+
+    missing = sorted(name for name in expected if name not in template)
+
+    assert missing == []
 
 
 class TestDefaultLibraryDir:
@@ -80,6 +101,7 @@ class TestDistillConfig:
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
         monkeypatch.delenv("SCRIBE_PATH", raising=False)
         # _env_file=None skips .env, but pydantic-settings still reads OS env
         # vars -- clear the ones this test asserts defaults for, so a developer
@@ -90,6 +112,8 @@ class TestDistillConfig:
         config = DistillConfig(distill_output_dir=tmp_path / "lib", _env_file=None)
         assert config.xai_api_key.get_secret_value() == ""
         assert config.gemini_api_key.get_secret_value() == ""
+        assert config.openrouter_api_key.get_secret_value() == ""
+        assert config.distill_openrouter_zdr is True
         assert config.distill_default_months == 1
         assert config.distill_cost_mode == "auto"
         assert config.distill_cost_warning_daily_usd == 10.0
@@ -103,10 +127,14 @@ class TestDistillConfig:
         config = DistillConfig(
             xai_api_key="xai-test",
             gemini_api_key="gem-test",
+            openrouter_api_key="openrouter-test",
+            distill_openrouter_zdr=False,
             distill_output_dir=tmp_path / "mylib",
             distill_default_months=6,
         )
         assert config.xai_api_key.get_secret_value() == "xai-test"
+        assert config.openrouter_api_key.get_secret_value() == "openrouter-test"
+        assert config.distill_openrouter_zdr is False
         assert config.distill_default_months == 6
 
     def test_cost_mode_normalizes_env_value(self, tmp_path, monkeypatch):

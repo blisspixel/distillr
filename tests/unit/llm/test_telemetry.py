@@ -52,6 +52,10 @@ _telemetry_record_st = st.builds(
     provider_name=st.sampled_from(["ollama", "lmstudio", "xai", "gemini", "anthropic", ""]),
     tokens_per_second=st.floats(min_value=0.0, max_value=1000.0, allow_nan=False),
     usage_source=st.sampled_from(["reported", "conservative", "unavailable", "unknown"]),
+    billed_cost_usd=st.one_of(
+        st.none(), st.floats(min_value=0.0, max_value=1000.0, allow_nan=False)
+    ),
+    upstream_provider=st.from_regex(r"[a-zA-Z0-9 ]{0,20}", fullmatch=True),
 )
 
 
@@ -88,6 +92,8 @@ def test_jsonl_round_trip(record: Telemetry_Record) -> None:
         assert got.call_type == record.call_type
         assert got.error_type == record.error_type
         assert got.run_id == record.run_id
+        assert got.billed_cost_usd == record.billed_cost_usd
+        assert got.upstream_provider == record.upstream_provider
         # timestamp is set by write_record — just verify it's non-empty
         assert got.timestamp != ""
         # New fields (0.6)
@@ -490,6 +496,10 @@ _telemetry_record_with_optional_new_fields_st = st.builds(
         st.just(0.0), st.floats(min_value=0.1, max_value=500.0, allow_nan=False)
     ),
     usage_source=st.sampled_from(["reported", "conservative", "unavailable", "unknown"]),
+    billed_cost_usd=st.one_of(
+        st.none(), st.floats(min_value=0.0, max_value=1000.0, allow_nan=False)
+    ),
+    upstream_provider=st.from_regex(r"[a-zA-Z0-9 ]{0,20}", fullmatch=True),
 )
 
 
@@ -529,6 +539,8 @@ def test_telemetry_round_trip_with_new_fields(record: Telemetry_Record) -> None:
         assert got.provider_name == record.provider_name
         assert got.tokens_per_second == record.tokens_per_second
         assert got.usage_source == record.usage_source
+        assert got.billed_cost_usd == record.billed_cost_usd
+        assert got.upstream_provider == record.upstream_provider
 
 
 def test_backward_compat_records_without_new_fields(tmp_path: Path) -> None:
@@ -561,3 +573,5 @@ def test_backward_compat_records_without_new_fields(tmp_path: Path) -> None:
     assert got.provider_name == ""
     assert got.tokens_per_second == 0.0
     assert got.usage_source == "unknown"
+    assert got.billed_cost_usd is None
+    assert got.upstream_provider == ""

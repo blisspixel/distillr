@@ -19,8 +19,11 @@ distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --l
 Try before installing: `uvx --from distillr distill --help`. Ingestion needs a
 one-time Chromium install, so `uv tool install` is the path for real runs.
 
-**Platforms:** Windows, macOS, and Linux (Python 3.12+). Local models run on
-consumer GPUs via Ollama or LM Studio.
+**Platforms:** Windows, macOS, and Linux. CPython 3.12 through 3.14 are the
+supported runtime matrix. Python 3.15 is still a release candidate and has an
+advisory Linux CI lane; Windows installation currently waits on an upstream
+`pywin32` CPython 3.15 wheel. Local models run on consumer GPUs via Ollama or LM
+Studio.
 
 ## Guided setup (`distill init`)
 
@@ -103,10 +106,18 @@ name, `DISTILL_OUTPUT_DIR` selects the library root, not the export directory.
 Cloud routes read keys from `.env` in your working directory (copy from
 `.env.example`); set only the providers you intend to use:
 
+The installed executable location does not control this lookup. For example,
+running `distill` from `C:\GitHub\distillr` reads
+`C:\GitHub\distillr\.env` even if `distill.exe` lives under a user tool
+directory. If you run from another directory, put `.env` there or export the
+variables in the shell. This repository ignores `.env`, `.env.local`, and
+environment-specific `.env.*` files; only `.env.example` is tracked.
+
 ```bash
 XAI_API_KEY=xai-...             # Grok models (default analysis)
 GEMINI_API_KEY=AIza...          # Gemini analysis route + Deep Research reports
 ANTHROPIC_API_KEY=sk-ant-...    # Claude API route (metered, explicit opt-in)
+OPENROUTER_API_KEY=sk-or-...    # Multi-model route (metered, explicit opt-in)
 ```
 
 Pick or change the analysis route with the CLI (writes `.env` only on `set`):
@@ -122,6 +133,48 @@ The Anthropic API route is implemented but not a calibrated default. Select it
 explicitly, permit metered spend, and review the estimate before running it.
 OpenAI model IDs are retained only for cost-registry and future-routing truth;
 OpenAI is not currently a runnable Distill provider.
+
+### OpenRouter optional metered route
+
+OpenRouter is useful when a direct-provider quota is unavailable and local
+inference is not practical. Create a key at
+[OpenRouter](https://openrouter.ai/settings/keys), add it to the working
+directory `.env`, and select one concrete model:
+
+```bash
+distill provider set openrouter x-ai/grok-4.6
+distill --cost-mode paid-ok doctor
+```
+
+Distill requires a lowercase `author/model` slug. It deliberately rejects all
+`openrouter/*` router models, including `openrouter/auto` and
+`openrouter/free`, moving `-latest` aliases, and colon variants such as `:free`.
+This preserves a stable model identity for evaluation and cost records.
+OpenRouter has no Distill default model and is never added to the automatic
+route ladder.
+
+The adapter requests `data_collection=deny` and Zero Data Retention routing by
+default. Set `DISTILL_OPENROUTER_ZDR=false` only if you intentionally accept a
+broader upstream provider pool. This setting cannot disable ZDR already required
+by your OpenRouter account or guardrails. OpenRouter and its upstream provider
+still receive the prompts sent through this route, so review their policies for
+your chosen model. `DISTILL_COST_MODE=no-metered` always blocks OpenRouter.
+
+Distill checks OpenRouter's no-cost endpoint catalog before inference. This
+selects the token-limit field supported by the eligible upstreams and avoids
+sending an optional temperature when none of them supports it, while retaining
+strict parameter enforcement. Calls in one Distill run share a random
+`session_id`, derived one way from the local run id, for stable upstream routing
+and prompt-cache locality. Distill does not enable OpenRouter's beta response
+caching.
+
+For registered models, Distill sends an upstream per-token price ceiling,
+preauthorizes each bounded attempt against configured workflow budgets, and
+records OpenRouter's exact reported billed cost after the call. An unregistered
+model may run only without a hard dollar budget because Distill cannot prove a
+pre-call ceiling. An OpenRouter key spending limit is a useful independent
+account-side guard. The no-inference key doctor reports that limit and its
+remaining allowance when OpenRouter supplies them.
 
 Full provider command reference: [usage.md](usage.md#provider-and-model-route).
 

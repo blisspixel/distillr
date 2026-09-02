@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,6 +28,8 @@ class TokenUsage:
     outcome: str = "success"
     error_type: str = ""
     attempt_id: str = ""
+    billed_cost_usd: float | None = None
+    upstream_provider: str = ""
     attempts: tuple[LLMUsageAttempt, ...] = ()
 
     def __post_init__(self) -> None:
@@ -39,6 +42,8 @@ class TokenUsage:
             self.usage_source = "conservative"
         self.prompt_tokens = normalized_prompt
         self.completion_tokens = normalized_completion
+        if self.billed_cost_usd is not None and not _is_valid_billed_cost(self.billed_cost_usd):
+            self.billed_cost_usd = None
 
     @classmethod
     def from_response(cls, response: Any, *, call_type: str = "") -> TokenUsage:
@@ -51,6 +56,8 @@ class TokenUsage:
             provider_name=getattr(response, "provider_name", ""),
             provider_type=getattr(response, "provider_type", ""),
             usage_source=getattr(response, "usage_source", "unknown"),
+            billed_cost_usd=getattr(response, "billed_cost_usd", None),
+            upstream_provider=getattr(response, "upstream_provider", ""),
             attempts=getattr(response, "usage_attempts", ()),
         )
 
@@ -71,6 +78,8 @@ class TokenUsage:
                 outcome=attempt.outcome,
                 error_type=attempt.error_type,
                 attempt_id=attempt.attempt_id,
+                billed_cost_usd=attempt.billed_cost_usd,
+                upstream_provider=attempt.upstream_provider,
             )
             for attempt in self.attempts
         )
@@ -88,6 +97,8 @@ class TokenUsage:
             return True
         if self.no_metered_cost:
             return False
+        if self.billed_cost_usd is not None:
+            return False
         if is_nonbinding_planning_price(self.model):
             return True
         return self.provider_type == "cloud" and not has_known_pricing(self.model)
@@ -103,6 +114,15 @@ class TranscriptionUsage:
     cost: float = 0.0
     outcome: str = "completed"
     external_cost_unavailable: bool = False
+
+
+def _is_valid_billed_cost(value: object) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, int | float)
+        and math.isfinite(float(value))
+        and value >= 0
+    )
 
 
 def _bounded_usage_count(value: object) -> int:

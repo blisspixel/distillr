@@ -21,6 +21,8 @@ class LLM_Response:
     provider_type: str = ""
     usage_source: str = "reported"
     usage_attempts: tuple[LLMUsageAttempt, ...] = ()
+    billed_cost_usd: float | None = None
+    upstream_provider: str = ""
     # Phase timings, when the provider reports them. Local runtimes separate
     # weight loading, prompt prefill, and token decode, and those rates differ
     # by several times -- a single "tokens per second" over total elapsed time

@@ -14,6 +14,8 @@ LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio"})
 def provider_for_model(model: str) -> str:
     """Infer the provider from a model id (anything unrecognized is treated local)."""
     m = model.lower()
+    if "/" in m:
+        return "openrouter"
     if m.startswith("grok"):
         return "xai"
     if m.startswith(("gemini", "deep-research")):

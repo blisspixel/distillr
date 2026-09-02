@@ -750,6 +750,8 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             gemini_api_key=runtime_config.gemini_api_key.get_secret_value(),
             anthropic_api_key=runtime_config.anthropic_api_key.get_secret_value(),
             openai_api_key=runtime_config.openai_api_key.get_secret_value(),
+            openrouter_api_key=runtime_config.openrouter_api_key.get_secret_value(),
+            openrouter_zdr=runtime_config.distill_openrouter_zdr,
         )
         route_provider, resolved_model = route_config.resolve("analysis")
         configured_model = (

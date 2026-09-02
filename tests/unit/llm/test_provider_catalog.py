@@ -32,6 +32,7 @@ def test_default_models() -> None:
     assert default_model_for_provider("gemini") == "gemini-3.7-flash"
     assert default_model_for_provider("anthropic") == "claude-sonnet-5"
     assert default_model_for_provider("ollama") == ""
+    assert default_model_for_provider("openrouter") == ""
 
 
 def test_gemini_catalog_includes_new_flash_models() -> None:
@@ -79,6 +80,17 @@ def test_validate_provider_route_accepts_matching_pair() -> None:
     )
 
 
+def test_validate_openrouter_requires_concrete_model_slug() -> None:
+    assert validate_provider_route("openrouter", "x-ai/grok-4.6") == (
+        "openrouter",
+        "x-ai/grok-4.6",
+    )
+    with pytest.raises(ValueError, match="router models"):
+        validate_provider_route("openrouter", "openrouter/auto")
+    with pytest.raises(ValueError, match="lowercase concrete"):
+        validate_provider_route("openrouter", "anthropic/claude-sonnet-4:free")
+
+
 def test_price_summary_for_catalog_models() -> None:
     from distill.llm.cost import get_pricing
 
@@ -91,7 +103,7 @@ def test_price_summary_for_catalog_models() -> None:
     assert "$4.00/$12.00" in price_summary("grok-4.6")
 
 
-@pytest.mark.parametrize("provider", ["xai", "gemini", "anthropic"])
+@pytest.mark.parametrize("provider", ["xai", "gemini", "anthropic", "openrouter"])
 def test_routable_cloud_catalogs_have_auditable_pricing_sources(provider: str) -> None:
     audit = pricing_audit_for_provider(provider)
     assert audit["verified_on"] == "2026-08-13"

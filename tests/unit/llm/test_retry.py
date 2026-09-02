@@ -29,6 +29,11 @@ class TestIsPermanentError:
         exc.response = SimpleNamespace(status_code=404)  # type: ignore[attr-defined]
         assert is_permanent_error(exc) is True
 
+    def test_payment_required_is_permanent(self) -> None:
+        exc = RuntimeError("payment required")
+        exc.status_code = 402  # type: ignore[attr-defined]
+        assert is_permanent_error(exc) is True
+
     def test_transient_status_is_not_permanent(self) -> None:
         exc = RuntimeError("server error")
         exc.status_code = 503  # type: ignore[attr-defined]

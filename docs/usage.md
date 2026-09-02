@@ -1320,6 +1320,7 @@ distill provider list                         # routable providers
 distill provider list gemini                  # known Gemini analysis models + prices
 distill provider set gemini gemini-3.7-flash  # persist DISTILL_PROVIDER + DISTILL_MODEL
 distill provider set gemini                   # cloud default model (gemini-3.7-flash)
+distill provider set openrouter x-ai/grok-4.6 # exact author/model slug required
 distill provider set ollama qwen3.5:27b       # exact local inventory id required
 ```
 
@@ -1339,6 +1340,15 @@ distill -m gemini-3.7-flash papers "..." --limit 5
 Aliases: `google` -> `gemini`, `grok` -> `xai`, `claude` -> `anthropic`.
 Deep Research reports still use `GEMINI_API_KEY` on their own path; the provider
 command configures the analysis/synthesis chat route.
+
+OpenRouter is an optional metered provider with no default model. Use a concrete
+lowercase `author/model` slug from the OpenRouter catalog. OpenRouter-owned
+router models, moving aliases, and endpoint variants are refused so evaluations,
+budgets, and ledger rows retain a stable model identity. Zero Data Retention routing is
+requested by default. Distill uses OpenRouter's endpoint capability metadata to
+shape strict requests across model families, preserves the selected upstream
+identity, and keeps calls from one run on a stable session route. See
+[install.md](install.md#openrouter-optional-metered-route).
 
 ## Global output controls
 

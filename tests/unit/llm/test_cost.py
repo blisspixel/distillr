@@ -23,6 +23,7 @@ from distill.llm.cost import (
     compute_cost,
     deep_research_query_cost,
     get_pricing,
+    has_known_pricing,
     is_nonbinding_planning_price,
     pricing_source_for_model,
     transcription_cost,
@@ -80,6 +81,13 @@ def test_all_listed_models_return_correct_pricing() -> None:
             assert set(rates) == set(expected_rates)
             continue
         assert get_pricing(model) == expected_rates
+
+
+def test_openrouter_known_author_slug_uses_underlying_registered_pricing() -> None:
+    assert get_pricing("x-ai/grok-4.6") == get_pricing("grok-4.6")
+    assert get_pricing("anthropic/claude-sonnet-4") == get_pricing("claude-sonnet-4")
+    assert has_known_pricing("google/gemini-3.1-flash") is True
+    assert has_known_pricing("meta-llama/llama-3.3-70b-instruct") is False
 
 
 def test_unknown_model_falls_back_to_default(caplog: Any) -> None:

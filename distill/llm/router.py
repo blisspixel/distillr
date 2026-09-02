@@ -27,7 +27,8 @@ from distill.llm.model_policy import (
     is_xai_media_generation_model,
     xai_media_generation_refusal,
 )
-from distill.llm.provider_cache import provider_cache_key
+from distill.llm.provider_cache import build_openrouter, provider_cache_key
+from distill.llm.provider_catalog import PROVIDER_KEY_REQUIREMENTS
 from distill.llm.run_context import current_run_id
 from distill.llm.types import LLM_Response, UsageTracker
 from distill.llm.usage import (
@@ -91,6 +92,8 @@ class RouterConfig(BaseSettings):
     gemini_api_key: str = Field(default="", repr=False)
     anthropic_api_key: str = Field(default="", repr=False)
     openai_api_key: str = Field(default="", repr=False)
+    openrouter_api_key: str = Field(default="", repr=False)
+    openrouter_zdr: bool = True
 
     # Global provider
     provider: str = "xai"
@@ -153,6 +156,7 @@ class RouterConfig(BaseSettings):
             "gemini_api_key": "GEMINI_API_KEY",
             "anthropic_api_key": "ANTHROPIC_API_KEY",
             "openai_api_key": "OPENAI_API_KEY",
+            "openrouter_api_key": "OPENROUTER_API_KEY",
             "fast_model": "XAI_FAST_MODEL",
             "premium_model": "XAI_PREMIUM_MODEL",
             "analysis_model": "XAI_ANALYSIS_MODEL",
@@ -252,26 +256,27 @@ class RouterConfig(BaseSettings):
                 "the matching workload or tier model."
             )
 
-        key_map: dict[str, tuple[str | None, str | None]] = {
-            "xai": ("xai_api_key", "XAI_API_KEY"),
-            "gemini": ("gemini_api_key", "GEMINI_API_KEY"),
-            "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY"),
-            "agent": (None, None),
-            "ollama": (None, None),
-            "lmstudio": (None, None),
-        }
         if provider_name == "openai":
             raise ConfigurationError(
                 f"Provider '{provider_name}' is not implemented yet. "
-                "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
+                "Use xai, gemini, anthropic, openrouter, agent, ollama, or lmstudio."
             )
 
-        if provider_name not in key_map:
+        if provider_name == "openrouter":
+            from distill.llm.openrouter_policy import validate_openrouter_model_id
+
+            try:
+                validate_openrouter_model_id(model_id)
+            except ValueError as exc:
+                raise ConfigurationError(str(exc)) from exc
+
+        if provider_name not in PROVIDER_KEY_REQUIREMENTS:
             raise ConfigurationError(
-                f"Unknown provider '{provider_name}'. Valid providers: {', '.join(key_map)}"
+                f"Unknown provider '{provider_name}'. Valid providers: "
+                f"{', '.join(PROVIDER_KEY_REQUIREMENTS)}"
             )
 
-        attr, env_name = key_map[provider_name]
+        attr, env_name = PROVIDER_KEY_REQUIREMENTS[provider_name]
         if attr and not getattr(self, attr, ""):
             raise ConfigurationError(
                 f"Provider '{provider_name}' requires {env_name} to be set. "
@@ -359,6 +364,8 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         xai_api_key=config.xai_api_key,
         gemini_api_key=config.gemini_api_key,
         anthropic_api_key=config.anthropic_api_key,
+        openrouter_api_key=config.openrouter_api_key,
+        openrouter_zdr=config.openrouter_zdr,
         local_endpoint=local_endpoint,
     )
     with _provider_cache_lock:
@@ -378,6 +385,8 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
             from distill.llm.providers.anthropic import AnthropicProvider
 
             provider = AnthropicProvider(config.anthropic_api_key)
+        elif provider_name == "openrouter":
+            provider = build_openrouter(config.openrouter_api_key, zdr=config.openrouter_zdr)
         elif provider_name == "agent":
             from distill.llm.providers.agent import AgentProvider
 
@@ -385,7 +394,7 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
         elif provider_name == "openai":
             raise ConfigurationError(
                 f"Provider '{provider_name}' is not implemented yet. "
-                "Use xai, gemini, anthropic, agent, ollama, or lmstudio."
+                "Use xai, gemini, anthropic, openrouter, agent, ollama, or lmstudio."
             )
         elif provider_name == "ollama":
             from distill.llm.providers.ollama import OllamaProvider
@@ -396,7 +405,7 @@ def _get_provider(provider_name: str, config: RouterConfig) -> Any:
 
             provider = LMStudioProvider(base_url=local_endpoint)
         else:
-            valid = "xai, gemini, anthropic, agent, ollama, lmstudio"
+            valid = "xai, gemini, anthropic, openrouter, agent, ollama, lmstudio"
             raise ConfigurationError(
                 f"Unknown provider '{provider_name}'. Valid providers: {valid}"
             )

@@ -20,6 +20,7 @@ _CLOUD_CREDENTIAL_ENV_VARS = (
     "GOOGLE_API_KEY",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
 )
 _INERT_TEST_CREDENTIAL = "distill-test-credential"
 

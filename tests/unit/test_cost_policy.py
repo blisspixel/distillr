@@ -101,7 +101,7 @@ def test_local_provider_endpoint_validator_rejects_ambiguous_or_sensitive_urls(
     assert local_provider_endpoint_is_valid(endpoint) is False
 
 
-@pytest.mark.parametrize("provider", ["xai", "gemini", "openai", "anthropic"])
+@pytest.mark.parametrize("provider", ["xai", "gemini", "openai", "anthropic", "openrouter"])
 def test_cloud_api_providers_are_metered(provider: str) -> None:
     assert classify_provider(provider) == "metered-api"
 
@@ -153,7 +153,7 @@ def test_permissive_modes_keep_remote_local_provider_available_but_unproven(
     assert decision.cost_class == "unknown"
 
 
-@pytest.mark.parametrize("provider", ["xai", "gemini"])
+@pytest.mark.parametrize("provider", ["xai", "gemini", "openrouter"])
 def test_no_metered_blocks_api_billed_routes(provider: str) -> None:
     with pytest.raises(CostPolicyError, match="Blocked provider"):
         require_route_allowed(

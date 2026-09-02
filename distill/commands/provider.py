@@ -166,7 +166,7 @@ def provider_list_cmd(
 def provider_set_cmd(
     provider: str | None = typer.Argument(
         None,
-        help="Provider id: xai, gemini, anthropic, ollama, lmstudio, agent.",
+        help=("Provider id: xai, gemini, anthropic, openrouter, ollama, lmstudio, agent."),
     ),
     model: str | None = typer.Argument(
         None,
@@ -261,9 +261,9 @@ def provider_set_cmd(
 
 
 def _catalog_price(model_id: str) -> str:
-    from distill.llm.cost import PRICING
+    from distill.llm.cost import has_known_pricing
 
-    if model_id in PRICING:
+    if has_known_pricing(model_id):
         return price_summary(model_id)
     return ""
 
@@ -288,6 +288,11 @@ def _list_note(provider: str) -> str:
         return "Use an exact model id from the local inventory (see distill doctor)."
     if provider == "agent":
         return "Host-managed deferred work; not a live cloud API route."
+    if provider == "openrouter":
+        return (
+            "Use a lowercase concrete author/model slug. OpenRouter routers, aliases, "
+            "and variants are intentionally excluded."
+        )
     return "Catalog models from Distill pricing; any API-valid id is also accepted."
 
 

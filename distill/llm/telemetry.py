@@ -56,6 +56,8 @@ class Telemetry_Record:
     provider_name: str = ""  # "ollama", "lmstudio", "xai", etc.
     tokens_per_second: float = 0.0  # output_tokens / elapsed_seconds for local
     usage_source: str = "unknown"  # reported, conservative, unavailable, or legacy unknown
+    billed_cost_usd: float | None = None
+    upstream_provider: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +111,7 @@ _TEXT_FIELDS = (
     "provider_type",
     "provider_name",
     "usage_source",
+    "upstream_provider",
 )
 
 
@@ -146,6 +149,7 @@ def _parse_record(raw: bytes) -> Telemetry_Record:
         and _valid_token_count(record.output_tokens)
         and _valid_elapsed_seconds(record.elapsed_seconds)
         and _valid_elapsed_seconds(record.tokens_per_second)
+        and (record.billed_cost_usd is None or _valid_elapsed_seconds(record.billed_cost_usd))
     ):
         raise ValueError("provider telemetry measurement is invalid")
     return record

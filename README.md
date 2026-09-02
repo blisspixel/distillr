@@ -60,6 +60,12 @@ Alternate installers, keys, local models, and updates:
 [`docs/install.md`](docs/install.md). Full command reference:
 [`docs/usage.md`](docs/usage.md).
 
+OpenRouter is available as an optional metered route when direct-provider quota
+or local inference is not suitable. It requires an explicit concrete
+`author/model` slug, requests Zero Data Retention routing by default, records
+OpenRouter's reported billed cost, and remains blocked by `no-metered`. It is
+never selected automatically. See the [provider setup](docs/install.md#openrouter-optional-metered-route).
+
 ## What you get
 
 One local `library/` of plain Markdown: no database, no cloud lock-in. Same

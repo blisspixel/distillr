@@ -160,6 +160,9 @@ def _doctor_local_inference_section(  # noqa: C901
                 "ok" if config.anthropic_api_key.get_secret_value().strip() else "not_set"
             ),
             "openai": "ok" if config.openai_api_key.get_secret_value().strip() else "not_set",
+            "openrouter": (
+                "ok" if config.openrouter_api_key.get_secret_value().strip() else "not_set"
+            ),
         }
     if key_details is None:
         route_provider, route_model = _router_config(config).resolve("analysis")

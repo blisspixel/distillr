@@ -194,6 +194,7 @@ class TestTopLevelExperience:
         assert "distill --cost-mode no-metered init" in output
         assert "distill --cost-mode no-metered doctor" in output
         assert "distill provider list" in output
+        assert "OpenRouter opt-in" in output
         assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
         assert "distill --cost-mode paid-ok init" in output
         assert "--preview" in output

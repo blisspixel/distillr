@@ -153,6 +153,7 @@ def _doctor_key_presence(provider: str, config: DistillConfig) -> tuple[DoctorKe
         "gemini": "gemini_api_key",
         "anthropic": "anthropic_api_key",
         "openai": "openai_api_key",
+        "openrouter": "openrouter_api_key",
     }
     field = fields.get(provider)
     if field is None:
@@ -203,6 +204,11 @@ def _doctor_validate_key(
         return _validate_anthropic_key(config, tracker, model=model)
     if provider == "openai":
         return _validate_openai_key(config, tracker, model=model)
+    if provider == "openrouter":
+        from distill.doctor.openrouter import validate_openrouter_key
+
+        result = validate_openrouter_key(config, tracker, model=model)
+        return cast(tuple[DoctorKeyStatus, str], result)
     raise ValueError(f"unknown provider: {provider}")
 
 

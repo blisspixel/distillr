@@ -232,6 +232,7 @@ def test_router_config_repr_omits_api_key_values() -> None:
         gemini_api_key="gemini-secret",
         anthropic_api_key="anthropic-secret",
         openai_api_key="openai-secret",
+        openrouter_api_key="openrouter-secret",
     )
 
     rendered = repr(config)
@@ -240,6 +241,7 @@ def test_router_config_repr_omits_api_key_values() -> None:
     assert "gemini-secret" not in rendered
     assert "anthropic-secret" not in rendered
     assert "openai-secret" not in rendered
+    assert "openrouter-secret" not in rendered
 
 
 def test_xai_media_model_refused_before_provider_call() -> None:
@@ -466,6 +468,79 @@ def test_anthropic_missing_key_raises_configuration_error() -> None:
         call(config, "analysis", "test prompt")
 
 
+def test_openrouter_provider_routes_with_exact_slug() -> None:
+    config = RouterConfig(
+        provider="openrouter",
+        openrouter_api_key="test-openrouter",
+        model="x-ai/grok-4.6",
+        cost_mode="paid-ok",
+    )
+    mock_prov = _mock_provider(model="x-ai/grok-4.6")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        result = call(config, "analysis", "test prompt")
+
+    assert result.provider_name == "openrouter"
+    assert result.provider_type == "cloud"
+    assert result.model == "x-ai/grok-4.6"
+    assert mock_prov.call.call_args.kwargs["reasoning_effort"] == "medium"
+
+
+def test_openrouter_anthropic_route_forwards_explicit_reasoning_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "xhigh")
+    config = RouterConfig(
+        provider="openrouter",
+        openrouter_api_key="test-openrouter",
+        model="anthropic/claude-sonnet-5",
+        cost_mode="paid-ok",
+    )
+    mock_prov = _mock_provider(model="anthropic/claude-sonnet-5")
+
+    with patch("distill.llm.router._get_provider", return_value=mock_prov):
+        call(config, "analysis", "test prompt")
+
+    assert mock_prov.call.call_args.kwargs["reasoning_effort"] == "xhigh"
+
+
+def test_openrouter_requires_key_and_concrete_slug() -> None:
+    with pytest.raises(ConfigurationError, match="OPENROUTER_API_KEY"):
+        RouterConfig(
+            provider="openrouter",
+            model="x-ai/grok-4.6",
+            openrouter_api_key="",
+        ).validate_config("analysis")
+
+
+def test_openrouter_key_and_zdr_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "environment-key")
+    monkeypatch.setenv("DISTILL_OPENROUTER_ZDR", "false")
+
+    config = RouterConfig(_env_file=None)
+
+    assert config.openrouter_api_key == "environment-key"
+    assert config.openrouter_zdr is False
+    with pytest.raises(ConfigurationError, match="author/model"):
+        RouterConfig(
+            provider="openrouter",
+            model="grok-4.6",
+            openrouter_api_key="key",
+        ).validate_config("analysis")
+
+
+def test_no_metered_blocks_openrouter_before_key_or_model_validation() -> None:
+    config = RouterConfig(
+        provider="openrouter",
+        model="openrouter/auto",
+        openrouter_api_key="",
+        cost_mode="no-metered",
+    )
+
+    with pytest.raises(CostPolicyError, match="Blocked provider: openrouter"):
+        config.validate_config("analysis")
+
+
 @pytest.mark.parametrize(
     "model",
     [
@@ -688,6 +763,30 @@ def test_get_provider_uses_distinct_cloud_cache_entries_by_api_key(
         "first-key",
         "second-key",
     ]
+
+
+def test_openrouter_cache_separates_privacy_configuration(tmp_path: Path) -> None:
+    first_provider = object()
+    second_provider = object()
+    first_config = RouterConfig(
+        provider="openrouter",
+        openrouter_api_key="same-key",
+        openrouter_zdr=True,
+        ops_dir=str(tmp_path / "ops"),
+    )
+    second_config = first_config.model_copy(update={"openrouter_zdr": False})
+
+    with patch(
+        "distill.llm.providers.openrouter.OpenRouterProvider",
+        side_effect=[first_provider, second_provider],
+    ) as cls:
+        first = get_provider("openrouter", first_config)
+        second = get_provider("openrouter", second_config)
+
+    assert first is first_provider
+    assert second is second_provider
+    assert cls.call_args_list[0].kwargs == {"zdr": True}
+    assert cls.call_args_list[1].kwargs == {"zdr": False}
 
 
 def test_get_provider_constructs_agent_with_ops_dir(tmp_path: Path) -> None:

@@ -121,6 +121,8 @@ def _token_usage_cost(usage: TokenUsage) -> float:
         return 0.0
     if usage.no_metered_cost:
         return 0.0
+    if usage.billed_cost_usd is not None:
+        return usage.billed_cost_usd
     return compute_cost(usage.model, usage.prompt_tokens, usage.completion_tokens)
 
 

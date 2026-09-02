@@ -513,6 +513,56 @@ def test_cost_tracker_uses_model_specific_pricing():
     assert tracker.summary_dict()["by_model"]["grok-4.20"]["calls"] == 1
 
 
+def test_openrouter_reported_cost_overrides_static_token_estimate():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+            model="x-ai/grok-4.6",
+            provider_name="openrouter",
+            provider_type="cloud",
+            billed_cost_usd=0.125,
+            upstream_provider="xai",
+        )
+    )
+
+    assert tracker.total_cost == 0.125
+    assert tracker.entries[0].external_cost_unavailable is False
+
+
+def test_openrouter_unknown_model_is_accountable_with_reported_cost():
+    tracker = CostTracker()
+    tracker.record(
+        TokenUsage(
+            prompt_tokens=10,
+            completion_tokens=5,
+            model="meta-llama/llama-3.3-70b-instruct",
+            provider_name="openrouter",
+            provider_type="cloud",
+            billed_cost_usd=0.00001,
+        )
+    )
+
+    assert tracker.total_cost == 0.00001
+    assert tracker.summary_dict()["metered_calls"] == 1
+
+
+@pytest.mark.parametrize("value", [True, -1.0, float("nan"), float("inf")])
+def test_invalid_provider_reported_cost_is_not_trusted(value: object):
+    usage = TokenUsage(
+        prompt_tokens=10,
+        completion_tokens=5,
+        model="unknown/model",
+        provider_name="openrouter",
+        provider_type="cloud",
+        billed_cost_usd=value,  # type: ignore[arg-type]
+    )
+
+    assert usage.billed_cost_usd is None
+    assert usage.external_cost_unavailable is True
+
+
 def test_cost_tracker_applies_long_context_rate_per_provider_call():
     tracker = CostTracker()
     tracker.record(

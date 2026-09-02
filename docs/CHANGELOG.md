@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Python 3.15 prerelease watch.** An advisory Linux CI lane now runs the full
+  unit suite and CLI smoke on Python 3.15 while it remains a release candidate.
+  The supported production matrix remains 3.12 through 3.14 until the final
+  release and cross-platform dependency wheels are available.
+- **Optional OpenRouter analysis route.** A concrete lowercase `author/model`
+  slug can now use OpenRouter as an explicit metered provider. The adapter
+  requests Zero Data Retention and denies data-collection endpoints by default,
+  disables hidden SDK retries, applies a registered upstream price ceiling when
+  available, shapes token and temperature fields from the current no-cost
+  endpoint capability catalog, uses a stable per-run upstream session, carries
+  exact billed cost and selected-endpoint identity into telemetry and the usage
+  ledger, and participates in doctor and `distill eval`.
+
+### Safety
+
+- **Dynamic OpenRouter routing fails closed.** Auto/free routers, moving aliases,
+  and endpoint variants are rejected. `no-metered` blocks every OpenRouter route,
+  and a hard budget rejects unregistered model prices before provider contact.
+  Provider HTTP errors are reduced to status-class messages so account metadata
+  from upstream error bodies cannot enter logs or terminal output. Payment
+  failures are permanent, and key diagnosis reports provider-side spending
+  limits without making an inference call.
+
 ## 0.19.73 - 2026-08-30
 
 ### Added

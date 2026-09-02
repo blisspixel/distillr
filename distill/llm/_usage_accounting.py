@@ -84,6 +84,8 @@ def normalize_success_attempts(
             provider_type=provider_type,
             usage_source=response.usage_source,
             outcome="success",
+            billed_cost_usd=response.billed_cost_usd,
+            upstream_provider=response.upstream_provider,
         ),
         options.usage_sink,
     )

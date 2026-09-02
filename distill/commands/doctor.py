@@ -78,6 +78,8 @@ def _configured_metered_api_keys(config: DistillConfig) -> list[str]:
         keys.append("ANTHROPIC_API_KEY")
     if config.openai_api_key.get_secret_value().strip():
         keys.append("OPENAI_API_KEY")
+    if config.openrouter_api_key.get_secret_value().strip():
+        keys.append("OPENROUTER_API_KEY")
     return keys
 
 
@@ -102,6 +104,8 @@ def _router_config(config: DistillConfig) -> RouterConfig:
         gemini_api_key=config.gemini_api_key.get_secret_value(),
         anthropic_api_key=config.anthropic_api_key.get_secret_value(),
         openai_api_key=config.openai_api_key.get_secret_value(),
+        openrouter_api_key=config.openrouter_api_key.get_secret_value(),
+        openrouter_zdr=config.distill_openrouter_zdr,
     )
 
 
@@ -379,10 +383,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
             gem_status, gem_detail = _doctor_key_result("gemini", config)
             ant_status, ant_detail = _doctor_key_result("anthropic", config)
             oai_status, oai_detail = _doctor_key_result("openai", config)
+            or_status, or_detail = _doctor_key_result("openrouter", config)
         checks["xai_api_key"] = xai_status  # ok | invalid | missing | skipped
         checks["gemini_api_key"] = gem_status  # ok | invalid | not_set | skipped
         checks["anthropic_api_key"] = ant_status  # ok | invalid | not_set | skipped
         checks["openai_api_key"] = oai_status  # ok | invalid | not_set | skipped
+        checks["openrouter_api_key"] = or_status  # ok | invalid | not_set | skipped
         checks["cost_mode"] = config.distill_cost_mode
         if xai_status == "invalid":
             warnings_list.append(f"XAI_API_KEY rejected by provider: {xai_detail[:80]}")
@@ -392,6 +398,8 @@ def doctor(  # noqa: C901 - legacy, will refactor
             warnings_list.append(f"ANTHROPIC_API_KEY rejected by provider: {ant_detail[:80]}")
         if oai_status == "invalid":
             warnings_list.append(f"OPENAI_API_KEY rejected by provider: {oai_detail[:80]}")
+        if or_status == "invalid":
+            warnings_list.append(f"OPENROUTER_API_KEY rejected by provider: {or_detail[:80]}")
         warnings_list.extend(_cost_mode_warnings(config))
 
         # yt-dlp
@@ -426,12 +434,14 @@ def doctor(  # noqa: C901 - legacy, will refactor
                     "gemini": gem_status,
                     "anthropic": ant_status,
                     "openai": oai_status,
+                    "openrouter": or_status,
                 },
                 key_details={
                     "xai": xai_detail,
                     "gemini": gem_detail,
                     "anthropic": ant_detail,
                     "openai": oai_detail,
+                    "openrouter": or_detail,
                 },
                 ollama_status=ollama_status,
                 ollama_models=tuple(ollama_models),
@@ -534,6 +544,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
         gem_status, gem_detail = _doctor_key_result("gemini", config)
         ant_status, ant_detail = _doctor_key_result("anthropic", config)
         oai_status, oai_detail = _doctor_key_result("openai", config)
+        or_status, or_detail = _doctor_key_result("openrouter", config)
 
     if xai_status == "ok":
         console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{escape(xai_detail)}[/dim]")
@@ -607,6 +618,24 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
     else:
         console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{escape(oai_detail[:60])}[/red]")
+
+    # OpenRouter -- optional paid multi-model route
+    if or_status == "ok":
+        console.print(f"  [green]OK[/green]  OPENROUTER_API_KEY [dim]{escape(or_detail)}[/dim]")
+    elif or_status == "not_set":
+        console.print("  [dim]--  OPENROUTER_API_KEY not set (optional)[/dim]")
+    elif or_status == "skipped":
+        console.print(
+            "  [yellow]--[/yellow]  OPENROUTER_API_KEY "
+            "[yellow]live validation skipped by no-metered policy[/yellow]"
+        )
+    elif or_status == "unknown":
+        console.print(
+            "  [yellow]--[/yellow]  OPENROUTER_API_KEY [yellow]could not verify: "
+            f"{escape(or_detail[:45])}[/yellow]"
+        )
+    else:
+        console.print(f"  [red]XX[/red]  OPENROUTER_API_KEY [red]{escape(or_detail[:60])}[/red]")
 
     # Tools
     console.print()
@@ -832,12 +861,14 @@ def doctor(  # noqa: C901 - legacy, will refactor
             "gemini": gem_status,
             "anthropic": ant_status,
             "openai": oai_status,
+            "openrouter": or_status,
         },
         key_details={
             "xai": xai_detail,
             "gemini": gem_detail,
             "anthropic": ant_detail,
             "openai": oai_detail,
+            "openrouter": or_detail,
         },
     )
 

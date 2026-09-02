@@ -116,7 +116,7 @@ def describe_provider_error(exc: Exception) -> str | None:
     if status == 401 or any(marker in message for marker in _AUTH_MARKERS):
         return (
             "LLM provider rejected the API key (authentication failed). Check the key in your "
-            ".env (XAI_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY)."
+            ".env (XAI_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY)."
         )
     if status == 429:
         return (
