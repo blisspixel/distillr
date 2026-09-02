@@ -177,7 +177,7 @@ Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
 workflow should draw attention above a known spend ceiling:
 
 ```bash
-DISTILL_COST_WORKFLOW_BUDGETS="ask=0.25,report=5,discover=2,eval=1,ingest=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"
+DISTILL_COST_WORKFLOW_BUDGETS="doctor=0.05,ask=0.25,report=5,discover=2,eval=1,ingest=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"
 ```
 
 Workflow budgets serve three roles. First, direct CLI workflows with credible
@@ -238,10 +238,17 @@ Third, `distill costs`, the CLI dashboard, JSON cost output, and the local web
 dashboard use the same caps to flag historical over-budget ledger rows.
 
 Use the user-facing command key for the cap. Common keys include `ask`,
-`catch-up`, `channel`, `concepts`, `corpus`, `discover`, `eval`, `ingest`,
+`catch-up`, `channel`, `concepts`, `corpus`, `discover`, `doctor`, `eval`, `ingest`,
 `paper`, `papers`, `reanalyze`, `report`, `research-brief`, `resynthesize`,
 `run`, `site`, `site-batch`, `synthesize`, `synthesis`, `topic-brief`, and
 `video`.
+
+The `doctor` cap is shared across all live cloud-key probes in one doctor run.
+For a one-run OpenRouter validation on PowerShell, set
+`$env:DISTILL_COST_WORKFLOW_BUDGETS = "doctor=20"`, run `distill --provider
+openrouter --model x-ai/grok-4.6 --cost-mode paid-ok doctor`, then remove the
+temporary environment variable. Provider-reported billed cost is written to the
+same durable ledger as normal model work.
 
 Estimate-bearing workflows resolve the active route for each model stage. Ask,
 paper, site, discovery, synthesis, topic-watch, and video-family work assigned

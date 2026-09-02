@@ -6,6 +6,28 @@ The short public summary lives at [`../ROADMAP.md`](../ROADMAP.md). This file is
 
 Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md) (the 0.1.0 entry covers the initial public release; the "Pre-release Development" section covers everything built before that).
 
+## Backlog control
+
+The versioned execution table in [`../ROADMAP.md`](../ROADMAP.md#versioned-execution-sequence)
+is the operational source of truth. This file supplies supporting detail; it
+does not independently schedule releases.
+
+- `0.19.74` shipped the optional OpenRouter provider, provider accountability
+  work, the Python 3.15 advisory lane, budgeted live validation, and matching
+  release artifacts.
+- `0.19.75` is active and owns claim-generation retirement and derived-origin
+  preservation.
+- `0.19.76` is next and owns the research-desk evaluation baseline.
+- `0.19.77` owns operator, accessibility, and performance evidence.
+- `0.19.78` owns remaining strict-boundary and freeze-time security evidence.
+- `1.0.0rc1` exercises the frozen promise. `1.0.0` follows only when every gate
+  remains closed on the final commit.
+
+Backlog items below are not release commitments unless the public sequence maps
+them to a version. Planning uses exit evidence, not dates or duration estimates.
+When implementation lands, the same change updates the active roadmap row,
+`CHANGELOG.md`, affected user docs, examples, schemas, and evidence links.
+
 ## Current Direction
 
 Distillr augments a research librarian, literature analyst, and research desk.
@@ -26,30 +48,23 @@ The current acquisition and trust foundation covers eight source types:
 - Newsletters / feed posts via the same feed dispatcher
 - Local files and media via `distill ingest <path>`
 
-Current product priorities:
+Current product priorities, in release order:
 
-- Finish the 1.0 stability evidence without expanding the public surface
-- Correct active claim generations and preserve source-versus-derived origin
-- Establish expert-authored research-desk evaluation fixtures before changing
-  discovery and synthesis behavior
-- Make the website workflow feel first-class instead of command-by-command
-- Keep the YouTube "stay current" path fast and obvious
-- Use goal-aware discovery as the front door when the user has a research goal
-  rather than a keyword query
-- Maintain the shipped MCP 2026-07-28 and legacy dual-era boundary while the
-  optional Tasks extension waits for official SDK support
-- Keep the covered CLI, MCP, artifact, configuration, and state snapshots
-  freeze-ready under the published compatibility policy; add uncovered slices
-  without weakening existing promises
-- Finish the Pyright strict-mode, boundary-type, and deterministic-core
-  verification ratchets while preserving the branch-coverage floor
-- Continue the Obsidian-native living-wiki shape while keeping Distill's native
-  corpus as the source of truth and usefulness, rather than file count, as the
-  compounding measure
-- Build comparable performance history, add installation and cold-start
-  evidence, and optimize measured whole workflows before considering
-  first-party native code
-- Complete the 1.0 presentation and contributor-onboarding pass
+1. Correct active claim generations and preserve source-versus-derived origin
+   in `0.19.75`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.19.76`
+   before changing discovery or synthesis behavior.
+3. Publish operator, accessibility, install, cold-start, export, and live
+   journey evidence in `0.19.77`.
+4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
+   verification, and the freeze-time security receipt in `0.19.78`.
+5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
+   promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
+
+Website workflow, the YouTube stay-current path, goal-aware discovery, MCP
+dual-era compatibility, Obsidian interoperability, and measured performance
+optimization remain important workstreams. They enter a release only when they
+support that release's outcome and exit evidence.
 
 ## Next Up
 

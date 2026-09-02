@@ -122,7 +122,7 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Trust boundaries and disclosure |
 | [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) | Dev setup and quality gates |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | What shipped |
-| [`ROADMAP.md`](ROADMAP.md) | What is next |
+| [`ROADMAP.md`](ROADMAP.md) | Versioned next steps and 1.0 exit gates |
 
 ## Status
 

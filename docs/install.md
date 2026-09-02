@@ -140,12 +140,30 @@ OpenAI is not currently a runnable Distill provider.
 OpenRouter is useful when a direct-provider quota is unavailable and local
 inference is not practical. Create a key at
 [OpenRouter](https://openrouter.ai/settings/keys), add it to the working
-directory `.env`, and select one concrete model:
+directory `.env`, and validate one concrete model before persisting the route:
+
+```powershell
+# One-run validation with a hard $20 aggregate doctor ceiling.
+$env:DISTILL_COST_WORKFLOW_BUDGETS = "doctor=20"
+distill --provider openrouter --model x-ai/grok-4.6 --cost-mode paid-ok doctor
+Remove-Item Env:DISTILL_COST_WORKFLOW_BUDGETS
+
+# Persist the route only after validation succeeds.
+distill provider set openrouter x-ai/grok-4.6
+```
+
+On a POSIX shell, the one-run form is:
 
 ```bash
-distill provider set openrouter x-ai/grok-4.6
-distill --cost-mode paid-ok doctor
+DISTILL_COST_WORKFLOW_BUDGETS=doctor=20 \
+  distill --provider openrouter --model x-ai/grok-4.6 --cost-mode paid-ok doctor
 ```
+
+The ceiling is a maximum, not an expected charge. Doctor makes a minimal model
+probe for the selected route, aggregates every configured cloud-key probe under
+the same cap, records exact provider-reported cost, and refuses before provider
+construction if the registered worst-case request cannot fit. Set a key-level
+spending limit of `$20` or less in OpenRouter as a second, independent guard.
 
 Distill requires a lowercase `author/model` slug. It deliberately rejects all
 `openrouter/*` router models, including `openrouter/auto` and

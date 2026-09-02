@@ -2,8 +2,9 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-2026-08-30 against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.72`. Published performance evidence now includes five paired
+against code, roadmap, release evidence, and the live GitHub state at
+`distillr==0.19.74`. The active release boundary is `0.19.75`.
+Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
 replay through 0.19.63 (paper / video / site / synthesis / verify / profile /
@@ -15,7 +16,8 @@ fetch failure, yt-dlp failure, and malformed structured JSON shipped in 0.19.64.
 **1.0 is not missing a feature checklist.** The product promise of 0.x is
 already true: goal-aware discovery, eight source types, verify-gated writes,
 synthesis, audit next-actions, OKF, profiles, no-metered routing, MCP dual-era
-2026-07-28, Agent Skills, and a 95% branch-coverage CI bar on Linux/macOS/Windows.
+2026-07-28, Agent Skills, optional metered OpenRouter routing, and a 95 percent
+branch-coverage CI bar on Linux, macOS, and Windows.
 
 **1.0 is a stability commitment:** external systems can depend on Distill
 without expecting churn. That is a *promise with evidence*, not a version
@@ -82,7 +84,7 @@ remain blocking.
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met (0.19.67: 6,840 passed at 95.02%; floor remains 95%) |
+| Branch coverage >=95% | Met; the blocking full-suite floor remains 95 percent and current evidence is retained in CI |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
 | Python 3.12-3.14 + OS smoke | Met |
 | Golden structural offline gate | Met; do not extend to live model scoring |
@@ -101,29 +103,29 @@ remain blocking.
 4. Screenshots / short recordings for README presentation pass (deliberately
    deferred; still open).
 
-## Dependency-ordered plan (no calendar fiction)
+## Dependency-ordered release plan
 
-```
-Phase 0  Document truth (this file) + name freeze decision
-    |
-Phase 1  Contract + library compatibility policy
-    |    Graduate covered snapshots under that policy
-    |
-Phase 2  Performance baseline v1 (offline scale matrix + cold CLI start)
-    |    Keep live journeys as scheduled release evidence
-    |
-Phase 3  Close residual quality ratchets (Pyright strict packages,
-    |    parse boundaries, verification-depth cadence)
-    |
-Phase 4  Operator presentation + a11y + freeze-time security receipt
-    |
-Phase 5  1.0.0 release: freeze covered contracts, ship migration note,
-         publish baseline, tag under SemVer major
-    |
-Beyond   2.0: research program, evidence portfolio, field model,
-         meaningful refresh, navigation, bounded stewardship loops
-         3.0: recipes, corpus merge, plugin ecosystem
-```
+The authoritative version table and update protocol live in
+[`ROADMAP.md`](../../ROADMAP.md#versioned-execution-sequence). No row carries a
+date or duration estimate.
+
+1. `0.19.74`: shipped provider accountability, OpenRouter, and Python 3.15
+   readiness evidence.
+2. `0.19.75`: correct active claim generations and derived-origin
+   preservation.
+3. `0.19.76`: publish the expert-authored research-desk evaluation baseline.
+4. `0.19.77`: publish operator, accessibility, install, export, cold-start, and
+   live reference-journey evidence.
+5. `0.19.78`: close remaining strict-boundary, deterministic-core, and
+   freeze-time security evidence.
+6. `1.0.0rc1`: freeze and exercise the exact compatibility promise without new
+   product surface.
+7. `1.0.0`: publish only when the release-candidate evidence remains valid on
+   the final commit.
+
+Post-1.0 work retains its existing dependency order: research program,
+evidence portfolio, field model, meaningful refresh, navigation, bounded
+stewardship loops, qualified provider breadth, recipes, merge, and plugins.
 
 ## Success criteria for 1.0.0
 
@@ -166,11 +168,12 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 
 ## Execution status (updated as work lands)
 
-| Phase | Status | Evidence |
-|-------|--------|----------|
-| 0 Plan + name freeze | done | this document; names frozen in `COMPATIBILITY.md` |
-| 1 Compatibility policy + contract freeze-ready | done | `docs/contracts/COMPATIBILITY.md`; snapshots `status: freeze-ready` |
-| 2 Performance baseline v1 | partial | Windows and Linux/macOS scale-100/500/1_000/10_000 n=20 plus workflow replay n=20 published; five-run host history and advisory policy complete; install/cold-start/export evidence and live journeys remain |
-| 3 Quality ratchets | partial | 95.02% cov, llm strict, file-level strict ~76% of modules; write-path fault injection for empty analysis / transcripts / network / yt-dlp (0.19.64) |
-| 4 Presentation / a11y / security receipt | partial | prior harden cycles |
-| 5 Ship 1.0.0 | blocked on 2-4 completeness | |
+| Version | Status | Evidence or next proof |
+|---|---|---|
+| `0.19.74` | shipped | OpenRouter and Python 3.15 advisory implementation, docs, tests, budgeted live provider validation, aligned artifacts, and release publication |
+| `0.19.75` | active | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
+| `0.19.76` | next | expert-authored research-desk fixtures and published baseline results |
+| `0.19.77` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.19.78` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
+| `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

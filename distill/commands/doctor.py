@@ -461,7 +461,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
         )
 
         # Browser capture readiness (the #1 silent ingest failure for YouTube/web).
-        # Reuses init's cheap executable-path probe rather than launching a browser.
+        # Reuses init's launch probe and unsafe-override refusal.
         from distill.commands.init import chromium_status
 
         checks["browser"] = chromium_status()  # installed | missing | unknown
@@ -673,14 +673,17 @@ def doctor(  # noqa: C901 - legacy, will refactor
         console.print("  [red]XX[/red]  yt-dlp            [red]not found[/red]")
 
     # Playwright
-    try:
-        from playwright.sync_api import sync_playwright
+    from distill.commands.init import chromium_status
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            browser.close()
+    browser_status = chromium_status()
+    if browser_status == "installed":
         console.print("  [green]OK[/green]  playwright        [dim]browser search[/dim]")
-    except Exception:
+    elif browser_status == "unsafe":
+        console.print(
+            "  [yellow]--[/yellow]  playwright        "
+            "[yellow]unsafe package execution override configured[/yellow]"
+        )
+    else:
         console.print(
             "  [yellow]--[/yellow]  playwright        [dim]not available (fallback search used)[/dim]"
         )

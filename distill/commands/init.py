@@ -356,11 +356,12 @@ def set_env_var(path: Path, key: str, value: str) -> None:
 
 
 def chromium_status() -> str:
-    """Whether the Playwright Chromium build is installed.
+    """Whether the Playwright Chromium build is installed and launchable.
 
     Returns ``"installed"``, ``"missing"``, ``"unsafe"``, or ``"unknown"``.
-    Checks the expected executable path rather than launching a browser, so it
-    is cheap and side-effect-free.
+    Launching catches broken browser dependencies and lets current Playwright
+    releases close their driver cleanly. Merely reading ``executable_path`` can
+    leave a pending connection task during interpreter shutdown.
     """
     from distill.process_security import unsafe_package_overrides
 
@@ -373,7 +374,11 @@ def chromium_status() -> str:
     try:
         with sync_playwright() as p:
             exe = p.chromium.executable_path
-        return "installed" if exe and Path(exe).exists() else "missing"
+            if not exe or not Path(exe).exists():
+                return "missing"
+            browser = p.chromium.launch(headless=True)
+            browser.close()
+        return "installed"
     except Exception:
         return "missing"
 

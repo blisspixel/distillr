@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.19.74 - 2026-09-02
+
 ### Added
 
 - **Python 3.15 prerelease watch.** An advisory Linux CI lane now compiles the
@@ -23,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   endpoint capability catalog, uses a stable per-run upstream session, carries
   exact billed cost and selected-endpoint identity into telemetry and the usage
   ledger, and participates in doctor and `distill eval`.
+- **Budgeted OpenRouter smoke path.** Provider setup now documents an explicit
+  one-run route check with a hard aggregate `doctor` budget, followed by
+  optional persistence only after validation succeeds.
+
+### Changed
+
+- **Versioned roadmap execution.** The public roadmap now names the exact
+  dependency order from `0.19.74` through `1.0.0`, defines exit evidence for
+  every release, forbids calendar and duration estimates, and requires roadmap,
+  changelog, user-doc, example, schema, and evidence updates as implementation
+  lands.
 
 ### Safety
 
@@ -33,6 +46,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   from upstream error bodies cannot enter logs or terminal output. Payment
   failures are permanent, and key diagnosis reports provider-side spending
   limits without making an inference call.
+- **Browser doctor cleanup.** Browser readiness now requires a real headless
+  Chromium launch through the same unsafe-override refusal used by setup. This
+  catches broken runtime dependencies and prevents Playwright driver tasks from
+  leaking warnings during doctor shutdown.
+
+### Validation
+
+- **Complete release gate.** The Windows Python 3.12 release suite passes 7,144
+  tests with 4 expected skips and 9 deselected tests at 95.20 percent branch
+  coverage. Ruff lint and format, generated contracts, generated distributions,
+  and the frozen lock all pass.
+- **Native plugin evaluation unavailable.** Claude Code 2.1.247 returned its
+  early-access block before running the requested three-run, `$5`-capped
+  with/without evaluation, so it incurred no model spend. Publication follows
+  the maintainer's explicit release instruction. Substitute evidence is the
+  deterministic cross-client distribution check and build, installed-wheel
+  bundle smoke, complete static and security gates, and full branch-coverage
+  suite.
+- **Live OpenRouter route.** The installed public CLI completed its selected
+  `openrouter/x-ai/grok-4.6` doctor probe under a process-local `$20` hard cap.
+  OpenRouter reported `$0.00069` billed cost for 207 input and 78 output tokens,
+  and Distill persisted the provider, call, token, and exact-cost receipt without
+  exposing the key.
 
 ## 0.19.73 - 2026-08-30
 

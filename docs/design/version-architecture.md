@@ -17,10 +17,11 @@ ships when its promise is true and tested, and not before.
 ### 0.x (now) -- "The loop works"
 
 The promise being built: one tool takes a research goal to a verified,
-agent-legible, self-auditing local corpus. As of 0.19.72, the feature spine is
+agent-legible, self-auditing local corpus. As of 0.19.74, the feature spine is
 complete through OKF export/validation, loop-ready audit next-actions,
 recurring research profiles, cost-mode routing, adapter doctors, and the route
-availability primitives. The remaining 0.x work is an evidence-driven
+availability primitives. OpenRouter is an explicit optional metered route and
+does not change the default ladder. The remaining 0.x work is an evidence-driven
 refinement program: keep candidate contracts open while UX, security,
 reliability, observability, accessibility, operator recovery, Pyright
 strictness, parse-don't-validate boundaries, and verification depth improve.
@@ -157,14 +158,24 @@ speculatively. Current state:
 
 ## The order of operations, in one list
 
-Dependency-ordered, no calendar: OKF export/validation + loop-readable
-next-actions -> finish `_logic.py` decomposition -> batch progress/cost UX ->
-recurring profiles + no-metered-cost routing -> claim-generation currentness
-and derived-origin correction -> 1.0 freeze (name decision, contract/version
-policy, quality gate, presentation) -> research-desk evaluation baseline ->
-evidence anchors and unified contribution handoff -> research program and
-portfolio selection -> field model, meaningful refresh, and reading paths ->
-bounded stewardship loops -> qualified provider breadth -> recipes, merge, and
-plugins. Every step ships behind the same CI gate, starts with its dogfood
-corpus and design doc where the work is architectural, and respects the
-invariants. That is what "built out exceptionally well" means operationally.
+Dependency-ordered and versioned, never calendar-estimated:
+
+1. `0.19.74`: shipped provider accountability, optional OpenRouter, Python 3.15
+   watch, and exact release truth.
+2. `0.19.75`: active claim-generation currentness and derived-origin
+   correction.
+3. `0.19.76`: research-desk evaluation baseline.
+4. `0.19.77`: operator, accessibility, performance, and live-journey evidence.
+5. `0.19.78`: strict-boundary, deterministic-core, and security closure.
+6. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
+7. `1.0.0`: publish the stability promise only while every gate remains true.
+8. Post-1.0: evidence anchors and unified contribution handoff, research
+   program and portfolio selection, field model, meaningful refresh, reading
+   paths, bounded stewardship loops, qualified provider breadth, recipes,
+   merge, and plugins.
+
+Every step clears the same CI and security floor, starts with a dogfood corpus
+and design document when architectural judgment is required, and updates the
+roadmap, changelog, affected docs, examples, schemas, and evidence links in the
+same change. The operating protocol lives in
+[`ROADMAP.md`](../../ROADMAP.md#how-the-plan-stays-current).

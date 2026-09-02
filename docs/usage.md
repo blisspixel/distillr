@@ -1350,6 +1350,12 @@ shape strict requests across model families, preserves the selected upstream
 identity, and keeps calls from one run on a stable session route. See
 [install.md](install.md#openrouter-optional-metered-route).
 
+Validate an OpenRouter route without persisting it by combining the global
+provider/model flags with `paid-ok` and a `doctor` workflow cap. For example,
+`DISTILL_COST_WORKFLOW_BUDGETS=doctor=20` gives the complete doctor session a
+hard `$20` ceiling. The provider setup guide includes PowerShell and POSIX
+commands. The ceiling is not a spend target.
+
 ## Global output controls
 
 Global output flags go before the command:

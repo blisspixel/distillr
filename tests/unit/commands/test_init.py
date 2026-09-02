@@ -458,13 +458,48 @@ class TestBrowserSetup:
         executable = tmp_path / "chromium"
         if executable_exists:
             executable.write_text("browser", encoding="utf-8")
-        playwright = SimpleNamespace(chromium=SimpleNamespace(executable_path=str(executable)))
+        browser = SimpleNamespace(closed=False)
+
+        def close():
+            browser.closed = True
+
+        browser.close = close
+        launches = []
+
+        def launch(*, headless):
+            launches.append(headless)
+            return browser
+
+        playwright = SimpleNamespace(
+            chromium=SimpleNamespace(
+                executable_path=str(executable),
+                launch=launch,
+            )
+        )
         monkeypatch.setattr(
             "playwright.sync_api.sync_playwright",
             lambda: nullcontext(playwright),
         )
 
         assert init_mod.chromium_status() == expected
+        assert launches == ([True] if executable_exists else [])
+        assert browser.closed is executable_exists
+
+    def test_status_is_missing_when_browser_cannot_launch(self, tmp_path, monkeypatch):
+        executable = tmp_path / "chromium"
+        executable.write_text("browser", encoding="utf-8")
+        playwright = SimpleNamespace(
+            chromium=SimpleNamespace(
+                executable_path=str(executable),
+                launch=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("broken")),
+            )
+        )
+        monkeypatch.setattr(
+            "playwright.sync_api.sync_playwright",
+            lambda: nullcontext(playwright),
+        )
+
+        assert init_mod.chromium_status() == "missing"
 
     def test_status_is_unknown_when_playwright_cannot_import(self, monkeypatch):
         real_import = builtins.__import__
