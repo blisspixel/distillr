@@ -21,9 +21,10 @@ one-time Chromium install, so `uv tool install` is the path for real runs.
 
 **Platforms:** Windows, macOS, and Linux. CPython 3.12 through 3.14 are the
 supported runtime matrix. Python 3.15 is still a release candidate and has an
-advisory Linux CI lane; Windows installation currently waits on an upstream
-`pywin32` CPython 3.15 wheel. Local models run on consumer GPUs via Ollama or LM
-Studio.
+advisory Linux CI lane that always compiles the source and runs the full suite
+when the locked dependency set installs. Windows installation currently waits
+on an upstream `pywin32` CPython 3.15 wheel. Local models run on consumer GPUs
+via Ollama or LM Studio.
 
 ## Guided setup (`distill init`)
 

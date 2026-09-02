@@ -616,8 +616,10 @@ tensor or accelerator kernel; evaluating MAX as a provider route uses the
 existing doctor, ledger, cost-policy, and `distill eval` gates. Python 3.14t is
 an optional compatibility and benchmark lane, not a supported default, until
 whole-workflow evidence and stress testing justify it. Python 3.15 prereleases
-run in a separate advisory Linux CI lane. Promote 3.15 into the blocking matrix
-after the final runtime and required cross-platform dependency wheels ship.
+run in a separate advisory Linux CI lane. That lane always compiles the source,
+reports locked dependency gaps, and runs the unit suite and CLI smoke when the
+dependency set installs. Promote 3.15 into the blocking matrix after the final
+runtime and required cross-platform dependency wheels ship.
 
 ### 10. Living Wiki Corpus (Obsidian-native, LLM-maintained)
 

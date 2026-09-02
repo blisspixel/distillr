@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Python 3.15 prerelease watch.** An advisory Linux CI lane now runs the full
-  unit suite and CLI smoke on Python 3.15 while it remains a release candidate.
-  The supported production matrix remains 3.12 through 3.14 until the final
-  release and cross-platform dependency wheels are available.
+- **Python 3.15 prerelease watch.** An advisory Linux CI lane now compiles the
+  source with the current Python 3.15 release candidate, probes the locked
+  dependency set, and runs the full unit suite and CLI smoke when that set is
+  installable. Dependency gaps remain visible as workflow warnings. The
+  supported production matrix remains 3.12 through 3.14 until the final release
+  and cross-platform dependency wheels are available.
 - **Optional OpenRouter analysis route.** A concrete lowercase `author/model`
   slug can now use OpenRouter as an explicit metered provider. The adapter
   requests Zero Data Retention and denies data-collection endpoints by default,

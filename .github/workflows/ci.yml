@@ -81,22 +81,43 @@ jobs:
     continue-on-error: true
     env:
       UV_PYTHON: "3.15"
+      PRERELEASE_UV_VERSION: "0.12.6"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
         with:
-          version: ${{ env.UV_VERSION }}
+          # The prerelease lane needs uv's current managed-Python catalog.
+          # uv 0.11.11 selects an obsolete Python 3.15 alpha on Linux.
+          version: ${{ env.PRERELEASE_UV_VERSION }}
           enable-cache: true
 
-      - name: Sync prerelease runtime (frozen)
-        run: uv sync --frozen
+      - name: Compile source on the current prerelease runtime
+        run: uv run --no-project --python 3.15 python -m compileall -q distill
+
+      - name: Probe prerelease dependency readiness
+        id: prerelease_sync
+        shell: bash
+        run: |
+          set +e
+          uv sync --frozen > prerelease-sync.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Python 3.15 source compilation passed, but the locked dependency set is not ready."
+          tail -n 40 prerelease-sync.log
 
       - name: Run unit suite on prerelease runtime
+        if: steps.prerelease_sync.outputs.ready == 'true'
         run: uv run --frozen pytest -q
 
       - name: CLI smoke on prerelease runtime
+        if: steps.prerelease_sync.outputs.ready == 'true'
         run: uv run --frozen distill --help
 
   lint:
