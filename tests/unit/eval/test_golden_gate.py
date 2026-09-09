@@ -113,6 +113,7 @@ def test_end_to_end_harness_scores_goldens_high(monkeypatch):
     import distill.eval.harness as harness_mod
 
     monkeypatch.setattr(harness_mod, "judge_pairwise", lambda *a, **k: None)
+    monkeypatch.setattr(harness_mod, "judge_faithfulness", lambda *a, **k: None)
 
     def mock_analyze(fixture, rc, tracker):
         return GOLDEN_OUTPUTS[fixture.id]

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import cast
 
 import httpx
 from openai import OpenAI
@@ -165,6 +166,9 @@ class LMStudioProvider:
                     output_tokens=out_tok,
                     model=model,
                     usage_attempts=tuple(usage_attempts),
+                    finish_reason=str(getattr(cast(object, choices[0]), "finish_reason", "") or "")
+                    if choices
+                    else "",
                 )
 
         assert last_error is not None  # nosec B101

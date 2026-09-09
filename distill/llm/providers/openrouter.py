@@ -211,6 +211,9 @@ class OpenRouterProvider:
                     usage_attempts=tuple(usage_attempts),
                     billed_cost_usd=billed_cost,
                     upstream_provider=upstream_provider,
+                    finish_reason=str(getattr(choices[0], "finish_reason", "") or "")
+                    if choices
+                    else "",
                 )
 
         assert last_error is not None  # nosec B101
@@ -276,7 +279,10 @@ def _provider_preferences(
         else _registered_price_ceiling(model, prompt=prompt, max_tokens=max_tokens)
     )
     if ceiling:
-        preferences["max_price"] = ceiling
+        # These text-only calls cannot admit separate per-request fees.
+        # An image-price filter also excludes multimodal endpoints whose text
+        # requests incur no image fees, so only constrain the billed dimensions.
+        preferences["max_price"] = {**ceiling, "request": 0}
     return preferences
 
 

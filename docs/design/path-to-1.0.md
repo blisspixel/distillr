@@ -2,8 +2,8 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-against code, roadmap, release evidence, and the live GitHub state at
-`distillr==0.19.74`. The active release boundary is `0.19.75`.
+for the `distillr==0.20.0` editorial release. The active follow-up boundary is
+`0.20.1`; the independent editorial release does not close its trust backlog.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -111,16 +111,18 @@ date or duration estimate.
 
 1. `0.19.74`: shipped provider accountability, OpenRouter, and Python 3.15
    readiness evidence.
-2. `0.19.75`: correct active claim generations and derived-origin
+2. `0.20.0`: release the explicitly requested editorial consumer and standalone
+   perspective skill independently of the remaining research-desk backlog.
+3. `0.20.1`: correct active claim generations and derived-origin
    preservation.
-3. `0.19.76`: publish the expert-authored research-desk evaluation baseline.
-4. `0.19.77`: publish operator, accessibility, install, export, cold-start, and
+4. `0.20.2`: publish the expert-authored research-desk evaluation baseline.
+5. `0.20.3`: publish operator, accessibility, install, export, cold-start, and
    live reference-journey evidence.
-5. `0.19.78`: close remaining strict-boundary, deterministic-core, and
+6. `0.20.4`: close remaining strict-boundary, deterministic-core, and
    freeze-time security evidence.
-6. `1.0.0rc1`: freeze and exercise the exact compatibility promise without new
+7. `1.0.0rc1`: freeze and exercise the exact compatibility promise without new
    product surface.
-7. `1.0.0`: publish only when the release-candidate evidence remains valid on
+8. `1.0.0`: publish only when the release-candidate evidence remains valid on
    the final commit.
 
 Post-1.0 work retains its existing dependency order: research program,
@@ -171,9 +173,10 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | Version | Status | Evidence or next proof |
 |---|---|---|
 | `0.19.74` | shipped | OpenRouter and Python 3.15 advisory implementation, docs, tests, budgeted live provider validation, aligned artifacts, and release publication |
-| `0.19.75` | active | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
-| `0.19.76` | next | expert-authored research-desk fixtures and published baseline results |
-| `0.19.77` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
-| `0.19.78` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `0.20.0` | released | budgeted editorial workflow, Markdown/DOCX sample, optional portable skill, tests and release artifacts |
+| `0.20.1` | active | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
+| `0.20.2` | next | expert-authored research-desk fixtures and published baseline results |
+| `0.20.3` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.20.4` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
 | `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

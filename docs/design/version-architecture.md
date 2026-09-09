@@ -21,7 +21,9 @@ agent-legible, self-auditing local corpus. As of 0.19.74, the feature spine is
 complete through OKF export/validation, loop-ready audit next-actions,
 recurring research profiles, cost-mode routing, adapter doctors, and the route
 availability primitives. OpenRouter is an explicit optional metered route and
-does not change the default ladder. The remaining 0.x work is an evidence-driven
+does not change the default ladder. Release 0.20.0 adds a private editorial
+consumer and standalone perspective skill without changing corpus truth.
+The remaining 0.x work is an evidence-driven
 refinement program: keep candidate contracts open while UX, security,
 reliability, observability, accessibility, operator recovery, Pyright
 strictness, parse-don't-validate boundaries, and verification depth improve.
@@ -162,14 +164,15 @@ Dependency-ordered and versioned, never calendar-estimated:
 
 1. `0.19.74`: shipped provider accountability, optional OpenRouter, Python 3.15
    watch, and exact release truth.
-2. `0.19.75`: active claim-generation currentness and derived-origin
+2. `0.20.0`: explicitly requested editorial consumer and standalone skill.
+3. `0.20.1`: active claim-generation currentness and derived-origin
    correction.
-3. `0.19.76`: research-desk evaluation baseline.
-4. `0.19.77`: operator, accessibility, performance, and live-journey evidence.
-5. `0.19.78`: strict-boundary, deterministic-core, and security closure.
-6. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
-7. `1.0.0`: publish the stability promise only while every gate remains true.
-8. Post-1.0: evidence anchors and unified contribution handoff, research
+4. `0.20.2`: research-desk evaluation baseline.
+5. `0.20.3`: operator, accessibility, performance, and live-journey evidence.
+6. `0.20.4`: strict-boundary, deterministic-core, and security closure.
+7. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
+8. `1.0.0`: publish the stability promise only while every gate remains true.
+9. Post-1.0: evidence anchors and unified contribution handoff, research
    program and portfolio selection, field model, meaningful refresh, reading
    paths, bounded stewardship loops, qualified provider breadth, recipes,
    merge, and plugins.

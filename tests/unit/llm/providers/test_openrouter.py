@@ -31,6 +31,7 @@ def _response(
     prompt_tokens: object = 12,
     completion_tokens: object = 7,
     metadata_provider: str = "",
+    finish_reason: str = "stop",
 ) -> SimpleNamespace:
     usage = SimpleNamespace(
         prompt_tokens=prompt_tokens,
@@ -48,7 +49,9 @@ def _response(
             }
         }
     return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+        choices=[
+            SimpleNamespace(message=SimpleNamespace(content=text), finish_reason=finish_reason)
+        ],
         usage=usage,
         model=model,
         model_extra=model_extra,
@@ -85,9 +88,10 @@ def test_init_uses_openrouter_endpoint_without_hidden_sdk_retries() -> None:
     )
 
 
-def test_success_captures_exact_cost_model_upstream_and_constraints() -> None:
+@pytest.mark.parametrize("finish_reason", ["stop", "length"])
+def test_success_captures_exact_cost_model_upstream_and_constraints(finish_reason: str) -> None:
     provider, client, catalog = _provider()
-    client.chat.completions.create.return_value = _response()
+    client.chat.completions.create.return_value = _response(finish_reason=finish_reason)
 
     result = asyncio.run(
         provider.call(
@@ -101,6 +105,7 @@ def test_success_captures_exact_cost_model_upstream_and_constraints() -> None:
     )
 
     assert result.text == "answer"
+    assert result.finish_reason == finish_reason
     assert result.model == "x-ai/grok-4.6"
     assert result.billed_cost_usd == 0.00125
     assert result.upstream_provider == "xai"
@@ -117,7 +122,7 @@ def test_success_captures_exact_cost_model_upstream_and_constraints() -> None:
         "require_parameters": True,
         "sort": "price",
         "zdr": True,
-        "max_price": {"prompt": 2.0, "completion": 6.0},
+        "max_price": {"prompt": 2.0, "completion": 6.0, "request": 0},
     }
     catalog.request_shape.assert_called_once_with(
         "x-ai/grok-4.6",

@@ -306,6 +306,7 @@ class OllamaProvider:
         """
         content_parts: list[str] = []
         thinking_parts: list[str] = []
+        finish_reason = "incomplete"
         input_tokens = 0
         output_tokens = 0
         load_seconds = 0.0
@@ -338,6 +339,7 @@ class OllamaProvider:
                 if thinking_value:
                     thinking_parts.append(thinking_value)
                 if frame.get("done"):
+                    finish_reason = str(frame.get("done_reason") or "stop")
                     input_tokens = frame.get("prompt_eval_count", 0) or 0
                     output_tokens = frame.get("eval_count", 0) or 0
                     # Ollama reports each phase separately, in nanoseconds. They
@@ -354,6 +356,7 @@ class OllamaProvider:
             output_tokens=output_tokens,
             model=model,
             load_seconds=load_seconds,
+            finish_reason=finish_reason,
             prefill_seconds=prefill_seconds,
             decode_seconds=decode_seconds,
         )

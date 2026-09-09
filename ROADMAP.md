@@ -80,14 +80,25 @@ and a scope; they are not schedule promises.
 | Order | Version | State | Outcome | Required exit evidence |
 |---|---|---|---|---|
 | 1 | `0.19.74` | Shipped | Release the optional OpenRouter route and Python 3.15 readiness watch with complete provider, billing, privacy, configuration, and operator truth | Package and generated distribution versions aligned; live OpenRouter doctor receipt recorded under a `$20` hard cap; full CI and security gates, exact-wheel installation, `.env.example`, no-metered refusal, release artifacts, and notes verified |
-| 2 | `0.19.75` | Active | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Generation and zero-claim retirement tests; source-versus-derived origin tests; migration and legacy-read coverage; audit and synthesis behavior verified; full CI and release notes |
-| 3 | `0.19.76` | Next | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-authored mature, fast-moving, and contested-field fixtures; per-criterion model verdicts; deterministic aggregation and receipts; baseline results published; no default-route change without an eval result |
-| 4 | `0.19.77` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
-| 5 | `0.19.78` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
-| 6 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
-| 7 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
+| 2 | `0.20.0` | Released | Add the requested private editorial consumer and optional standalone skill without changing corpus truth or default research routes | Weekly budget and crash/concurrency tests; independent paid rewrite and receipt checks; model comparison; Markdown/DOCX sample; portable packages; CI and package publication; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.0) |
+| 3 | `0.20.1` | Active | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Generation and zero-claim retirement tests; source-versus-derived origin tests; migration and legacy-read coverage; audit and synthesis behavior verified; full CI and release notes |
+| 4 | `0.20.2` | Next | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-authored mature, fast-moving, and contested-field fixtures; per-criterion model verdicts; deterministic aggregation and receipts; baseline results published; no default-route change without an eval result |
+| 5 | `0.20.3` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
+| 6 | `0.20.4` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
+| 7 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
+| 8 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
 
 ### How the plan stays current
+
+The private editorial extension was explicitly requested on September 9, 2026
+as an independent scope exception, followed by an explicit publication request.
+Release `0.20.0` advances that independent consumer; the unfinished trust,
+evaluation, operator and security work moves to `0.20.1` through `0.20.4`.
+It does not change default discovery, synthesis or source-versus-derived truth.
+The same request also includes an optional
+[standalone editorial skill](docs/portable-editorial-skill.md), versioned
+independently at `0.1.0`. Its packages ship with this release; client-account
+installation and end-to-end host trials remain outstanding validation.
 
 Every implementation change assigned to this sequence updates the plan as part
 of the same change:
@@ -115,12 +126,12 @@ product outcome each release advances.
 
 | Target | Outcome | Exit evidence |
 |---|---|---|
-| `0.19.75` | Removed or rewritten assertions do not survive a successful refresh, and corpus-derived answers never become apparent independent evidence | Generation and zero-claim retirement tests, origin-preservation tests, legacy compatibility, and full CI |
-| `0.19.76` | Product work is judged on source selection, redundancy, disagreement, meaningful change, navigation, and stopping rather than source volume | Representative mature, fast-moving, and contested-field fixtures with per-case findings |
-| `0.19.78` | No credential persistence, unsafe paths, partial metadata publication, or silent malformed-input fallback | Focused regression tests, full CI, release notes, and a freeze-time adversarial receipt |
-| `0.19.77` | Hosted-runner variance is characterized and install, cold start, export, and live reference journeys are measured | Published, hash-bound receipts and an advisory policy |
-| `0.19.78` | External values are parsed once into strict domain types before core logic sees them | Pyright coverage, boundary tests, and no reduction in branch coverage |
-| `0.19.77` | A representative user can install, preview, ingest, audit, and recover without hidden state or unclear spend | Cross-platform journey evidence, accessibility checks, and professional docs |
+| `0.20.1` | Removed or rewritten assertions do not survive a successful refresh, and corpus-derived answers never become apparent independent evidence | Generation and zero-claim retirement tests, origin-preservation tests, legacy compatibility, and full CI |
+| `0.20.2` | Product work is judged on source selection, redundancy, disagreement, meaningful change, navigation, and stopping rather than source volume | Representative mature, fast-moving, and contested-field fixtures with per-case findings |
+| `0.20.4` | No credential persistence, unsafe paths, partial metadata publication, or silent malformed-input fallback | Focused regression tests, full CI, release notes, and a freeze-time adversarial receipt |
+| `0.20.3` | Hosted-runner variance is characterized and install, cold start, export, and live reference journeys are measured | Published, hash-bound receipts and an advisory policy |
+| `0.20.4` | External values are parsed once into strict domain types before core logic sees them | Pyright coverage, boundary tests, and no reduction in branch coverage |
+| `0.20.3` | A representative user can install, preview, ingest, audit, and recover without hidden state or unclear spend | Cross-platform journey evidence, accessibility checks, and professional docs |
 | `1.0.0rc1` | Covered CLI, MCP, artifact, configuration, and state snapshots remain stable | Drift-gated snapshots, migration evidence, and the published compatibility policy |
 
 Feature work and hardening releases remain interleaved. A hardening release adds
@@ -148,8 +159,10 @@ Product-facing comparisons live in
   MCP 2026-07-28 compatibility, Agent Skills, Agent Plugins packaging, and OKF
   v0.2 export. Per-release details are in the
   [`changelog`](docs/CHANGELOG.md).
-- **0.19.74 through 0.19.78.** Follow the versioned sequence above: provider
-  release truth, evidence correctness, research-desk evaluation, operator and
+- **0.20.0.** Private editorial workflows and the standalone perspective skill
+  ship as optional consumers of current evidence.
+- **0.20.1 through 0.20.4.** Follow the versioned sequence above: evidence
+  correctness, research-desk evaluation, operator and
   performance evidence, then strict-boundary and security closure.
 - **1.0.0rc1.** Freeze and exercise the exact compatibility promise. Only
   release-blocking corrections enter after this point.

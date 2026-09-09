@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: standalone-company
+description: Uses a company perspective without requiring Distillr.
+tags: [standalone, perspective]
+runs: 1
+execution:
+  prompt: >-
+    Use perspective-editorial for ideas only. Our private profile says company=Northstar Workshops, audience=small training teams, voice=plain and practical. Do not invent customer experience. Supplied fictional receipts for this exercise: A vendor announced lower transcription latency on September 8, 2026, but supplied no independent tests. A public university published a small accessibility study on September 7, 2026, with positive participant feedback and a limited sample. Distillr and Retonr are not installed. Give three distinct blog ideas and select one; do not write an article yet.
+  max_turns: 4
+  timeout_seconds: 180
+  allowed_tools: []
+graders:
+  - type: llm
+    name: behavior
+    criteria: >-
+      Produces three distinct ideas with reader value, evidence limits, and a reason each angle could fail; selects and refines one. Fits the training-company audience without invented customer stories. Treats the exercise receipts as supplied fictional evidence and company claims as claims. Does not require or install Distillr or Retonr, does not fabricate browsing, and stops at ideas and selection.
+    focus: last_message
+    weight: 1
+expected_outcome: Uses a company perspective without requiring Distillr.

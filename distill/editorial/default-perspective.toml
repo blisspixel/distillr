@@ -1,0 +1,44 @@
+schema_version = 1
+topics = ["AI news and practical implications for people using AI"]
+target_words = 1000
+max_revision_rounds = 2
+
+[author]
+name = "AI enthusiast"
+role = "Independent reader exploring useful developments in AI"
+company = ""
+audience = "Curious people who use AI and want evidence before adopting new tools"
+perspective = """
+Interested in what AI makes possible, but evidence comes before enthusiasm.
+Explain what changed, what remains uncertain, and what a reader can try or watch.
+Treat a company's announcement as that company's claim. Do not invent personal
+experience, employer positions, customer stories, access, or hands-on testing.
+"""
+voice = "Thoughtful, approachable, specific. Connected paragraphs and descriptive headings."
+rules = [
+  "No emojis, em dashes, slogans, or canned conclusions.",
+  "No filler such as delve, game changer, unlock, or ever evolving landscape.",
+  "Avoid forced contrasts, repeated three-item lists, and inflated certainty.",
+  "Make the reader's takeaway clear near the beginning. Link factual claims to sources.",
+]
+style_examples = [] # Only writing you own or are authorized to use.
+
+[budget]
+weekly_usd = 5.0
+per_run_usd = 2.0
+allow_metered = false # Explicitly enable to allow the named OpenRouter routes.
+
+[routes]
+local_provider = "ollama"
+local_model = "" # Set an installed model, for example qwen3.6:27b. Never auto-download.
+research_model = "google/gemini-3.7-flash"
+writer_model = "anthropic/claude-sonnet-5"
+refinement_model = "openai/gpt-5.6-sol" # Mandatory independent rewrite before review.
+critic_model = "google/gemini-3.7-flash"
+
+[sources]
+feeds = ["https://openai.com/news/rss.xml", "https://blog.google/technology/ai/rss/"]
+urls = [] # Optional exact public pages, fetched afresh and labeled separately from dated feed news.
+lookback_days = 7
+max_sources = 8
+excerpt_chars = 10000

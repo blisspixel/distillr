@@ -35,6 +35,8 @@ class LLM_Response:
     # because two machines running one model can silently use different
     # windows, and the window changes both memory use and speed.
     num_ctx: int = 0
+    # Empty when a provider does not report a terminal completion reason.
+    finish_reason: str = ""
 
 
 class UsageTracker(Protocol):

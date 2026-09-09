@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.20.0 - 2026-09-09
+
+### Added
+
+- Standalone `perspective-editorial` Agent Skill with private person or company
+  context, host-provided research and document tools, complete editorial review,
+  and optional Distillr/Retonr adapters. Reproducible skill, Agent Plugins 1.0.0,
+  and Claude/Codex compatibility packages include behavior cases and CI checks.
+- Opt-in `distill editorial init`, `preview`, `capture`, and `run` commands:
+  private author perspectives, current publisher receipts, shared weekly and
+  per-run budget admission, ideas and outlines, mandatory non-Anthropic paid
+  rewriting, bounded evidence and editorial review, optional Retonr candidate
+  checks, and unbranded Markdown and DOCX exports.
+- A dated model comparison and implementation plan for the private editorial
+  consumer. Explicit supplied-receipt input supports external research agents.
+
+### Changed
+
+- The requested editorial release advances independently of the remaining
+  research-desk hardening work. That work moves to `0.20.1` through `0.20.4`;
+  its completion and the 1.0 stability gates remain outstanding.
+- CI and release builds include the standalone editorial skill archives and
+  verify that the installed wheel contains the generic private-profile template.
+
+### Validation
+
+- Local checks passed 7,231 tests with 95.26% branch coverage, lint, formatting,
+  production type checks, import contracts, security and dependency audits,
+  package validators, and exact-wheel editorial smoke tests.
+- The default AI news sample passed evidence and editorial review and was
+  exported to Markdown and a visually checked three-page Word document.
+- Six text-only standalone skill scenarios passed model review, including one
+  bounded retry after an empty provider response. Native client installation
+  and account-specific Cowork trials are not claimed by these checks.
+
+### Fixed
+
+- OpenRouter text requests now exclude separate per-request fees when enforcing
+  registered token-price ceilings. OpenRouter, Ollama and LM Studio preserve
+  completion reasons so editorial passes can reject truncated responses.
+- Updated the HTTPX2 development dependency and lockfile to 2.12.0, resolving
+  the five advisories reported by the dependency audit for HTTPX2 and HTTPCore2.
+- The offline golden eval test now stubs both model judges, avoiding blocked
+  network retries from its unmocked faithfulness pass.
+
 ## 0.19.74 - 2026-09-02
 
 ### Added

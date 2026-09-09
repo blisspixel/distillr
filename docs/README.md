@@ -4,6 +4,11 @@ The full documentation set. The [project README](../README.md) is the overview a
 
 ## Get started
 
+- [Private editorial workflows](editorial.md) - perspectives, weekly budgets,
+  current news, independent rewriting, source review, Markdown and DOCX.
+- [Standalone editorial skill](portable-editorial-skill.md) - optional Copilot,
+  Claude, Cowork, Codex and Agent Plugins packages without a Distill dependency.
+
 - [Project README](../README.md) - what distill is, install, and a first run.
 - [Install and setup](install.md) - alternate installers, keys, local models, updates.
 - [Positioning](positioning.md) - how Distill differs from Deep Research, notebooks, and wiki tools.

@@ -1,0 +1,10 @@
+{
+  "name": "perspective-editorial",
+  "version": "0.1.0",
+  "description": "Research, plan, write, and review evidence-backed blogs in a private person or company perspective using available host tools. Distillr and Retonr are optional.",
+  "author": {
+    "name": "Nick Seal"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/blisspixel/distillr"
+}

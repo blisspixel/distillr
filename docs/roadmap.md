@@ -15,11 +15,17 @@ does not independently schedule releases.
 - `0.19.74` shipped the optional OpenRouter provider, provider accountability
   work, the Python 3.15 advisory lane, budgeted live validation, and matching
   release artifacts.
-- `0.19.75` is active and owns claim-generation retirement and derived-origin
+- `0.20.0` releases the private editorial consumer and standalone perspective
+  skill under the user's explicit publication request.
+- `0.20.1` is active and owns claim-generation retirement and derived-origin
   preservation.
-- `0.19.76` is next and owns the research-desk evaluation baseline.
-- `0.19.77` owns operator, accessibility, and performance evidence.
-- `0.19.78` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.2` is next and owns the research-desk evaluation baseline.
+- `0.20.3` owns operator, accessibility, and performance evidence.
+- `0.20.4` owns remaining strict-boundary and freeze-time security evidence.
+- The explicitly requested editorial consumer also has a standalone
+  `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
+  Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
+  trials remain. See the [portable guide](portable-editorial-skill.md).
 - `1.0.0rc1` exercises the frozen promise. `1.0.0` follows only when every gate
   remains closed on the final commit.
 
@@ -51,13 +57,13 @@ The current acquisition and trust foundation covers eight source types:
 Current product priorities, in release order:
 
 1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.19.75`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.19.76`
+   in `0.20.1`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.2`
    before changing discovery or synthesis behavior.
 3. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.19.77`.
+   journey evidence in `0.20.3`.
 4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.19.78`.
+   verification, and the freeze-time security receipt in `0.20.4`.
 5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -67,6 +73,22 @@ optimization remain important workstreams. They enter a release only when they
 support that release's outcome and exit evidence.
 
 ## Next Up
+
+### Private editorial consumer
+
+The user-requested `0.20.0` release includes private TOML
+perspectives, current publisher receipts, local preference with explicit
+OpenRouter opt-in, durable weekly reservations, ideas and outlines, mandatory
+non-Anthropic paid rewriting, per-criterion review, optional Retonr candidate
+checks, and clean Markdown and DOCX. It remains outside the native corpus and
+does not publish. See [design](design/perspective-editorial-workflow.md),
+[usage](editorial.md), and [model research](research/editorial-models-2026-09-09.md).
+
+Remaining editorial increments include corpus receipt selection, per-topic
+queues, digest-bound resume, calibrated local model profiles, qualified quota
+workers, and Retonr rewriting after its adapter contract exists. The research
+desk's remaining trust, evaluation and operator work stays scheduled in
+`0.20.1` through `0.20.4`, before the 1.0 stability commitment.
 
 The work ahead is ordered around the outcomes a strong research desk provides:
 

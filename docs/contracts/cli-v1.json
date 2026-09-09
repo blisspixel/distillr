@@ -1782,6 +1782,249 @@
       "path": "distill doctor"
     },
     {
+      "parameters": [],
+      "path": "distill editorial"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "destination",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "private\\perspective.toml",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "perspective",
+          "names": [
+            "--perspective"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        }
+      ],
+      "path": "distill editorial capture"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "private\\perspective.toml",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "perspective",
+          "names": [
+            "--perspective"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        }
+      ],
+      "path": "distill editorial init"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": "private\\perspective.toml",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "perspective",
+          "names": [
+            "--perspective"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "private\\editorial",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "workspace",
+          "names": [
+            "--workspace"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        }
+      ],
+      "path": "distill editorial preview"
+    },
+    {
+      "parameters": [
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "paid_only",
+          "names": [
+            "--paid-only"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "private\\perspective.toml",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "perspective",
+          "names": [
+            "--perspective"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "receipt_dir",
+          "names": [
+            "--receipt-dir"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "retonr",
+          "names": [
+            "--retonr"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        },
+        {
+          "count": false,
+          "default": "private\\editorial",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "workspace",
+          "names": [
+            "--workspace"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "allow_dash": false,
+            "dir_okay": true,
+            "exists": false,
+            "file_okay": true,
+            "name": "path",
+            "readable": true,
+            "resolve_path": false,
+            "writable": false
+          }
+        }
+      ],
+      "path": "distill editorial run"
+    },
+    {
       "parameters": [
         {
           "count": false,

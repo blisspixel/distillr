@@ -417,12 +417,14 @@ def test_retry_count(retries: int) -> None:
 class TestOllamaProviderSuccess:
     """Test successful OllamaProvider calls."""
 
-    def test_successful_call_returns_correct_fields(self) -> None:
+    @pytest.mark.parametrize("finish_reason", ["stop", "length"])
+    def test_successful_call_returns_correct_fields(self, finish_reason: str) -> None:
         """A successful call returns an LLM_Response with correct fields."""
         provider = OllamaProvider(base_url="http://localhost:11434")
         json_data = _make_generate_response(
             text="response text", prompt_eval_count=100, eval_count=50
         )
+        json_data["done_reason"] = finish_reason
 
         with patch("httpx.AsyncClient", _stream_client_factory(frames=[json_data])):
             result = asyncio.run(provider.call("llama3:8b", "hello"))
@@ -432,6 +434,7 @@ class TestOllamaProviderSuccess:
         assert result.input_tokens == 100
         assert result.output_tokens == 50
         assert result.model == "llama3:8b"
+        assert result.finish_reason == finish_reason
 
     def test_temperature_passed_in_options(self) -> None:
         """Temperature is passed in the options payload when specified."""

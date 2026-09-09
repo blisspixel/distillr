@@ -63,8 +63,39 @@ Alternate installers, keys, local models, and updates:
 OpenRouter is available as an optional metered route when direct-provider quota
 or local inference is not suitable. It requires an explicit concrete
 `author/model` slug, requests Zero Data Retention routing by default, records
-OpenRouter's reported billed cost, and remains blocked by `no-metered`. It is
-never selected automatically. See the [provider setup](docs/install.md#openrouter-optional-metered-route).
+OpenRouter's reported billed cost, and remains blocked by `no-metered`. General
+research commands never select it automatically. The opt-in editorial workflow
+can use explicitly configured OpenRouter routes when local inference is
+unavailable. See the [provider setup](docs/install.md#openrouter-optional-metered-route).
+
+## Write from a private perspective
+
+`distill editorial` reads current publisher sources, develops and critiques
+blog ideas, plans an argument, drafts, rewrites, reviews
+the evidence and voice, and exports clean Markdown and DOCX. Keep the writer's
+role, company, audience and style in a Git-ignored perspective file:
+
+```bash
+distill editorial init
+distill editorial preview
+distill editorial run
+```
+
+Set an installed local model in `private/perspective.toml`. To permit the named
+OpenRouter routes, explicitly enable `budget.allow_metered`; the example has a
+`$5` weekly and `$2` per-run ceiling. Persistent reservations prevent concurrent
+runs or restarts from silently resetting spend. The paid first draft always
+receives a non-Anthropic rewrite, followed by evidence and editorial checks.
+Retonr's existing candidate checker is optional. Outputs remain private drafts
+for review. See [editorial setup](docs/editorial.md) and the
+[dated model comparison](docs/research/editorial-models-2026-09-09.md).
+
+To use the process directly in an agent host, choose the optional
+[standalone editorial skill](docs/portable-editorial-skill.md). It uses the
+host's research, writing and document tools, with a private person or company
+perspective. Distillr and Retonr are optional. Skill and plugin packages cover
+Copilot, Claude, Cowork, Codex and the portable Agent Plugins format. A skill
+alone cannot enforce a dollar cap; paid calls need an enforcing adapter.
 
 ## What you get
 
@@ -92,7 +123,7 @@ change across refreshes, and guidance on what to read or investigate next. The
 development doctrine and feature-admission test are in
 [`docs/design/research-desk-doctrine.md`](docs/design/research-desk-doctrine.md).
 
-Agent distribution uses one canonical Agent Skill plus an
+Corpus agent distribution uses one canonical Agent Skill plus an
 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) portable package
 and separate client compatibility surfaces. The specification is currently a
 Working Draft. `distill export <topic> --format okf` produces an

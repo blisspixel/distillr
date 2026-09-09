@@ -92,6 +92,7 @@ from distill.commands.concepts import register as _register_concepts_recovery
 from distill.commands.dashboard import _show_dashboard  # noqa: F401
 from distill.commands.discover import register as _register_discover
 from distill.commands.doctor import register as _register_doctor
+from distill.commands.editorial import register as _register_editorial
 from distill.commands.eval import register as _register_eval
 from distill.commands.ingest import register as _register_ingest
 from distill.commands.init import register as _register_init
@@ -149,6 +150,7 @@ _register_intent(app)
 _register_maintain(app)
 _register_provider(app)
 _register_doctor(app)
+_register_editorial(app)
 _register_bench(app)
 _register_roles(app)
 _register_eval(app)

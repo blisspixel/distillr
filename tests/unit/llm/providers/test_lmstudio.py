@@ -163,12 +163,14 @@ def test_retry_count(retries: int) -> None:
 class TestLMStudioProviderSuccess:
     """Test successful LMStudioProvider calls."""
 
-    def test_successful_call_returns_correct_fields(self) -> None:
+    @pytest.mark.parametrize("finish_reason", ["stop", "length"])
+    def test_successful_call_returns_correct_fields(self, finish_reason: str) -> None:
         """A successful call returns an LLM_Response with correct fields."""
         provider, mock_client = _build_provider()
         mock_client.chat.completions.create.return_value = _make_mock_response(
             text="response text", prompt_tokens=100, completion_tokens=50
         )
+        mock_client.chat.completions.create.return_value.choices[0].finish_reason = finish_reason
 
         result = asyncio.run(provider.call("local-model", "hello"))
 
@@ -177,6 +179,7 @@ class TestLMStudioProviderSuccess:
         assert result.input_tokens == 100
         assert result.output_tokens == 50
         assert result.model == "local-model"
+        assert result.finish_reason == finish_reason
 
     def test_empty_choices_returns_empty_response(self) -> None:
         """Empty choices in API response returns LLM_Response with empty text."""

@@ -78,6 +78,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: editorial-skill-distributions
+        name: Editorial Skill distributions (generated and current)
+        entry: uv run --frozen python -m scripts.editorial_skill_distributions --check
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # Full suite is too slow for every commit; runs on push instead, matching
       # the CI test gate. Enable with: pre-commit install --hook-type pre-push
       - id: pytest

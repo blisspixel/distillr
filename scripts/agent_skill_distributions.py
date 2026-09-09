@@ -179,7 +179,7 @@ def _validate_optional_agent_skill_fields(frontmatter: Mapping[str, object]) -> 
         raise DistributionError("Canonical SKILL.md metadata must map strings to strings")
 
 
-def _validate_agent_skill(payload: bytes) -> None:
+def _validate_agent_skill(payload: bytes, *, expected_name: str = CANONICAL_SKILL.name) -> None:
     """Validate the canonical SKILL.md interoperability floor."""
 
     frontmatter = _agent_skill_frontmatter(payload)
@@ -190,11 +190,7 @@ def _validate_agent_skill(payload: bytes) -> None:
         )
 
     name = frontmatter.get("name")
-    if (
-        name != CANONICAL_SKILL.name
-        or not isinstance(name, str)
-        or not AGENT_SKILL_NAME.fullmatch(name)
-    ):
+    if name != expected_name or not isinstance(name, str) or not AGENT_SKILL_NAME.fullmatch(name):
         raise DistributionError("Canonical SKILL.md name must match its valid skill directory name")
     description = frontmatter.get("description")
     if not isinstance(description, str) or not 1 <= len(description) <= 1024:
@@ -203,8 +199,11 @@ def _validate_agent_skill(payload: bytes) -> None:
     _validate_optional_agent_skill_fields(frontmatter)
 
 
-def _skill_files(root: Path) -> dict[PurePosixPath, bytes]:
-    source = root.joinpath(*CANONICAL_SKILL.parts)
+def _skill_files(
+    root: Path, *, source_path: PurePosixPath = CANONICAL_SKILL
+) -> dict[PurePosixPath, bytes]:
+    _validate_relative_path(source_path)
+    source = root.joinpath(*source_path.parts)
     if _is_link(source) or not source.is_dir():
         raise DistributionError(f"Canonical skill must be a regular directory: {source}")
 
@@ -236,12 +235,15 @@ def _skill_files(root: Path) -> dict[PurePosixPath, bytes]:
 
     if PurePosixPath("SKILL.md") not in files:
         raise DistributionError("Canonical skill is missing SKILL.md")
-    _validate_agent_skill(files[PurePosixPath("SKILL.md")])
+    _validate_agent_skill(files[PurePosixPath("SKILL.md")], expected_name=source_path.name)
     return dict(sorted(files.items(), key=lambda item: item[0].as_posix()))
 
 
-def _eval_files(root: Path) -> dict[PurePosixPath, bytes]:
-    source = root.joinpath(*CANONICAL_EVALS.parts)
+def _eval_files(
+    root: Path, *, source_path: PurePosixPath = CANONICAL_EVALS
+) -> dict[PurePosixPath, bytes]:
+    _validate_relative_path(source_path)
+    source = root.joinpath(*source_path.parts)
     if _is_link(source) or not source.is_dir():
         raise DistributionError(f"Canonical eval suite must be a regular directory: {source}")
 

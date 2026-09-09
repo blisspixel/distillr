@@ -1,0 +1,4 @@
+interface:
+  display_name: "Perspective Editorial"
+  short_description: "Research and refine blogs in a person or company voice"
+  default_prompt: "Use $perspective-editorial with my private perspective to research, plan, draft, rewrite, and review a useful article, then deliver Markdown and DOCX using available tools."

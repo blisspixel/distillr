@@ -83,6 +83,8 @@ jobs:
         run: |
           uv run --frozen python scripts/agent_skill_distributions.py --check
           uv run --frozen python scripts/agent_skill_distributions.py --build --output agent-dist
+          uv run --frozen python -m scripts.editorial_skill_distributions --check
+          uv run --frozen python -m scripts.editorial_skill_distributions --build --output agent-dist
 
       - name: Verify wheel bundles runtime assets
         run: |
@@ -93,6 +95,7 @@ jobs:
             distill/web/templates/base.html \
             distill/web/static/app.js \
             distill/web/static/style.css \
+            distill/editorial/default-perspective.toml \
             distill/resources/agent-skills/distill-corpus/SKILL.md \
             distill/resources/agent-skills/distill-corpus.manifest.json; do
             if ! unzip -l "$whl" | grep -q "$f"; then
@@ -108,6 +111,7 @@ jobs:
           uv venv .wheel-smoke
           uv pip install --python .wheel-smoke/bin/python "$whl"
           .wheel-smoke/bin/python -I -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
+          .wheel-smoke/bin/python -I -c "from pathlib import Path; from tempfile import TemporaryDirectory; from distill.editorial.perspective import init_perspective, load_perspective; temp = TemporaryDirectory(); brief = load_perspective(init_perspective(Path(temp.name) / 'perspective.toml')); assert not brief.budget.allow_metered; temp.cleanup()"
 
       - name: Generate CycloneDX SBOM
         run: |

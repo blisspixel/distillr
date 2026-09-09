@@ -6,6 +6,10 @@ GitHub or leak into the public repo.
 
 Typical contents:
 
+- **Editorial perspectives and drafts**. Run `distill editorial init` to create
+  `private/perspective.toml`; configure the author and budget, then run
+  `distill editorial run`. See [the editorial guide](../docs/editorial.md).
+
 - **Briefing context files** for your own projects or clients.
   Example: `private/my-project-context.md`, then run
   `distill research-brief -t tkg --context-file private/my-project-context.md --name my-project`
