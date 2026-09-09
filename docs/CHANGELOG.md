@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Validation
 
-- Local checks passed 7,231 tests with 95.26% branch coverage, lint, formatting,
+- Local checks passed more than 7,200 tests with over 95% branch coverage, lint, formatting,
   production type checks, import contracts, security and dependency audits,
   package validators, and exact-wheel editorial smoke tests.
 - The default AI news sample passed evidence and editorial review and was
@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- CLI contract snapshots normalize path defaults across Windows, Linux and
+  macOS, with regression coverage for both Windows and POSIX path objects.
 - OpenRouter text requests now exclude separate per-request fees when enforcing
   registered token-price ceilings. OpenRouter, Ollama and LM Studio preserve
   completion reasons so editorial passes can reject truncated responses.

@@ -1807,7 +1807,7 @@
         },
         {
           "count": false,
-          "default": "private\\perspective.toml",
+          "default": "private/perspective.toml",
           "is_flag": false,
           "kind": "option",
           "multiple": false,
@@ -1835,7 +1835,7 @@
       "parameters": [
         {
           "count": false,
-          "default": "private\\perspective.toml",
+          "default": "private/perspective.toml",
           "is_flag": false,
           "kind": "option",
           "multiple": false,
@@ -1863,7 +1863,7 @@
       "parameters": [
         {
           "count": false,
-          "default": "private\\perspective.toml",
+          "default": "private/perspective.toml",
           "is_flag": false,
           "kind": "option",
           "multiple": false,
@@ -1886,7 +1886,7 @@
         },
         {
           "count": false,
-          "default": "private\\editorial",
+          "default": "private/editorial",
           "is_flag": false,
           "kind": "option",
           "multiple": false,
@@ -1931,7 +1931,7 @@
         },
         {
           "count": false,
-          "default": "private\\perspective.toml",
+          "default": "private/perspective.toml",
           "is_flag": false,
           "kind": "option",
           "multiple": false,
@@ -2000,7 +2000,7 @@
         },
         {
           "count": false,
-          "default": "private\\editorial",
+          "default": "private/editorial",
           "is_flag": false,
           "kind": "option",
           "multiple": false,

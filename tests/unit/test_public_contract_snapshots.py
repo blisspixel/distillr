@@ -9,9 +9,10 @@ import runpy
 import subprocess
 import sys
 from collections.abc import Callable, Coroutine
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import cast
 
+import click
 import jsonschema
 import pytest
 from pydantic_settings import DotEnvSettingsSource, EnvSettingsSource
@@ -21,6 +22,20 @@ SNAPSHOT_SCRIPT = ROOT / "scripts" / "public_contracts.py"
 ARTIFACT_SNAPSHOT = ROOT / "docs" / "contracts" / "artifacts-v1.json"
 CONFIG_SNAPSHOT = ROOT / "docs" / "contracts" / "config-v1.json"
 STATE_SNAPSHOT = ROOT / "docs" / "contracts" / "state-v1.json"
+
+
+@pytest.mark.parametrize("path_type", [PureWindowsPath, PurePosixPath])
+def test_cli_path_defaults_are_portable(path_type: type[PurePosixPath | PureWindowsPath]) -> None:
+    namespace = runpy.run_path(str(SNAPSHOT_SCRIPT))
+    build_parameter = cast(
+        "Callable[[object], dict[str, object]]", namespace["_parameter_contract"]
+    )
+    parameter = click.Option(
+        ["--perspective"], default=path_type("private/perspective.toml"), type=click.Path()
+    )
+    assert build_parameter(parameter)["default"] == "private/perspective.toml"
+    literal = click.Option(["--literal"], default=r"keep\backslash", type=str)
+    assert build_parameter(literal)["default"] == r"keep\backslash"
 
 
 def test_public_contract_snapshots_match_runtime() -> None:

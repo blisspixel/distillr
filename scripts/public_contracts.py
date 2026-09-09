@@ -10,7 +10,7 @@ import sys
 import types
 import typing
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import cast
 
 from typer.main import get_command
@@ -26,6 +26,8 @@ def _json_value(value: object) -> object:
         return value
     if isinstance(value, Enum):
         return _json_value(value.value)
+    if isinstance(value, PurePath):
+        return value.as_posix()
     if isinstance(value, dict):
         return {str(key): _json_value(item) for key, item in sorted(value.items())}
     if isinstance(value, list | tuple):
@@ -738,7 +740,7 @@ def _emit(message: str) -> None:
 async def _write() -> int:
     CONTRACT_DIR.mkdir(parents=True, exist_ok=True)
     for path, value in (await snapshots()).items():
-        path.write_text(_render(value), encoding="utf-8")
+        path.write_text(_render(value), encoding="utf-8", newline="\n")
         _emit(f"wrote {path.relative_to(ROOT)}")
     return 0
 
