@@ -8,6 +8,7 @@ import socket
 import threading
 import urllib.error
 import urllib.request
+import urllib.response
 from contextlib import nullcontext
 from types import SimpleNamespace
 from typing import Any
@@ -532,6 +533,175 @@ def test_safe_urlopen_timeout_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> 
     response.close()
     assert response._response is sentinel
     assert calls["n"] == 2
+
+
+class _PacingClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def _redirecting_opener(clock: _PacingClock, starts: list[float]):
+    class Handler(urllib.request.HTTPSHandler):
+        def https_open(self, request):
+            starts.append(clock.now)
+            headers = _headers()
+            code = 200
+            if len(starts) < 3:
+                code = 302
+                headers["Location"] = f"{_PUBLIC_IP_URL}hop-{len(starts)}"
+            response = urllib.response.addinfourl(
+                io.BytesIO(b"body"), headers, request.full_url, code
+            )
+            response.msg = "Found" if code == 302 else "OK"
+            return response
+
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}), _PublicWebRedirectHandler(), Handler()
+    )
+
+
+@pytest.mark.parametrize("interval", [-1, True, float("nan"), float("inf"), "3.5", None])
+def test_request_interval_is_validated_before_network(monkeypatch, interval):
+    monkeypatch.setattr(
+        net._SSRF_SAFE_OPENER,
+        "open",
+        lambda *a, **k: pytest.fail("invalid interval contacted network"),
+    )
+    with pytest.raises(ValueError, match="request interval"):
+        safe_urlopen(_PUBLIC_IP_URL, request_interval_seconds=interval)
+
+
+def test_redirect_hops_respect_interval_and_restore_request_state(monkeypatch):
+    clock = _PacingClock()
+    starts: list[float] = []
+    monkeypatch.setattr(net, "time", clock)
+    monkeypatch.setattr(net, "_SSRF_SAFE_OPENER", _redirecting_opener(clock, starts))
+    monkeypatch.setattr(net._PIN_STATE, "request_interval_seconds", 9.0, raising=False)
+
+    with safe_urlopen(_PUBLIC_IP_URL, request_interval_seconds=3.5) as response:
+        assert response.read() == b"body"
+    assert starts == [0.0, 3.5, 7.0]
+    assert clock.sleeps == [3.5, 3.5]
+    assert net._PIN_STATE.request_interval_seconds == 9.0
+
+    # A later unpaced request must override the outer state and make no sleeps.
+    starts.clear()
+    with safe_urlopen(_PUBLIC_IP_URL) as response:
+        assert response.read() == b"body"
+    assert starts == [7.0, 7.0, 7.0]
+    assert clock.sleeps == [3.5, 3.5]
+    assert net._PIN_STATE.request_interval_seconds == 9.0
+
+
+def test_redirect_pacing_obeys_total_deadline_and_cleans_state(monkeypatch):
+    clock = _PacingClock()
+    starts: list[float] = []
+    monkeypatch.setattr(net, "time", clock)
+    monkeypatch.setattr(net, "_SSRF_SAFE_OPENER", _redirecting_opener(clock, starts))
+    monkeypatch.delattr(net._PIN_STATE, "request_interval_seconds", raising=False)
+
+    with pytest.raises(NetworkError, match="deadline"):
+        safe_urlopen(_PUBLIC_IP_URL, timeout=4, request_interval_seconds=3.5)
+
+    assert starts == [0.0, 3.5]
+    assert clock.sleeps == [3.5, 0.5]
+    assert clock.now == 4.0
+    assert not hasattr(net._PIN_STATE, "request_interval_seconds")
+    assert not hasattr(net._PIN_STATE, "deadline")
+
+
+@pytest.mark.parametrize("close_raises", [False, True])
+def test_http_redirect_closes_response_when_pacing_exhausts_deadline(monkeypatch, close_raises):
+    clock = _PacingClock()
+    monkeypatch.setattr(net, "time", clock)
+    deadline = NetworkDeadline(1)
+    monkeypatch.setattr(net._PIN_STATE, "deadline", deadline, raising=False)
+    monkeypatch.setattr(net._PIN_STATE, "request_interval_seconds", 3.5, raising=False)
+    pacing_errors: list[NetworkError] = []
+    original_sleep = deadline.sleep
+
+    def record_pacing_error(seconds):
+        try:
+            original_sleep(seconds)
+        except NetworkError as exc:
+            pacing_errors.append(exc)
+            raise
+
+    class Response(io.BytesIO):
+        def read(self, size=-1):
+            pytest.fail("an expired redirect must close without reading its body")
+
+        def close(self):
+            was_open = not self.closed
+            super().close()
+            if was_open and close_raises:
+                raise OSError("response close failed")
+
+    monkeypatch.setattr(deadline, "sleep", record_pacing_error)
+    handler = _PublicWebRedirectHandler()
+    handler.add_parent(SimpleNamespace(open=lambda *a, **k: pytest.fail("redirect followed")))
+    response = Response(b"unread redirect body")
+    headers = _headers()
+    headers["Location"] = f"{_PUBLIC_IP_URL}redirected"
+    try:
+        with (
+            pin_host_to_ip("8.8.8.8", "8.8.8.8"),
+            pytest.raises(NetworkError, match="deadline") as error,
+        ):
+            handler.http_error_302(
+                urllib.request.Request(_PUBLIC_IP_URL), response, 302, "Found", headers
+            )
+        assert response.closed
+        assert error.value is pacing_errors[0]
+        assert clock.sleeps == [1.0]
+    finally:
+        deadline.cancel()
+
+
+def test_request_interval_is_a_retry_floor(monkeypatch):
+    clock = _PacingClock()
+    starts: list[float] = []
+
+    def open_response(*args, **kwargs):
+        starts.append(clock.now)
+        if len(starts) == 1:
+            raise _http_error(503)
+        return io.BytesIO(b"ok")
+
+    monkeypatch.setattr(net, "time", clock)
+    monkeypatch.setattr(net._SSRF_SAFE_OPENER, "open", open_response)
+    with safe_urlopen(_PUBLIC_IP_URL, backoff_base=0, request_interval_seconds=3.5) as response:
+        assert response.read() == b"ok"
+    assert starts == [0.0, 3.5]
+    assert clock.sleeps == [3.5]
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_retry_pacing_deadline_preserves_http_diagnostic(monkeypatch, status):
+    clock = _PacingClock()
+    starts: list[float] = []
+
+    def open_response(*args, **kwargs):
+        starts.append(clock.now)
+        raise _http_error(status)
+
+    monkeypatch.setattr(net, "time", clock)
+    monkeypatch.setattr(net._SSRF_SAFE_OPENER, "open", open_response)
+    with pytest.raises(NetworkError, match="deadline") as error:
+        safe_urlopen(_PUBLIC_IP_URL, timeout=2, request_interval_seconds=3.5)
+    assert starts == [0.0]
+    assert clock.sleeps == [2.0]
+    assert error.value.url == _PUBLIC_IP_URL
+    assert error.value.status_code == status
+    assert isinstance(error.value.__cause__, urllib.error.HTTPError)
 
 
 # ---------------------------------------------------------------------------

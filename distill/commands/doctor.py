@@ -35,6 +35,7 @@ from distill.commands._helpers import _complete_topics, get_config
 from distill.config import DistillConfig
 from distill.doctor.checks import (
     check_lmstudio_models,
+    check_ollama_model_readiness,
     check_ollama_status,
     check_retired_models,
     doctor_key_validation_session,
@@ -139,6 +140,7 @@ def _configured_analysis_readiness(
     ollama_models: tuple[str, ...],
     lmstudio_status: str,
     lmstudio_models: tuple[str, ...],
+    readiness_warnings: list[str] | None = None,
 ) -> tuple[str, str, bool]:
     """Resolve the configured analysis route and require route-specific evidence."""
     router = _router_config(config)
@@ -148,7 +150,12 @@ def _configured_analysis_readiness(
     except (ConfigurationError, CostPolicyError):
         return (provider, model, False)
     if provider == "ollama":
-        return (provider, model, ollama_status == "running" and model in ollama_models)
+        if ollama_status != "running" or model not in ollama_models:
+            return (provider, model, False)
+        proof_status, proof_detail = check_ollama_model_readiness(model)
+        if proof_status != "ready" and readiness_warnings is not None:
+            readiness_warnings.append(proof_detail)
+        return (provider, model, proof_status == "ready")
     if provider == "lmstudio":
         return (provider, model, lmstudio_status == "running" and model in lmstudio_models)
     return (
@@ -447,6 +454,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
                 ollama_models=tuple(ollama_models),
                 lmstudio_status=lmstudio_status,
                 lmstudio_models=tuple(lmstudio_models),
+                readiness_warnings=warnings_list,
             )
         )
         local_provider = configured_provider if configured_provider in LOCAL_PROVIDER_NAMES else ""

@@ -17,6 +17,20 @@ runner = CliRunner()
 def mock_config(tmp_path, monkeypatch):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")
     monkeypatch.setattr(_eval, "get_config", lambda: config)
+    # CLI behavior must not depend on a developer's running model service or GPU.
+    # Tests exercising local selection override these defaults explicitly.
+    monkeypatch.setattr(_eval, "_best_local_model", lambda: None)
+    monkeypatch.setattr(_eval, "_ollama_model_sizes", lambda: {})
+    monkeypatch.setattr(
+        "distill.doctor.hardware.detect_hardware",
+        lambda: HardwareProfile(
+            gpu_type="none",
+            gpu_name="",
+            vram_gb=0.0,
+            system_ram_gb=64.0,
+            is_container=False,
+        ),
+    )
     return config
 
 

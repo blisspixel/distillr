@@ -67,7 +67,7 @@ def normalize_success_attempts(
     provider_type: str,
 ) -> tuple[LLMUsageAttempt, ...]:
     attempts = tuple(
-        _normalized_attempt_identity(provider_name, provider_type, attempt).with_identity()
+        normalize_attempt_identity(provider_name, provider_type, attempt).with_identity()
         for attempt in response.usage_attempts
     )
     if attempts:
@@ -92,13 +92,15 @@ def normalize_success_attempts(
     return tuple(collected)
 
 
-def _normalized_attempt_identity(
+def normalize_attempt_identity(
     route_provider: str,
     route_provider_type: str,
     attempt: LLMUsageAttempt,
 ) -> LLMUsageAttempt:
     if route_provider == "agent" and attempt.provider_type == "host-managed":
         return attempt
+    if route_provider == "ollama" and attempt.provider_type == "unknown":
+        return replace(attempt, provider_name=route_provider)
     return replace(
         attempt,
         provider_name=route_provider,

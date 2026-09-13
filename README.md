@@ -24,9 +24,12 @@ distill --cost-mode no-metered init
 distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --limit 5 --preview
 ```
 
-`no-metered` only allows routes Distill can prove are not API-billed. Preview
-builds a current arXiv shortlist without ingesting. On a local Ollama or LM
-Studio route that spend is `$0.00` and the budget is wall clock: a two-paper
+`no-metered` refuses API-billed or unproved routes. Preview builds a current
+arXiv shortlist without ingesting. Ollama requires a cloud-disabled daemon
+and an installed local model; localhost alone is insufficient. Follow the
+[local setup and upgrade steps](docs/install.md#local-models-ollama--lm-studio)
+before inference. On a proven local Ollama or LM Studio route the direct API
+spend is `$0.00` and the budget is wall clock: a two-paper
 ingest can take an hour on a laptop, and that is the control, not a hang. Run
 `distill bench` once so preview can print how long the full ingest will take on
 this machine. If local inference is up, use it to ingest more and stay more
@@ -125,8 +128,8 @@ development doctrine and feature-admission test are in
 
 Corpus agent distribution uses one canonical Agent Skill plus an
 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) portable package
-and separate client compatibility surfaces. The specification is currently a
-Working Draft. `distill export <topic> --format okf` produces an
+and separate client compatibility surfaces. Version 1.0.0 is published.
+`distill export <topic> --format okf` produces an
 [OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 projection with portable provenance, bounded receipt copies, lifecycle fields,
 and digest-bound machine-verification events. The native `library/` remains the

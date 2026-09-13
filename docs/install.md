@@ -199,6 +199,22 @@ Full provider command reference: [usage.md](usage.md#provider-and-model-route).
 
 ## Local models (Ollama / LM Studio)
 
+Ollama's local daemon can forward cloud models, so a localhost URL is not
+sufficient proof of local inference. Distill requires the live daemon's
+`/api/status` contract to report cloud disabled and `/api/show` to prove the
+exact model has local backing. This contract is published in
+[Ollama 0.34.0](https://github.com/ollama/ollama/blob/v0.34.0/api/types.go).
+Older servers without that contract must be upgraded; missing or changed
+proof fails closed in every cost mode.
+
+Before using Ollama, set `OLLAMA_NO_CLOUD=1` in the environment that starts
+the Ollama daemon, or set `disable_ollama_cloud` to `true` in its `server.json`,
+then restart Ollama as described in the
+[official local-only instructions](https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features).
+Adding that setting only to Distill's `.env` does not reconfigure a running
+daemon. Cloud-backed Ollama models, including renamed aliases, are unsupported;
+use an explicitly configured supported cloud provider for paid inference.
+
 ```bash
 ollama pull qwen3.5:27b
 distill provider set ollama qwen3.5:27b

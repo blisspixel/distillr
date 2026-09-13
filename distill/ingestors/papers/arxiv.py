@@ -1,9 +1,9 @@
 """arXiv-first paper discovery and ingestion helpers.
 
-NOTE: arXiv enforces a rate limit of ~1 request per 3 seconds. Exceeding this
-results in HTTP 429 responses. The networking layer handles generic retries, but
-arXiv-specific callers add longer waits (30s) on 429 since arXiv's cooldown is
-more aggressive than typical APIs.
+Legacy query API calls share one process-local connection gate and wait at
+least 3.5 seconds between completed requests. Generic retries use the same
+minimum backoff while holding that gate. Operators must also coordinate other
+processes and machines: arXiv's limit applies to their combined API traffic.
 """
 
 from __future__ import annotations
@@ -11,8 +11,11 @@ from __future__ import annotations
 import logging
 import re
 import tempfile
+import threading
 import time
 import urllib.parse
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -21,7 +24,12 @@ from typing import Any
 from defusedxml.ElementTree import fromstring as xml_fromstring
 
 from distill.ingestors.local.extract import extract_pdf_text_bounded
-from distill.ingestors.net import NetworkError, safe_urlopen
+from distill.ingestors.net import (
+    DEFAULT_FETCH_TIMEOUT_SECONDS,
+    NetworkDeadline,
+    NetworkError,
+    safe_urlopen,
+)
 from distill.parsing import parse_ascii_uint
 
 logger = logging.getLogger(__name__)
@@ -68,6 +76,36 @@ _PDF_MAX_REDIRECTS = 5
 _FEED_CAP_BYTES = 5 * 1024 * 1024
 _ARXIV_REQUEST_SPACING_SECONDS = 3.5
 _ARXIV_PDF_HOSTS = frozenset({"arxiv.org", "www.arxiv.org"})
+
+
+class _ArxivRequestPacer:
+    """Serialize query requests through response close, including failed reads."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._next_request_at: float | None = None
+
+    @contextmanager
+    def request(self, deadline: NetworkDeadline) -> Iterator[None]:
+        if not self._lock.acquire(timeout=deadline.remaining()):
+            raise NetworkError(
+                "arXiv request exceeded its deadline waiting for the connection gate"
+            )
+        try:
+            deadline.remaining()
+            if self._next_request_at is not None:
+                delay = self._next_request_at - time.monotonic()
+                if delay > 0:
+                    deadline.sleep(delay)
+            try:
+                yield
+            finally:
+                self._next_request_at = time.monotonic() + _ARXIV_REQUEST_SPACING_SECONDS
+        finally:
+            self._lock.release()
+
+
+_ARXIV_REQUEST_PACER = _ArxivRequestPacer()
 
 
 @dataclass
@@ -146,10 +184,9 @@ def search_arxiv_multi(
 ) -> list[PaperRecord]:
     """Run multiple arXiv searches, dedupe by paper_id, preserve first-seen order.
 
-    Requests are spaced to respect arXiv's rate limit. If a 429 is encountered,
-    the spacing increases adaptively. A transient error from any single query is
-    swallowed so the batch can continue; callers can inspect the returned list
-    size to decide whether to warn.
+    The shared query gate paces all requests. Consecutive failures add a batch
+    cooldown, and each failed query is logged before the batch continues.
+    The returned list can be partial; it does not certify complete discovery.
     """
     if not queries:
         return []
@@ -159,20 +196,20 @@ def search_arxiv_multi(
     consecutive_failures = 0
 
     for idx, q in enumerate(queries):
-        if idx:
+        if idx and consecutive_failures >= 2:
+            logger.warning(
+                "Repeated arXiv search failures. Waiting %.0fs before next query...", spacing
+            )
             time.sleep(spacing)
         try:
             records = search_arxiv_papers(q, limit=limit_per_query, sort=sort)
             consecutive_failures = 0  # Reset on success
-        except Exception:
+        except Exception as exc:
+            logger.warning("arXiv search failed (%s): %s", type(exc).__name__, exc)
             consecutive_failures += 1
-            # Adaptive backoff: if we're getting rate-limited, wait longer
+            # Extra batch cooldown is separate from mandatory request pacing.
             if consecutive_failures >= 2:
                 spacing = min(spacing * 2, 60.0)  # Double spacing, cap at 60s
-                logger.warning(
-                    "arXiv rate-limited. Waiting %.0fs before retry...",
-                    spacing,
-                )
             continue
         for record in records:
             if record.paper_id in seen:
@@ -355,16 +392,32 @@ def _download_arxiv_pdf_bytes(pdf_url: str) -> bytes:
 
 
 def _fetch_text(url: str) -> str:
+    # Queuing and pacing consume the same budget as connect, retries, and read.
+    deadline = NetworkDeadline(
+        DEFAULT_FETCH_TIMEOUT_SECONDS, clock=time.monotonic, label="arXiv query request"
+    )
     try:
-        with safe_urlopen(url) as response:
+        # Hold the gate until the body is read and the response is closed.
+        # Generic retries remain inside this gate and use a compliant minimum
+        # backoff, so neither another caller nor an internal retry can race it.
+        with (
+            _ARXIV_REQUEST_PACER.request(deadline),
+            safe_urlopen(
+                url,
+                deadline=deadline,
+                request_interval_seconds=_ARXIV_REQUEST_SPACING_SECONDS,
+            ) as response,
+        ):
             data = response.read(_FEED_CAP_BYTES + 1)
     except NetworkError as exc:
         raise NetworkError(
             f"arXiv request failed ({exc}). arXiv enforces a 3-second rate limit; "
             f"if you're seeing 429 errors, space requests further apart.",
-            url=exc.url,
+            url=exc.url or url,
             status_code=exc.status_code,
         ) from exc
+    finally:
+        deadline.cancel()
     if len(data) > _FEED_CAP_BYTES:
         raise NetworkError(f"arXiv response exceeds the {_FEED_CAP_BYTES:,}-byte cap.", url=url)
     return data.decode("utf-8", errors="replace")

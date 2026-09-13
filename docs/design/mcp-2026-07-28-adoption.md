@@ -49,10 +49,11 @@ release candidate summary:
 - **Error codes.** Resource-not-found moved from `-32002` to `-32602`;
   `-32020` to `-32099` is reserved for the specification.
 
-## Distill's exposure inventory
+## Exposure inventory before the SDK v2 port
 
-The server is stdio-only, FastMCP-based, pinned to `mcp>=1.27.2,<2`
-(1.28.1 in the lock), speaking protocol 2025-11-25 through the SDK.
+At the initial inventory, the server was stdio-only, FastMCP-based, pinned to
+`mcp>=1.27.2,<2` (1.28.1 in the lock), and spoke protocol 2025-11-25 through
+the SDK. The phase 2 port below superseded that dependency and server class.
 
 | Spec change | Exposure | Basis |
 |---|---|---|
@@ -185,8 +186,25 @@ stabilizes, and bare protocol methods outside that seam remain off the table.
 
 | Risk | Mitigation |
 |---|---|
-| SDK v2 churn in early patch releases | The lock pins 2.0.0; upgrades land as reviewed PRs through the full gate, and the dual-era test evidence reruns on every release |
+| SDK v2 churn in early patch releases | The lock pins 2.2.0; upgrades land through the full review gate, and the modern and legacy test evidence reruns on every release |
 | OTel dependency vs no-analytics invariant | Verified at the port: api-only dependency, no SDK or exporter installed, no-op tracer. Re-verify if any dependency ever pulls in the OTel SDK |
 | Contract snapshot churn misread as drift | Resolved: the snapshot was byte-identical across the SDK swap; any future change stays one reviewed decision per `docs/contracts/README.md` |
 | Import-time cost regression from v2 dependencies | Measured at the port: CLI unaffected (never imports the SDK); server import cost is paid once by the long-running process |
 | Legacy hosts on v1 client SDKs | Proven working: a real 1.28.1 client completes initialize against the ported binary over stdio |
+
+## Maintenance checkpoint, 2026-09-13
+
+The current [SDK 2.2.0 release](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0)
+still lists Tasks as unimplemented. The historical port inventory above does
+not imply that a newer SDK has closed that gap.
+
+The September maintenance update locks SDK and types 2.2.0 and adds real
+stdio regression tests for modern discovery, direct versioned requests, and
+legacy initialize. The tests check response identity, ordered discovery,
+static-list cache hints, uncached corpus reads, and read-only refusal.
+An isolated genuine 1.28.1 client also passed against the installed release
+wheel's 2.2.0 server: protocol 2025-11-25, Distill 0.20.1, 27 tools, 4 resources, 8 templates,
+4 prompts, a resource read, and forced synthesis refusal. No Tasks capability
+was advertised. These local receipts do not replace exact-commit CI or
+account-specific host installation trials. See the
+[review](../research/roadmap-review-2026-09-13.md) for scope and remaining gates.

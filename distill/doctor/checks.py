@@ -589,6 +589,29 @@ def check_ollama_status() -> tuple[str, list[str]]:
     return _check_ollama_status()
 
 
+def check_ollama_model_readiness(model: str) -> tuple[Literal["ready", "blocked"], str]:
+    """Check exact model locality without submitting an inference request."""
+    from distill.llm.async_compat import run_coroutine_sync
+    from distill.llm.cost_policy import CostPolicyError, classify_provider
+    from distill.llm.providers.ollama import OllamaProvider
+
+    if classify_provider("ollama") != "local":
+        return ("blocked", "Restore a loopback Ollama endpoint, then re-run `distill doctor`.")
+    if not model.strip():
+        return ("blocked", "Select an exact installed Ollama model, then re-run `distill doctor`.")
+    try:
+        run_coroutine_sync(OllamaProvider().require_local(model))
+    except CostPolicyError as exc:
+        return ("blocked", str(exc))
+    except Exception as exc:
+        return (
+            "blocked",
+            f"Ollama local-only proof could not be checked ({type(exc).__name__}). "
+            "Check the daemon and re-run `distill doctor`.",
+        )
+    return ("ready", "The selected Ollama model has current local-only proof.")
+
+
 def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUnusedFunction] "called via public check_ollama_status seam and tests through dynamic lookup"
     """Check if Ollama server is running and list available models.
 

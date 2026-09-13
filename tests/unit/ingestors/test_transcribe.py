@@ -494,7 +494,10 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
     stream_probe = types.SimpleNamespace(returncode=0, stdout="0\n")
     decode_probe = types.SimpleNamespace(
         returncode=0,
-        stdout="out_time_us=60032000\nout_time=00:01:00.032000\nprogress=end\n",
+        stdout=(
+            "out_time_us=1000000\nprogress=continue\n"
+            "out_time_us=60032000\nout_time=00:01:00.032000\nprogress=end\n"
+        ),
     )
 
     ffprobe = str((tmp_path / "trusted" / "ffprobe.exe").resolve())
@@ -522,6 +525,7 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
     assert decode_command[decode_command.index("-i") + 1] == "cache:pipe:0"
     assert "asetpts=N/SR/TB" in decode_command
     assert decode_command[decode_command.index("-progress") + 1] == "pipe:1"
+    assert run.call_args_list[1].kwargs["timeout"] == 30
     assert run.call_args_list[0].kwargs["stdin"].closed
     assert run.call_args_list[1].kwargs["stdin"].closed
 

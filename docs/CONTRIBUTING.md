@@ -294,12 +294,19 @@ remaining dependency, contract, build, archive, and installed-wheel checks
 listed above.
 
 The offline gate validates eval schema and generated copies, not semantic
-quality. Before publishing the plugin, use a budget-capped native behavior run
+quality. Before publishing the plugin, use an authorized native behavior run
 on a Claude version and account that have the early-access runner enabled:
 
 ```bash
-claude plugin eval plugins/distill-corpus --ablation with-without --runs 3 --max-cost-usd 5 --no-scaffold
+claude plugin eval plugins/distill-corpus --ablation with-without --runs 3 --concurrency 1 --max-cost-usd 5 --no-scaffold --no-publish --mocks record --trust-plugin
 ```
+
+Claude Code 2.1.270 help, checked September 13, 2026, describes
+`--max-cost-usd` as a run-launch ceiling that can be exceeded by in-flight
+work. It is not an enforcing total-liability cap, including at concurrency one.
+Do not run this command under a hard budget without separately bounding all
+agent and grader liability. `--no-publish` keeps the HTML report local;
+`--trust-plugin` applies only to the inspected package in this repository.
 
 If Claude reports that `plugin eval` is still in early access for the account,
 record the release block. Do not bypass the client feature gate or replace the

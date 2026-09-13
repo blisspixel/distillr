@@ -444,7 +444,7 @@ def _universal_plugin_readme(version: str) -> bytes:
 
 This is the generated, self-contained distribution of the canonical
 `skills/distill-corpus/` Agent Skill. The root `plugin.json` targets the
-vendor-neutral Agent Plugins {AGENT_PLUGINS_VERSION} Working Draft. This
+published Agent Plugins {AGENT_PLUGINS_VERSION} specification. This
 repository distribution is the universal compatibility bundle, so native
 manifests are also included for Codex, Claude Code, Grok Build, and Gemini CLI.
 Version: `{version}`.
@@ -480,8 +480,8 @@ keyword score and not evidence that another client's router behaves identically.
 def _portable_plugin_readme(version: str) -> bytes:
     return f"""# Distill Corpus portable agent plugin
 
-This archive targets the vendor-neutral Agent Plugins {AGENT_PLUGINS_VERSION}
-Working Draft. It contains the required root `plugin.json`, one Agent Skill at
+This archive targets the published Agent Plugins {AGENT_PLUGINS_VERSION}
+specification. It contains the required root `plugin.json`, one Agent Skill at
 `skills/distill-corpus/`, this README, and the Apache-2.0 license. Version:
 `{version}`.
 

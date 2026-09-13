@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.20.0"
+version = "0.20.1"
 description = "Current-source research corpus: discover, capture, verify, and synthesize public sources and local files into durable Markdown."
 readme = "README.md"
 license = "Apache-2.0"
@@ -41,7 +41,7 @@ dependencies = [
     # MCP SDK v2 speaks protocol 2026-07-28 and answers legacy initialize
     # clients from the same server. Graduated per the adoption design doc;
     # the v3 line must clear its own compatibility review before entering.
-    "mcp>=2.0.0,<3",
+    "mcp>=2.2.0,<3",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "jinja2>=3.1.0",

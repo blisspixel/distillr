@@ -343,7 +343,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
         )
     )
     Draft202012Validator(schema).validate(portable_manifest)
-    assert b"Working Draft" in portable_payloads["distill-corpus/README.md"]
+    assert b"published Agent Plugins 1.0.0" in portable_payloads["distill-corpus/README.md"]
     assert not any(
         name.startswith("distill-corpus/.") or name.startswith("distill-corpus/evals/")
         for name in portable_payloads

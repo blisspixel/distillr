@@ -435,7 +435,7 @@ separate and blocked until adapter doctor, current support, auth, usage,
 scratch, and eval gates pass.
 
 The strict release archive follows the current
-[Agent Plugins 1.0.0 Working Draft](https://agent-plugins.org/specification):
+[Agent Plugins 1.0.0](https://agent-plugins.org/specification), now published:
 root `plugin.json` provides the portable manifest and `skills/` is the fixed
 skill location. It intentionally has no root `mcp.json`; configure
 `distill-mcp` separately with explicit read-only and cost policy when MCP
@@ -573,6 +573,14 @@ service availability decision, and blocked reasons. They are intentionally not
 account evidence and must not contain GitHub identities, emails, tokens, or
 subscription account identifiers.
 
+Ollama inference requires current local-only proof before every attempt:
+the daemon must report cloud disabled through the supported `/api/status`
+contract, and the exact model's metadata must show local backing without
+remote routing. Missing, malformed, unsupported, or cloud-enabled evidence
+fails closed in every cost mode. See the
+[setup and upgrade instructions](install.md#local-models-ollama--lm-studio).
+Doctor and setup use the same read-only proof for the configured model.
+
 Ollama contention is handled before inference. If another model is resident,
 Distill waits with bounded backoff, logs the active and requested models, and
 never silently substitutes. `DISTILL_LOCAL_TIMEOUT` is the total ceiling for
@@ -679,6 +687,15 @@ must influence the cross-source result, use `distill resynthesize <topic>
 --two-pass`, which reads all `_Insights.md` files recursively.
 
 ## arXiv papers
+
+Canonical arXiv query API calls share one connection gate per process, with
+at least 3.5 seconds between requests, including retries and redirects.
+Queueing, pacing, and fetch work share a bounded deadline. The
+[arXiv limits](https://info.arxiv.org/help/api/tou.html) apply across all
+operator-controlled machines. Coordinate separate Distill processes, other
+API clients, and RSS consumers; this process-local gate is not an
+operator-wide scheduler. A logged batch failure can leave partial discovery,
+which must not be interpreted as an exhausted research field.
 
 ```bash
 # Ingest one paper directly from arXiv (abstract + full PDF text + structured insight)

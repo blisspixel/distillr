@@ -1,6 +1,7 @@
 # Interoperability standards
 
-Last authoritative review: 2026-08-13.
+Last authoritative review: 2026-09-13 (MCP and Agent Plugins).
+Agent Skills and OKF were last reviewed on 2026-08-13.
 
 Distill uses open standards at three different boundaries. Agent Plugins
 packages the procedure an agent can load. Model Context Protocol exposes a
@@ -13,7 +14,7 @@ boundary.
 
 | Boundary | Baseline | Status | Authoritative source |
 |---|---|---|---|
-| Portable agent package | Agent Plugins 1.0.0 | Working Draft | [Specification](https://agent-plugins.org/specification) and [manifest schema](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json) |
+| Portable agent package | Agent Plugins 1.0.0 | Published | [Specification](https://agent-plugins.org/specification) and [manifest schema](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json) |
 | Agent procedure | Agent Skills | Current published specification | [Specification](https://agentskills.io/specification) |
 | Agent runtime protocol | MCP 2026-07-28 | Current compatibility checkpoint | [Specification](https://modelcontextprotocol.io/specification/2026-07-28) |
 | Knowledge exchange | OKF 0.2 | Current specification | [OKF v0.2 specification](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) |
@@ -66,6 +67,17 @@ the portable skill does not activate this runtime surface. Operators configure
 `distill-mcp` separately. The detailed protocol inventory and compatibility
 evidence are in
 [`design/mcp-2026-07-28-adoption.md`](design/mcp-2026-07-28-adoption.md).
+
+The September 13 review confirms that
+[2026-07-28 remains the current protocol](https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning).
+Compatible specification changes can land without a new date identifier, so
+the version string alone is insufficient evidence of continued compatibility.
+The lockfile now selects MCP SDK and types `2.2.0`. Its
+[September 7 release notes](https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0)
+describe redirect, legacy HTTP session, OAuth, and output-schema reference
+changes. Distill exposes stdio; HTTP deployment and OAuth client behavior are
+outside its current runtime surface. Tasks remains an explicit upstream SDK
+gap, so Distill must not advertise that extension.
 
 ## OKF boundary
 

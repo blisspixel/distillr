@@ -59,9 +59,9 @@ def test_public_docs_state_exact_portable_boundaries() -> None:
 
     assert "docs/interoperability.md" in overview
     assert "interoperability.md" in index
-    assert "Last authoritative review: 2026-08-13" in standards
+    assert "Last authoritative review: 2026-09-13 (MCP and Agent Plugins)" in standards
     assert "Agent Plugins 1.0.0" in standards
-    assert "Working Draft" in standards
+    assert "| Published |" in standards
     assert "OKF 0.2" in standards
     assert "introduced OKF 0.1" in standards
     assert "distill-corpus-agent-plugin-<version>.zip" in standards

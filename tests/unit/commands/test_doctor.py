@@ -28,6 +28,9 @@ def _isolate_local_provider_probes(monkeypatch) -> None:
 
     monkeypatch.setattr(doctor_mod, "_check_ollama_status", lambda: ("unavailable", ()))
     monkeypatch.setattr(
+        doctor_mod, "check_ollama_model_readiness", lambda model: ("ready", "local proof")
+    )
+    monkeypatch.setattr(
         doctor_mod,
         "_check_lmstudio_models",
         lambda: ("unavailable", ()),
@@ -192,6 +195,7 @@ class TestDoctorMigrationMode:
     ):
         from distill.library import migration as migration_mod
 
+        monkeypatch.setattr(doctor_mod.console, "width", 200)
         config = _config(tmp_path)
         topic_dir = config.library_dir / "topics" / "ai"
         source_dir = topic_dir / "source"

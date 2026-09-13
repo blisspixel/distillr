@@ -233,8 +233,6 @@ def _probe_media_duration(media_path: Path) -> float:
             "-nostdin",
             "-protocol_whitelist",
             "cache,pipe",
-            "-stats_period",
-            "3600",
             "-progress",
             "pipe:1",
             "-i",

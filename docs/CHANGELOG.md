@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.20.1 - 2026-09-13
+
+### Changed
+
+- Require MCP SDK `>=2.2.0,<3` and lock the SDK and types to `2.2.0`, with
+  modern discovery, direct modern requests, and legacy stdio regression tests.
+- Update Agent Plugins 1.0.0 guidance and generated packages to its published
+  status. The canonical manifest schema remains unchanged.
+
+### Fixed
+
+- Require fresh Ollama daemon and exact-model proof before each inference
+  attempt. Cloud-enabled, unsupported, ambiguous, or remotely backed routes
+  fail closed in every cost mode; anomalous remote usage is not recorded as
+  local zero-cost inference. Doctor, setup, and benchmark cleanup reuse that
+  admission boundary.
+- Serialize and pace canonical arXiv query API requests within a process,
+  including retries and redirects, under the total fetch deadline. Preserve
+  failure diagnostics and close redirect responses when pacing fails.
+- Isolate eval CLI tests from developer Ollama services and hardware probes.
+- Support older FFmpeg versions when measuring decoded audio duration, while
+  retaining the process deadline and compressed-timestamp regression check.
+- Make the migration-error display test independent of terminal width.
+- Verify that unexpected MCP tool failures preserve the internal exception
+  while the SDK exposes its generic tool error, without depending on leaked
+  internal exception text.
+
+### Documentation
+
+- Refine the canonical repository agent instructions with verified quality
+  commands, implementation owners, evidence states, the existing scratch/index
+  convention, and test-isolation requirements while preserving provider and
+  corpus safety rules.
+- Record the September 13 README and roadmap review, the evidence-generation
+  acceptance matrix, and the proposed research evaluation and follow-up plan.
+- Correct obsolete notebook source-discovery and research-persistence
+  comparisons, and make the blocker-patch policy apply to the current release
+  line.
+- Reserve this release for maintenance and billing correctness. Evidence
+  generation/origin work remains next in `0.20.2`; research evaluations,
+  operator evidence, and strict/security closure follow in `0.20.3` through
+  `0.20.5`.
+
+### Upgrade notes
+
+- Ollama now needs the supported local-only status contract published in
+  version 0.34.0. Disable cloud on the daemon and restart it; upgrading an
+  unsupported server is required. A Distill-only environment setting cannot
+  change an already-running daemon. See [local setup](install.md#local-models-ollama--lm-studio).
+- arXiv pacing covers canonical query calls in one process. Operators still
+  coordinate separate processes, machines, and other API or RSS clients.
+
+### Validation
+
+- The frozen release candidate passed 7,339 tests with 95.29% branch coverage
+  on Linux/Python 3.12, Ruff lint and formatting, production Pyright with
+  warnings denied, all four import contracts, Bandit, and dependency auditing.
+- Public contracts and both generated skill distributions passed validation.
+  The wheel, source distribution, and skill archives built; an isolated wheel
+  installation passed CLI, bundled-skill, runtime-asset, and editorial-default
+  smoke checks.
+- Native plugin behavior evaluation has not run, and no release-specific
+  waiver is recorded. The runner's launch ceiling does not enforce a hard
+  total spending cap. Publication remains gated on exact-commit CI and that
+  native-evaluation decision. Host installation and semantic calibration are
+  not established by the substitute checks.
+
 ## 0.20.0 - 2026-09-09
 
 ### Added
