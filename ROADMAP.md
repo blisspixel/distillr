@@ -81,13 +81,19 @@ and a scope; they are not schedule promises.
 |---|---|---|---|---|
 | 1 | `0.19.74` | Shipped | Release the optional OpenRouter route and Python 3.15 readiness watch with complete provider, billing, privacy, configuration, and operator truth | Package and generated distribution versions aligned; live OpenRouter doctor receipt recorded under a `$20` hard cap; full CI and security gates, exact-wheel installation, `.env.example`, no-metered refusal, release artifacts, and notes verified |
 | 2 | `0.20.0` | Released | Add the requested private editorial consumer and optional standalone skill without changing corpus truth or default research routes | Weekly budget and crash/concurrency tests; independent paid rewrite and receipt checks; model comparison; Markdown/DOCX sample; portable packages; CI and package publication; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.0) |
-| 3 | `0.20.1` | Active | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
+| 3 | `0.20.1` | Current | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
 | 4 | `0.20.2` | Next | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Complete versus invalid extraction tests; generation and zero-claim retirement; no stale synthesis fallback; source-versus-derived origin; migration and legacy-read coverage; audit and synthesis behavior; full CI and release notes |
 | 5 | `0.20.3` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
 | 6 | `0.20.4` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
 | 7 | `0.20.5` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
 | 8 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
 | 9 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
+
+The current row names the maintained release boundary; publication receipts
+live in the changelog and [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.1).
+Next is `0.20.2` because removed assertions can remain active after an artifact
+is reanalyzed, and derived answers can lose their origin. Correct that evidence
+state before `0.20.3` measures research quality or changes discovery defaults.
 
 ### How the plan stays current
 

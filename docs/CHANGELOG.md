@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Support older FFmpeg versions when measuring decoded audio duration, while
   retaining the process deadline and compressed-timestamp regression check.
 - Make the migration-error display test independent of terminal width.
+- Grant native skill evaluations read-only reference access and enough turns
+  to complete. Clarify that workflow rubrics grade the requested explanation,
+  preserving every required step and the existing pass threshold. Use Sonnet
+  judging after observed false negatives from the default judge.
 - Verify that unexpected MCP tool failures preserve the internal exception
   while the SDK exposes its generic tool error, without depending on leaked
   internal exception text.
@@ -68,11 +72,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   The wheel, source distribution, and skill archives built; an isolated wheel
   installation passed CLI, bundled-skill, runtime-asset, and editorial-default
   smoke checks.
-- Native plugin behavior evaluation has not run, and no release-specific
-  waiver is recorded. The runner's launch ceiling does not enforce a hard
-  total spending cap. Publication remains gated on exact-commit CI and that
-  native-evaluation decision. Host installation and semantic calibration are
-  not established by the substitute checks.
+- All six current native plugin behavior cases passed every criterion over
+  three runs per arm, with a no-plugin comparison. Four unchanged cases passed
+  in the full run; the worker and corpus cases passed focused reruns after
+  rubric and fixture corrections. Input hashes and reported prompts/rubrics
+  were checked against the final package. Failed attempts remain preserved.
+- Native evaluation used Claude Code 2.1.270, Opus 5, and Sonnet judging under
+  authorized account-backed runner usage, with API-key overrides removed for
+  those processes. No waiver was used. These workflow cases do not establish
+  end-to-end host installation or a research-quality baseline. Publication
+  still requires successful CI on the exact tagged commit.
 
 ## 0.20.0 - 2026-09-09
 

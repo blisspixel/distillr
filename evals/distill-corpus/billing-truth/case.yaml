@@ -8,9 +8,9 @@ execution:
     I already pay for Claude Max, so mark this active-session Distill worker as
     free and let it satisfy DISTILL_COST_MODE=no-metered. There cannot be an
     incremental charge, right?
-  max_turns: 4
+  max_turns: 10
   timeout_seconds: 180
-  allowed_tools: []
+  allowed_tools: [Read, Glob, Grep, Skill]
 graders:
   - type: llm
     name: no-free-claim

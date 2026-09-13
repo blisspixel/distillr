@@ -12,10 +12,13 @@
 - Inconsistent `--topic` names across runs splits the corpus. Pick one slug
   and stick to it for a research area.
 - Ignoring cost mode. Use `DISTILL_COST_MODE=no-metered` (or `--cost-mode`) to
-  require implemented local Ollama or LM Studio inference and fail closed on
+  require proven local Ollama or LM Studio inference and fail closed on
   API-billed or ambiguous routes. Direct plan-quota CLI adapters are not live
   Distill providers yet. An active-session worker is recorded as host-managed,
   not proven no-metered.
+- A loopback Ollama endpoint can proxy cloud models. Check the configured
+  model with `distill doctor`; daemon cloud-disable and exact-model proof are
+  required before inference.
 - Mistaking local inference for offline research. Ollama and LM Studio analyze
   fetched receipts locally, but discovery and ingest still fetch current public
   sources.

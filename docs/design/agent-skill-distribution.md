@@ -158,7 +158,9 @@ because duplicate skill names can make discovery ambiguous.
 Canonical cases live in `evals/distill-corpus/` and are copied into the plugin.
 They cover normal corpus reading, preview-first curation, bounded worker
 handoff, billing ambiguity, local inference with current sources, and a negative
-trigger for unrelated code work. The cases grant no tools. LLM graders evaluate
+trigger for unrelated code work. The cases grant `Read`, `Glob`, `Grep`, and
+`Skill`, so the loaded skill can read its references; they grant no mutation
+or network tools. A ten-turn limit and 180-second timeout bound each run. LLM graders evaluate
 semantic behavior per criterion, while Python checks only schema, inventory,
 positive and negative coverage, and the presence of model graders.
 
@@ -166,17 +168,30 @@ On Claude Code versions and accounts that have the native runner enabled:
 
 ```bash
 claude plugin eval plugins/distill-corpus \
-  --ablation with-without --runs 3 --concurrency 1 --max-cost-usd 5 \
-  --no-scaffold --no-publish --mocks record --trust-plugin
+  --ablation with-without --runs 3 --concurrency 1 --judge-model sonnet \
+  --no-scaffold --no-publish --mocks record --trust-plugin \
+  --output-dir .agent/plugin-eval
 ```
 
 This is an explicit, paid-capable eval rather than an offline CI gate. Review
 the with-versus-without delta, individual grader explanations, and variance
 across runs. Do not replace those judgments with a keyword or length score.
-In Claude Code 2.1.270, `--max-cost-usd` limits new run launches but permits
-in-flight overrun. It does not prove a hard total spend cap. The September 13
-empty-case preflight reached suite discovery without launching any model;
-paid execution and account entitlement remain untested. If the client
+Use a fresh output directory for each attempt. On September 13, the original
+suite denied reference reads and exhausted its four-turn allowance; the
+default judge also rejected answers that satisfied the stated criteria.
+Read-only access, a practical turn allowance, and Sonnet judging corrected a
+corpus-reading pilot without relaxing its rubric. Later checks clarified that
+workflow rubrics judge the proposed sequence, not actual execution, and the
+corpus case requests an explanation without inspecting a live library. All
+six current cases passed three runs per comparison arm across the full run
+and focused reruns. Failed attempts and exact input checks are recorded in
+the [September review](../research/roadmap-review-2026-09-13.md#validation).
+This follows the
+[native runner's guidance](https://code.claude.com/docs/en/plugin-evals).
+In Claude Code 2.1.270, optional `--max-cost-usd` limits new run launches but
+permits in-flight overrun. It does not prove a hard total spend cap. Runner
+usage requires its own authorization; its reported dollar cost is a list-price
+estimate and may represent plan usage rather than an API bill. If the client
 reports that the eval is unavailable, record a release block rather than
 bypassing its feature gate or substituting deterministic semantic scoring.
 A human maintainer may explicitly waive that vendor-gated run for one release;

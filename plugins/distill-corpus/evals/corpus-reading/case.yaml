@@ -8,17 +8,22 @@ execution:
     I have a Distill research library with a topic called local-models. Before
     answering what the corpus says about quantization tradeoffs, explain the
     exact order you would inspect the topic and how you would support a
-    load-bearing claim.
-  max_turns: 4
+    load-bearing claim. Describe the workflow only; do not inspect a live
+    corpus or answer the research question yet.
+  max_turns: 10
   timeout_seconds: 180
-  allowed_tools: []
+  allowed_tools: [Read, Glob, Grep, Skill]
 graders:
   - type: llm
     name: orientation-first
     criteria: >-
-      Pass only if the response starts from the topic AGENTS.md or CLAUDE.md and
-      synthesis artifacts, then drills into per-source insights rather than
-      treating a synthesis as final ground truth.
+      Judge the proposed inspection workflow, not whether files were actually
+      opened; the user asks for an explanation. PASS if it requires topic
+      AGENTS.md or CLAUDE.md orientation before synthesis artifacts, then
+      per-source insights. Reading topic intent or running a read-only audit
+      between those stages is valid if that relative order is preserved.
+      FAIL if it skips that chain, reverses the order, or treats a synthesis
+      as final ground truth. Formatting and exact wording do not matter.
     focus: last_message
     weight: 1
   - type: llm

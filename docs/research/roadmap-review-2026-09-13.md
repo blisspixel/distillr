@@ -245,8 +245,9 @@ acquisition, and providers/interoperability/release evidence. They combined
 current primary sources with source and test inspection. The quality track
 also reproduced the retained-claim and invalid-empty cases without a provider;
 the interoperability track reproduced localhost cloud-model admission and
-ran the genuine legacy-client test. No comparative product benchmark or paid
-semantic evaluation was performed.
+ran the genuine legacy-client test. No comparative product benchmark or
+research-episode evaluation was performed. Native skill behavior was evaluated
+separately during release preparation.
 
 The second pass addressed concrete gaps: invalid extraction versus empty
 success, stale synthesis fallback, paired retrieval/synthesis evaluation,
@@ -303,8 +304,26 @@ bundled-skill, six runtime-asset, and editorial-default smoke checks. A manifest
 comparison confirmed that all 1,039 project files matched the tested snapshot
 before these validation receipts were added.
 
-Exact-commit CI and the release-specific native-evaluation decision remain
-publication gates. The installed native runner's cost ceiling limits launches
-but permits in-flight overruns, so it cannot enforce the authorized hard
-spending cap. No paid model calls were made. Native host installation and
-semantic calibration remain unvalidated.
+Native plugin evaluation used Claude Code 2.1.270, Opus 5, and Sonnet judging
+with three repetitions per comparison arm. Every criterion passed for all six
+current cases across the full run and focused reruns of changed cases. The
+reported prompts, rubrics, and input hashes match the final package. This is
+workflow evidence, not a research-episode benchmark or an end-to-end client
+installation trial.
+
+The initial native run passed one of six cases: it denied reference reads and
+exhausted a four-turn allowance. After read-only access, a practical turn
+allowance, and stronger judging, four cases passed. The remaining checks
+needed clarification that they judged proposed workflows, not execution in an
+empty workspace. Corpus reading also needed an explanation-only fixture:
+the final-message grader had missed a correct explanation earlier in the
+trace. No required workflow step or pass threshold was removed. Original
+failures were retained rather than overwritten by successful reruns.
+
+The user excluded native runner usage from the separate $10 additional API
+budget. Child-only authentication checks established the account-backed route
+with API-key overrides removed; reported dollar totals are list-price usage
+estimates, not additional API charges. No separate metered research API was
+used. The publication workflow requires successful CI on the exact tagged
+commit. Broader judge calibration and native installation trials remain in
+their roadmap gates.

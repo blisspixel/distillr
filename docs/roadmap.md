@@ -17,7 +17,7 @@ does not independently schedule releases.
   release artifacts.
 - `0.20.0` releases the private editorial consumer and standalone perspective
   skill under the user's explicit publication request.
-- `0.20.1` is the active billing, interoperability, and request-pacing
+- `0.20.1` is the current billing, interoperability, and request-pacing
   maintenance release, as bounded by the September 13
   [review](research/roadmap-review-2026-09-13.md).
 - `0.20.2` is next and owns claim-generation retirement and derived-origin
