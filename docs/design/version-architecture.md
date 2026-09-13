@@ -165,14 +165,16 @@ Dependency-ordered and versioned, never calendar-estimated:
 1. `0.19.74`: shipped provider accountability, optional OpenRouter, Python 3.15
    watch, and exact release truth.
 2. `0.20.0`: explicitly requested editorial consumer and standalone skill.
-3. `0.20.1`: active claim-generation currentness and derived-origin
+3. `0.20.1`: local-inference billing proof, interoperability maintenance, and
+   bounded API pacing.
+4. `0.20.2`: claim-generation currentness and derived-origin
    correction.
-4. `0.20.2`: research-desk evaluation baseline.
-5. `0.20.3`: operator, accessibility, performance, and live-journey evidence.
-6. `0.20.4`: strict-boundary, deterministic-core, and security closure.
-7. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
-8. `1.0.0`: publish the stability promise only while every gate remains true.
-9. Post-1.0: evidence anchors and unified contribution handoff, research
+5. `0.20.3`: research-desk evaluation baseline.
+6. `0.20.4`: operator, accessibility, performance, and live-journey evidence.
+7. `0.20.5`: strict-boundary, deterministic-core, and security closure.
+8. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
+9. `1.0.0`: publish the stability promise only while every gate remains true.
+10. Post-1.0: evidence anchors and unified contribution handoff, research
    program and portfolio selection, field model, meaningful refresh, reading
    paths, bounded stewardship loops, qualified provider breadth, recipes,
    merge, and plugins.

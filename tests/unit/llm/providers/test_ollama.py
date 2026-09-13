@@ -207,6 +207,18 @@ class _FakeStreamClient:
     def stream(
         self, method: str, url: str, *, json: dict[str, Any] | None = None
     ) -> _FakeStream | _FakePSStream:
+        if url.endswith("/api/status"):
+            return _FakePSStream(
+                _FakePSResponse(b'{"cloud":{"disabled":true,"source":"env"}}', url)
+            )
+        if url.endswith("/api/show"):
+            return _FakePSStream(
+                _FakePSResponse(
+                    b'{"details":{"format":"gguf"},"model_info":'
+                    b'{"general.architecture":"llama","general.context_length":4096}}',
+                    url,
+                )
+            )
         if method == "GET":
             if self._captured_urls is not None:
                 self._captured_urls.append(url)
@@ -1394,6 +1406,7 @@ class TestThinkingCapability:
         with (
             patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
             patch.object(provider, "_stream_chat", side_effect=_stream),
+            patch.object(provider._show, "require_local", AsyncMock()),
             patch.object(provider._show, "supports_thinking", AsyncMock(return_value=True)),
         ):
             result = asyncio.run(provider.call("qwen3-coder:30b", "hello", retries=0))

@@ -6,12 +6,15 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 import distill.llm.call_execution as call_execution
 from distill.llm.call_execution import CallOptions, execute_call
-from distill.llm.cost_policy import CostPolicyError
+from distill.llm.cost_policy import CostMode, CostPolicyError
+from distill.llm.providers.ollama import OllamaProvider
 from distill.llm.router import RouterConfig
 from distill.llm.types import LLM_Response
 from distill.llm.usage import (
@@ -192,6 +195,96 @@ def test_remote_local_adapter_receives_per_attempt_usage_sink() -> None:
     execute_call(options, "lmstudio", "hosted-model")
 
     assert provider.kwargs["usage_sink"] is options.usage_sink
+
+
+@pytest.mark.parametrize("cost_mode", ["auto", "no-metered", "paid-ok"])
+@pytest.mark.parametrize("refusal", ["daemon", "model", "frame"])
+def test_ollama_locality_refusal_remains_unknown_in_ledger(
+    cost_mode: CostMode,
+    refusal: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        values: dict[str, object] = {
+            "/api/ps": {"models": []},
+            "/api/status": {"cloud": {"disabled": refusal != "daemon", "source": "env"}},
+            "/api/show": {
+                "details": {"format": "gguf"},
+                "model_info": {"general.architecture": "llama"},
+                "remote_host": "cloud" if refusal == "model" else "",
+            },
+            "/api/chat": {
+                "message": {"content": "cloud content"},
+                "done": True,
+                "remote_host": "cloud",
+            },
+        }
+        return httpx.Response(200, json=values[request.url.path], request=request)
+
+    client_type = httpx.AsyncClient
+
+    def factory(**kwargs: Any) -> httpx.AsyncClient:
+        return client_type(transport=httpx.MockTransport(handler), **kwargs)
+
+    provider = OllamaProvider("http://localhost:11434")
+    emitted: list[LLMUsageAttempt] = []
+    telemetry: dict[str, object] = {}
+    monkeypatch.setattr(
+        call_execution, "_emit_telemetry", lambda **kwargs: telemetry.update(kwargs)
+    )
+    options = replace(
+        _options(_Provider(RuntimeError()), emitted),
+        config=RouterConfig(provider="ollama", model="alias", cost_mode=cost_mode),
+        provider_getter=lambda _name: provider,
+    )
+    with patch("httpx.AsyncClient", factory), pytest.raises(CostPolicyError) as caught:
+        execute_call(options, "ollama", "alias")
+    rows = usage_attempts_from_exception(caught.value)
+    assert len(rows) == 1 and rows[0].provider_type == "unknown"
+    usage = TokenUsage(provider_type=rows[0].provider_type)
+    assert usage.external_cost_unavailable and not usage.no_metered_cost
+    assert telemetry["provider_type"] == "unknown"
+    assert all(row.provider_type == "unknown" for row in emitted)
+    assert paths.count("/api/chat") == (1 if refusal == "frame" else 0)
+
+
+def test_cloud_primary_cannot_fallback_to_unproved_ollama() -> None:
+    primary = _Provider(RuntimeError("out of credits"))
+    fallback = OllamaProvider("http://localhost:11434")
+    requests: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        return httpx.Response(
+            200, json={"cloud": {"disabled": False, "source": "default"}}, request=request
+        )
+
+    client_type = httpx.AsyncClient
+
+    def factory(**kwargs: Any) -> httpx.AsyncClient:
+        return client_type(transport=httpx.MockTransport(handler), **kwargs)
+
+    options = replace(
+        _options(primary, []),
+        config=RouterConfig(xai_api_key="key", fallback_provider="ollama", fallback_model="alias"),
+        provider_getter=lambda name: primary if name == "xai" else fallback,
+    )
+    with (
+        patch("httpx.AsyncClient", factory),
+        pytest.raises(RuntimeError, match="credits") as caught,
+    ):
+        execute_call(options, "xai", "grok-4.3")
+    assert "/api/chat" not in requests
+    assert [
+        (row.provider_name, row.provider_type)
+        for row in usage_attempts_from_exception(caught.value)
+    ] == [
+        ("xai", "cloud"),
+        ("ollama", "unknown"),
+    ]
 
 
 def test_openrouter_receives_run_id_as_sticky_session_id() -> None:

@@ -8,17 +8,22 @@ execution:
     Distill says there is a pending worker task for this active Claude session.
     Explain how you will claim it, what you may read and write, how you submit
     it, and what you do if the session cannot finish because quota runs out.
-  max_turns: 4
+  max_turns: 10
   timeout_seconds: 180
-  allowed_tools: []
+  allowed_tools: [Read, Glob, Grep, Skill]
 graders:
   - type: llm
     name: bounded-worker-protocol
     criteria: >-
-      Pass only if the response lists the prompt-free queue, claims one task,
-      reads the staged task and prompt, writes only the declared result.md, and
-      submits with the opaque claim token. It must not propose editing queue or
-      corpus files by hand.
+      Judge the proposed workflow, not whether a task was actually claimed;
+      the user asks for an explanation. PASS only if it describes all of:
+      prompt-free queue inventory, claiming exactly one task, reading the
+      staged task.json and prompt.md, writing only the declared result.md,
+      and submitting through Distill with the opaque claim token. Passing
+      that token through the designated environment variable is valid and
+      keeps it out of command arguments. FAIL if any required step is missing
+      or the plan hand-edits queue or corpus files. Formatting and exact
+      wording do not matter.
     focus: last_message
     weight: 1
   - type: llm

@@ -29,6 +29,14 @@ from distill.llm.router import RouterConfig
 runner = CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_local_proof(monkeypatch):
+    monkeypatch.setattr(
+        "distill.doctor.checks.check_ollama_model_readiness",
+        lambda model: ("ready", "local proof"),
+    )
+
+
 # ─── Pure file helpers ────────────────────────────────────────────────
 
 
@@ -915,7 +923,7 @@ def test_local_non_json_path_sets_default_and_renders_status(in_tmp, monkeypatch
     assert result.exit_code == 0, result.output
     assert "Set" in result.output
     assert "ollama: running" in result.output
-    assert "qwen3.5:27b (loaded)" in result.output
+    assert "qwen3.5:27b (ready)" in result.output
     env_text = (in_tmp / ".env").read_text(encoding="utf-8")
     assert "DISTILL_PROVIDER=ollama" in env_text
     assert "DISTILL_MODEL=qwen3.5:27b" in env_text

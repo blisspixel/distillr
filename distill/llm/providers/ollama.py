@@ -17,7 +17,11 @@ from typing import Any
 import httpx
 
 from distill.llm._parsing import parse_ascii_uint
-from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
+from distill.llm.cost_policy import (
+    CostPolicyError,
+    classify_provider,
+    local_provider_endpoint_is_valid,
+)
 
 # Re-exported for callers/tests that import it from this module; the redundant
 # alias marks the intentional re-export (the transport code does not use it).
@@ -38,7 +42,7 @@ from distill.llm.providers._ollama_registry import (
     parse_running_model_names,
     parse_tags_response,
 )
-from distill.llm.providers._ollama_show import ShowProbe
+from distill.llm.providers._ollama_show import ShowProbe, require_no_remote_metadata
 from distill.llm.providers._ollama_slot import wait_for_model_slot
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
@@ -147,7 +151,9 @@ class OllamaProvider:
         attempt = -1
         while attempt < retries + bonus_attempts:
             attempt += 1
+            prompt_sent = False
             try:
+                await self._show.require_local(model)
                 # Size the context to prompt + output + headroom so a model's huge
                 # default window does not allocate a KV cache that spills VRAM.
                 num_ctx = await self._adaptive_num_ctx(model, prompt, max_tokens)
@@ -160,8 +166,31 @@ class OllamaProvider:
                     call_type=call_type,
                     supports_thinking=await self._show.supports_thinking(model),
                 )
+                prompt_sent = True
                 response = await self._stream_chat(model, payload, timeout)
                 response = replace(response, num_ctx=num_ctx)
+            except CostPolicyError as exc:
+                counts = (
+                    conservative_usage(prompt=prompt, max_tokens=max_tokens)
+                    if prompt_sent
+                    else (0, 0)
+                )
+                emit_usage_attempt(
+                    usage_attempts,
+                    LLMUsageAttempt(
+                        input_tokens=counts[0],
+                        output_tokens=counts[1],
+                        model=model,
+                        provider_name="ollama",
+                        provider_type="unknown",
+                        usage_source="conservative" if prompt_sent else "unavailable",
+                        outcome="error",
+                        error_type=type(exc).__name__,
+                    ),
+                    usage_sink,
+                )
+                attach_usage_attempts(exc, usage_attempts)
+                raise
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 surfaced = ConnectionError(
                     f"Cannot reach Ollama at {self._base_url}. "
@@ -334,6 +363,7 @@ class OllamaProvider:
                     logger.debug("Skipping malformed Ollama chat frame")
                     continue
                 frame, content_value, thinking_value = parsed_frame
+                require_no_remote_metadata(frame)
                 if content_value:
                     content_parts.append(content_value)
                 if thinking_value:
@@ -404,6 +434,10 @@ class OllamaProvider:
     async def get_context_window(self, model: str) -> int:
         """Query Ollama /api/show for the model's context window. Cached per model."""
         return await self._show.context_window(model)
+
+    async def require_local(self, model: str) -> None:
+        """Run the same prompt-free local proof used by inference admission."""
+        await self._show.require_local(model)
 
     _parse_context_window = staticmethod(parse_context_window)
 

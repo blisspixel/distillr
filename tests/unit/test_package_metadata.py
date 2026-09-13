@@ -26,7 +26,7 @@ def test_mcp_runtime_dependency_stays_on_graduated_v2_line() -> None:
     """The graduated SDK line is v2; v3 needs its own compatibility review."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert "mcp>=2.0.0,<3" in pyproject["project"]["dependencies"]
+    assert "mcp>=2.2.0,<3" in pyproject["project"]["dependencies"]
 
 
 def test_entailment_extra_stays_on_transformers_v4() -> None:

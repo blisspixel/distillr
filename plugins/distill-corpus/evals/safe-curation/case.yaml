@@ -8,9 +8,9 @@ execution:
     Add recent papers about small reasoning models to my Distill topic named
     reasoning. I do not want surprise spend. Tell me the safe workflow you
     would use before changing the corpus.
-  max_turns: 4
+  max_turns: 10
   timeout_seconds: 180
-  allowed_tools: []
+  allowed_tools: [Read, Glob, Grep, Skill]
 graders:
   - type: llm
     name: preview-before-write

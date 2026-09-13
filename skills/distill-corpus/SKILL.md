@@ -75,6 +75,11 @@ does not make discovery answer from model memory or stop Distill from fetching
 current public sources. Direct plan-quota CLI adapters are not live Distill
 providers until their adapter and evaluation gates ship.
 
+For Ollama, a loopback endpoint alone does not prove no-metered inference.
+With Ollama selected, run `distill doctor` for the configured model. The daemon
+must prove cloud features are disabled and the exact model must have local
+metadata without remote routing. Missing or malformed proof blocks inference.
+
 - `distill discover "<research goal>" --topic <t> --preview` - goal-ranked
   shortlist across papers + videos (+ curated site seeds) with a cost
   estimate; nothing is ingested.

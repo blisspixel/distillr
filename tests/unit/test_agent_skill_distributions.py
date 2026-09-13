@@ -277,8 +277,9 @@ def test_behavioral_eval_suite_has_positive_negative_and_model_judged_cases() ->
         assert value["schema_version"] == "1.1"
         assert value["name"] == path.parent.name
         assert value["runs"] >= 1
-        assert value["execution"]["allowed_tools"] == []
-        assert value["execution"]["max_turns"] <= 4
+        assert set(value["execution"]["allowed_tools"]) == {"Read", "Glob", "Grep", "Skill"}
+        assert value["execution"]["max_turns"] <= 10
+        assert value["execution"]["timeout_seconds"] <= 180
         assert value["graders"]
         assert all(grader["type"] == "llm" for grader in value["graders"])
         assert all(grader["criteria"].strip() for grader in value["graders"])
@@ -343,7 +344,7 @@ def test_release_archives_are_deterministic_bounded_and_checksummed(tmp_path: Pa
         )
     )
     Draft202012Validator(schema).validate(portable_manifest)
-    assert b"Working Draft" in portable_payloads["distill-corpus/README.md"]
+    assert b"published Agent Plugins 1.0.0" in portable_payloads["distill-corpus/README.md"]
     assert not any(
         name.startswith("distill-corpus/.") or name.startswith("distill-corpus/evals/")
         for name in portable_payloads

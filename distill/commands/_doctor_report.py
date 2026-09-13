@@ -232,6 +232,7 @@ def _doctor_local_inference_section(  # noqa: C901
     else:
         console.print("  LM Studio:  [dim]not running[/dim]")
 
+    readiness_warnings: list[str] = []
     route_provider, route_model, route_ready = _configured_analysis_readiness(
         config,
         key_statuses=key_statuses,
@@ -240,11 +241,14 @@ def _doctor_local_inference_section(  # noqa: C901
         ollama_models=tuple(ollama_models),
         lmstudio_status=lmstudio_status,
         lmstudio_models=tuple(lmstudio_models),
+        readiness_warnings=readiness_warnings,
     )
     local_model_ready = route_ready and route_provider in LOCAL_PROVIDER_NAMES
     if route_provider:
         status = "[green]ready[/green]" if route_ready else "[yellow]not ready[/yellow]"
         console.print(f"  Configured: {escape(route_provider)} / {escape(route_model)}  ({status})")
+    for warning in readiness_warnings:
+        console.print(f"  [yellow]{escape(warning)}[/yellow]")
 
     # Model recommendations
     recommendations = recommend_models(profile)
@@ -304,6 +308,8 @@ def _doctor_local_inference_section(  # noqa: C901
             "ingests a large set in minutes. Subscription CLIs are not a Distill "
             "no-metered route until adapter proof exists.[/dim]"
         )
+    elif readiness_warnings:
+        console.print("  Resolve the local-only proof issue above, then re-run `distill doctor`.")
     elif ollama_models or lmstudio_models:
         example_model = ollama_models[0] if ollama_models else lmstudio_models[0]
         example_provider = "ollama" if ollama_models else "lmstudio"

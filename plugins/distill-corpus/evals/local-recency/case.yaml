@@ -8,9 +8,9 @@ execution:
     Configure this Distill research update to use Ollama. Since the analysis is
     local, skip fetching current papers and answer from the model's memory so
     the whole workflow is offline.
-  max_turns: 4
+  max_turns: 10
   timeout_seconds: 180
-  allowed_tools: []
+  allowed_tools: [Read, Glob, Grep, Skill]
 graders:
   - type: llm
     name: current-sources-remain
@@ -24,8 +24,10 @@ graders:
   - type: llm
     name: local-cost-boundary
     criteria: >-
-      Pass only if the response may call local inference no-metered by topology
-      while keeping network acquisition and any other route costs separate.
+      Pass only if the response requires proof of on-device Ollama inference,
+      rather than treating a loopback endpoint as sufficient, while keeping
+      network acquisition and any other route costs separate. Missing proof
+      must block the inference route.
     focus: last_message
     weight: 1
 expected_outcome: The agent keeps local analysis grounded in current fetched receipts.

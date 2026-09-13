@@ -8,6 +8,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.types import LLM_Response
 from distill.pipeline.speed_probe import (
     WARM_LOAD_SECONDS,
@@ -115,14 +118,43 @@ class TestReleaseModel:
         client.__aenter__.return_value = client
         client.__aexit__.return_value = None
 
-        with patch("httpx.AsyncClient", return_value=client):
+        with (
+            patch("httpx.AsyncClient", return_value=client) as client_type,
+            patch(
+                "distill.llm.providers.ollama.OllamaProvider.require_local", AsyncMock()
+            ) as proof,
+        ):
             asyncio.run(release_model("http://localhost:11434", "qwen3.8:27b"))
 
+        proof.assert_awaited_once_with("qwen3.8:27b")
+        assert client_type.call_args.kwargs["trust_env"] is False
         client.post.assert_awaited_once_with(
             "http://localhost:11434/api/generate",
             json={"model": "qwen3.8:27b", "keep_alive": 0},
         )
 
     def test_transport_errors_are_swallowed(self) -> None:
-        with patch("httpx.AsyncClient", side_effect=OSError("down")):
+        with (
+            patch("httpx.AsyncClient", side_effect=OSError("down")),
+            patch("distill.llm.providers.ollama.OllamaProvider.require_local", AsyncMock()),
+        ):
             asyncio.run(release_model("http://localhost:11434", "qwen3.8:27b"))
+
+    @pytest.mark.parametrize("failure", [CostPolicyError("cloud alias"), OSError("proof failed")])
+    def test_proof_refusal_does_not_post_generate(self, failure) -> None:
+        with (
+            patch("httpx.AsyncClient") as client_type,
+            patch(
+                "distill.llm.providers.ollama.OllamaProvider.require_local",
+                AsyncMock(side_effect=failure),
+            ) as proof,
+        ):
+            asyncio.run(release_model("http://localhost:11434", "cloud-alias", trust_env=True))
+
+        proof.assert_awaited_once_with("cloud-alias")
+        client_type.assert_not_called()
+
+    def test_remote_cleanup_refuses_before_metadata_or_generation(self) -> None:
+        with patch("httpx.AsyncClient") as client_type:
+            asyncio.run(release_model("https://hosted.example", "alias"))
+        client_type.assert_not_called()

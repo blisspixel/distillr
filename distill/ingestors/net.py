@@ -37,6 +37,7 @@ import idna
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "DEFAULT_FETCH_TIMEOUT_SECONDS",
     "NetworkDeadline",
     "NetworkError",
     "is_public_ip",
@@ -47,6 +48,8 @@ __all__ = [
     "url_for_diagnostic",
     "url_for_persistence",
 ]
+
+DEFAULT_FETCH_TIMEOUT_SECONDS = 30.0
 
 _ALLOWED_SCHEMES = frozenset({"https"})
 _PUBLIC_WEB_SCHEMES = frozenset({"http", "https"})
@@ -430,6 +433,19 @@ class _PublicWebRedirectHandler(urllib.request.HTTPRedirectHandler):
         if original_host != new_host:
             for header in ("Authorization", "Cookie", "Proxy-Authorization"):
                 redirected.remove_header(header)
+        interval = getattr(_PIN_STATE, "request_interval_seconds", 0.0)
+        if interval:
+            # urllib closes the preceding response before opening this request.
+            # Delay here, under the same deadline and pin scope, so a redirect
+            # cannot bypass a caller's API pacing policy.
+            try:
+                _PIN_STATE.deadline.sleep(interval)
+            except BaseException:
+                # http_error_302 has not reached its response cleanup yet.
+                # Release the body without reading it or masking the failure.
+                with contextlib.suppress(Exception):
+                    fp.close()
+                raise
         return redirected
 
 
@@ -666,7 +682,9 @@ def _build_ssrf_safe_opener() -> urllib.request.OpenerDirector:
 _SSRF_SAFE_OPENER = _build_ssrf_safe_opener()
 
 
-def _validate_fetch_options(timeout: float, retries: int, backoff_base: float) -> None:
+def _validate_fetch_options(
+    timeout: float, retries: int, backoff_base: float, request_interval_seconds: float = 0.0
+) -> None:
     if (
         isinstance(timeout, bool)
         or not isinstance(timeout, (int, float))
@@ -683,6 +701,13 @@ def _validate_fetch_options(timeout: float, retries: int, backoff_base: float) -
         or backoff_base < 0
     ):
         raise ValueError("network backoff must be a non-negative finite number")
+    if (
+        isinstance(request_interval_seconds, bool)
+        or not isinstance(request_interval_seconds, (int, float))
+        or not math.isfinite(request_interval_seconds)
+        or request_interval_seconds < 0
+    ):
+        raise ValueError("network request interval must be a non-negative finite number")
 
 
 def _fetch_target(
@@ -723,9 +748,12 @@ def _open_pinned_attempt(
     pinned_ip: str,
     timeout: float,
     deadline: NetworkDeadline,
+    request_interval_seconds: float = 0.0,
 ) -> Any:
     previous_deadline = getattr(_PIN_STATE, "deadline", None)
+    previous_interval = getattr(_PIN_STATE, "request_interval_seconds", None)
     _PIN_STATE.deadline = deadline
+    _PIN_STATE.request_interval_seconds = request_interval_seconds
     try:
         with pin_host_to_ip(
             host,
@@ -742,6 +770,11 @@ def _open_pinned_attempt(
                 delattr(_PIN_STATE, "deadline")
         else:
             _PIN_STATE.deadline = previous_deadline
+        if previous_interval is None:
+            with contextlib.suppress(AttributeError):
+                delattr(_PIN_STATE, "request_interval_seconds")
+        else:
+            _PIN_STATE.request_interval_seconds = previous_interval
 
 
 def _retry_delay(
@@ -775,6 +808,7 @@ def _open_with_retries(
     backoff_base: float,
     deadline: NetworkDeadline,
     owns_deadline: bool,
+    request_interval_seconds: float = 0.0,
 ) -> _DeadlineResponse:
     last_error: Exception | None = None
     for attempt in range(retries + 1):
@@ -785,6 +819,7 @@ def _open_with_retries(
                 pinned_ip=pinned_ip,
                 timeout=timeout,
                 deadline=deadline,
+                request_interval_seconds=request_interval_seconds,
             )
             return _DeadlineResponse(response, deadline, owns_deadline=owns_deadline)
         except urllib.error.HTTPError as exc:
@@ -805,6 +840,7 @@ def _open_with_retries(
                 except NetworkError as deadline_exc:
                     _cancel_owned_deadline(deadline, owns_deadline)
                     deadline_exc.url = target_url
+                    deadline_exc.status_code = exc.code
                     raise deadline_exc from exc
                 continue
             exc.close()
@@ -848,19 +884,22 @@ def _open_with_retries(
 
 def safe_urlopen(
     url_or_request: str | urllib.request.Request,
-    timeout: float = 30,
+    timeout: float = DEFAULT_FETCH_TIMEOUT_SECONDS,
     retries: int = 3,
     backoff_base: float = 3.0,
     *,
     deadline: NetworkDeadline | None = None,
+    request_interval_seconds: float = 0.0,
 ):
     """Open public HTTPS under one absolute DNS-to-body deadline.
 
     ``timeout`` covers DNS, the pin lock, connect, TLS, response headers,
     redirects, caller body reads, retries, and backoff. A shared ``deadline``
     lets a caller compose several requests under one workflow budget.
+    ``request_interval_seconds`` adds a minimum gap for redirects and retries
+    within this call. Callers own serialization and pacing across calls.
     """
-    _validate_fetch_options(timeout, retries, backoff_base)
+    _validate_fetch_options(timeout, retries, backoff_base, request_interval_seconds)
     target_url, host = _fetch_target(url_or_request)
     owns_deadline = deadline is None
     active_deadline = deadline or NetworkDeadline(
@@ -887,9 +926,10 @@ def safe_urlopen(
         pinned_ip=pinned_ip,
         timeout=float(timeout),
         retries=retries,
-        backoff_base=float(backoff_base),
+        backoff_base=max(float(backoff_base), float(request_interval_seconds)),
         deadline=active_deadline,
         owns_deadline=owns_deadline,
+        request_interval_seconds=float(request_interval_seconds),
     )
 
 

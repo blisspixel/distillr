@@ -440,7 +440,7 @@ def _emit_verdict(state: InitState) -> None:
     else:
         console.print(f"  Local provider: {escape(state['local'])}")
         if local_model := state.get("local_model", ""):
-            model_status = "loaded" if state.get("local_model_ready", False) else "not loaded"
+            model_status = "ready" if state.get("local_model_ready", False) else "not ready"
             console.print(f"  Local model: {escape(local_model)} ({model_status})")
     analysis_provider = str(state.get("analysis_provider", "") or "")
     analysis_model = str(state.get("analysis_model", "") or "")
@@ -785,6 +785,7 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         state["local_model"] = configured_model
         state["local_model_ready"] = False
         state["local_models"] = []
+        local_proof_blocker = ""
 
         if not route_allowed:
             state["local"] = f"{route_provider}: blocked"
@@ -832,6 +833,13 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
             state["local_reachable"] = local_status == "running"
             state["local_models"] = local_models
             model_ready = bool(configured_model) and configured_model in local_models
+            if model_ready and local_status == "running" and route_provider == "ollama":
+                from distill.doctor.checks import check_ollama_model_readiness
+
+                proof_status, proof_detail = check_ollama_model_readiness(configured_model)
+                model_ready = proof_status == "ready"
+                if not model_ready:
+                    local_proof_blocker = proof_detail
             state["local_model_ready"] = model_ready
 
         if route_allowed and not state["local_reachable"]:
@@ -852,7 +860,9 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                 "then re-run `distill init`."
             )
         elif route_allowed and not state["local_model_ready"]:
-            if route_provider == "ollama":
+            if local_proof_blocker:
+                state["blocking"].append(local_proof_blocker)
+            elif route_provider == "ollama":
                 state["blocking"].append(
                     f"Configured model '{configured_model}' is not installed in Ollama. "
                     f"Run `ollama pull {configured_model}`, then re-run `distill init`."

@@ -1209,13 +1209,15 @@ class TestSynthesizeTool:
             patch(
                 "distill.mcp.tools.synthesis.capped_tracker", return_value=tracker
             ) as mock_tracker,
-            pytest.raises(ToolError, match="stop after guarded setup"),
+            pytest.raises(ToolError, match="Error executing tool synthesize") as caught,
         ):
             asyncio.run(mcp.call_tool("synthesize", {"topic": "ai", "force": True}))
 
         mock_load.assert_called_once_with()
         mock_model.assert_called_once_with()
         mock_tracker.assert_called_once_with()
+        assert isinstance(caught.value.__cause__, RuntimeError)
+        assert str(caught.value.__cause__) == "stop after guarded setup"
 
     @pytest.mark.parametrize("force", [False, 0, 1, None])
     def test_requires_literal_force_before_model_or_tracker(self, force):

@@ -17,11 +17,14 @@ does not independently schedule releases.
   release artifacts.
 - `0.20.0` releases the private editorial consumer and standalone perspective
   skill under the user's explicit publication request.
-- `0.20.1` is active and owns claim-generation retirement and derived-origin
+- `0.20.1` is the current billing, interoperability, and request-pacing
+  maintenance release, as bounded by the September 13
+  [review](research/roadmap-review-2026-09-13.md).
+- `0.20.2` is next and owns claim-generation retirement and derived-origin
   preservation.
-- `0.20.2` is next and owns the research-desk evaluation baseline.
-- `0.20.3` owns operator, accessibility, and performance evidence.
-- `0.20.4` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.3` owns the research-desk evaluation baseline.
+- `0.20.4` owns operator, accessibility, and performance evidence.
+- `0.20.5` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
@@ -56,14 +59,17 @@ The current acquisition and trust foundation covers eight source types:
 
 Current product priorities, in release order:
 
+The `0.20.1` maintenance release first closes the billing and compatibility
+blockers discovered during the current-source review. The product sequence is:
+
 1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.20.1`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.2`
+   in `0.20.2`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.3`
    before changing discovery or synthesis behavior.
 3. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.20.3`.
+   journey evidence in `0.20.4`.
 4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.20.4`.
+   verification, and the freeze-time security receipt in `0.20.5`.
 5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -88,7 +94,7 @@ Remaining editorial increments include corpus receipt selection, per-topic
 queues, digest-bound resume, calibrated local model profiles, qualified quota
 workers, and Retonr rewriting after its adapter contract exists. The research
 desk's remaining trust, evaluation and operator work stays scheduled in
-`0.20.1` through `0.20.4`, before the 1.0 stability commitment.
+`0.20.2` through `0.20.5`, before the 1.0 stability commitment.
 
 The work ahead is ordered around the outcomes a strong research desk provides:
 
@@ -146,7 +152,7 @@ be moved to `CHANGELOG.md` on next release).
 
 - [x] **OKF export.** Export `topic` or `all` into a conformant OKF v0.2 bundle with generated `index.md`, date-grouped `log.md`, standard `generated` and `sources` frontmatter, receipt copies, Markdown links, lifecycle fields, and truthful verification projection. Clean sidecars become `verified` only when they have usable coverage and bind to the exact artifact digest; flagged, invalid, incomplete, and stale sidecars remain audit receipts without elevating trust. This is a read-only projection; the native `library/` layout remains authoritative. Shipped as `distill export <topic|all> --format okf`.
 - [x] **OKF validation.** Validate any OKF bundle or Distill-generated export for parseable frontmatter, non-empty `type`, v0.2 provenance/trust/lifecycle family shapes, Attested Computation runtime, reserved-file structure, and link warnings. Follow OKF's permissive consumer posture: missing optional fields and broken links warn, they do not invalidate the bundle. Shipped as `distill okf validate <path>`.
-- [x] **Interop baselines and portable package boundary.** Track Agent Plugins 1.0.0 Working Draft, the current Agent Skills specification, and OKF v0.2 against authoritative sources in one maintained standards document. Release a strict Agent Plugins archive separately from the universal client-compatibility bundle, validate its manifest offline against the immutable canonical schema, and keep MCP activation outside the skill package.
+- [x] **Interop baselines and portable package boundary.** Track published Agent Plugins 1.0.0, the current Agent Skills specification, and OKF v0.2 against authoritative sources in one maintained standards document. Release a strict Agent Plugins archive separately from the universal client-compatibility bundle, validate its manifest offline against the immutable canonical schema, and keep MCP activation outside the skill package.
 - [x] **Loop-readable next-action plans.** `distill audit <topic|all> --next-actions --json` emits bounded actions with ids, exact commands, approval class, write scope, loop metadata, and verifier/stop condition. The first shipped surface covers broken links, missing orientation, prompt staleness with routable sources, synthesis freshness, coverage gaps, missing corpus synthesis, diffs, and trends. This is rule-owned structure over existing findings, not a semantic priority scorer.
 - [x] **No scheduler inside Distill.** Documented the contract for Codex, Claude Code, Grok Build, cron, GitHub Actions, and human operators: Distill emits state and safe commands; the external loop chooses what to run, where to run it, how to gate spend, and when to stop.
 - [x] **Loop contract fixtures.** Added a small fixture set for next-action JSON so future changes cannot accidentally remove the fields external loops depend on.

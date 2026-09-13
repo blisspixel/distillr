@@ -294,15 +294,35 @@ remaining dependency, contract, build, archive, and installed-wheel checks
 listed above.
 
 The offline gate validates eval schema and generated copies, not semantic
-quality. Before publishing the plugin, use a budget-capped native behavior run
-on a Claude version and account that have the early-access runner enabled:
+quality. Before publishing the plugin, use an authorized native behavior run
+on Claude Code 2.1.269 or later with the native runner available:
 
 ```bash
-claude plugin eval plugins/distill-corpus --ablation with-without --runs 3 --max-cost-usd 5 --no-scaffold
+claude plugin eval plugins/distill-corpus --ablation with-without --runs 3 --concurrency 1 --judge-model sonnet --no-scaffold --no-publish --mocks record --trust-plugin --output-dir .agent/plugin-eval
 ```
 
-If Claude reports that `plugin eval` is still in early access for the account,
-record the release block. Do not bypass the client feature gate or replace the
+Use a fresh output directory under `.agent/` for each run, retaining failed
+attempts. The suite grants only reference-reading and skill tools, with ten
+turns at most and a 180-second timeout. Sonnet judging addresses observed false
+negatives from the default judge without relaxing the criteria. Inspect
+responses and verdicts, not just the aggregate score.
+
+Runs and graders use the runner's account, through plan usage or API billing.
+Confirm that authentication and usage are authorized. Reported dollar costs
+are list-price estimates, not proof of incremental charges. See the
+[native eval documentation](https://code.claude.com/docs/en/plugin-evals).
+Check `claude auth status`; an API-key override can change billing even when
+a plan login exists. Scope any authentication override to the eval process.
+Claude Code 2.1.270 help, checked September 13, 2026, describes optional
+`--max-cost-usd` as a run-launch ceiling that can be exceeded by in-flight
+work. It is not an enforcing total-liability cap, including at concurrency one.
+Do not run under a hard API budget without separately bounding all
+agent and grader liability. `--no-publish` keeps the HTML report local;
+`--trust-plugin` applies only to the inspected package in this repository.
+
+If an old build reports early access, upgrade the client. If the current
+client reports that the runner is unavailable, record the release block.
+Do not bypass the client feature gate or replace the
 model-judged criteria with keyword, length, or other deterministic proxies.
 Publishing without the native run requires an explicit human waiver recorded
 in the matching changelog entry together with the substitute validation.

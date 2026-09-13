@@ -1,20 +1,20 @@
 {
   "schema_version": "distill-agent-skill-bundle.v1",
   "name": "distill-corpus",
-  "version": "0.20.0",
-  "bundle_sha256": "35028a00c4dbf3fb43d876663d18dbec5a05fbc61899adc1a9ccdedfbcb2f552",
+  "version": "0.20.1",
+  "bundle_sha256": "06f9ebd14ad79a203b19351e699e25a30019df7e6212aa8746da989ada010003",
   "files": {
     "SKILL.md": {
-      "bytes": 6705,
-      "sha256": "a7e7b1ee947824d68555259c2216f6152f87400d6f8f76202494794a2ed72d61"
+      "bytes": 7014,
+      "sha256": "a1265ca1bac6b9ab9b1baa37b7d23fb386d46b9a08cf6069626504d468b1a8b2"
     },
     "agents/openai.yaml": {
       "bytes": 227,
       "sha256": "2acadd31954e25437c75134cb961deb7ee1e7a25985c292cc0025c53c9f1aa24"
     },
     "references/gotchas.md": {
-      "bytes": 1758,
-      "sha256": "fcb7166b1c69f6d432439747816dc89e397344645938f96af52c987aebc47110"
+      "bytes": 1934,
+      "sha256": "6e3c95f637e1f8ec8dd2759ee96ed6e16a19e63750176c37432ff46d7544d55e"
     },
     "references/worker.md": {
       "bytes": 5829,

@@ -145,7 +145,16 @@ async def release_model(base_url: str, model: str, *, trust_env: bool = False) -
     """
     import httpx
 
+    from distill.llm.cost_policy import CostPolicyError, classify_provider
+    from distill.llm.providers.ollama import OllamaProvider
+
     try:
+        if classify_provider("ollama", endpoint=base_url) != "local":
+            raise CostPolicyError("Ollama model release requires a loopback endpoint.")
+        await OllamaProvider(base_url=base_url).require_local(model)
+        # Keep the public keyword for compatibility, but local cleanup must
+        # reach the daemon that supplied proof rather than an environment proxy.
+        trust_env = False
         async with httpx.AsyncClient(
             timeout=_RELEASE_TIMEOUT_SECONDS, trust_env=trust_env
         ) as client:

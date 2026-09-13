@@ -15,6 +15,7 @@ from distill.llm._usage_accounting import (
 from distill.llm._usage_accounting import (
     emit_existing_attempts as _emit_existing_attempts,
 )
+from distill.llm._usage_accounting import normalize_attempt_identity
 from distill.llm._usage_accounting import (
     normalize_success_attempts as _normalize_success_attempts,
 )
@@ -252,11 +253,7 @@ def _run_admitted_provider_call(
         response = run_coroutine_sync(coroutine)
     except Exception as exc:
         attempts = tuple(
-            replace(
-                row,
-                provider_name=provider_name,
-                provider_type=provider_type,
-            ).with_identity()
+            normalize_attempt_identity(provider_name, provider_type, row).with_identity()
             for row in usage_attempts_from_exception(exc)
         )
         successful_attempt = next(

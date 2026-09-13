@@ -74,4 +74,4 @@ Background and the reasoning behind the design.
 - [Contributing](CONTRIBUTING.md) - dev setup, the quality gates, and what is in scope.
 - [Security](SECURITY.md) - threat model and how to report a vulnerability.
 - [Changelog](CHANGELOG.md) - what shipped, per release.
-- [Research](research/) - source sweeps and competitive analysis backing roadmap decisions, including the [2026-08-20 roadmap review](research/roadmap-review-2026-08-20.md).
+- [Research](research/) - source sweeps and competitive analysis backing roadmap decisions, including the [2026-09-13 initial roadmap review](research/roadmap-review-2026-09-13.md) and [2026-08-20 review](research/roadmap-review-2026-08-20.md).
