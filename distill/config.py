@@ -242,6 +242,18 @@ class DistillConfig(BaseSettings):
     def cost_workflow_budgets_usd(self) -> dict[str, float]:
         return parse_cost_workflow_budgets(self.distill_cost_workflow_budgets)
 
+    def workflow_budget_usd(self, command: str) -> float | None:
+        """Return the workflow budget for a command, falling back to default or all."""
+        budgets = self.cost_workflow_budgets_usd
+        normalized = " ".join(str(command).split()).strip().lower()
+        if normalized in budgets:
+            return budgets[normalized]
+        if "default" in budgets:
+            return budgets["default"]
+        if "all" in budgets:
+            return budgets["all"]
+        return None
+
     @property
     def library_dir(self) -> Path:
         return resolve_library_dir(self.distill_output_dir)

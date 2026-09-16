@@ -206,6 +206,50 @@ def test_budgeted_unknown_model_refuses_before_provider_construction(
     assert "no verified price" in detail
 
 
+def test_budgeted_deepseek_flash_authorizes_and_runs(monkeypatch, tmp_path) -> None:
+    attempt = LLMUsageAttempt(
+        input_tokens=10,
+        output_tokens=2,
+        model="deepseek/deepseek-v4.1-flash",
+        provider_name="openrouter",
+        provider_type="cloud",
+        usage_source="reported",
+        outcome="success",
+        billed_cost_usd=0.00001,
+        upstream_provider="deepinfra",
+    )
+
+    class Provider:
+        def __init__(self, api_key: str, *, zdr: bool) -> None:
+            assert api_key == "test-key"
+            assert zdr is True
+
+        @staticmethod
+        async def call(*_args: object, **_kwargs: object) -> LLM_Response:
+            return LLM_Response(
+                text="ok",
+                input_tokens=10,
+                output_tokens=2,
+                model="deepseek/deepseek-v4.1-flash",
+                billed_cost_usd=0.00001,
+                upstream_provider="deepinfra",
+                usage_attempts=(attempt,),
+            )
+
+    monkeypatch.setattr("distill.doctor.openrouter.OpenRouterProvider", Provider)
+    tracker = CostTracker(budget=10.0)
+
+    result = validate_openrouter_key(
+        _config(tmp_path),
+        tracker,
+        model="deepseek/deepseek-v4.1-flash",
+    )
+
+    assert result == ("ok", "deepseek/deepseek-v4.1-flash")
+    assert tracker.total_cost == 0.00001
+    assert tracker.entries[0].upstream_provider == "deepinfra"
+
+
 def test_model_probe_records_attached_failure_attempt(monkeypatch, tmp_path) -> None:
     error = RuntimeError("offline")
     attach_usage_attempts(

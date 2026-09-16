@@ -21,6 +21,7 @@ _CLOUD_MODEL_PREFIXES: tuple[tuple[str, str], ...] = (
     ("deep-research", "gemini"),
     ("claude-", "anthropic"),
     ("gpt-", "openai"),
+    ("deepseek/", "openrouter"),
 )
 
 __all__ = [
@@ -71,6 +72,7 @@ DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
     "xai": "grok-4.6",
     "gemini": "gemini-3.7-flash",
     "anthropic": "claude-sonnet-5",
+    "openrouter": "deepseek/deepseek-v4.1-flash",
 }
 
 _PROVIDER_MODEL_PREFIXES: dict[str, tuple[str, ...]] = {
@@ -126,9 +128,9 @@ def _cloud_provider_for_model(model: str) -> str:
 
 
 def infer_cloud_provider_for_model(model: str) -> str:
-    """Infer xai/gemini/anthropic from a known cloud model id; else empty."""
+    """Infer xai/gemini/anthropic/openrouter from a known cloud model id; else empty."""
     expected = _cloud_provider_for_model(model)
-    if expected in {"xai", "gemini", "anthropic"}:
+    if expected in {"xai", "gemini", "anthropic", "openrouter"}:
         return expected
     return ""
 
@@ -136,6 +138,19 @@ def infer_cloud_provider_for_model(model: str) -> str:
 def known_models_for_provider(provider: str) -> list[str]:
     """Return catalog model ids for *provider* (cloud registry only)."""
     name = normalize_provider_name(provider)
+    if name == "openrouter":
+        models = [
+            "deepseek/deepseek-v4.1-flash",
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+            "deepseek/deepseek-v3.2",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-r1",
+        ]
+        preferred = default_model_for_provider(name)
+        models.sort(key=lambda item: (0 if item == preferred else 1, item))
+        return models
+
     prefixes = _PROVIDER_MODEL_PREFIXES.get(name)
     if not prefixes:
         return []

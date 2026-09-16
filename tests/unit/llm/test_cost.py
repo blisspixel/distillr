@@ -76,7 +76,7 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 def test_all_listed_models_return_correct_pricing() -> None:
     """Every model in PRICING is retrievable via get_pricing with exact match."""
     for model, expected_rates in PRICING.items():
-        if model in {"gemini-3.7-flash", "gemini-3.6-flash"}:
+        if model in {"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"}:
             rates = get_pricing(model)
             assert set(rates) == set(expected_rates)
             continue
@@ -86,7 +86,9 @@ def test_all_listed_models_return_correct_pricing() -> None:
 def test_openrouter_known_author_slug_uses_underlying_registered_pricing() -> None:
     assert get_pricing("x-ai/grok-4.6") == get_pricing("grok-4.6")
     assert get_pricing("anthropic/claude-sonnet-4") == get_pricing("claude-sonnet-4")
+    assert get_pricing("deepseek/deepseek-v4.1-flash") == get_pricing("deepseek-v4.1-flash")
     assert has_known_pricing("google/gemini-3.1-flash") is True
+    assert has_known_pricing("deepseek/deepseek-v4.1-flash") is True
     assert has_known_pricing("meta-llama/llama-3.3-70b-instruct") is False
 
 
@@ -270,12 +272,30 @@ def test_gemini37_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch
     assert compute_cost("gemini-3.7-flash", 1_000_000, 1_000_000) == 9.0
 
 
+def test_gemini38_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch) -> None:
+    import distill.llm.cost as cost_mod
+
+    monkeypatch.setattr(cost_mod, "_pricing_reference_date", lambda: date(2027, 1, 1))
+
+    rates = get_pricing("gemini-3.8-flash")
+    assert rates["input"] == 1.50
+    assert rates["output"] == 7.50
+    assert compute_cost("gemini-3.8-flash", 1_000_000, 1_000_000) == 9.0
+
+
 def test_pricing_sources_are_auditable_without_network_access() -> None:
-    assert PRICING_VERIFIED_ON == "2026-08-13"
+    assert PRICING_VERIFIED_ON == "2026-09-15"
     assert pricing_source_for_model("grok-4.6") == PRICING_SOURCE_URLS["xai"]
+    assert pricing_source_for_model("gemini-3.8-flash") == PRICING_SOURCE_URLS["gemini"]
     assert pricing_source_for_model("gemini-3.7-flash") == PRICING_SOURCE_URLS["gemini"]
+    assert pricing_source_for_model("claude-fable-5.1") == PRICING_SOURCE_URLS["anthropic"]
     assert pricing_source_for_model("claude-sonnet-5") == PRICING_SOURCE_URLS["anthropic"]
     assert pricing_source_for_model("gpt-5.6-luna") == PRICING_SOURCE_URLS["openai"]
+    assert pricing_source_for_model("deepseek-v4.1-flash") == PRICING_SOURCE_URLS["deepseek"]
+    assert (
+        pricing_source_for_model("deepseek/deepseek-v4.1-flash")
+        == PRICING_SOURCE_URLS["openrouter"]
+    )
     assert pricing_source_for_model("local-model") == ""
 
 

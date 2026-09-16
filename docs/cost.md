@@ -174,7 +174,17 @@ DISTILL_COST_WORKFLOW_BUDGETS=
 ```
 
 Set `DISTILL_COST_WORKFLOW_BUDGETS` to comma-separated command caps when a
-workflow should draw attention above a known spend ceiling:
+workflow should draw attention above a known spend ceiling, or set `default=<usd>`
+to protect all workflows under a single global ceiling:
+
+```bash
+# Guard every workflow with a single global ceiling, plus optional specific overrides:
+DISTILL_COST_WORKFLOW_BUDGETS="default=20,ask=0.25"
+```
+
+When `default` (or `all`) is specified, any workflow without an explicit command
+entry inherits that fallback ceiling. Specific command entries outrank the
+fallback. You can also specify per-command caps explicitly:
 
 ```bash
 DISTILL_COST_WORKFLOW_BUDGETS="doctor=0.05,ask=0.25,report=5,discover=2,eval=1,ingest=1,paper=1,papers=2,video=1,channel=2,catch-up=2,reanalyze=2,resynthesize=1,site=3,site-batch=3,corpus=1,topic-brief=1,synthesize=1,synthesis=1"
@@ -468,7 +478,7 @@ when a prompt exceeds 272K tokens. These thresholds are registered even though
 OpenAI is not yet a routable Distill analysis provider, so future estimates
 cannot inherit a known undercount.
 
-The registry was reverified on 2026-08-13. `distill provider show` and
+The registry was reverified on 2026-09-15. `distill provider show` and
 `distill provider list <provider>` expose the same review date and source URL
 without making a network call. Authoritative pricing and capability sources are the
 [xAI model catalog](https://docs.x.ai/developers/models),
@@ -479,6 +489,8 @@ without making a network call. Authoritative pricing and capability sources are 
 [Anthropic pricing guide](https://platform.claude.com/docs/en/about-claude/pricing),
 [OpenAI model catalog](https://developers.openai.com/api/docs/models),
 [OpenAI API pricing](https://developers.openai.com/api/docs/pricing),
+[OpenRouter models catalog](https://openrouter.ai/models),
+[DeepSeek pricing guide](https://api-docs.deepseek.com/quick_start/pricing),
 [xAI speech-to-text pricing](https://docs.x.ai/developers/models/speech-to-text),
 and [OpenAI Whisper pricing](https://developers.openai.com/api/docs/models/whisper-1).
 

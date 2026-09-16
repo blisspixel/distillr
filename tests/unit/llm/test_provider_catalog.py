@@ -32,12 +32,23 @@ def test_default_models() -> None:
     assert default_model_for_provider("gemini") == "gemini-3.7-flash"
     assert default_model_for_provider("anthropic") == "claude-sonnet-5"
     assert default_model_for_provider("ollama") == ""
-    assert default_model_for_provider("openrouter") == ""
+    assert default_model_for_provider("openrouter") == "deepseek/deepseek-v4.1-flash"
+
+
+def test_openrouter_catalog_includes_deepseek_models() -> None:
+    models = known_models_for_provider("openrouter")
+    assert models[0] == "deepseek/deepseek-v4.1-flash"
+    assert "deepseek/deepseek-v4-flash" in models
+    assert "deepseek/deepseek-v4-pro" in models
+    assert "deepseek/deepseek-v3.2" in models
+    assert "deepseek/deepseek-chat" in models
+    assert "deepseek/deepseek-r1" in models
 
 
 def test_gemini_catalog_includes_new_flash_models() -> None:
     models = known_models_for_provider("gemini")
     assert models[0] == "gemini-3.7-flash"
+    assert "gemini-3.8-flash" in models
     assert "gemini-3.6-flash" in models
     assert "gemini-3.5-flash-lite" in models
     assert "gemini-3.5-flash" in models
@@ -55,16 +66,19 @@ def test_current_xai_and_anthropic_models_are_catalogued() -> None:
     assert "grok-4.3" in xai_models
     assert "grok-4.20-0309-non-reasoning" in xai_models
     assert "grok-4.20-non-reasoning" not in xai_models
+    assert "claude-fable-5.1" in anthropic_models
     assert "claude-fable-5" in anthropic_models
     assert "claude-opus-5" in anthropic_models
     assert "claude-sonnet-5" in anthropic_models
 
 
 def test_infer_cloud_provider_for_model() -> None:
+    assert infer_cloud_provider_for_model("gemini-3.8-flash") == "gemini"
     assert infer_cloud_provider_for_model("gemini-3.7-flash") == "gemini"
     assert infer_cloud_provider_for_model("gemini-3.6-flash") == "gemini"
     assert infer_cloud_provider_for_model("grok-4.6") == "xai"
     assert infer_cloud_provider_for_model("claude-sonnet-5") == "anthropic"
+    assert infer_cloud_provider_for_model("deepseek/deepseek-v4.1-flash") == "openrouter"
     assert infer_cloud_provider_for_model("qwen3.5:27b") == ""
 
 
@@ -106,7 +120,7 @@ def test_price_summary_for_catalog_models() -> None:
 @pytest.mark.parametrize("provider", ["xai", "gemini", "anthropic", "openrouter"])
 def test_routable_cloud_catalogs_have_auditable_pricing_sources(provider: str) -> None:
     audit = pricing_audit_for_provider(provider)
-    assert audit["verified_on"] == "2026-08-13"
+    assert audit["verified_on"] == "2026-09-15"
     assert audit["source"].startswith("https://")
 
 

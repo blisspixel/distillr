@@ -28,7 +28,10 @@ def validate_openrouter_model_id(model: str) -> str:
     if normalized.startswith("openrouter/"):
         raise ValueError("OpenRouter router models are not calibrated Distill routes.")
     if normalized.endswith(_MOVING_ALIAS_SUFFIXES):
-        raise ValueError("OpenRouter moving model aliases are not calibrated Distill routes.")
+        raise ValueError(
+            "OpenRouter moving model aliases are not calibrated Distill routes. "
+            "Use an exact concrete model slug (e.g. 'deepseek/deepseek-v4.1-flash')."
+        )
     from distill.llm.model_policy import is_xai_media_generation_model, xai_media_generation_refusal
 
     if is_xai_media_generation_model(underlying_model_id(normalized)):
@@ -43,6 +46,6 @@ def underlying_model_id(model: str) -> str:
     if "/" not in normalized:
         return normalized
     author, slug = normalized.split("/", 1)
-    if author in {"anthropic", "google", "openai", "x-ai"}:
+    if author in {"anthropic", "google", "openai", "x-ai", "deepseek"}:
         return slug
     return normalized

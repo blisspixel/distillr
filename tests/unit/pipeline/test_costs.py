@@ -1237,6 +1237,14 @@ def test_cost_anomaly_warnings_cap_workflow_warnings_at_limit():
     assert len(warnings) == 2
     assert all(w["kind"] == "workflow-budget" for w in warnings)
 
+    warnings_fallback = cost_anomaly_warnings(
+        entries,
+        workflow_budgets_usd={"default": 1.0},
+        limit=2,
+    )
+    assert len(warnings_fallback) == 2
+    assert all(w["kind"] == "workflow-budget" for w in warnings_fallback)
+
 
 def test_cost_anomaly_warnings_cap_daily_warnings_at_limit():
     """More over-threshold days than the limit are capped, short-circuiting later passes."""

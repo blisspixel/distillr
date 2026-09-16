@@ -157,6 +157,24 @@ class TestDistillConfig:
         assert config.distill_cost_warning_run_spike_min_usd == 0
         assert config.distill_cost_workflow_budgets == "report=5,site-batch=1.25"
         assert config.cost_workflow_budgets_usd == {"report": 5.0, "site-batch": 1.25}
+        assert config.workflow_budget_usd("report") == 5.0
+        assert config.workflow_budget_usd("site-batch") == 1.25
+        assert config.workflow_budget_usd("ask") is None
+
+    def test_workflow_budget_usd_fallbacks(self, tmp_path):
+        config_default = DistillConfig(
+            distill_output_dir=tmp_path / "lib",
+            distill_cost_workflow_budgets="report=5,default=20",
+        )
+        assert config_default.workflow_budget_usd("report") == 5.0
+        assert config_default.workflow_budget_usd("ask") == 20.0
+        assert config_default.workflow_budget_usd("discover") == 20.0
+
+        config_all = DistillConfig(
+            distill_output_dir=tmp_path / "lib",
+            distill_cost_workflow_budgets="all=15",
+        )
+        assert config_all.workflow_budget_usd("ask") == 15.0
 
     def test_cost_warning_policy_rejects_invalid_values(self, tmp_path):
         with pytest.raises(ValueError, match="greater than 1"):

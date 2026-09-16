@@ -99,7 +99,7 @@ def _gather_sources(config: DistillConfig, topic: str, question: str) -> tuple[l
 
 
 def _ask_workflow_budget_usd(config: DistillConfig) -> float | None:
-    return config.cost_workflow_budgets_usd.get("ask")
+    return config.workflow_budget_usd("ask")
 
 
 def _enforce_ask_projected_budget(

@@ -55,6 +55,14 @@ class TestBudgetedCostTracker:
         assert budgeted_cost_tracker(config, " site-batch ").budget == 2.0
         assert budgeted_cost_tracker(config, "ask").budget is None
 
+        config_default = DistillConfig(
+            distill_output_dir=tmp_path / "library",
+            distill_cost_workflow_budgets="learn=0.01,default=20",
+        )
+        assert budgeted_cost_tracker(config_default, "learn").budget == 0.01
+        assert budgeted_cost_tracker(config_default, "ask").budget == 20.0
+        assert budgeted_cost_tracker(config_default, "report").budget == 20.0
+
     def test_projected_budget_refuses_before_run(self, tmp_path):
         from distill.config import DistillConfig
         from distill.pipeline.costs import ProjectedBudgetExceededError

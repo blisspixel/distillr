@@ -145,18 +145,18 @@ directory `.env`, and validate one concrete model before persisting the route:
 ```powershell
 # One-run validation with a hard $20 aggregate doctor ceiling.
 $env:DISTILL_COST_WORKFLOW_BUDGETS = "doctor=20"
-distill --provider openrouter --model x-ai/grok-4.6 --cost-mode paid-ok doctor
+distill --provider openrouter --model deepseek/deepseek-v4.1-flash --cost-mode paid-ok doctor
 Remove-Item Env:DISTILL_COST_WORKFLOW_BUDGETS
 
-# Persist the route only after validation succeeds.
-distill provider set openrouter x-ai/grok-4.6
+# Persist the route only after validation succeeds (defaults to deepseek/deepseek-v4.1-flash).
+distill provider set openrouter deepseek/deepseek-v4.1-flash
 ```
 
 On a POSIX shell, the one-run form is:
 
 ```bash
 DISTILL_COST_WORKFLOW_BUDGETS=doctor=20 \
-  distill --provider openrouter --model x-ai/grok-4.6 --cost-mode paid-ok doctor
+  distill --provider openrouter --model deepseek/deepseek-v4.1-flash --cost-mode paid-ok doctor
 ```
 
 The ceiling is a maximum, not an expected charge. Doctor makes a minimal model
@@ -169,8 +169,8 @@ Distill requires a lowercase `author/model` slug. It deliberately rejects all
 `openrouter/*` router models, including `openrouter/auto` and
 `openrouter/free`, moving `-latest` aliases, and colon variants such as `:free`.
 This preserves a stable model identity for evaluation and cost records.
-OpenRouter has no Distill default model and is never added to the automatic
-route ladder.
+When OpenRouter is explicitly chosen, `deepseek/deepseek-v4.1-flash` is its
+recommended default model; OpenRouter is never added to the automatic route ladder.
 
 The adapter requests `data_collection=deny` and Zero Data Retention routing by
 default. Set `DISTILL_OPENROUTER_ZDR=false` only if you intentionally accept a
@@ -187,13 +187,14 @@ strict parameter enforcement. Calls in one Distill run share a random
 and prompt-cache locality. Distill does not enable OpenRouter's beta response
 caching.
 
-For registered models, Distill sends an upstream per-token price ceiling,
-preauthorizes each bounded attempt against configured workflow budgets, and
-records OpenRouter's exact reported billed cost after the call. An unregistered
-model may run only without a hard dollar budget because Distill cannot prove a
-pre-call ceiling. An OpenRouter key spending limit is a useful independent
-account-side guard. The no-inference key doctor reports that limit and its
-remaining allowance when OpenRouter supplies them.
+For registered models (such as `x-ai/grok-4.6` or `deepseek/deepseek-v4.1-flash`),
+Distill sends an upstream per-token price ceiling, preauthorizes each bounded
+attempt against configured workflow budgets, and records OpenRouter's exact
+reported billed cost after the call. An unregistered model may run only without
+a hard dollar budget because Distill cannot prove a pre-call ceiling. An
+OpenRouter key spending limit is a useful independent account-side guard. The
+no-inference key doctor reports that limit and its remaining allowance when
+OpenRouter supplies them.
 
 Full provider command reference: [usage.md](usage.md#provider-and-model-route).
 

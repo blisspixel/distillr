@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.20.2 - 2026-09-16
+
+### Added
+
+- Add pricing and catalog support for latest frontier models: Gemini 3.8 Flash
+  (`gemini-3.8-flash`), Anthropic Claude Fable 5.1 (`claude-fable-5.1`) and
+  Mythos 5.1 (`claude-mythos-5.1`), and DeepSeek models (`deepseek-v4.1-flash`,
+  `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v3.2`, `deepseek-chat`, and
+  `deepseek-r1`).
+- Map `deepseek` author slugs in OpenRouter routing policy to direct registered
+  model identifiers, enabling hard budget preauthorization, registered price
+  ceilings, and accurate ledger accounting for OpenRouter DeepSeek models.
+- Set `deepseek/deepseek-v4.1-flash` as the recommended default model when
+  OpenRouter is configured, and provide OpenRouter models and pricing in
+  `distill provider list openrouter`.
+- Support global fallback workflow budgets (`default=<usd>` and `all=<usd>`)
+  in `DISTILL_COST_WORKFLOW_BUDGETS` so unlisted commands inherit a single
+  safety ceiling against unexpected spend.
 
 ## 0.20.1 - 2026-09-13
 

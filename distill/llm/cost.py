@@ -36,13 +36,14 @@ _GEMINI_FLASH_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.5
 # Registry review metadata is deliberately code-visible so operators and tests
 # can distinguish a recently verified price from an old hard-coded guess. CI
 # never scrapes vendor pages or contacts a paid API.
-PRICING_VERIFIED_ON: str = "2026-08-13"
+PRICING_VERIFIED_ON: str = "2026-09-15"
 PRICING_SOURCE_URLS: dict[str, str] = {
     "xai": "https://docs.x.ai/developers/models",
     "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
     "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
     "openai": "https://developers.openai.com/api/docs/models/compare",
     "openrouter": "https://openrouter.ai/models",
+    "deepseek": "https://api-docs.deepseek.com/quick_start/pricing",
 }
 
 # Cloud speech-to-text pricing, USD per hour of audio (batch rates). Local
@@ -136,9 +137,10 @@ PRICING: dict[str, dict[str, float]] = {
     "grok-code-fast-1": {"input": 0.20, "output": 0.50},
     "grok-3": {"input": 3.00, "output": 9.00},
     "grok-imagine-image-pro": {"per_query": 1.00},
-    # Google Gemini models (standard paid tier). Gemini 3.7 Flash and 3.6 Flash
+    # Google Gemini models (standard paid tier). Gemini 3.8 Flash, 3.7 Flash, and 3.6 Flash
     # use launch pricing through 2026-12-31. get_pricing() resolves the date
     # window so estimates change automatically on 2027-01-01.
+    "gemini-3.8-flash": _GEMINI_FLASH_INTRO_PRICING,
     "gemini-3.7-flash": _GEMINI_FLASH_INTRO_PRICING,
     "gemini-3.6-flash": _GEMINI_FLASH_INTRO_PRICING,
     "gemini-3.5-flash": {"input": 1.50, "output": 9.00},
@@ -173,7 +175,11 @@ PRICING: dict[str, dict[str, float]] = {
     # Anthropic API pricing. Fable and Mythos share the high-capability tier;
     # Mythos is limited availability. Opus 5 and the recent Opus 4 releases
     # share the $5/$25 tier.
+    "claude-fable-5.1": {"input": 10.00, "output": 50.00},
+    "claude-fable-5-1": {"input": 10.00, "output": 50.00},
     "claude-fable-5": {"input": 10.00, "output": 50.00},
+    "claude-mythos-5.1": {"input": 10.00, "output": 50.00},
+    "claude-mythos-5-1": {"input": 10.00, "output": 50.00},
     "claude-mythos-5": {"input": 10.00, "output": 50.00},
     "claude-opus-5": {"input": 5.00, "output": 25.00},
     "claude-opus-4-8": {"input": 5.00, "output": 25.00},
@@ -222,6 +228,13 @@ PRICING: dict[str, dict[str, float]] = {
     },
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    # DeepSeek models (available via OpenRouter and local runtimes)
+    "deepseek-v4.1-flash": {"input": 0.30, "output": 1.20},
+    "deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    "deepseek-v4-pro": {"input": 1.60, "output": 3.20},
+    "deepseek-v3.2": {"input": 0.27, "output": 0.40},
+    "deepseek-chat": {"input": 0.27, "output": 1.10},
+    "deepseek-r1": {"input": 0.55, "output": 2.19},
 }
 
 DEFAULT_MODEL: str = "grok-4.6"
@@ -377,12 +390,14 @@ def pricing_source_for_model(model: str) -> str:
         return PRICING_SOURCE_URLS["anthropic"]
     if normalized.startswith("gpt-"):
         return PRICING_SOURCE_URLS["openai"]
+    if normalized.startswith("deepseek-"):
+        return PRICING_SOURCE_URLS["deepseek"]
     return ""
 
 
 def _is_intro_priced_gemini_flash_model(model: str) -> bool:
     normalized = model.strip().lower()
-    return normalized.startswith(("gemini-3.7-flash", "gemini-3.6-flash"))
+    return normalized.startswith(("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"))
 
 
 def _gemini_flash_pricing() -> dict[str, float]:

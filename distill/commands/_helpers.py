@@ -224,8 +224,7 @@ def set_command_cost_metadata(tracker: CostTracker, **metadata: str) -> None:
 
 
 def _workflow_budget_usd(config: DistillConfig, command: str) -> float | None:
-    normalized = " ".join(command.split()).strip().lower()
-    return config.cost_workflow_budgets_usd.get(normalized)
+    return config.workflow_budget_usd(command)
 
 
 def enforce_projected_workflow_budget(

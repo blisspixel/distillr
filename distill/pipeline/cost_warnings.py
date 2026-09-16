@@ -236,6 +236,10 @@ def _run_spike_warnings(
     return warnings
 
 
+def _budget_for_command(command: str, budgets: Mapping[str, float]) -> float | None:
+    return budgets.get(command) or budgets.get("default") or budgets.get("all")
+
+
 def _workflow_budget_warnings(
     rows: Sequence[dict[str, Any]],
     *,
@@ -261,7 +265,7 @@ def _workflow_budget_warnings(
         if command in seen_commands:
             continue
         seen_commands.add(command)
-        budget = normalized_budgets.get(command)
+        budget = _budget_for_command(command, normalized_budgets)
         if budget is None:
             continue
         cost = _row_cost(row)

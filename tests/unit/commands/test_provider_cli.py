@@ -48,7 +48,7 @@ def test_provider_show_json(isolated_cwd: Path) -> None:
     assert payload["status"] == "ok"
     assert payload["data"]["provider"] == "xai"
     assert payload["data"]["model"] == "grok-4.6"
-    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-08-13"
+    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-09-15"
     assert payload["data"]["pricing_audit"]["source"] == "https://docs.x.ai/developers/models"
 
 
@@ -60,9 +60,10 @@ def test_provider_list_gemini_json(isolated_cwd: Path) -> None:
     assert payload["data"]["provider"] == "gemini"
     model_ids = [row["id"] for row in payload["data"]["models"]]
     assert model_ids[0] == "gemini-3.7-flash"
+    assert "gemini-3.8-flash" in model_ids
     assert "gemini-3.6-flash" in model_ids
     assert "gemini-3.5-flash-lite" in model_ids
-    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-08-13"
+    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-09-15"
     assert payload["data"]["pricing_audit"]["source"].startswith("https://ai.google.dev/")
 
 
@@ -91,6 +92,24 @@ def test_provider_set_default_model_with_yes(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["data"]["model"] == "gemini-3.7-flash"
+
+
+def test_provider_set_openrouter_default_model_with_yes(
+    isolated_cwd: Path,
+) -> None:
+    result = runner.invoke(cli.app, ["--json", "provider", "set", "openrouter", "--yes"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["data"]["provider"] == "openrouter"
+    assert payload["data"]["model"] == "deepseek/deepseek-v4.1-flash"
+
+
+def test_provider_list_openrouter_human_table(isolated_cwd: Path) -> None:
+    result = runner.invoke(cli.app, ["provider", "list", "openrouter"])
+    assert result.exit_code == 0, result.output
+    assert "deepseek/deepseek-v4.1-flash" in result.output
+    assert "recommended" in result.output
+    assert "$0.30/$1.20 per 1M" in result.output
 
 
 def test_provider_set_rejects_cross_family(isolated_cwd: Path) -> None:

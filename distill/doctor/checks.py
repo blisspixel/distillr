@@ -65,7 +65,7 @@ def doctor_key_validation_session(config: DistillConfig) -> Generator[CostTracke
         yield active
         return
 
-    tracker = CostTracker(budget=config.cost_workflow_budgets_usd.get(_DOCTOR_COMMAND))
+    tracker = CostTracker(budget=config.workflow_budget_usd(_DOCTOR_COMMAND))
     token = _DOCTOR_TRACKER.set(tracker)
     try:
         yield tracker
