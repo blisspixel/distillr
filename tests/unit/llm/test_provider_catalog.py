@@ -43,6 +43,10 @@ def test_openrouter_catalog_includes_deepseek_models() -> None:
     assert "deepseek/deepseek-v3.2" in models
     assert "deepseek/deepseek-chat" in models
     assert "deepseek/deepseek-r1" in models
+    assert "z-ai/glm-5.3-flash" in models
+    assert "z-ai/glm-5.3" in models
+    assert "qwen/qwen3.8-flash" in models
+    assert "qwen/qwen3.8-max-0902" in models
 
 
 def test_gemini_catalog_includes_new_flash_models() -> None:
@@ -79,6 +83,8 @@ def test_infer_cloud_provider_for_model() -> None:
     assert infer_cloud_provider_for_model("grok-4.6") == "xai"
     assert infer_cloud_provider_for_model("claude-sonnet-5") == "anthropic"
     assert infer_cloud_provider_for_model("deepseek/deepseek-v4.1-flash") == "openrouter"
+    assert infer_cloud_provider_for_model("z-ai/glm-5.3-flash") == "openrouter"
+    assert infer_cloud_provider_for_model("qwen/qwen3.8-flash") == "openrouter"
     assert infer_cloud_provider_for_model("qwen3.5:27b") == ""
 
 

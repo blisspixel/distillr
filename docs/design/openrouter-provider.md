@@ -13,6 +13,9 @@ Set `OPENROUTER_API_KEY`, select `DISTILL_PROVIDER=openrouter`, and supply one
 concrete lowercase `author/model` slug. Dynamic router ids, moving `-latest`
 aliases, and colon endpoint variants are refused. Stable identity is required
 for evaluation, pricing, receipts, and comparisons across repeated runs.
+Registered author families include `deepseek`, `z-ai` (GLM models), and
+`qwen` (Qwen models), which map to verified price ceilings for pre-call budget
+enforcement.
 
 The adapter uses OpenRouter's OpenAI-compatible chat endpoint with hidden SDK
 retries disabled. Its provider preferences require supported parameters, deny

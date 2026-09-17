@@ -22,6 +22,8 @@ _CLOUD_MODEL_PREFIXES: tuple[tuple[str, str], ...] = (
     ("claude-", "anthropic"),
     ("gpt-", "openai"),
     ("deepseek/", "openrouter"),
+    ("z-ai/", "openrouter"),
+    ("qwen/", "openrouter"),
 )
 
 __all__ = [
@@ -146,6 +148,10 @@ def known_models_for_provider(provider: str) -> list[str]:
             "deepseek/deepseek-v3.2",
             "deepseek/deepseek-chat",
             "deepseek/deepseek-r1",
+            "z-ai/glm-5.3-flash",
+            "z-ai/glm-5.3",
+            "qwen/qwen3.8-flash",
+            "qwen/qwen3.8-max-0902",
         ]
         preferred = default_model_for_provider(name)
         models.sort(key=lambda item: (0 if item == preferred else 1, item))

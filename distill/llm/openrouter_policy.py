@@ -46,6 +46,14 @@ def underlying_model_id(model: str) -> str:
     if "/" not in normalized:
         return normalized
     author, slug = normalized.split("/", 1)
-    if author in {"anthropic", "google", "openai", "x-ai", "deepseek"}:
+    if author in {
+        "anthropic",
+        "google",
+        "openai",
+        "x-ai",
+        "deepseek",
+        "z-ai",
+        "qwen",
+    }:
         return slug
     return normalized

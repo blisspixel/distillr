@@ -296,7 +296,31 @@ def test_pricing_sources_are_auditable_without_network_access() -> None:
         pricing_source_for_model("deepseek/deepseek-v4.1-flash")
         == PRICING_SOURCE_URLS["openrouter"]
     )
+    assert pricing_source_for_model("z-ai/glm-5.3-flash") == PRICING_SOURCE_URLS["openrouter"]
+    assert pricing_source_for_model("qwen/qwen3.8-flash") == PRICING_SOURCE_URLS["openrouter"]
     assert pricing_source_for_model("local-model") == ""
+
+
+def test_openrouter_candidate_model_pricing() -> None:
+    rates = get_pricing("z-ai/glm-5.3-flash")
+    assert rates["input"] == 0.09
+    assert rates["output"] == 0.30
+    assert compute_cost("z-ai/glm-5.3-flash", 1_000_000, 1_000_000) == pytest.approx(0.39)
+
+    rates = get_pricing("z-ai/glm-5.3")
+    assert rates["input"] == 1.40
+    assert rates["output"] == 4.40
+    assert compute_cost("z-ai/glm-5.3", 1_000_000, 1_000_000) == pytest.approx(5.80)
+
+    rates = get_pricing("qwen/qwen3.8-flash")
+    assert rates["input"] == 0.15
+    assert rates["output"] == 0.47
+    assert compute_cost("qwen/qwen3.8-flash", 1_000_000, 1_000_000) == pytest.approx(0.62)
+
+    rates = get_pricing("qwen/qwen3.8-max-0902")
+    assert rates["input"] == 2.00
+    assert rates["output"] == 6.00
+    assert compute_cost("qwen/qwen3.8-max-0902", 1_000_000, 1_000_000) == pytest.approx(8.00)
 
 
 def test_deep_research_query_cost_model_aware() -> None:

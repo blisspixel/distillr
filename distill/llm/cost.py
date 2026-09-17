@@ -235,6 +235,13 @@ PRICING: dict[str, dict[str, float]] = {
     "deepseek-v3.2": {"input": 0.27, "output": 0.40},
     "deepseek-chat": {"input": 0.27, "output": 1.10},
     "deepseek-r1": {"input": 0.55, "output": 2.19},
+    # Zhipu AI GLM models (available via OpenRouter)
+    "glm-5.3-flash": {"input": 0.09, "output": 0.30},
+    "glm-5.3": {"input": 1.40, "output": 4.40},
+    # Alibaba Qwen models (available via OpenRouter)
+    "qwen3.8-flash": {"input": 0.15, "output": 0.47},
+    "qwen3.8-max-0902": {"input": 2.00, "output": 6.00},
+    "qwen3.8-max": {"input": 2.00, "output": 6.00},
 }
 
 DEFAULT_MODEL: str = "grok-4.6"

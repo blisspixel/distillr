@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add pricing and catalog support for Zhipu AI GLM (`z-ai/glm-5.3-flash`,
+  `z-ai/glm-5.3`) and Alibaba Qwen (`qwen/qwen3.8-flash`, `qwen/qwen3.8-max-0902`,
+  `qwen/qwen3.8-max`) models via OpenRouter.
+- Map `z-ai` and `qwen` author slugs in OpenRouter routing policy to direct registered
+  model identifiers, enabling strict pre-call price ceilings, budget preauthorization,
+  and exact immutable ledger accounting.
+- Validate candidate models across `ask` (adversarial risk/hallucination fixtures),
+  `paper` (extraction/limits), and `video` (two-pass synthesis) workloads under a
+  strict spend budget with immutable ledger recording.
+
 ## 0.20.3 - 2026-09-17
 
 ### Changed
