@@ -1,5 +1,5 @@
 {
   "name": "distill-corpus",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Read, verify, and curate a receipt-backed Distill research corpus, including bounded active-session worker handoffs."
 }

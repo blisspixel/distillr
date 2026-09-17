@@ -21,7 +21,11 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
 - Use the existing gitignored `.agent/` for scratch work and resumable state.
   Its optional `codegraph/` can guide impact analysis only after checking
   freshness against the working tree; inspect source before editing. Keep
-  secrets out, and promote durable decisions to docs, tests, or bounded issues.
+  secrets out. Disposable cognition stays in `.agent/`; promote durable
+  decisions, specifications, and records into tracked files.
+- Combine README, roadmap, architecture docs, tests, and git history with
+  structural code intelligence so sessions build on existing knowledge rather
+  than rediscovering the repository from scratch.
 
 ## Style and attribution
 
@@ -34,9 +38,15 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
 
 - Keep `main` clean and releasable. Do not create long-lived branches unless the
   human explicitly asks for one.
-- Bound the change by its outcome and acceptance evidence. Implement, verify,
-  inspect failures, fix their cause, and self-review the complete diff. Do not
-  weaken assertions, schemas, type rules, or the coverage floor to get green.
+- Follow the core operating loop: orient in the working tree and tests, research
+  current external reality, bound the task, implement through canonical seams,
+  verify mechanically, inspect failures honestly, fix root causes, adversarially
+  self-review, prove behavior with evidence, and update durable project state.
+- Bound the change by its outcome and acceptance evidence. Do not make
+  verification pass by weakening the mechanism that found a problem: avoid broad
+  `# type: ignore` directives, vague escape-hatch types (`Any`), unsafe casts,
+  disabled linter rules, swallowed exceptions, weakened `@deal` contracts, or
+  lowered coverage thresholds. Fix the underlying code or types instead.
 - If you change code or docs, run the relevant quality gate before handing off.
   Check `uv lock --check`, sync with `uv sync --frozen`, then run:
 
@@ -87,6 +97,13 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
   CLI imports and source-specific capture. Report sections and artifact
   publication remain sequential; bounded paper-analysis workers are a
   deliberate exception, not a general concurrency policy.
+- Keep dependencies minimal and intentional. Check whether the standard
+  library, locked dependencies, or a few clear lines of local code solve the
+  need before proposing new packages. Avoid duplicate HTTP, parsing, or CLI
+  stacks.
+- When an error class recurs, fix the system (types, contracts, schemas,
+  static analysis, tests, or docs) so the entire failure class becomes harder
+  to repeat.
 
 ## Provider truth
 

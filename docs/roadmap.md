@@ -19,14 +19,17 @@ does not independently schedule releases.
   skill under the user's explicit publication request.
 - `0.20.1` shipped local-inference billing proof, MCP and Agent Plugins
   compatibility, and bounded arXiv request pacing.
-- `0.20.2` is the current release: frontier model pricing (Gemini 3.8 Flash,
-  Claude Fable 5.1/Mythos 5.1, DeepSeek v4.1 Flash), OpenRouter DeepSeek routing
-  and defaults, and fallback workflow budgets.
-- `0.20.3` is next and owns claim-generation retirement and derived-origin
+- `0.20.2` shipped frontier model pricing (Gemini 3.8 Flash, Claude
+  Fable 5.1/Mythos 5.1, DeepSeek v4.1 Flash), OpenRouter DeepSeek routing and
+  defaults, and fallback workflow budgets.
+- `0.20.3` is the current release: strict Pyright checking across seven core
+  subpackages (64.7% of codebase), anti-god file modular refactorings, branch
+  coverage elevation to 95.43%, and refined persistent agentic instructions.
+- `0.20.4` is next and owns claim-generation retirement and derived-origin
   preservation.
-- `0.20.4` owns the research-desk evaluation baseline.
-- `0.20.5` owns operator, accessibility, and performance evidence.
-- `0.20.6` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.5` owns the research-desk evaluation baseline.
+- `0.20.6` owns operator, accessibility, and performance evidence.
+- `0.20.7` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation

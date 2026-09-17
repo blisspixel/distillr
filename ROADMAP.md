@@ -82,19 +82,20 @@ and a scope; they are not schedule promises.
 | 1 | `0.19.74` | Shipped | Release the optional OpenRouter route and Python 3.15 readiness watch with complete provider, billing, privacy, configuration, and operator truth | Package and generated distribution versions aligned; live OpenRouter doctor receipt recorded under a `$20` hard cap; full CI and security gates, exact-wheel installation, `.env.example`, no-metered refusal, release artifacts, and notes verified |
 | 2 | `0.20.0` | Released | Add the requested private editorial consumer and optional standalone skill without changing corpus truth or default research routes | Weekly budget and crash/concurrency tests; independent paid rewrite and receipt checks; model comparison; Markdown/DOCX sample; portable packages; CI and package publication; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.0) |
 | 3 | `0.20.1` | Shipped | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.1) |
-| 4 | `0.20.2` | Current | Register frontier models, OpenRouter DeepSeek routing, and fallback workflow budgets | Verified pricing for Gemini 3.8 Flash, Claude Fable 5.1/Mythos 5.1, and OpenRouter DeepSeek models; default OpenRouter model selection and catalog; global workflow budget fallback; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
-| 5 | `0.20.3` | Next | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Complete versus invalid extraction tests; generation and zero-claim retirement; no stale synthesis fallback; source-versus-derived origin; migration and legacy-read coverage; audit and synthesis behavior; full CI and release notes |
-| 6 | `0.20.4` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
-| 7 | `0.20.5` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
-| 8 | `0.20.6` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
-| 9 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
-| 10 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
+| 4 | `0.20.2` | Shipped | Register frontier models, OpenRouter DeepSeek routing, and fallback workflow budgets | Verified pricing for Gemini 3.8 Flash, Claude Fable 5.1/Mythos 5.1, and OpenRouter DeepSeek models; default OpenRouter model selection and catalog; global workflow budget fallback; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.2) |
+| 5 | `0.20.3` | Current | Expand strict type checking, decouple near-limit modules, elevate unit test coverage, and refine persistent agent instructions | Seven core subpackages promoted to strict Pyright with zero errors/warnings (64.7% of codebase); anti-god file decompositions for commands and worker tasks keeping all files under 915 lines; branch coverage raised to 95.43%; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
+| 6 | `0.20.4` | Next | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Complete versus invalid extraction tests; generation and zero-claim retirement; no stale synthesis fallback; source-versus-derived origin; migration and legacy-read coverage; audit and synthesis behavior; full CI and release notes |
+| 7 | `0.20.5` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
+| 8 | `0.20.6` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
+| 9 | `0.20.7` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
+| 10 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
+| 11 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
 
 The current row names the maintained release boundary; publication receipts
-live in the changelog and [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.2).
-Next is `0.20.3` because removed assertions can remain active after an artifact
+live in the changelog and [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.3).
+Next is `0.20.4` because removed assertions can remain active after an artifact
 is reanalyzed, and derived answers can lose their origin. Correct that evidence
-state before `0.20.4` measures research quality or changes discovery defaults.
+state before `0.20.5` measures research quality or changes discovery defaults.
 
 ### How the plan stays current
 
@@ -176,7 +177,10 @@ Product-facing comparisons live in
   blockers and adds bounded query-API pacing.
 - **0.20.2.** Register frontier models, OpenRouter DeepSeek routing, and
   fallback workflow budgets.
-- **0.20.3 through 0.20.6.** Follow the versioned sequence above: evidence
+- **0.20.3.** Expand strict Pyright checking across seven subpackages, decouple
+  near-limit modules into focused units, elevate branch coverage, and refine
+  persistent agentic instructions.
+- **0.20.4 through 0.20.7.** Follow the versioned sequence above: evidence
   correctness, research-desk evaluation, operator and
   performance evidence, then strict-boundary and security closure.
 - **1.0.0rc1.** Freeze and exercise the exact compatibility promise. Only

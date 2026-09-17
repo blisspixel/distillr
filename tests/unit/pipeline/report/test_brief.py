@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -409,3 +410,61 @@ def test_run_research_brief_refuses_unresolved_numbered_citation(tmp_path, monke
     assert tracker.gemini_queries == 1
     assert not (tmp_path / "output" / "briefing-refused.md").exists()
     assert deleted == ["store-1"]
+
+
+def test_bundle_insights_multipart_and_edge_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # Multiple items causing part1 and part2
+    source_dir = tmp_path / "papers"
+    source_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Non-directory file in source_dir (line 160)
+    (source_dir / "stray.txt").write_text("ignore", encoding="utf-8")
+
+    # 2. Directory without insights file (line 164)
+    empty_item = source_dir / "item_empty"
+    empty_item.mkdir(parents=True, exist_ok=True)
+
+    # 3. Directory without metadata.json (line 169)
+    item1 = source_dir / "item1"
+    item1.mkdir(parents=True, exist_ok=True)
+    (item1 / "insights.md").write_text("Insight content 1", encoding="utf-8")
+
+    # 4. Normal item
+    item2 = source_dir / "item2"
+    item2.mkdir(parents=True, exist_ok=True)
+    (item2 / "insights.md").write_text("Insight content 2", encoding="utf-8")
+    (item2 / "metadata.json").write_text(json.dumps({"title": "Item 2"}), encoding="utf-8")
+
+    # Set MAX_DOC_CHARS small so each item forces a new part bundle
+    monkeypatch.setattr("distill.pipeline.report.brief.MAX_DOC_CHARS", 10)
+    bundles = _bundle_insights(source_dir, "test-papers", "test-topic", "paper")
+    assert len(bundles) == 2
+    assert bundles[0][0] == "test-papers-part1"
+    assert bundles[1][0] == "test-papers-part2"
+
+
+def test_run_research_brief_empty_result_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config = DistillConfig(gemini_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    monkeypatch.setattr("distill.pipeline.report.brief._upload_files", lambda *_args: 1)
+    monkeypatch.setattr("distill.pipeline.report.brief.delete_store", lambda *_args: None)
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.gather_topic_files",
+        lambda *_args, **_kwargs: [("doc", "body")],
+    )
+
+    class FakeClient:
+        def __init__(self):
+            self.file_search_stores = SimpleNamespace(
+                create=lambda **_kwargs: SimpleNamespace(name="store-1")
+            )
+            self.interactions = SimpleNamespace(
+                create=lambda **_kwargs: SimpleNamespace(id="int-1"),
+                get=lambda *_args, **_kwargs: SimpleNamespace(status="completed", outputs=[]),
+            )
+
+    monkeypatch.setattr(
+        "distill.pipeline.report.brief.genai.Client", lambda **_kwargs: FakeClient()
+    )
+    tracker = CostTracker()
+    result = run_research_brief(["ai"], "ctx", "empty-out", config, tracker=tracker)
+    assert result is None

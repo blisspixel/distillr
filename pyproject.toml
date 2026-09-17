@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.20.2"
+version = "0.20.3"
 description = "Current-source research corpus: discover, capture, verify, and synthesize public sources and local files into durable Markdown."
 readme = "README.md"
 license = "Apache-2.0"
@@ -248,7 +248,16 @@ exclude_dirs = ["tests", "archive", "library", "output", "tmp", ".venv", "venv"]
 # Tighten packages through central strict paths and isolated modules through
 # `pyright: strict` directives as the codebase is incrementally typed.
 include = ["distill", "tests"]
-strict = ["distill/llm"]
+strict = [
+    "distill/llm",
+    "distill/pipeline",
+    "distill/commands",
+    "distill/mcp",
+    "distill/prompts",
+    "distill/concepts",
+    "distill/claims",
+    "distill/agent_skills",
+]
 exclude = [
     "**/__pycache__",
     "**/node_modules",

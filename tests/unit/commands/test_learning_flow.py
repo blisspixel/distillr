@@ -579,3 +579,9 @@ def test_generate_and_export_topic_brief_handles_missing_brief(config):
     )
 
     assert not (config.distill_output_dir / "output" / "brief-topic-a.md").exists()
+
+
+def test_cli_support_learning_flow_shim():
+    import distill.cli_support.learning_flow as shim
+
+    assert shim is learning_flow

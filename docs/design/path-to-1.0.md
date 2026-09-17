@@ -4,8 +4,9 @@ Status: operational plan. Anchored to [`version-architecture.md`](version-archit
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 for the `distillr==0.20.0` editorial release and subsequent maintenance
 reviews. The `0.20.1` boundary closed billing and interoperability
-blockers; `0.20.2` registers frontier models, OpenRouter DeepSeek routing, and
-fallback workflow budgets; `0.20.3` retains the claim-generation trust backlog.
+blockers; `0.20.2` registered frontier models and OpenRouter routing; `0.20.3`
+expands strict Pyright checking, modular boundaries, and test coverage;
+`0.20.4` retains the claim-generation trust backlog.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -179,10 +180,11 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.19.74` | shipped | OpenRouter and Python 3.15 advisory implementation, docs, tests, budgeted live provider validation, aligned artifacts, and release publication |
 | `0.20.0` | released | budgeted editorial workflow, Markdown/DOCX sample, optional portable skill, tests and release artifacts |
 | `0.20.1` | shipped | local-inference billing proof, MCP and Agent Plugins compatibility, bounded API pacing, release evidence |
-| `0.20.2` | current | frontier model registration, OpenRouter DeepSeek routing and defaults, global workflow budget fallbacks, tests and release evidence |
-| `0.20.3` | next | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
-| `0.20.4` | queued | expert-authored research-desk fixtures and published baseline results |
-| `0.20.5` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
-| `0.20.6` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `0.20.2` | shipped | frontier model registration, OpenRouter DeepSeek routing and defaults, global workflow budget fallbacks, tests and release evidence |
+| `0.20.3` | current | strict Pyright expansion (7 subpackages), modular module refactorings, test coverage elevation to 95.43%, persistent agent instructions |
+| `0.20.4` | next | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
+| `0.20.5` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.6` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.20.7` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
 | `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

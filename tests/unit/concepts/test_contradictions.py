@@ -157,3 +157,40 @@ class TestContestedConcept:
         d = c.to_dict()
         assert d["name"] == "X"
         assert d["is_entity"] is False
+
+    def test_is_entity_for_person_and_org(self) -> None:
+        p = ContestedConcept("P", "p", "person", "t", 1, 1, 1)
+        o = ContestedConcept("O", "o", "organization", "t", 1, 1, 1)
+        assert p.is_entity is True
+        assert o.is_entity is True
+
+
+def test_as_int_all_branches() -> None:
+    from distill.concepts.contradictions import _as_int
+
+    assert _as_int(True) == 0
+    assert _as_int(False) == 0
+    assert _as_int(42) == 42
+    assert _as_int(3.14) == 3
+    assert _as_int(float("nan")) == 0
+    assert _as_int(float("inf")) == 0
+    assert _as_int(float("-inf")) == 0
+    assert _as_int(None) == 0
+    assert _as_int("text") == 0
+
+
+def test_read_jsonl_empty_lines_and_read_error(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    from distill.concepts.contradictions import _read_jsonl
+
+    # Empty lines
+    p = tmp_path / "empty_lines.jsonl"
+    p.write_text("\n\n   \n" + json.dumps({"name": "Test"}) + "\n\n", encoding="utf-8")
+    rows = _read_jsonl(p)
+    assert len(rows) == 1
+    assert rows[0]["name"] == "Test"
+
+    # Read error
+    with patch.object(Path, "read_text", side_effect=OSError("Permission denied")):
+        assert _read_jsonl(p) == []

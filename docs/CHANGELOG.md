@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.20.3 - 2026-09-17
+
+### Changed
+
+- Promote seven core subpackages (commands, pipeline, mcp, prompts, concepts,
+  claims, agent_skills) to strict Pyright checking in pyproject.toml, bringing
+  strict type enforcement across 64.7% of repository files with zero errors and
+  zero warnings.
+- Decompose commands and worker task modules into focused domain units,
+  extracting distill.commands._command_cost and distill.worker._claim_envelope
+  to ensure all modules stay cleanly under 915 lines.
+
+### Added
+
+- Add comprehensive unit test suites covering CLI monitor option branches,
+  backward-compatibility proxies, report materials, brief chunking edge cases,
+  and concept contradiction malformed rows, raising total branch coverage to
+  95.43%.
+
 ## 0.20.2 - 2026-09-16
 
 ### Added

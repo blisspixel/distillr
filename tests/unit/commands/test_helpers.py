@@ -1238,7 +1238,8 @@ class TestRunScopeReport:
             sys.modules,
             "distill.pipeline.report.deep_research",
             SimpleNamespace(
-                _get_report_path=lambda *args, **kwargs: config.topic_dir("ai") / "report.md"
+                _get_report_path=lambda *args, **kwargs: config.topic_dir("ai") / "report.md",
+                run_deep_research=lambda **kwargs: None,
             ),
         )
         summary = RunSummary(command="report")
@@ -1266,7 +1267,10 @@ class TestRunScopeReport:
         monkeypatch.setitem(
             sys.modules,
             "distill.pipeline.report.deep_research",
-            SimpleNamespace(_get_report_path=lambda *args, **kwargs: md_source),
+            SimpleNamespace(
+                _get_report_path=lambda *args, **kwargs: md_source,
+                run_deep_research=lambda **kwargs: None,
+            ),
         )
 
         def fail_export(*args, **kwargs):
@@ -1307,7 +1311,10 @@ class TestRunScopeReport:
         monkeypatch.setitem(
             sys.modules,
             "distill.pipeline.report.deep_research",
-            SimpleNamespace(_get_report_path=lambda *args, **kwargs: md_source),
+            SimpleNamespace(
+                _get_report_path=lambda *args, **kwargs: md_source,
+                run_deep_research=lambda **kwargs: None,
+            ),
         )
         monkeypatch.setattr("distill.library.export.export_report", lambda *args, **kwargs: None)
 

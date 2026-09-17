@@ -314,3 +314,8 @@ def _normalized_result_bytes(result: str, *, task_max_result_bytes: int | None =
     if task_max_result_bytes is not None and len(content) > task_max_result_bytes:
         raise WorkerTaskInvalid("worker result exceeds the result size limit for this task")
     return content
+
+
+required_text = _required_text
+required_timestamp = _required_timestamp
+validated_label = _validated_label
