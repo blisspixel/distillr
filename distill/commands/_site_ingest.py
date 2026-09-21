@@ -37,10 +37,11 @@ from distill.ingestors.sites.attachments import (
     write_attachment_manifest,
 )
 from distill.ingestors.sites.scraper import (
+    SiteCrawlResult,
     SitePage,
     SiteSeed,
     build_page_document,
-    crawl_site,
+    crawl_site_with_receipts,
 )
 from distill.library.insights import insight_has_body
 from distill.library.paths import (
@@ -82,6 +83,7 @@ class SiteIngestResult:
     analyzed_pages: int = 0
     skipped_pages: int = 0
     scrape_only: bool = False
+    failed_pages: int = 0
 
     def __iter__(self):
         yield self.site_name
@@ -91,17 +93,76 @@ class SiteIngestResult:
 def site_ingest_status_phase(result: object) -> str:
     if not isinstance(result, SiteIngestResult):
         return "done"
+    failed = f", {result.failed_pages} failed" if result.failed_pages else ""
     if result.page_count <= 0:
-        return "skipped (empty crawl)"
+        return f"skipped (empty crawl{failed})" if failed else "skipped (empty crawl)"
     if result.scrape_only:
-        return f"done ({result.page_count} scraped)"
+        return f"done ({result.page_count} scraped{failed})"
     if result.skipped_pages and result.analyzed_pages:
-        return f"done ({result.analyzed_pages} analyzed, {result.skipped_pages} unchanged)"
+        return f"done ({result.analyzed_pages} analyzed, {result.skipped_pages} unchanged{failed})"
     if result.skipped_pages:
-        return f"skipped ({result.skipped_pages} unchanged)"
+        return f"skipped ({result.skipped_pages} unchanged{failed})"
     if result.analyzed_pages:
-        return f"done ({result.analyzed_pages} analyzed)"
-    return "done"
+        return f"done ({result.analyzed_pages} analyzed{failed})"
+    return f"done ({result.failed_pages} failed)" if failed else "done"
+
+
+_CAPTURE_FAILURE_LABELS = {
+    "navigation-failed": "did not load",
+    "extraction-failed": "loaded but could not be read",
+    "empty": "rendered with no usable text",
+    "out-of-scope": "redirected outside the crawl scope",
+    "budget-exhausted": "stopped at the crawl resource boundary",
+    "worker-failed": "browser worker failed",
+}
+
+
+def capture_failure_label(outcome: str) -> str:
+    """Describe a capture outcome for an operator, never inventing a cause."""
+    return _CAPTURE_FAILURE_LABELS.get(outcome, outcome)
+
+
+def _empty_crawl_message(result: SiteCrawlResult) -> str:
+    """Say why a crawl produced nothing instead of only that it did."""
+    if not result.failures:
+        return "No pages were extracted from the site."
+    parts = [
+        f"{count} {capture_failure_label(outcome)}"
+        for outcome, count in result.failure_counts().items()
+    ]
+    return "No pages were extracted from the site: " + "; ".join(parts) + "."
+
+
+def _report_capture_failures(
+    result: SiteCrawlResult,
+    seed: SiteSeed,
+    site_name: str,
+    summary: RunSummary,
+    *,
+    scrape_only: bool,
+) -> None:
+    """Print and record one receipt per URL the crawl could not capture."""
+    if not result.failures:
+        return
+    counts = result.failure_counts()
+    rollup = ", ".join(f"{count} {capture_failure_label(key)}" for key, count in counts.items())
+    console.print(f"  [yellow]{len(result.failures)} page(s) not captured: {rollup}[/yellow]")
+    for failure in result.failures:
+        # A page that would not load is a recorded fact about that page, so it
+        # must not flip an otherwise clean crawl to a partial run. An outcome
+        # that stopped the whole crawl genuinely did leave work undone.
+        summary.add_issue(
+            "site-capture",
+            f"Page {capture_failure_label(failure.outcome)}.",
+            context=url_for_diagnostic(failure.url),
+            severity="error" if failure.stopped_the_crawl else "warning",
+            details={
+                "site": site_name,
+                "topic": seed.topic,
+                "scrape_only": scrape_only,
+                **failure.redacted().metadata(),
+            },
+        )
 
 
 def site_section_change_summary(
@@ -227,15 +288,27 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
         f"attachments={'on' if ingest_attachments else 'inventory-only'}[/dim]"
     )
 
-    raw_pages = crawl_site(seed)
+    crawl_result = crawl_site_with_receipts(seed)
+    raw_pages = crawl_result.pages
+    _report_capture_failures(crawl_result, seed, site_name, summary, scrape_only=scrape_only)
     if not raw_pages:
         summary.add_issue(
             "site-crawl",
-            "No pages were extracted from the site.",
+            _empty_crawl_message(crawl_result),
             context=url_for_diagnostic(seed.url),
-            details={"site": site_name, "topic": seed.topic, "scrape_only": scrape_only},
+            details={
+                "site": site_name,
+                "topic": seed.topic,
+                "scrape_only": scrape_only,
+                **crawl_result.metadata(),
+            },
         )
-        return SiteIngestResult(site_name=site_name, page_count=0, scrape_only=scrape_only)
+        return SiteIngestResult(
+            site_name=site_name,
+            page_count=0,
+            scrape_only=scrape_only,
+            failed_pages=len(crawl_result.failures),
+        )
 
     site_dir = config.site_dir(seed.topic, site_name)
     pages_dir = config.site_pages_dir(seed.topic, site_name)
@@ -463,16 +536,19 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
             site_name=site_name,
             page_count=len(pages),
             scrape_only=True,
+            failed_pages=len(crawl_result.failures),
         )
 
     manifest["analyzed_pages"] = analyzed_pages
     manifest["skipped_pages"] = skipped_pages
+    manifest.update(crawl_result.metadata())
     atomic_write_json(site_manifest_path, manifest)
     result = SiteIngestResult(
         site_name=site_name,
         page_count=len(pages),
         analyzed_pages=analyzed_pages,
         skipped_pages=skipped_pages,
+        failed_pages=len(crawl_result.failures),
     )
     console.print(f"  [dim]site result: {site_ingest_status_phase(result)}[/dim]")
 

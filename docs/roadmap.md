@@ -22,14 +22,20 @@ does not independently schedule releases.
 - `0.20.2` shipped frontier model pricing (Gemini 3.8 Flash, Claude
   Fable 5.1/Mythos 5.1, DeepSeek v4.1 Flash), OpenRouter DeepSeek routing and
   defaults, and fallback workflow budgets.
-- `0.20.3` is the current release: strict Pyright checking across seven core
-  subpackages (64.7% of codebase), anti-god file modular refactorings, branch
-  coverage elevation to 95.43%, and refined persistent agentic instructions.
-- `0.20.4` is next and owns claim-generation retirement and derived-origin
+- `0.20.3` shipped strict Pyright checking across seven core subpackages
+  (64.7% of codebase), anti-god file modular refactorings, branch coverage
+  elevation to 95.43%, and refined persistent agentic instructions.
+- `0.20.4` is the current release: site crawls now account for every URL they
+  visit through typed capture receipts, page readiness is observed rather than
+  assumed, attempted visits carry their own ceiling, and the `anyio` security
+  floor clears a critical TLS certificate-validation advisory. It was inserted
+  under the release-blocker rule, so the rows below each moved down one place
+  with their scope unchanged.
+- `0.20.5` is next and owns claim-generation retirement and derived-origin
   preservation.
-- `0.20.5` owns the research-desk evaluation baseline.
-- `0.20.6` owns operator, accessibility, and performance evidence.
-- `0.20.7` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.6` owns the research-desk evaluation baseline.
+- `0.20.7` owns operator, accessibility, and performance evidence.
+- `0.20.8` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
@@ -68,13 +74,13 @@ The `0.20.1` maintenance release first closes the billing and compatibility
 blockers discovered during the current-source review. The product sequence is:
 
 1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.20.2`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.3`
+   in `0.20.5`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.6`
    before changing discovery or synthesis behavior.
 3. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.20.4`.
+   journey evidence in `0.20.7`.
 4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.20.5`.
+   verification, and the freeze-time security receipt in `0.20.8`.
 5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -430,6 +436,151 @@ score merely to expose these capabilities.
 
 ### 5. Finish website productization
 
+**Where site capture stands.** Site ingest is already browser-first: a bounded
+child worker drives headless Chromium behind a pinned proxy, with service
+workers blocked, downloads refused, a per-navigation request budget, an
+HTTPS-and-public-URL route guard, and DOM extraction confined to an isolated
+Chromium world under hard node, character, and deadline caps. JavaScript
+rendering is therefore not the gap. The gap is what happens after the page
+renders: when Distill decides the page is ready, how much of the page's
+structure survives into the corpus, whether chrome is separated from content,
+whether a failed capture leaves a receipt, and how the crawler chooses what to
+read next. The first two of those closed in `0.20.4`.
+
+**Prior art, and what is declined.** Crawl4AI, Crawlee, Stagehand, and Nodriver
+are read as technique sources, not as candidate dependencies; no second scraping
+or browser-automation framework enters the dependency graph
+([`../ROADMAP.md`](../ROADMAP.md#engineering-standards-adopted-adapted-declined)).
+Two of their central ideas are declined outright rather than reimplemented:
+
+- **Density-threshold content pruning** (Crawl4AI's `PruningContentFilter` and
+  `fit_markdown`, which drop DOM nodes scoring below a text-density, link-density,
+  and tag-weight threshold). "Is this block content or boilerplate?" is a
+  semantic call, and a tuned density score is precisely the brittle proxy this
+  file's opening rule forbids. It silently deletes short high-value blocks such
+  as a results table, a pull quote, or a code snippet, and a corpus that
+  verifies claims against receipts cannot afford unrecorded deletion. The
+  structural half of the same problem is admissible and is scoped below.
+- **Anti-detection and stealth automation** (Nodriver, fingerprint spoofing,
+  challenge solving). Out of scope per
+  [`../ROADMAP.md`](../ROADMAP.md#intentionally-not-in-scope), and technically
+  opposed to the hardened browser boundary above: the evasion posture requires
+  loosening exactly the constraints that make site ingest safe to run against
+  untrusted pages. The supported answer is the capture receipt below.
+
+- [x] **Honest capture receipts for pages that do not render.** *(Rule-owned structure.)*
+  Shipped in `0.20.4`. `_extract_page` previously returned `None` on both
+  navigation failure and empty extracted text, and the crawl loop dropped those
+  URLs with no record, so "the page genuinely has no text", "the renderer never
+  finished", and "the site refused automated access" were indistinguishable
+  afterward. Worse, a whole seed that hit its wall-clock or memory budget, or
+  whose worker returned an untrusted result, came back as an empty page list
+  that read like a clean crawl of nothing. Every URL now leaves either a page or
+  a typed `CaptureFailure` carrying outcome, HTTP status, depth, and a bounded
+  detail. Receipts reach the site manifest, the run summary, and the status
+  line, and `crawl_site_with_receipts` exposes them to callers while
+  `crawl_site` keeps its page-only contract. Receipt URLs are reduced to their
+  persistence view before any write, including URLs quoted inside browser
+  exception text, so a link carrying a session token cannot land in the
+  manifest.
+- [x] **Observed page readiness instead of a fixed wait.** *(Rule-owned structure.)*
+  Shipped in `0.20.4`. `_extract_page` used `goto(wait_until="domcontentloaded")`
+  followed by a flat 1200 ms sleep, which is a guess in both directions: a
+  hydrating single-page app is captured half-built, and a static page pays the
+  full wait for nothing. Readiness is now observed network quiescence under a
+  bounded ceiling, because some pages hold a connection open forever and would
+  otherwise never settle. A page that never goes idle is still captured rather
+  than failed.
+- [ ] **Structure-preserving page capture.** *(Rule-owned structure.)* The
+  bounded extractor walks the DOM but emits one flat text blob, and `_clean_text`
+  then collapses whitespace and drops lines of one character. Headings, list
+  nesting, table cells, code blocks, blockquotes, and link targets are gone
+  before any model or verifier sees the page, which costs both analysis quality
+  and claim-to-receipt traceability. The walker already visits every element and
+  knows its tag; have it emit block-level Markdown structure under the same node,
+  character, and deadline caps rather than joining text nodes. This is the half
+  of Crawl4AI's markdown generation that is pure structure, with none of the
+  scoring. Note that this changes the rendered page document for every page, so
+  it moves every `content_hash` and triggers one reanalysis pass across existing
+  site corpora; sequence it accordingly. Existing truncation reasons continue to
+  record what was cut.
+- [ ] **Separate site chrome from page content by exact repetition, then judgment.**
+  *(Judgment-then-rule.)* Navigation, footers, cookie banners, and "related
+  posts" rails are analyzed today as if they were article text, which wastes
+  tokens and pollutes receipts. Two admissible signals, in order: the structural
+  containers the page itself declares (`<main>`, `<article>`, `role="main"`), and
+  exact blocks that repeat verbatim across pages of the same crawl, which is
+  ground truth within the run rather than a similarity score. Anything still
+  ambiguous is a model call on the candidate blocks, not a threshold. Removed
+  blocks are recorded, never silently dropped, so a receipt can be reconstructed.
+- [ ] **Capture the page's own JSON payloads.** *(Rule-owned structure.)* Content
+  sites increasingly render from an internal JSON endpoint, and that payload is
+  cleaner and more faithful than anything scraped back out of the rendered DOM.
+  Distill is unusually well placed to use it: `install_public_web_route` already
+  intercepts every request the page makes, so the response bodies are reachable
+  without new machinery. Capture bounded `application/json` responses from
+  same-origin XHR and fetch calls as an additional receipt alongside the page
+  document, under their own byte cap and the existing request budget. Untrusted
+  content rules apply unchanged: parse strictly at the boundary, never execute,
+  frame as untrusted in prompts.
+- [ ] **Bounded, declared page interactions.** *(Judgment-then-rule.)* Documentation
+  accordions, tabbed API references, and "load more" archives hide real content
+  behind a click, and scrolling alone does not reach it. Stagehand's answer is an
+  LLM driving arbitrary browser actions, which is too much authority for an
+  untrusted page inside this boundary. The bounded version: a fixed action
+  vocabulary (expand every `<details>`, activate every tab in a `tablist`, click
+  a "load more" control at most N times) executed in the isolated world with hard
+  caps on actions, added nodes, and wall time. A model may propose which
+  affordance a page has; Python executes only from the fixed vocabulary, enforces
+  the caps, and records which actions ran as capture receipt fields.
+- [ ] **Goal-ranked crawl frontier, replacing `link_relevance_score`.**
+  *(Judgment-then-rule.)* `_site_urls.link_relevance_score` orders the crawl queue
+  with hand-tuned weights over a keyword allowlist and denylist (`+100` path
+  match, `+40` prefix, `+8` per shared token, `+8` for `video`/`topic`/`partner`/
+  `lab`/`research`/`insights`/`docs`, `-20` for shallow paths, `-12` for
+  `contact`/`careers`/`about`/`news`/`press`/`privacy`/`cookies`/`locations`).
+  "Which of these links is worth spending a page budget on, given the research
+  goal?" is a semantic question, the weights are tuned to one site's information
+  architecture, and the denylist actively demotes `news` and `press`, which are
+  the right pages on a vendor or lab site. This is the same trap the opening rule
+  names, sitting in live code. Distill already reranks discovery candidates with
+  a model; the bounded link frontier is the same shape of problem with the topic
+  goal in hand. Python keeps ownership of scope, safety, dedupe, depth, and page
+  caps; the ordering inside that allowed set becomes a model call, with honest
+  document order as the no-model fallback. Note that the crawl runs inside an
+  isolated child worker with no provider handle, so this needs the ranking to
+  happen in the parent or the frontier to be returned for parent-side ordering.
+  `_site_render.classify_page_type` has the same defect on a smaller surface,
+  hardcoding `/partner/`, `/lab/`, and `/topic/`; it is exported from
+  `distill.ingestors.sites`, so changing it is a contract-visible edit and needs
+  the compatibility policy applied.
+- [ ] **Host pacing and refusal handling in the browser path.** *(Rule-owned structure.)*
+  `net.py` retries with backoff and gives 429 a longer wait, but the browser
+  crawl has none of it: pages are fetched back to back with no per-host delay, no
+  `Retry-After` handling, and no retry on a transient navigation failure, which
+  both looks like abuse and loses pages to one-off timeouts. Capture receipts now
+  make those losses visible, which is the prerequisite for fixing them. Add
+  per-host pacing, honor `Retry-After` on 429 and 503, and give navigation a
+  bounded retry before the URL is recorded as a failed capture. Separate open
+  decision to settle here: how far `robots.txt` `Disallow` should bind when the
+  operator has named an exact page. Proposed default - `Crawl-delay` and pacing
+  always honored, and `Disallow` surfaced in `--preview` for autonomous
+  link-following while an operator-named page proceeds, since Distill is fetching
+  on that operator's behalf.
+- [ ] **Cheap change detection before the browser starts.** *(Rule-owned structure.)*
+  `_site_ingest` already hashes the rendered page document and reuses existing
+  insights when the hash matches, which saves analysis spend but only after a
+  full browser render. For recurring site profiles the render is the expensive
+  part. Probe with a conditional request first, store `ETag` and `Last-Modified`
+  per page, and skip the browser entirely on a 304. This is the concrete
+  mechanism the partial "section-aware freshness" item below needs.
+- [ ] **Bounded page concurrency inside one browser context.** *(Rule-owned structure.)*
+  A crawl visits pages strictly one at a time in a single context, so a 20-page
+  site walk is 20 sequential renders. Mirror the shape already proven by
+  `distill papers --workers 2|3`: a small bounded group of concurrent pages,
+  default 1, with the frontier queue, visited set, budgets, and all artifact
+  writes staying on the serialized state boundary. No browser pool and no
+  parallel contexts.
 - [ ] Website UX polish - checked-in examples, cleaner crawl defaults, better attachment discovery, less one-off command choreography
 - [x] Trusted-site discovery for docs-heavy research workflows - `distill discover --trusted-site` now enumerates public same-host candidates from sitemaps, TOC/navigation links, and landing-page links for operator-trusted domains or section URLs, then feeds seeds into the existing LLM rerank. Sitemap `lastmod` values now surface as freshness hints in previews when available. Selected website candidates ingest exact pages by default, with opt-in bounded shallow crawls through `--site-crawl-depth` and `--site-crawl-pages`.
 - [~] Better crawl boundary controls - keep site batches close to the intended section or branch by default. Trusted-site section URLs now carry a path prefix into selected shallow crawls, `distill site` accepts `--crawl-prefix`, and JSON site batches can set `crawl_prefix` on URL objects or collections. Remaining: richer section freshness and broader branch defaults for recurring site profiles.

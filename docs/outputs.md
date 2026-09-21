@@ -110,7 +110,16 @@ so distinct page identities do not require persisting bearer parameters.
 
 ## Per site / site batch
 
-- **`site.json`** - Manifest of processed pages (includes section-level crawl state)
+- **`site.json`** - Manifest of processed pages (includes section-level crawl
+  state and capture receipts). A crawl accounts for every URL it visits:
+  `attempted_pages`, `captured_pages`, and `failed_pages` reconcile, and
+  `capture_failures` lists one row per URL that did not become a page, with its
+  outcome (`navigation-failed`, `extraction-failed`, `empty`, `out-of-scope`,
+  `budget-exhausted`, `worker-failed`), HTTP status when known, and crawl depth.
+  `capture_failure_counts` is the same information grouped by outcome. Receipt
+  URLs carry the same scheme, authority, and path treatment described above, so
+  a link whose query held a session token cannot be persisted through a failure
+  record.
 - **`<topic>_<site>_Site_Update.md`** - Section change summary between runs
 - **`<topic>_<site>_Site_Synthesis.md`** - Cross-page synthesis
 - **`<topic>_Site_Synthesis.md`** - Cross-site rollup stored at the topic root;

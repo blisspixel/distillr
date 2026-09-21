@@ -98,17 +98,18 @@ def _is_public_https_seed_url(url: object) -> bool:
 
 def _site_result_parts(
     site_result: SiteIngestResult | tuple[str, int],
-) -> tuple[str, int, int | None, int | None]:
+) -> tuple[str, int, int | None, int | None, int]:
     if isinstance(site_result, SiteIngestResult):
         return (
             site_result.site_name,
             site_result.page_count,
             site_result.analyzed_pages,
             site_result.skipped_pages,
+            site_result.failed_pages,
         )
 
     site_name, page_count = site_result
-    return site_name, page_count, None, None
+    return site_name, page_count, None, None, 0
 
 
 @mcp.tool(annotations=write_tool_annotations(destructive=False, idempotent=False, open_world=True))
@@ -260,13 +261,19 @@ async def site_batch(  # noqa: C901 - legacy site workflow
             site_result: SiteIngestResult | tuple[str, int] = process_site_seed(
                 seed, config, tracker, summary
             )
-            site_name, page_count, analyzed_pages, skipped_pages = _site_result_parts(site_result)
+            site_name, page_count, analyzed_pages, skipped_pages, failed_pages = _site_result_parts(
+                site_result
+            )
             page_result: SiteBatchPageRow = {
                 "url": seed.url,
                 "site": site_name,
                 "pages": page_count,
                 "status": "ok" if page_count else "skipped",
             }
+            # An agent reading this over MCP cannot see the console rollup, so a
+            # crawl that could not read some of its URLs has to say so here too.
+            if failed_pages:
+                page_result["failed_pages"] = failed_pages
             if isinstance(analyzed_pages, int) and isinstance(skipped_pages, int):
                 page_result["analyzed_pages"] = analyzed_pages
                 page_result["skipped_pages"] = skipped_pages

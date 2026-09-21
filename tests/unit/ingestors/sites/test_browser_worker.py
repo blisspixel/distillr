@@ -10,7 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 from distill.ingestors.sites import _browser_worker as worker
-from distill.ingestors.sites.scraper import SitePage, SiteSeed
+from distill.ingestors.sites.capture import CaptureFailure
+from distill.ingestors.sites.scraper import SiteCrawlResult, SitePage, SiteSeed
 
 
 def _seed() -> SiteSeed:
@@ -19,6 +20,15 @@ def _seed() -> SiteSeed:
         topic="web",
         max_depth=0,
         max_pages=1,
+    )
+
+
+def _failure() -> CaptureFailure:
+    return CaptureFailure(
+        url="https://example.com/missing",
+        outcome="navigation-failed",
+        detail="TimeoutError: navigation timed out",
+        depth=1,
     )
 
 
@@ -33,14 +43,26 @@ def test_browser_worker_writes_bounded_structured_result(monkeypatch, tmp_path: 
         page_type="page",
         text="body",
     )
-    monkeypatch.setattr(worker, "crawl_site_in_browser_worker", lambda seed: [page])
+    monkeypatch.setattr(
+        worker,
+        "crawl_site_in_browser_worker",
+        lambda seed: SiteCrawlResult(pages=[page], failures=[_failure()]),
+    )
     monkeypatch.setattr(sys, "argv", ["worker", str(input_path), str(output_path)])
     monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=io.BytesIO(b"1")))
 
     assert worker.main() == 0
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["pages"][0]["title"] == "Docs"
+    assert payload["failures"] == [
+        {
+            "url": "https://example.com/missing",
+            "outcome": "navigation-failed",
+            "depth": 1,
+            "detail": "TimeoutError: navigation timed out",
+        }
+    ]
 
 
 def test_browser_worker_requires_control_handshake(monkeypatch, tmp_path: Path) -> None:
@@ -69,4 +91,4 @@ def test_browser_worker_enforces_result_byte_limit(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(worker, "BROWSER_WORKER_RESULT_BYTES", 8)
 
     with pytest.raises(ValueError, match="byte limit"):
-        worker._write_result(tmp_path / "out.json", [{"text": "too large"}])
+        worker._write_result(tmp_path / "out.json", [{"text": "too large"}], [])

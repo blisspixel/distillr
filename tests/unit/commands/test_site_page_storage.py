@@ -14,7 +14,9 @@ from distill.commands import _site_ingest as ingest_mod
 from distill.commands import _site_page_storage as storage_mod
 from distill.config import DistillConfig
 from distill.ingestors.sites.attachments import AttachmentRecord
+from distill.ingestors.sites.capture import CaptureFailure
 from distill.ingestors.sites.scraper import (
+    SiteCrawlResult,
     SitePage,
     SiteSeed,
     page_id_from_url,
@@ -370,7 +372,9 @@ def test_process_site_seed_preserves_both_colliding_sources(tmp_path, monkeypatc
         transcript="first transcript",
     )
     second = _page("https://shared.example/docs/abcdefgh-second")
-    monkeypatch.setattr(ingest_mod, "crawl_site", lambda _seed: [first, second])
+    monkeypatch.setattr(
+        ingest_mod, "crawl_site_with_receipts", lambda _seed: SiteCrawlResult(pages=[first, second])
+    )
     monkeypatch.setattr(
         ingest_mod,
         "analyze_site_page",
@@ -453,7 +457,9 @@ def test_process_site_seed_sanitizes_every_post_fetch_consumer(tmp_path, monkeyp
         captured["analysis_page"] = safe_page
         return "# Safe insight"
 
-    monkeypatch.setattr(ingest_mod, "crawl_site", lambda _seed: [page])
+    monkeypatch.setattr(
+        ingest_mod, "crawl_site_with_receipts", lambda _seed: SiteCrawlResult(pages=[page])
+    )
     monkeypatch.setattr(ingest_mod, "ingest_page_attachments", fake_attachments)
     monkeypatch.setattr(ingest_mod, "analyze_site_page", fake_analysis)
     monkeypatch.setattr(
@@ -522,3 +528,193 @@ def test_process_site_seed_sanitizes_every_post_fetch_consumer(tmp_path, monkeyp
     assert {issue.context for issue in summary.issues} == {"https://shared.example"}
     for canary in canaries:
         assert canary not in combined
+
+
+class TestCaptureReceiptsReachTheOperator:
+    """A URL the crawl could not read must reach the manifest and the summary.
+
+    Before this, every failure mode collapsed into "No pages were extracted",
+    so an operator could not tell a genuinely empty page from a blocked one.
+    """
+
+    def _seed(self) -> SiteSeed:
+        return SiteSeed(url="https://example.com/docs", topic="web")
+
+    def _install(self, monkeypatch, result: SiteCrawlResult) -> None:
+        monkeypatch.setattr(ingest_mod, "crawl_site_with_receipts", lambda _seed: result)
+        monkeypatch.setattr(
+            ingest_mod,
+            "analyze_site_page",
+            lambda page, *_args, **_kwargs: f"# Insight\n\n{page.final_url}",
+        )
+        monkeypatch.setattr(ingest_mod, "synthesize_site", lambda *_args, **_kwargs: "")
+        monkeypatch.setattr(ingest_mod, "resolve_intent", lambda *_args, **_kwargs: None)
+
+    def test_an_all_failed_crawl_says_why_it_was_empty(self, tmp_path, monkeypatch) -> None:
+        config = _config(tmp_path)
+        config.distill_verify = "off"
+        self._install(
+            monkeypatch,
+            SiteCrawlResult(
+                failures=[
+                    CaptureFailure(url="https://example.com/a", outcome="navigation-failed"),
+                    CaptureFailure(url="https://example.com/b", outcome="empty"),
+                    CaptureFailure(url="https://example.com/c", outcome="empty"),
+                ]
+            ),
+        )
+        summary = RunSummary(command="test")
+
+        result = ingest_mod.process_site_seed(self._seed(), config, CostTracker(), summary)
+
+        assert result.page_count == 0
+        assert result.failed_pages == 3
+        messages = [issue.message for issue in summary.issues]
+        assert any(
+            "2 rendered with no usable text" in message and "1 did not load" in message
+            for message in messages
+        ), messages
+
+    def test_each_failed_url_becomes_its_own_receipt(self, tmp_path, monkeypatch) -> None:
+        config = _config(tmp_path)
+        config.distill_verify = "off"
+        page = _page("https://example.com/docs/kept")
+        self._install(
+            monkeypatch,
+            SiteCrawlResult(
+                pages=[page],
+                failures=[
+                    CaptureFailure(
+                        url="https://example.com/gone",
+                        outcome="navigation-failed",
+                        detail="HTTP 404",
+                        status=404,
+                        depth=1,
+                    )
+                ],
+            ),
+        )
+        summary = RunSummary(command="test")
+
+        result = ingest_mod.process_site_seed(self._seed(), config, CostTracker(), summary)
+
+        assert result.analyzed_pages == 1
+        assert result.failed_pages == 1
+        capture_issues = [issue for issue in summary.issues if issue.stage == "site-capture"]
+        assert len(capture_issues) == 1
+        details = dict(capture_issues[0].details)
+        assert details["outcome"] == "navigation-failed"
+        assert details["status"] == "404"
+
+    def test_the_manifest_reconciles_attempted_captured_and_failed(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        config = _config(tmp_path)
+        config.distill_verify = "off"
+        page = _page("https://example.com/docs/kept")
+        self._install(
+            monkeypatch,
+            SiteCrawlResult(
+                pages=[page],
+                failures=[CaptureFailure(url="https://example.com/gone", outcome="empty")],
+            ),
+        )
+
+        ingest_mod.process_site_seed(
+            self._seed(), config, CostTracker(), RunSummary(command="test")
+        )
+
+        manifest_path = config.site_dir("web", "example.com") / "site.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["attempted_pages"] == 2
+        assert manifest["captured_pages"] == 1
+        assert manifest["failed_pages"] == 1
+        assert manifest["capture_failure_counts"] == {"empty": 1}
+
+    def test_a_clean_crawl_adds_no_capture_noise(self, tmp_path, monkeypatch) -> None:
+        config = _config(tmp_path)
+        config.distill_verify = "off"
+        self._install(monkeypatch, SiteCrawlResult(pages=[_page("https://example.com/docs/kept")]))
+        summary = RunSummary(command="test")
+
+        result = ingest_mod.process_site_seed(self._seed(), config, CostTracker(), summary)
+
+        assert result.failed_pages == 0
+        assert [issue for issue in summary.issues if issue.stage == "site-capture"] == []
+
+
+class TestCaptureStatusPhase:
+    @pytest.mark.parametrize(
+        ("result", "expected"),
+        [
+            (ingest_mod.SiteIngestResult("s", 0), "skipped (empty crawl)"),
+            (
+                ingest_mod.SiteIngestResult("s", 0, failed_pages=2),
+                "skipped (empty crawl, 2 failed)",
+            ),
+            (
+                ingest_mod.SiteIngestResult("s", 1, analyzed_pages=1, failed_pages=1),
+                "done (1 analyzed, 1 failed)",
+            ),
+            (
+                ingest_mod.SiteIngestResult("s", 1, skipped_pages=1, failed_pages=1),
+                "skipped (1 unchanged, 1 failed)",
+            ),
+            (
+                ingest_mod.SiteIngestResult("s", 2, scrape_only=True, failed_pages=1),
+                "done (2 scraped, 1 failed)",
+            ),
+            (ingest_mod.SiteIngestResult("s", 1, failed_pages=1), "done (1 failed)"),
+            (ingest_mod.SiteIngestResult("s", 1), "done"),
+        ],
+    )
+    def test_failed_pages_are_visible_in_the_status_line(self, result, expected: str) -> None:
+        assert ingest_mod.site_ingest_status_phase(result) == expected
+
+
+class TestCaptureSeverity:
+    """One unreadable page must not mark an otherwise clean crawl partial."""
+
+    def _run(self, tmp_path, monkeypatch, failures: list[CaptureFailure]) -> RunSummary:
+        config = _config(tmp_path)
+        config.distill_verify = "off"
+        monkeypatch.setattr(
+            ingest_mod,
+            "crawl_site_with_receipts",
+            lambda _seed: SiteCrawlResult(
+                pages=[_page("https://example.com/docs/kept")], failures=failures
+            ),
+        )
+        monkeypatch.setattr(
+            ingest_mod, "analyze_site_page", lambda page, *_a, **_k: "# Insight\n\nbody"
+        )
+        monkeypatch.setattr(ingest_mod, "synthesize_site", lambda *_a, **_k: "")
+        monkeypatch.setattr(ingest_mod, "resolve_intent", lambda *_a, **_k: None)
+        summary = RunSummary(command="test")
+        ingest_mod.process_site_seed(
+            SiteSeed(url="https://example.com/docs", topic="web"),
+            config,
+            CostTracker(),
+            summary,
+        )
+        return summary
+
+    def test_a_single_unreadable_page_is_a_warning(self, tmp_path, monkeypatch) -> None:
+        summary = self._run(
+            tmp_path,
+            monkeypatch,
+            [CaptureFailure(url="https://example.com/gone", outcome="navigation-failed")],
+        )
+
+        capture = [issue for issue in summary.issues if issue.stage == "site-capture"]
+        assert [issue.severity for issue in capture] == ["warning"]
+
+    def test_a_truncated_crawl_is_an_error(self, tmp_path, monkeypatch) -> None:
+        summary = self._run(
+            tmp_path,
+            monkeypatch,
+            [CaptureFailure(url="https://example.com/docs", outcome="budget-exhausted")],
+        )
+
+        capture = [issue for issue in summary.issues if issue.stage == "site-capture"]
+        assert [issue.severity for issue in capture] == ["error"]

@@ -147,6 +147,15 @@ URL syntax, and crawl plan are checked before any ingest work starts. With
 crawling, writes, or spend, and that preview is allowed even when
 `DISTILL_MCP_READ_ONLY=1`.
 
+Each seed row carries `pages`, and `analyzed_pages` plus `skipped_pages` when
+the seed completed. A row also carries `failed_pages` when the crawl could not
+read some of its URLs, and the field is omitted when nothing failed. An agent
+reading this payload never sees the console rollup, so without that count a
+partial capture is indistinguishable from a complete one. The per-URL reasons
+are written to the topic's `site.json` rather than returned inline, to keep
+the tool response bounded; see
+[`outputs.md`](outputs.md#per-site--site-batch).
+
 **Synthesize & report**
 
 | Tool | What it does |

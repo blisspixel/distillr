@@ -640,6 +640,17 @@ spend cap remains a hard stop. Reused unchanged pages and empty crawls are
 surfaced as structural skip outcomes in progress lines and MCP `site_batch`
 JSON.
 
+A crawl accounts for every URL it visits. A URL that does not become a page
+leaves a capture receipt naming the outcome rather than disappearing, so an
+empty page, a page that would not load, a redirect out of the crawl scope, and
+a crawl stopped at its resource boundary stay distinguishable. Failures print
+as a per-crawl rollup, appear in the site status line, are recorded in the run
+summary, and are written to `site.json` (see
+[`outputs.md`](outputs.md#per-site--site-batch)). MCP `site_batch` adds
+`failed_pages` to a seed row when a crawl could not read some of its URLs. A
+single unreadable page is a warning, not a failed run; an exhausted crawl
+budget or a refused browser worker is an error, because work was left undone.
+
 See [`configs/example_seeds.json`](../configs/example_seeds.json) for the seed-file shape. JSON URL objects and collections can set `mode` to `exact-page` or `shallow-crawl`, or use `crawl: false` / `crawl: true` as a boolean alias. Unsupported mode names fail during seed-file loading instead of falling back to a wider crawl. They can also set `crawl_prefix` to keep shallow crawls inside a docs branch such as `/en-us/microsoft-365/agents-sdk`. Drop your own `private/<anything>_seeds.json` locally (git-ignored by default).
 
 ## Direct ingest: X, repos, feeds, and local files

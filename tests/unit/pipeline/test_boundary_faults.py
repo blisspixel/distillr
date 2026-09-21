@@ -24,7 +24,7 @@ from distill.commands import _site_ingest as ingest_mod
 from distill.commands._paper_artifacts import write_paper_artifacts
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord, fetch_paper_pdf_text
-from distill.ingestors.sites.scraper import SitePage, SiteSeed
+from distill.ingestors.sites.scraper import SiteCrawlResult, SitePage, SiteSeed
 from distill.ingestors.youtube.discovery import VideoInfo, discover_videos
 from distill.library.paths import find_artifact
 from distill.llm.router import RouterConfig
@@ -215,7 +215,9 @@ def test_empty_site_analysis_keeps_content_and_skips_insight(tmp_path: Path, mon
         page_type="article",
         text="Stable page content.",
     )
-    monkeypatch.setattr(ingest_mod, "crawl_site", lambda _seed: [page])
+    monkeypatch.setattr(
+        ingest_mod, "crawl_site_with_receipts", lambda _seed: SiteCrawlResult(pages=[page])
+    )
     monkeypatch.setattr(ingest_mod, "analyze_site_page", lambda *_a, **_k: _frontmatter_only())
     monkeypatch.setattr(ingest_mod, "synthesize_site", lambda *_a, **_k: "")
     monkeypatch.setattr(ingest_mod, "resolve_intent", lambda *_a, **_k: None)

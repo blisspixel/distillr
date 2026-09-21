@@ -1095,6 +1095,82 @@ class TestSiteBatchTool:
         ]
         assert ctx.calls == [(0, 2), (1, 2), (2, 2)]
 
+    def test_site_batch_reports_pages_the_crawl_could_not_read(self, mock_config, monkeypatch):
+        """An MCP client sees no console rollup, so failures must reach the payload.
+
+        Without this an agent reads `pages: 2` from a crawl where three more
+        URLs were unreadable, and treats a partial capture as complete.
+        """
+        from distill.commands._site_ingest import SiteIngestResult
+
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "seeds.json",
+            {"urls": ["https://example.com/works"]},
+        )
+
+        def process_site_seed(seed, config, tracker, summary):
+            return SiteIngestResult(
+                site_name="Example",
+                page_count=2,
+                analyzed_pages=2,
+                skipped_pages=0,
+                failed_pages=3,
+            )
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            process_site_seed,
+        )
+        monkeypatch.setattr(
+            "distill.mcp.server.save_run_log",
+            lambda *_a, **_k: None,
+        )
+        monkeypatch.setattr(
+            "distill.mcp.tools.sites.cost_summary",
+            lambda _tracker: _FAKE_COST,
+        )
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
+
+        assert result["pages"] == [
+            {
+                "url": "https://example.com/works",
+                "site": "Example",
+                "pages": 2,
+                "status": "ok",
+                "failed_pages": 3,
+                "analyzed_pages": 2,
+                "skipped_pages": 0,
+            }
+        ]
+
+    def test_site_batch_omits_failed_pages_when_nothing_failed(self, mock_config, monkeypatch):
+        from distill.commands._site_ingest import SiteIngestResult
+
+        seed_file = self._write_seed_manifest(
+            mock_config,
+            "seeds.json",
+            {"urls": ["https://example.com/works"]},
+        )
+
+        monkeypatch.setattr(
+            "distill.commands._site_ingest.process_site_seed",
+            lambda *_a, **_k: SiteIngestResult(site_name="Example", page_count=1, analyzed_pages=1),
+        )
+        monkeypatch.setattr("distill.mcp.server.save_run_log", lambda *_a, **_k: None)
+        monkeypatch.setattr("distill.mcp.tools.sites.cost_summary", lambda _tracker: _FAKE_COST)
+
+        with patch("distill.mcp.server._config", return_value=mock_config):
+            from distill.mcp.tools.sites import site_batch
+
+            result = json.loads(asyncio.run(site_batch("ai", seed_file=seed_file)))
+
+        assert "failed_pages" not in result["pages"][0]
+
     def test_site_batch_budget_error_is_hard_stop(self, mock_config, monkeypatch):
         def process_site_seed(seed, config, tracker, summary):
             assert seed.url == "https://example.com/guide"

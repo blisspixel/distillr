@@ -36,22 +36,10 @@ from distill.ingestors.sites._site_urls import (
     canonical_url_in_seed_scope as _canonical_url_in_seed_scope,
 )
 from distill.ingestors.sites._site_urls import (
-    crawl_max_depth as _crawl_max_depth,
-)
-from distill.ingestors.sites._site_urls import (
-    crawl_max_pages as _crawl_max_pages,
-)
-from distill.ingestors.sites._site_urls import (
-    crawl_prefix_from_mapping as _crawl_prefix_from_mapping,
-)
-from distill.ingestors.sites._site_urls import (
     dedupe_strings as _dedupe_strings,
 )
 from distill.ingestors.sites._site_urls import (
     link_is_crawlable_for_seed as _link_is_crawlable_for_seed,
-)
-from distill.ingestors.sites._site_urls import (
-    normalized_crawl_prefix as _normalize_crawl_prefix,
 )
 from distill.ingestors.sites._site_urls import (
     prioritize_links as _prioritize_links,
@@ -59,17 +47,23 @@ from distill.ingestors.sites._site_urls import (
 from distill.ingestors.sites._site_urls import (
     validate_site_crawl_limits as _validate_site_crawl_limits,
 )
-from distill.ingestors.sites._site_urls import (
-    validated_crawl_limit as _validated_crawl_limit,
+from distill.ingestors.sites.batch import (
+    load_site_batch,
+    parse_site_batch_json,
 )
 from distill.ingestors.sites.browser_extract import (
     bounded_page_expression,
     evaluate_bounded_page,
 )
+from distill.ingestors.sites.capture import (
+    CAPTURE_FAILURE_DETAIL_CHARS,
+    CaptureFailure,
+    capture_failure_from_worker,
+    summarize_capture_failures,
+)
 from distill.ingestors.sites.pinned_proxy import PinnedBrowserProxy
+from distill.ingestors.sites.records import SiteBatch, SitePage, SiteSeed
 from distill.library.confined import read_confined_bytes
-from distill.library.paths import site_name_from_url
-from distill.parsing import as_whole_number
 from distill.process_resources import (
     ProcessBudgetExceeded,
     assign_windows_memory_job,
@@ -86,7 +80,9 @@ __all__ = [
     "MAX_SITE_BATCH_PAGES",
     "MAX_SITE_CRAWL_DEPTH",
     "MAX_SITE_CRAWL_PAGES",
+    "CaptureFailure",
     "SiteBatch",
+    "SiteCrawlResult",
     "SitePage",
     "SiteSeed",
     "build_page_document",
@@ -94,6 +90,7 @@ __all__ = [
     "classify_page_type",
     "crawl_prefix_from_url",
     "crawl_site",
+    "crawl_site_with_receipts",
     "dedupe_urls",
     "is_crawlable_url",
     "is_same_section",
@@ -126,7 +123,25 @@ _BROWSER_TREE_MEMORY_BYTES = 768 * 1024 * 1024
 _BROWSER_WORKER_TIMEOUT_SECONDS = 180.0
 BROWSER_WORKER_RESULT_BYTES = 64 * 1024 * 1024
 _BROWSER_WORKER_DIAGNOSTIC_BYTES = 8_192
-BROWSER_WORKER_SCHEMA_VERSION = 1
+# 2 adds the `failures` capture-receipt array alongside `pages`.
+BROWSER_WORKER_SCHEMA_VERSION = 2
+# Receipts are bounded independently of the visit ceiling below, so a worker
+# that somehow reports more failures than it could have attempted still cannot
+# grow the result without limit.
+_MAX_WORKER_FAILURES = MAX_SITE_CRAWL_PAGES * 4
+# Network quiescence budget before the bounded extractor runs. A hydrating
+# single-page app is captured half-built without it; a static page should not
+# pay the whole budget, so this is a ceiling, not a sleep.
+_PAGE_NETWORK_IDLE_TIMEOUT_MS = 5_000
+_PAGE_SETTLE_TIMEOUT_MS = 400
+_PAGE_SCROLL_SETTLE_TIMEOUT_MS = 250
+_PAGE_SCROLL_PASSES = 3
+# ``max_pages`` bounds captured pages, but a page that fails to capture does not
+# advance that count, so a crawl whose pages all fail would keep draining a
+# frontier of up to _PAGE_LINK_LIMIT links per parent. That both exceeds the
+# operator's stated bound and hammers the host, so attempted visits carry their
+# own ceiling proportional to what the operator asked for.
+_VISIT_CEILING_MULTIPLIER = 3
 _EXTRACTION_TRUNCATION_REASONS = frozenset(
     {
         "authors",
@@ -142,8 +157,6 @@ _EXTRACTION_TRUNCATION_REASONS = frozenset(
         "video_links",
     }
 )
-_MAX_SITE_BATCH_MANIFEST_SEEDS = 500
-_MAX_SITE_BATCH_MANIFEST_TEXT_CHARS = 4_096
 
 _BOUNDED_PAGE_LIMITS = {
     "maxDomNodes": _PAGE_DOM_NODE_LIMIT,
@@ -168,305 +181,34 @@ _BOUNDED_PAGE_LIMITS = {
 _BOUNDED_PAGE_EXPRESSION = bounded_page_expression(_BOUNDED_PAGE_LIMITS)
 
 
-@dataclass
-class SitePage:
-    url: str
-    title: str
-    site_name: str
-    page_type: str
-    text: str
-    final_url: str = ""
-    canonical_url: str = ""
-    description: str = ""
-    published_at: str = ""
-    authors: list[str] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)
-    links: list[str] = field(default_factory=list)
-    pdf_links: list[str] = field(default_factory=list)
-    video_links: list[str] = field(default_factory=list)
-    has_video: bool = False
-    transcript: str = ""
-    attachment_context: str = ""
-    truncation_reasons: list[str] = field(default_factory=list)
-    source_url: str = ""
-    depth: int = 0
-
-    @property
-    def page_id(self) -> str:
-        return site_page_id(self.final_url or self.url)
-
-    def metadata(self) -> dict[str, Any]:
-        return {
-            "url": self.url,
-            "final_url": self.final_url or self.url,
-            "canonical_url": self.canonical_url or self.final_url or self.url,
-            "title": self.title,
-            "site_name": self.site_name,
-            "page_type": self.page_type,
-            "section": site_section_key(self.final_url or self.url),
-            "description": self.description,
-            "published_at": self.published_at,
-            "authors": self.authors,
-            "tags": self.tags,
-            "links": self.links,
-            "pdf_links": self.pdf_links,
-            "video_links": self.video_links,
-            "has_video": self.has_video,
-            "has_transcript": bool(self.transcript.strip()),
-            "has_attachment_context": bool(self.attachment_context.strip()),
-            "extraction_truncated": bool(self.truncation_reasons),
-            "truncation_reasons": self.truncation_reasons,
-            "source_url": self.source_url,
-            "depth": self.depth,
-        }
-
-
-@dataclass
-class SiteSeed:
-    url: str
-    topic: str
-    site_name: str = ""
-    label: str = ""
-    section_label: str = ""
-    source_hint: str = ""
-    freshness_hint: str = ""
-    crawl_prefix: str = ""
-    discover_crawl: bool = False
-    max_depth: int = 1
-    max_pages: int = 8
-    same_section_only: bool = False
-
-    def __post_init__(self) -> None:
-        self.crawl_prefix = _normalize_crawl_prefix(self.crawl_prefix)
-        self.max_depth = _validated_crawl_limit(
-            "max_depth",
-            self.max_depth,
-            minimum=0,
-            maximum=MAX_SITE_CRAWL_DEPTH,
-        )
-        self.max_pages = _validated_crawl_limit(
-            "max_pages",
-            self.max_pages,
-            minimum=1,
-            maximum=MAX_SITE_CRAWL_PAGES,
-        )
-
-    def resolved_site_name(self) -> str:
-        return self.site_name or site_name_from_url(self.url)
-
-
-@dataclass
-class SiteBatch:
-    topic: str
-    seeds: list[SiteSeed]
-
-
-def load_site_batch(path: Path, topic_override: str = "") -> SiteBatch:
-    if path.suffix.lower() == ".json":
-        return parse_site_batch_json(path.read_text(encoding="utf-8"), topic_override)
-    lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
-    urls = [line for line in lines if line and not line.startswith("#")]
-    topic = topic_override or "web"
-    return SiteBatch(topic=topic, seeds=[SiteSeed(url=url, topic=topic) for url in urls])
-
-
-def parse_site_batch_json(content: str, topic_override: str = "") -> SiteBatch:
-    """Parse one bounded-shape JSON site manifest from already-read text."""
-
-    try:
-        data = json.loads(content)
-    except (json.JSONDecodeError, RecursionError) as exc:
-        raise ValueError("Site seed manifest must contain valid JSON.") from exc
-    _validate_site_batch_manifest(data)
-    return _batch_from_json(data, topic_override)
-
-
-def _validate_site_batch_manifest(data: object) -> None:
-    if isinstance(data, list):
-        _validate_manifest_items(data, context="urls")
-        return
-    if not isinstance(data, dict):
-        raise ValueError("Site seed manifest must be a JSON object or array.")
-
-    _validate_site_batch_object(data)
-
-
-def _validate_site_batch_object(data: dict[object, object]) -> None:
-    _validate_manifest_text(data.get("topic", "web"), field_name="topic")
-    crawl = data.get("crawl", {})
-    if not isinstance(crawl, dict):
-        raise ValueError("Site seed manifest field 'crawl' must be an object.")
-    _validate_manifest_mapping(crawl, context="crawl")
-
-    raw_urls = data.get("urls", [])
-    raw_collections = data.get("collections", [])
-    if not isinstance(raw_urls, list):
-        raise ValueError("Site seed manifest field 'urls' must be an array.")
-    if not isinstance(raw_collections, list):
-        raise ValueError("Site seed manifest field 'collections' must be an array.")
-    if raw_urls and raw_collections:
-        raise ValueError("Site seed manifest must use either 'urls' or 'collections', not both.")
-    if len(raw_collections) > _MAX_SITE_BATCH_MANIFEST_SEEDS:
-        raise ValueError("Site seed manifest has too many collections.")
-    _validate_manifest_items(raw_urls, context="urls")
-    _validate_manifest_collections(raw_collections, initial_seed_count=len(raw_urls))
-
-
-def _validate_manifest_collections(
-    raw_collections: list[object],
-    *,
-    initial_seed_count: int,
-) -> None:
-    total_seeds = initial_seed_count
-    for index, raw_collection in enumerate(raw_collections):
-        if not isinstance(raw_collection, dict):
-            raise ValueError(f"Site seed collection {index + 1} must be an object.")
-        _validate_manifest_mapping(raw_collection, context=f"collection {index + 1}")
-        seeds = raw_collection.get("seeds", [])
-        if not isinstance(seeds, list):
-            raise ValueError(f"Site seed collection {index + 1} field 'seeds' must be an array.")
-        total_seeds += len(seeds)
-        if total_seeds > _MAX_SITE_BATCH_MANIFEST_SEEDS:
-            raise ValueError("Site seed manifest has too many seeds.")
-        for seed_index, seed in enumerate(seeds):
-            if not isinstance(seed, str) or not seed:
-                raise ValueError(
-                    f"Site seed collection {index + 1} entry {seed_index + 1} must be a URL string."
-                )
-            _validate_manifest_text(seed, field_name="url")
-
-
-def _validate_manifest_items(items: list[object], *, context: str) -> None:
-    if len(items) > _MAX_SITE_BATCH_MANIFEST_SEEDS:
-        raise ValueError("Site seed manifest has too many seeds.")
-    for index, item in enumerate(items):
-        if isinstance(item, str):
-            if not item:
-                raise ValueError(f"Site seed {context} entry {index + 1} must not be empty.")
-            _validate_manifest_text(item, field_name="url")
-            continue
-        if not isinstance(item, dict):
-            raise ValueError(f"Site seed {context} entry {index + 1} must be a URL or object.")
-        _validate_manifest_mapping(item, context=f"{context} entry {index + 1}")
-        url = item.get("url")
-        if not isinstance(url, str) or not url:
-            raise ValueError(f"Site seed {context} entry {index + 1} requires a URL string.")
-        _validate_manifest_text(url, field_name="url")
-
-
-def _validate_manifest_mapping(data: dict[object, object], *, context: str) -> None:
-    text_fields = {
-        "topic",
-        "site_name",
-        "label",
-        "name",
-        "section_label",
-        "source_hint",
-        "freshness_hint",
-        "crawl_prefix",
-        "path_prefix",
-        "mode",
-        "crawl_mode",
-    }
-    boolean_fields = {"discover_crawl", "same_section_only"}
-    integer_fields = {"max_depth", "max_pages", "max_pages_per_seed"}
-    for field_name in text_fields:
-        if field_name in data:
-            _validate_manifest_text(data[field_name], field_name=field_name)
-    for field_name in boolean_fields:
-        if field_name in data and not isinstance(data[field_name], bool):
-            raise ValueError(f"Site seed {context} field '{field_name}' must be a boolean.")
-    if "crawl" in data and not isinstance(data["crawl"], bool):
-        raise ValueError(f"Site seed {context} field 'crawl' must be a boolean.")
-    for field_name in integer_fields:
-        if field_name in data:
-            parsed = as_whole_number(data[field_name])
-            if parsed is None:
-                raise ValueError(f"Site seed {context} field '{field_name}' must be an integer.")
-            data[field_name] = parsed
-
-
-def _validate_manifest_text(value: object, *, field_name: str) -> None:
-    if not isinstance(value, str):
-        raise ValueError(f"Site seed manifest field '{field_name}' must be a string.")
-    if len(value) > _MAX_SITE_BATCH_MANIFEST_TEXT_CHARS:
-        raise ValueError(f"Site seed manifest field '{field_name}' is too long.")
-
-
-def _batch_from_json(data: Any, topic_override: str) -> SiteBatch:
-    topic = (
-        topic_override or data.get("topic", "web")
-        if isinstance(data, dict)
-        else topic_override or "web"
-    )
-    seeds: list[SiteSeed] = []
-    crawl_config = data.get("crawl", {}) if isinstance(data, dict) else {}
-    global_crawl_prefix = str(crawl_config.get("crawl_prefix", crawl_config.get("path_prefix", "")))
-    global_max_depth = crawl_config.get("max_depth", 1) if isinstance(crawl_config, dict) else 1
-    global_max_pages = (
-        crawl_config.get("max_pages_per_seed", 8) if isinstance(crawl_config, dict) else 8
-    )
-
-    if isinstance(data, list):
-        iterable = data
-    else:
-        collections = data.get("collections", []) if isinstance(data, dict) else []
-        if collections:
-            for collection in collections:
-                for url in collection.get("seeds", []):
-                    seeds.append(
-                        SiteSeed(
-                            url=url,
-                            topic=collection.get("topic", topic),
-                            site_name=collection.get("site_name", ""),
-                            label=collection.get("label", collection.get("name", "")),
-                            section_label=collection.get("section_label", ""),
-                            source_hint=collection.get("source_hint", ""),
-                            freshness_hint=collection.get("freshness_hint", ""),
-                            crawl_prefix=_crawl_prefix_from_mapping(
-                                collection,
-                                fallback=global_crawl_prefix,
-                            ),
-                            discover_crawl=bool(collection.get("discover_crawl", False)),
-                            max_depth=_crawl_max_depth(collection, default=global_max_depth),
-                            max_pages=_crawl_max_pages(collection, default=global_max_pages),
-                            same_section_only=bool(
-                                collection.get(
-                                    "same_section_only",
-                                    data.get("crawl", {}).get("same_section_only", False),
-                                )
-                            ),
-                        )
-                    )
-            return SiteBatch(topic=topic, seeds=seeds)
-        iterable = data.get("urls", []) if isinstance(data, dict) else []
-
-    for item in iterable:
-        if isinstance(item, str):
-            seeds.append(SiteSeed(url=item, topic=topic))
-        elif isinstance(item, dict) and item.get("url"):
-            seeds.append(
-                SiteSeed(
-                    url=item["url"],
-                    topic=item.get("topic", topic),
-                    site_name=item.get("site_name", ""),
-                    label=item.get("label", item.get("name", "")),
-                    section_label=item.get("section_label", ""),
-                    source_hint=item.get("source_hint", ""),
-                    freshness_hint=item.get("freshness_hint", ""),
-                    crawl_prefix=_crawl_prefix_from_mapping(item, fallback=global_crawl_prefix),
-                    discover_crawl=bool(item.get("discover_crawl", False)),
-                    max_depth=_crawl_max_depth(item, default=global_max_depth),
-                    max_pages=_crawl_max_pages(item, default=global_max_pages),
-                    same_section_only=bool(item.get("same_section_only", False)),
-                )
-            )
-    return SiteBatch(topic=topic, seeds=seeds)
-
-
 def _install_public_web_route(context):
     """Abort non-HTTPS or non-public requests before they reach the pinned proxy."""
     return install_public_web_route(context)
+
+
+@dataclass(frozen=True)
+class SiteCrawlResult:
+    """Pages a crawl captured, plus a receipt for every URL it could not."""
+
+    pages: list[SitePage] = field(default_factory=list)
+    failures: list[CaptureFailure] = field(default_factory=list)
+
+    @property
+    def attempted(self) -> int:
+        return len(self.pages) + len(self.failures)
+
+    def failure_counts(self) -> dict[str, int]:
+        return summarize_capture_failures(self.failures)
+
+    def metadata(self) -> dict[str, Any]:
+        """Render for the site manifest, with every receipt URL redacted."""
+        return {
+            "attempted_pages": self.attempted,
+            "captured_pages": len(self.pages),
+            "failed_pages": len(self.failures),
+            "capture_failures": [failure.redacted().metadata() for failure in self.failures],
+            "capture_failure_counts": self.failure_counts(),
+        }
 
 
 def _seed_is_crawlable(seed: SiteSeed) -> bool:
@@ -481,10 +223,20 @@ def _seed_is_crawlable(seed: SiteSeed) -> bool:
 
 
 def crawl_site(seed: SiteSeed) -> list[SitePage]:
-    """Crawl one seed in an isolated, memory-limited browser worker."""
+    """Crawl one seed in an isolated, memory-limited browser worker.
+
+    Returns only the captured pages. Use :func:`crawl_site_with_receipts` when
+    the caller needs to know why a URL is missing.
+    """
+
+    return crawl_site_with_receipts(seed).pages
+
+
+def crawl_site_with_receipts(seed: SiteSeed) -> SiteCrawlResult:
+    """Crawl one seed, returning captured pages and a receipt per failed URL."""
 
     if not _seed_is_crawlable(seed):
-        return []
+        return SiteCrawlResult()
     return _run_browser_worker(seed)
 
 
@@ -580,7 +332,7 @@ def _site_page_from_worker(row: object) -> SitePage:
     )
 
 
-def _read_browser_worker_result(path: Path, root: Path, max_pages: int) -> list[SitePage]:
+def _read_browser_worker_result(path: Path, root: Path, max_pages: int) -> SiteCrawlResult:
     raw = read_confined_bytes(path, root, max_bytes=BROWSER_WORKER_RESULT_BYTES)
     if raw is None:
         raise ValueError("browser worker result is missing or unsafe")
@@ -593,12 +345,30 @@ def _read_browser_worker_result(path: Path, root: Path, max_pages: int) -> list[
         or payload.get("schema_version") != BROWSER_WORKER_SCHEMA_VERSION
         or not isinstance(payload.get("pages"), list)
         or len(payload["pages"]) > max_pages
+        or not isinstance(payload.get("failures"), list)
+        or len(payload["failures"]) > _MAX_WORKER_FAILURES
     ):
         raise ValueError("browser worker result has an invalid schema")
-    return [_site_page_from_worker(row) for row in payload["pages"]]
+    return SiteCrawlResult(
+        pages=[_site_page_from_worker(row) for row in payload["pages"]],
+        failures=[capture_failure_from_worker(row) for row in payload["failures"]],
+    )
 
 
-def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
+def _seed_failure(seed: SiteSeed, outcome: str, detail: str) -> SiteCrawlResult:
+    """Record a whole-seed capture failure so the crawl never fails silently."""
+    return SiteCrawlResult(
+        failures=[
+            CaptureFailure(
+                url=seed.url,
+                outcome=outcome,
+                detail=detail[:CAPTURE_FAILURE_DETAIL_CHARS],
+            )
+        ]
+    )
+
+
+def _run_browser_worker(seed: SiteSeed) -> SiteCrawlResult:
     with tempfile.TemporaryDirectory(prefix="distill-browser-") as temp_dir:
         root = Path(temp_dir)
         input_path = root / "seed.json"
@@ -629,7 +399,11 @@ def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
         stderr_stream = process.stderr
         if stderr_stream is None:
             terminate_isolated_process_tree(process)
-            return []
+            return _seed_failure(
+                seed,
+                "worker-failed",
+                "browser worker did not expose a diagnostic pipe",
+            )
         diagnostic_tail = None
         diagnostic_thread = None
         job_handle: int | None = None
@@ -656,7 +430,7 @@ def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
             )
         except (ProcessBudgetExceeded, OSError, RuntimeError) as exc:
             logger.warning("Browser crawl stopped at its resource boundary: %s", exc)
-            return []
+            return _seed_failure(seed, "budget-exhausted", f"{type(exc).__name__}: {exc}")
         finally:
             terminate_isolated_process_tree(process)
             close_windows_job(job_handle)
@@ -675,19 +449,81 @@ def _run_browser_worker(seed: SiteSeed) -> list[SitePage]:
             )
             if detail:
                 logger.warning("Browser crawl worker failed: %s", detail)
-            return []
+            return _seed_failure(
+                seed,
+                "worker-failed",
+                detail or f"browser worker exited with code {process.returncode}",
+            )
         try:
             return _read_browser_worker_result(output_path, root, seed.max_pages)
         except ValueError as exc:
             logger.warning("Browser crawl worker returned an invalid result: %s", exc)
-            return []
+            return _seed_failure(seed, "worker-failed", str(exc))
 
 
-def crawl_site_in_browser_worker(seed: SiteSeed) -> list[SitePage]:
+def _visit_crawl_url(
+    context: Any,
+    url: str,
+    *,
+    seed: SiteSeed,
+    root_host: str,
+    source_url: str,
+    depth: int,
+) -> tuple[SitePage | None, CaptureFailure | None]:
+    """Capture one URL in a fresh page, returning either a page or a receipt."""
+    page = context.new_page()
+    page.set_default_timeout(30_000)
+    try:
+        extracted, failure = _extract_page(
+            page,
+            url,
+            seed.resolved_site_name(),
+            source_url,
+            depth,
+        )
+    finally:
+        with contextlib.suppress(Exception):
+            page.close()
+    if extracted is None:
+        return None, failure
+    landed = extracted.final_url or extracted.url
+    if _canonical_url_in_seed_scope(landed, seed=seed, root_host=root_host) is None:
+        return None, CaptureFailure(
+            url=url,
+            outcome="out-of-scope",
+            detail="redirected outside the seed's allowed scope",
+            depth=depth,
+        )
+    return extracted, None
+
+
+def _enqueue_crawlable_links(
+    queue: deque[tuple[str, int, str]],
+    links: list[str],
+    *,
+    seed: SiteSeed,
+    root_host: str,
+    visited: set[str],
+    current_url: str,
+    depth: int,
+) -> None:
+    """Queue the in-scope links found on a captured page, in priority order."""
+    for link in _prioritize_links(links, seed.url, current_url):
+        link_norm = _link_is_crawlable_for_seed(
+            link,
+            seed=seed,
+            root_host=root_host,
+            visited=visited,
+        )
+        if link_norm is not None:
+            queue.append((link_norm, depth + 1, current_url))
+
+
+def crawl_site_in_browser_worker(seed: SiteSeed) -> SiteCrawlResult:
     """Browser-worker implementation; callers should use :func:`crawl_site`."""
 
     if not _seed_is_crawlable(seed):
-        return []
+        return SiteCrawlResult()
 
     from playwright.sync_api import sync_playwright
 
@@ -695,6 +531,11 @@ def crawl_site_in_browser_worker(seed: SiteSeed) -> list[SitePage]:
     queue: deque[tuple[str, int, str]] = deque([(seed.url, 0, seed.url)])
     visited: set[str] = set()
     pages: list[SitePage] = []
+    failures: list[CaptureFailure] = []
+
+    def record_failure(failure: CaptureFailure) -> None:
+        if len(failures) < _MAX_WORKER_FAILURES:
+            failures.append(failure)
 
     with PinnedBrowserProxy() as proxy_server, sync_playwright() as playwright:
         browser = playwright.chromium.launch(
@@ -718,58 +559,56 @@ def crawl_site_in_browser_worker(seed: SiteSeed) -> list[SitePage]:
             )
             try:
                 request_budget = _install_public_web_route(context)
+                visit_ceiling = seed.max_pages * _VISIT_CEILING_MULTIPLIER
                 while queue and len(pages) < seed.max_pages:
+                    if len(visited) >= visit_ceiling:
+                        record_failure(
+                            CaptureFailure(
+                                url=seed.url,
+                                outcome="budget-exhausted",
+                                detail=(
+                                    f"stopped after {len(visited)} attempted pages "
+                                    f"for a {seed.max_pages} page budget"
+                                ),
+                            )
+                        )
+                        break
                     current_url, depth, source_url = queue.popleft()
                     normalized = canonicalize_url(current_url)
                     if normalized in visited:
                         continue
                     visited.add(normalized)
                     request_budget.reset()
-                    page = context.new_page()
-                    page.set_default_timeout(30_000)
-                    try:
-                        extracted = _extract_page(
-                            page,
-                            normalized,
-                            seed.resolved_site_name(),
-                            source_url,
-                            depth,
-                        )
-                    finally:
-                        with contextlib.suppress(Exception):
-                            page.close()
+                    extracted, failure = _visit_crawl_url(
+                        context,
+                        normalized,
+                        seed=seed,
+                        root_host=root_host,
+                        source_url=source_url,
+                        depth=depth,
+                    )
                     if extracted is None:
-                        continue
-                    landed = extracted.final_url or extracted.url
-                    if (
-                        _canonical_url_in_seed_scope(
-                            landed,
-                            seed=seed,
-                            root_host=root_host,
-                        )
-                        is None
-                    ):
+                        if failure is not None:
+                            record_failure(failure)
                         continue
                     pages.append(extracted)
 
-                    if depth >= seed.max_depth:
-                        continue
-
-                    for link in _prioritize_links(extracted.links, seed.url, normalized):
-                        link_norm = _link_is_crawlable_for_seed(
-                            link,
+                    if depth < seed.max_depth:
+                        _enqueue_crawlable_links(
+                            queue,
+                            extracted.links,
                             seed=seed,
                             root_host=root_host,
                             visited=visited,
+                            current_url=normalized,
+                            depth=depth,
                         )
-                        if link_norm is not None:
-                            queue.append((link_norm, depth + 1, normalized))
             finally:
                 context.close()
         finally:
             browser.close()
 
-    return pages
+    return SiteCrawlResult(pages=pages, failures=failures)
 
 
 def _extract_bounded_page_payload(page: Any) -> dict[str, Any] | None:
@@ -781,25 +620,61 @@ def _extract_bounded_page_payload(page: Any) -> dict[str, Any] | None:
     )
 
 
+def _navigation_status(response: object) -> int:
+    """Read an HTTP status from a navigation response without trusting it."""
+    status = getattr(response, "status", None)
+    if isinstance(status, bool) or not isinstance(status, int) or not 0 <= status <= 599:
+        return 0
+    return status
+
+
+def _await_page_ready(page: Any) -> None:
+    """Wait on observed network quiescence, not a fixed guess.
+
+    ``domcontentloaded`` fires before a client-rendered page has its content, so
+    a flat sleep either truncates a slow single-page app or taxes a static page.
+    Network idle is the observed signal; it is bounded by a ceiling because some
+    pages hold a connection open forever and would otherwise never settle.
+    """
+    with contextlib.suppress(Exception):
+        page.wait_for_load_state("networkidle", timeout=_PAGE_NETWORK_IDLE_TIMEOUT_MS)
+    page.wait_for_timeout(_PAGE_SETTLE_TIMEOUT_MS)
+    for _ in range(_PAGE_SCROLL_PASSES):
+        page.mouse.wheel(0, 1800)
+        page.wait_for_timeout(_PAGE_SCROLL_SETTLE_TIMEOUT_MS)
+
+
 def _extract_page(
     page,
     url: str,
     site_name: str,
     source_url: str,
     depth: int,
-) -> SitePage | None:
+) -> tuple[SitePage | None, CaptureFailure | None]:
+    status = 0
     try:
-        page.goto(url, wait_until="domcontentloaded")
-        page.wait_for_timeout(1200)
-        for _ in range(3):
-            page.mouse.wheel(0, 1800)
-            page.wait_for_timeout(250)
-    except Exception:
-        return None
+        response = page.goto(url, wait_until="domcontentloaded")
+        status = _navigation_status(response)
+        _await_page_ready(page)
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}".replace("\r", " ").replace("\n", " ")
+        return None, CaptureFailure(
+            url=url,
+            outcome="navigation-failed",
+            detail=detail[:CAPTURE_FAILURE_DETAIL_CHARS],
+            status=status,
+            depth=depth,
+        )
 
     payload = _extract_bounded_page_payload(page)
     if payload is None:
-        return None
+        return None, CaptureFailure(
+            url=url,
+            outcome="extraction-failed",
+            detail="the bounded page extractor did not return a result",
+            status=status,
+            depth=depth,
+        )
 
     truncation_reasons = _payload_truncation_reasons(payload)
     text = _clean_text(
@@ -812,7 +687,13 @@ def _extract_page(
         )
     )
     if not text:
-        return None
+        return None, CaptureFailure(
+            url=url,
+            outcome="empty",
+            detail="the page rendered with no usable body text",
+            status=status,
+            depth=depth,
+        )
 
     final_url_value = _bounded_payload_string(
         payload,
@@ -857,7 +738,7 @@ def _extract_page(
         "metadata",
     ).strip()
     has_video = payload.get("has_video") is True
-    return SitePage(
+    captured = SitePage(
         url=url,
         final_url=final_url,
         canonical_url=canonical_url,
@@ -936,6 +817,7 @@ def _extract_page(
         source_url=source_url,
         depth=depth,
     )
+    return captured, None
 
 
 def _payload_truncation_reasons(payload: dict[str, Any]) -> set[str]:

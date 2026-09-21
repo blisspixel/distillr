@@ -40,11 +40,12 @@ def _seed_from_payload(payload: object) -> SiteSeed:
     return SiteSeed(**row)
 
 
-def _write_result(path: Path, pages: list[object]) -> None:
+def _write_result(path: Path, pages: list[object], failures: list[object]) -> None:
     encoded = json.dumps(
         {
             "schema_version": BROWSER_WORKER_SCHEMA_VERSION,
             "pages": pages,
+            "failures": failures,
         },
         ensure_ascii=False,
         allow_nan=False,
@@ -65,8 +66,12 @@ def main() -> int:
         seed = _seed_from_payload(payload)
         if sys.stdin.buffer.read(1) != b"1":
             return 3
-        pages = crawl_site_in_browser_worker(seed)
-        _write_result(output_path, [asdict(page) for page in pages])
+        result = crawl_site_in_browser_worker(seed)
+        _write_result(
+            output_path,
+            [asdict(page) for page in result.pages],
+            [failure.metadata() for failure in result.failures],
+        )
     except Exception as exc:
         detail = str(exc).replace("\r", " ").replace("\n", " ")[:500]
         sys.stderr.write(f"{type(exc).__name__}: {detail}\n")

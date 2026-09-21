@@ -10,7 +10,9 @@ import pytest
 
 from distill.ingestors.sites import _site_urls as site_urls
 from distill.ingestors.sites import scraper as scraper_module
+from distill.ingestors.sites.capture import CaptureFailure
 from distill.ingestors.sites.scraper import (
+    SiteCrawlResult,
     SitePage,
     SiteSeed,
     _extract_page,
@@ -22,6 +24,7 @@ from distill.ingestors.sites.scraper import (
     crawl_prefix_from_url,
     crawl_site,
     crawl_site_in_browser_worker,
+    crawl_site_with_receipts,
     dedupe_urls,
     is_crawlable_url,
     is_same_section,
@@ -682,8 +685,12 @@ def test_prioritize_links_keeps_same_section_first():
 
 
 class FakeMouse:
+    def __init__(self) -> None:
+        self.wheels = 0
+
     def wheel(self, dx, dy):
-        return None
+        self.wheels += 1
+        return
 
 
 class FakeCDPSession:
@@ -710,21 +717,40 @@ class FakeCDPSession:
 
 
 class FakePage:
-    def __init__(self, payload=None, goto_error=None, runtime_response=None):
+    def __init__(
+        self,
+        payload=None,
+        goto_error=None,
+        runtime_response=None,
+        *,
+        status=0,
+        idle_error=None,
+    ):
         self.payload = payload or {}
         self.goto_error = goto_error
+        self.status = status
+        self.idle_error = idle_error
         self.mouse = FakeMouse()
         self.url = self.payload.get("final_url", "https://example.com/final")
         self.cdp_session = FakeCDPSession(self.payload, runtime_response)
         self.context = SimpleNamespace(new_cdp_session=lambda page: self.cdp_session)
+        self.load_states: list[tuple[str, int]] = []
+        self.waits: list[int] = []
 
     def goto(self, url, wait_until="domcontentloaded"):
         if self.goto_error:
             raise self.goto_error
         self.url = self.payload.get("final_url", url)
+        return SimpleNamespace(status=self.status) if self.status else None
+
+    def wait_for_load_state(self, state, timeout=0):
+        self.load_states.append((state, timeout))
+        if self.idle_error:
+            raise self.idle_error
 
     def wait_for_timeout(self, ms):
-        return None
+        self.waits.append(ms)
+        return
 
     def evaluate(self, script):
         pytest.fail("page-realm evaluate must not handle untrusted extraction")
@@ -771,15 +797,37 @@ def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, obser
         "distill.ingestors.sites.scraper.PinnedBrowserProxy",
         lambda: contextlib.nullcontext("http://127.0.0.1:43123"),
     )
-    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", fake_extract)
+
+    def adapted_extract(page, url, site_name, source_url, depth):
+        # Stubs return the simple ``SitePage | None`` shape; production
+        # ``_extract_page`` returns ``(page, failure)``, so adapt here rather
+        # than repeating the tuple in every stub.
+        extracted = fake_extract(page, url, site_name, source_url, depth)
+        if extracted is None:
+            return None, CaptureFailure(
+                url=url,
+                outcome="empty",
+                detail="stub returned no page",
+                depth=depth,
+            )
+        return extracted, None
+
+    monkeypatch.setattr("distill.ingestors.sites.scraper._extract_page", adapted_extract)
 
 
-def test_extract_page_returns_none_on_navigation_error():
+def test_extract_page_returns_a_navigation_receipt_on_error():
+    """A page that will not load must leave a receipt, not vanish from the crawl."""
     page = FakePage(goto_error=RuntimeError("boom"))
 
-    assert (
-        _extract_page(page, "https://example.com", "example.com", "https://example.com", 0) is None
+    extracted, failure = _extract_page(
+        page, "https://example.com", "example.com", "https://example.com", 0
     )
+
+    assert extracted is None
+    assert failure is not None
+    assert failure.outcome == "navigation-failed"
+    assert failure.url == "https://example.com"
+    assert "RuntimeError: boom" in failure.detail
 
 
 def test_extract_page_parses_payload_and_dedupes_fields():
@@ -804,7 +852,7 @@ def test_extract_page_parses_payload_and_dedupes_fields():
     }
     page = FakePage(payload=payload)
 
-    extracted = _extract_page(
+    extracted, _failure = _extract_page(
         page,
         "https://example.com/video/agent-lab",
         "example.com",
@@ -875,7 +923,7 @@ def test_extract_page_discards_cdp_exception_and_detaches_session():
         }
     )
 
-    result = _extract_page(
+    result, _failure = _extract_page(
         page,
         "https://example.com/bounded",
         "example.com",
@@ -902,7 +950,7 @@ def test_extract_page_defensively_bounds_payload_and_records_truncation():
         "truncation_reasons": ["body_text", "not-a-real-reason"],
     }
 
-    extracted = _extract_page(
+    extracted, _failure = _extract_page(
         FakePage(payload=payload),
         "https://example.com/bounded",
         "example.com",
@@ -981,10 +1029,11 @@ def test_crawl_site_delegates_valid_seed_to_isolated_worker(monkeypatch):
     monkeypatch.setattr("distill.ingestors.net.is_public_web_url", lambda _url: True)
     monkeypatch.setattr(
         "distill.ingestors.sites.scraper._run_browser_worker",
-        lambda received: expected if received is seed else [],
+        lambda received: SiteCrawlResult(pages=expected) if received is seed else SiteCrawlResult(),
     )
 
     assert crawl_site(seed) == expected
+    assert crawl_site_with_receipts(seed).pages == expected
 
 
 class _BrowserControlPipe:
@@ -1036,7 +1085,21 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
         observed["argv"] = argv
         observed["kwargs"] = kwargs
         Path(argv[5]).write_text(
-            json.dumps({"schema_version": 1, "pages": [asdict(page)]}),
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "pages": [asdict(page)],
+                    "failures": [
+                        {
+                            "url": "https://example.com/gone",
+                            "outcome": "navigation-failed",
+                            "detail": "HTTP 404",
+                            "status": 404,
+                            "depth": 1,
+                        }
+                    ],
+                }
+            ),
             encoding="utf-8",
         )
         return process
@@ -1052,7 +1115,10 @@ def test_browser_worker_parent_validates_bounded_result(monkeypatch, tmp_path: P
         terminated.append,
     )
 
-    assert scraper_module._run_browser_worker(seed) == [page]
+    worker_result = scraper_module._run_browser_worker(seed)
+    assert worker_result.pages == [page]
+    assert [failure.url for failure in worker_result.failures] == ["https://example.com/gone"]
+    assert worker_result.failures[0].status == 404
     assert terminated == [process]
     assert process.stdin is None
     assert observed["argv"][:4] == [
@@ -1084,7 +1150,10 @@ def test_browser_worker_parent_terminates_on_memory_budget(monkeypatch, tmp_path
     )
     monkeypatch.setattr(scraper_module, "terminate_isolated_process_tree", terminated.append)
 
-    assert scraper_module._run_browser_worker(seed) == []
+    budget_result = scraper_module._run_browser_worker(seed)
+    assert budget_result.pages == []
+    assert [failure.outcome for failure in budget_result.failures] == ["budget-exhausted"]
+    assert budget_result.failures[0].url == seed.url
     assert terminated == [process]
 
 
@@ -1123,13 +1192,16 @@ def test_crawl_site_respects_depth_host_and_crawlability(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract)
 
-    pages = crawl_site_in_browser_worker(
+    crawl_result = crawl_site_in_browser_worker(
         SiteSeed(url="https://example.com/start", topic="web", max_depth=1, max_pages=5)
     )
 
-    assert [page.url for page in pages] == ["https://example.com/start", "https://example.com/next"]
-    assert pages[1].source_url == "https://example.com/start"
-    assert pages[1].depth == 1
+    assert [page.url for page in crawl_result.pages] == [
+        "https://example.com/start",
+        "https://example.com/next",
+    ]
+    assert crawl_result.pages[1].source_url == "https://example.com/start"
+    assert crawl_result.pages[1].depth == 1
 
 
 def test_crawl_site_uses_pinned_proxy_and_blocks_service_workers(monkeypatch):
@@ -1146,9 +1218,11 @@ def test_crawl_site_uses_pinned_proxy_and_blocks_service_workers(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract, observed=observed)
 
-    pages = crawl_site_in_browser_worker(SiteSeed(url="https://example.com/start", topic="web"))
+    crawl_result = crawl_site_in_browser_worker(
+        SiteSeed(url="https://example.com/start", topic="web")
+    )
 
-    assert len(pages) == 1
+    assert len(crawl_result.pages) == 1
     assert observed["context"] == {
         "proxy": {"server": "http://127.0.0.1:43123"},
         "service_workers": "block",
@@ -1198,7 +1272,7 @@ def test_crawl_site_respects_crawl_prefix(monkeypatch):
 
     _install_fake_playwright(monkeypatch, fake_extract)
 
-    pages = crawl_site_in_browser_worker(
+    crawl_result = crawl_site_in_browser_worker(
         SiteSeed(
             url="https://example.com/docs/agents",
             topic="web",
@@ -1208,7 +1282,7 @@ def test_crawl_site_respects_crawl_prefix(monkeypatch):
         )
     )
 
-    assert [page.url for page in pages] == [
+    assert [page.url for page in crawl_result.pages] == [
         "https://example.com/docs/agents",
         "https://example.com/docs/agents/build",
     ]
@@ -1241,11 +1315,11 @@ def test_crawl_site_drops_off_host_redirect(monkeypatch):
     # Treat every host as public so only the same-host confinement can drop it.
     _install_fake_playwright(monkeypatch, fake_extract, is_public=lambda url: True)
 
-    pages = crawl_site_in_browser_worker(
+    crawl_result = crawl_site_in_browser_worker(
         SiteSeed(url="https://example.com/start", topic="web", max_pages=5)
     )
 
-    assert pages == []
+    assert crawl_result.pages == []
 
 
 @pytest.mark.parametrize(
@@ -1281,7 +1355,9 @@ def test_crawl_site_drops_redirect_outside_seed_path_scope(seed, landed_url, mon
 
     _install_fake_playwright(monkeypatch, lambda *_args: redirected)
 
-    assert crawl_site_in_browser_worker(seed) == []
+    scoped = crawl_site_in_browser_worker(seed)
+    assert scoped.pages == []
+    assert [failure.outcome for failure in scoped.failures] == ["out-of-scope"]
 
 
 def test_crawl_site_keeps_redirect_within_seed_path_scope(monkeypatch):
@@ -1302,4 +1378,179 @@ def test_crawl_site_keeps_redirect_within_seed_path_scope(monkeypatch):
 
     _install_fake_playwright(monkeypatch, lambda *_args: redirected)
 
-    assert crawl_site_in_browser_worker(seed) == [redirected]
+    assert crawl_site_in_browser_worker(seed).pages == [redirected]
+
+
+class TestObservedPageReadiness:
+    """Readiness is an observed signal, not a fixed sleep.
+
+    ``domcontentloaded`` fires before a client-rendered page has content, so a
+    flat wait truncates slow single-page apps and taxes static ones.
+    """
+
+    def _payload(self) -> dict[str, object]:
+        return {
+            "title": "Docs",
+            "final_url": "https://example.com/docs",
+            "text": "Body text that survives extraction.",
+            "links": [],
+            "pdf_links": [],
+            "video_links": [],
+            "authors": [],
+            "tags": [],
+            "truncation_reasons": [],
+        }
+
+    def test_waits_for_network_idle_before_extracting(self) -> None:
+        page = FakePage(payload=self._payload())
+
+        extracted, failure = _extract_page(
+            page, "https://example.com/docs", "example.com", "https://example.com", 0
+        )
+
+        assert failure is None
+        assert extracted is not None
+        assert page.load_states == [("networkidle", scraper_module._PAGE_NETWORK_IDLE_TIMEOUT_MS)]
+
+    def test_a_page_that_never_goes_idle_is_still_captured(self) -> None:
+        """Some pages hold a connection open forever; the ceiling must not fail them."""
+        page = FakePage(payload=self._payload(), idle_error=RuntimeError("timeout"))
+
+        extracted, failure = _extract_page(
+            page, "https://example.com/docs", "example.com", "https://example.com", 0
+        )
+
+        assert failure is None
+        assert extracted is not None
+        assert extracted.text.startswith("Body text")
+
+    def test_scroll_passes_run_after_the_idle_wait(self) -> None:
+        page = FakePage(payload=self._payload())
+
+        _extract_page(page, "https://example.com/docs", "example.com", "https://example.com", 0)
+
+        assert page.mouse.wheels == scraper_module._PAGE_SCROLL_PASSES
+        assert (
+            page.waits
+            == [scraper_module._PAGE_SETTLE_TIMEOUT_MS]
+            + [scraper_module._PAGE_SCROLL_SETTLE_TIMEOUT_MS] * scraper_module._PAGE_SCROLL_PASSES
+        )
+
+
+class TestCaptureReceiptsFromExtraction:
+    def test_a_page_with_no_usable_text_is_recorded_not_dropped(self) -> None:
+        page = FakePage(
+            payload={
+                "title": "Shell",
+                "final_url": "https://example.com/app",
+                "text": "",
+                "links": [],
+                "truncation_reasons": [],
+            },
+            status=200,
+        )
+
+        extracted, failure = _extract_page(
+            page, "https://example.com/app", "example.com", "https://example.com", 0
+        )
+
+        assert extracted is None
+        assert failure is not None
+        assert failure.outcome == "empty"
+        assert failure.status == 200
+
+    def test_a_failed_extraction_is_distinguished_from_an_empty_page(self) -> None:
+        page = FakePage(payload={}, runtime_response={"exceptionDetails": {"text": "boom"}})
+
+        extracted, failure = _extract_page(
+            page, "https://example.com/app", "example.com", "https://example.com", 0
+        )
+
+        assert extracted is None
+        assert failure is not None
+        assert failure.outcome == "extraction-failed"
+
+    def test_the_navigation_status_is_carried_into_the_receipt(self) -> None:
+        page = FakePage(payload={"text": ""}, status=404)
+
+        _extracted, failure = _extract_page(
+            page, "https://example.com/gone", "example.com", "https://example.com", 3
+        )
+
+        assert failure is not None
+        assert failure.status == 404
+        assert failure.depth == 3
+
+    @pytest.mark.parametrize("status", [True, "200", None, 600, -1])
+    def test_an_untrusted_navigation_status_falls_back_to_unknown(self, status: object) -> None:
+        assert scraper_module._navigation_status(SimpleNamespace(status=status)) == 0
+
+    def test_a_missing_navigation_response_is_unknown_not_an_error(self) -> None:
+        assert scraper_module._navigation_status(None) == 0
+
+
+def test_crawl_stops_at_its_visit_ceiling_when_every_page_fails(monkeypatch):
+    """``max_pages`` counts captured pages, so failures must not extend a crawl.
+
+    A page that fails to capture never advances the captured count, so without
+    a visit ceiling one successful seed page could hand the crawler a frontier
+    of up to ``_PAGE_LINK_LIMIT`` links and every one of them would be fetched,
+    far past the budget the operator asked for.
+    """
+    seed_page = SitePage(
+        url="https://example.com/start",
+        title="Start",
+        site_name="example.com",
+        page_type="page",
+        text="body",
+        final_url="https://example.com/start",
+        links=[f"https://example.com/child-{index}" for index in range(60)],
+    )
+    attempted: list[str] = []
+
+    def fake_extract(page, url, site_name, source_url, depth):
+        attempted.append(url)
+        return seed_page if url == "https://example.com/start" else None
+
+    _install_fake_playwright(monkeypatch, fake_extract)
+
+    result = crawl_site_in_browser_worker(
+        SiteSeed(url="https://example.com/start", topic="web", max_depth=1, max_pages=4)
+    )
+
+    assert len(attempted) <= 4 * scraper_module._VISIT_CEILING_MULTIPLIER
+    assert "budget-exhausted" in {failure.outcome for failure in result.failures}
+
+
+def test_a_healthy_crawl_never_reaches_the_visit_ceiling(monkeypatch):
+    pages_by_url = {
+        "https://example.com/start": SitePage(
+            url="https://example.com/start",
+            title="Start",
+            site_name="example.com",
+            page_type="page",
+            text="body",
+            final_url="https://example.com/start",
+            links=["https://example.com/next"],
+        ),
+        "https://example.com/next": SitePage(
+            url="https://example.com/next",
+            title="Next",
+            site_name="example.com",
+            page_type="page",
+            text="body",
+            final_url="https://example.com/next",
+        ),
+    }
+
+    def fake_extract(page, url, site_name, source_url, depth):
+        return pages_by_url.get(url)
+
+    _install_fake_playwright(monkeypatch, fake_extract)
+
+    result = crawl_site_in_browser_worker(
+        SiteSeed(url="https://example.com/start", topic="web", max_depth=1, max_pages=4)
+    )
+
+    assert len(result.pages) == 2
+    assert result.failures == []

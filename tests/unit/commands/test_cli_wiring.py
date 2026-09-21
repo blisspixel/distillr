@@ -32,7 +32,7 @@ from distill.commands import watch as _watch
 from distill.commands._helpers import _truncate_channel_list, duration_str, format_date
 from distill.commands._json import ExitCode
 from distill.config import DistillConfig
-from distill.ingestors.sites.scraper import SitePage
+from distill.ingestors.sites.scraper import SiteCrawlResult, SitePage
 from distill.library import Library
 from distill.library.paths import artifact_path, find_artifact
 from distill.pipeline.costs import (
@@ -3411,18 +3411,20 @@ class TestSiteCommands:
         try:
             monkeypatch.setattr(
                 _site_ingest,
-                "crawl_site",
-                lambda seed: [
-                    SitePage(
-                        url=seed.url,
-                        title="Example Page",
-                        site_name=seed.resolved_site_name(),
-                        page_type="page",
-                        text="Body text",
-                        pdf_links=["https://example.com/guide.pdf"],
-                        source_url=seed.url,
-                    )
-                ],
+                "crawl_site_with_receipts",
+                lambda seed: SiteCrawlResult(
+                    pages=[
+                        SitePage(
+                            url=seed.url,
+                            title="Example Page",
+                            site_name=seed.resolved_site_name(),
+                            page_type="page",
+                            text="Body text",
+                            pdf_links=["https://example.com/guide.pdf"],
+                            source_url=seed.url,
+                        )
+                    ]
+                ),
             )
             called = []
             monkeypatch.setattr(
@@ -3500,18 +3502,20 @@ class TestSiteCommands:
             )
             monkeypatch.setattr(
                 _site_ingest,
-                "crawl_site",
-                lambda seed: [
-                    SitePage(
-                        url="https://example.com/topic/agents/new",
-                        title="New Page",
-                        site_name=seed.resolved_site_name(),
-                        page_type="topic",
-                        text="Body text",
-                        source_url=seed.url,
-                        final_url="https://example.com/topic/agents/new",
-                    )
-                ],
+                "crawl_site_with_receipts",
+                lambda seed: SiteCrawlResult(
+                    pages=[
+                        SitePage(
+                            url="https://example.com/topic/agents/new",
+                            title="New Page",
+                            site_name=seed.resolved_site_name(),
+                            page_type="topic",
+                            text="Body text",
+                            source_url=seed.url,
+                            final_url="https://example.com/topic/agents/new",
+                        )
+                    ]
+                ),
             )
 
             result = runner.invoke(
@@ -3554,18 +3558,20 @@ class TestSiteCommands:
         try:
             monkeypatch.setattr(
                 _site_ingest,
-                "crawl_site",
-                lambda seed: [
-                    SitePage(
-                        url=seed.url,
-                        title="Example Page",
-                        site_name=seed.resolved_site_name(),
-                        page_type="page",
-                        text="Body text",
-                        pdf_links=["https://example.com/guide.pdf"],
-                        source_url=seed.url,
-                    )
-                ],
+                "crawl_site_with_receipts",
+                lambda seed: SiteCrawlResult(
+                    pages=[
+                        SitePage(
+                            url=seed.url,
+                            title="Example Page",
+                            site_name=seed.resolved_site_name(),
+                            page_type="page",
+                            text="Body text",
+                            pdf_links=["https://example.com/guide.pdf"],
+                            source_url=seed.url,
+                        )
+                    ]
+                ),
             )
             monkeypatch.setattr(
                 _site_ingest,
@@ -3666,7 +3672,9 @@ class TestSiteCommands:
             )
             (page_dir / "insights.md").write_text("# Existing insight", encoding="utf-8")
 
-            monkeypatch.setattr(_site_ingest, "crawl_site", lambda seed: [page])
+            monkeypatch.setattr(
+                _site_ingest, "crawl_site_with_receipts", lambda seed: SiteCrawlResult(pages=[page])
+            )
             called = []
             monkeypatch.setattr(
                 _site_ingest,

@@ -7,7 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## 0.20.4 - 2026-09-20
+
+### Fixed
+
+- Account for every URL a site crawl visits. `_extract_page` previously returned
+  nothing for both a navigation failure and a page that rendered with no usable
+  text, and the crawl loop discarded those URLs without a record, so an operator
+  could not tell an empty page from a blocked one. A whole seed that exhausted
+  its wall-clock or memory budget, or whose worker returned a result the parent
+  refused to trust, also came back as an empty page list that read like a clean
+  crawl of nothing. Each URL now leaves either a page or a typed capture receipt
+  carrying its outcome, HTTP status, crawl depth, and a bounded detail.
+- Bound the attempted pages in a site crawl, not only the captured ones. The
+  crawl loop stopped at `max_pages` captured pages, but a page that failed to
+  capture never advanced that count, so one successful page handing back a
+  frontier of up to 512 links could be followed in full. A `max_pages=8` request
+  could therefore perform hundreds of navigations against the host. Attempted
+  visits now carry their own ceiling proportional to the requested budget, and
+  a crawl stopped by that ceiling records a receipt saying so.
+- Raise the security floor on `anyio` to `>=4.14.2`. The previously resolved
+  4.13.0 carries CVE-2026-63374, where a TLS connection to an internationalized
+  domain name could be satisfied by a certificate issued for the IDNA 2003
+  encoding of that name, and CVE-2026-64847, an undrained process-pool stderr
+  pipe that wedges the awaiting call. `anyio` reaches Distill through `httpx`,
+  `openai`, `google-genai`, `mcp`, and `fastapi`; the floor is declared directly
+  so an installed `distillr` cannot resolve a vulnerable version.
+
+### Changed
+
+- Wait on observed network quiescence, under a bounded ceiling, before running
+  the page extractor. `domcontentloaded` fires before a client-rendered page has
+  its content, so the previous flat 1200 ms wait captured a hydrating
+  single-page app half-built while taxing a static page for nothing. A page that
+  never goes idle is still captured rather than failed.
+- Redact capture receipts at the persistence boundary. A crawl can follow a link
+  whose query carries a session token, and browser exception text quotes the URL
+  it was navigating to, so receipt URLs are reduced to the same scheme, host,
+  explicit port, and path view that every other stored URL already receives,
+  including URLs found inside exception detail.
+- Report capture outcomes to the operator. Site ingest prints a per-crawl
+  rollup, records one run-summary issue per failed URL, writes
+  `attempted_pages`, `captured_pages`, `failed_pages`, `capture_failures`, and
+  `capture_failure_counts` into the site manifest, and includes a failed count
+  in the site status line. An empty crawl now says why it was empty.
+- Record a page that could not be read as a warning rather than an error, so a
+  single unreachable link no longer marks an otherwise clean site run partial.
+  An outcome that stopped the whole crawl, such as an exhausted resource budget
+  or a refused worker result, stays an error because work was genuinely left
+  undone.
+- Report unreadable pages over MCP. `site_batch` returns `failed_pages` on a
+  seed row whenever a crawl could not read some of its URLs, because an agent
+  reading the JSON payload never sees the console rollup and would otherwise
+  treat a partial capture as complete. The field is omitted when nothing failed.
+- Correct the roadmap workstream table, whose version targets had drifted two
+  releases behind the versioned execution sequence and assigned future outcomes
+  to already-shipped releases.
+
 ### Added
+
+- Add `crawl_site_with_receipts` and the `SiteCrawlResult` and `CaptureFailure`
+  types to `distill.ingestors.sites`. `crawl_site` keeps its existing
+  page-list contract and is now a thin wrapper, so no caller has to change.
+- Document capture receipts where an operator or agent will look for them:
+  the `site.json` field list in `outputs.md`, the website workflow in
+  `usage.md`, and the `site_batch` response shape in `mcp.md`.
+- Add a web capture fidelity section to the roadmap recording what site capture
+  already does, what remains, and which published scraping techniques are
+  declined and why. Density-threshold content pruning and anti-detection
+  tooling are both declined, with reasons.
 
 - Add pricing and catalog support for Zhipu AI GLM (`z-ai/glm-5.3-flash`,
   `z-ai/glm-5.3`) and Alibaba Qwen (`qwen/qwen3.8-flash`, `qwen/qwen3.8-max-0902`,
@@ -18,6 +86,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Validate candidate models across `ask` (adversarial risk/hallucination fixtures),
   `paper` (extraction/limits), and `video` (two-pass synthesis) workloads under a
   strict spend budget with immutable ledger recording.
+
+### Internal
+
+- Bump the browser worker result schema to version 2, adding a bounded,
+  strictly parsed `failures` array beside `pages`.
+- Split `distill/ingestors/sites/scraper.py` back under the 1000-line module
+  cap by extracting `records.py` (the `SitePage`, `SiteSeed`, and `SiteBatch`
+  types shared by the crawler, the manifest parser, and the worker boundary)
+  and `batch.py` (site batch manifest parsing and its validators). `scraper.py`
+  re-exports both, so no import changes.
 
 ## 0.20.3 - 2026-09-17
 
