@@ -79,6 +79,35 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
   commits, pushes, or releases. Markdown instructions cannot enforce a spend
   cap or substitute for runtime authorization gates.
 
+## Responsibility to the evidence
+
+- Treat the collection as knowledge held with responsibilities. Optimize for
+  dependable understanding of the reader's question, preserving context and
+  representing sources fairly.
+- Require source-faithful summaries and explicit uncertainty. Keep source
+  identity, publication or revision date, capture date, extraction, and authored
+  interpretation distinguishable. A synthesis is an interpretation; do not
+  present its wording as the source speaking directly.
+- Preserve qualifications that materially affect meaning, including population,
+  conditions, method, time, and uncertainty. Do not turn a scoped or tentative
+  finding into a universal or certain claim during extraction or compression.
+- Preserve meaningful disagreement. Explain each side's evidence and scope;
+  leave unresolved conflicts visible instead of manufacturing consensus.
+- Make refresh selective and useful: name what changed, which prior conclusions
+  depend on it, and how it affects the reader's question. For corrections or
+  withdrawals, retain appropriate earlier provenance, flag affected synthesis,
+  and revise only affected conclusions. Do not silently erase history or
+  present obsolete conclusions as current. If the pipeline cannot yet do this,
+  record the limitation and required work rather than claiming it is handled.
+- Disclose collection boundaries: known omissions and selection reasons,
+  inaccessible material, language limits, and incomplete discovery. Missing
+  evidence is uncertainty, not evidence of absence.
+- Reuse existing capture, verification, claim history, audit, and refresh paths
+  before adding infrastructure. Use the doctrine's
+  [correction and disagreement episode](docs/design/research-desk-doctrine.md#correction-and-disagreement-episode)
+  as acceptance evidence; keep offline structural tests distinct from semantic
+  judgments and live validation.
+
 ## Canonical implementation paths
 
 - Keep CLI and MCP entry points thin. Reuse `distill/pipeline/` and the

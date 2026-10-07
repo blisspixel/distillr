@@ -18,7 +18,7 @@ from distill.llm.openrouter_catalog import (
     OpenRouterEndpointCatalog,
     OpenRouterRequestShape,
 )
-from distill.llm.openrouter_policy import validate_openrouter_model_id
+from distill.llm.openrouter_policy import underlying_model_id, validate_openrouter_model_id
 from distill.llm.providers._usage import conservative_usage, usage_or_conservative
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
@@ -140,6 +140,10 @@ class OpenRouterProvider:
                 billed_cost = _nonnegative_finite_number(_extra_value(usage, "cost"))
                 upstream_provider = _selected_upstream_provider(response)
                 resolved_model = response.model or model
+                # A supplier's bare echo identifies the same concrete route,
+                # but stripping its author would lose routed billing rates.
+                if resolved_model == underlying_model_id(model):
+                    resolved_model = model
                 if estimated:
                     logger.warning(
                         "OpenRouter response omitted valid usage metadata; using conservative bounds"

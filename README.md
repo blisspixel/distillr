@@ -6,7 +6,8 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-> Distill turns a research goal into a persistent, verifiable body of evidence.
+> Distill turns a research goal into dependable understanding backed by a
+> persistent, verifiable body of evidence.
 > It finds papers, talks, and pages from operator-trusted sites, captures
 > supplied repos, podcasts, feeds, posts, and local files, analyzes them with
 > source receipts, verifies claims before write, and synthesizes a local
@@ -32,19 +33,20 @@ before inference. On a proven local Ollama or LM Studio route the direct API
 spend is `$0.00` and the budget is wall clock: a two-paper
 ingest can take an hour on a laptop, and that is the control, not a hang. Run
 `distill bench` once so preview can print how long the full ingest will take on
-this machine. If local inference is up, use it to ingest more and stay more
-current: ad hoc commands at the keyboard, `distill profile refresh --max-hours
-6 --yes` after hours so many topics keep feeding the markdown wiki. When API
-spend is OK, the same pipeline goes wide and fast. When the shortlist looks
-right:
+this machine. Use local inference to revisit topics that matter to your
+question: ad hoc commands at the keyboard, or `distill profile refresh
+--max-hours 6 --yes` after hours for recurring profiles. Choose sources for
+their distinct evidence and useful context. When API spend is OK, the same
+pipeline can process a broader shortlist quickly. When the shortlist looks right:
 
 ```bash
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20 --workers 3
 ```
 
-Paid-ok is how you do a lot quickly: preview the shortlist, then ingest a large
-set in minutes instead of hours. Paper analysis stays one-at-a-time by default.
+Paid-ok shortens turnaround for a reviewed source set: preview for relevance,
+distinct evidence, and useful context, then ingest the selected sources in
+minutes instead of hours. Paper analysis stays one-at-a-time by default.
 After reviewing the projected total, `--workers 2` or `--workers 3` analyzes
 independent papers in a small bounded group. Discovery, artifact writes,
 verification, synthesis, and report sections remain serialized.
@@ -70,6 +72,10 @@ OpenRouter's reported billed cost, and remains blocked by `no-metered`. General
 research commands never select it automatically. The opt-in editorial workflow
 can use explicitly configured OpenRouter routes when local inference is
 unavailable. See the [provider setup](docs/install.md#openrouter-optional-metered-route).
+
+Current API candidates, prices, context limits, and SDK compatibility are
+recorded in the [October 6 model audit](docs/research/api-models-2026-10-06.md).
+Default routes stay pinned until research-quality evaluations justify a change.
 
 ## Write from a private perspective
 
@@ -125,6 +131,16 @@ files: better source curation, clearer disagreement and lineage, meaningful
 change across refreshes, and guidance on what to read or investigate next. The
 development doctrine and feature-admission test are in
 [`docs/design/research-desk-doctrine.md`](docs/design/research-desk-doctrine.md).
+
+Dependable understanding requires care for the evidence: keep sources and
+their dates distinct from extraction and authored interpretation, preserve
+qualifications and uncertainty, explain unresolved disagreement, and disclose
+collection limits. Refresh should explain what changed and which conclusions
+matter to the reader's question. Corrections and withdrawals should retain
+appropriate provenance and flag affected synthesis so obsolete conclusions
+are not presented as current. These are development requirements; selective
+revision and correction handling remain planned work, with a
+[two-source correction acceptance test](docs/design/research-desk-doctrine.md#correction-and-disagreement-episode).
 
 Corpus agent distribution uses one canonical Agent Skill plus an
 [Agent Plugins 1.0.0](https://agent-plugins.org/specification) portable package

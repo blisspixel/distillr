@@ -24,6 +24,7 @@ __all__ = [
 
 # Known cloud context windows (documented values, in tokens)
 CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
+    "grok-4.7": 500_000,
     "grok-4.6": 500_000,
     "grok-4.5": 500_000,
     "grok-4.3": 1_000_000,
@@ -32,6 +33,7 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "grok-4.20-non-reasoning": 1_000_000,
     "grok-4.20-0309-reasoning": 1_000_000,
     "grok-4.20": 1_000_000,
+    "gemini-3.8-flash": 1_048_576,
     "gemini-3.6-flash": 1_000_000,
     "gemini-3.7-flash": 1_000_000,
     "gemini-3.5-flash": 1_000_000,
@@ -42,6 +44,10 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "claude-fable-5": 1_000_000,
     "claude-mythos-5": 1_000_000,
     "claude-opus-5": 1_000_000,
+    "claude-opus-5-5": 1_000_000,
+    "claude-opus-5.5": 1_000_000,
+    "claude-sonnet-5-5": 1_000_000,
+    "claude-sonnet-5.5": 1_000_000,
     # Recent Opus 4 releases are also 1M-context. Without these entries an Opus
     # route falls back to DEFAULT_CONTEXT_WINDOW (4096) and over-chunks input.
     "claude-opus-4-8": 1_000_000,
@@ -51,12 +57,30 @@ CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
     "claude-sonnet-4": 200_000,
     "claude-haiku-4-5": 200_000,
     "claude-haiku-4": 200_000,
+    "gpt-6-astra": 1_050_000,
+    "gpt-6.1-sol": 1_050_000,
+    "gpt-6-luna": 1_050_000,
     "gpt-5.6-sol": 1_050_000,
     "gpt-5.6": 1_050_000,
     "gpt-5.6-terra": 1_050_000,
     "gpt-5.6-luna": 1_050_000,
     "gpt-4.1": 1_000_000,
     "gpt-4.1-mini": 128_000,
+    "deepseek-v4.1-flash": 1_048_576,
+    "deepseek-v4-pro-0813": 1_048_576,
+    "deepseek-v4-pro": 1_048_576,
+    "deepseek-v4-flash": 1_048_576,
+    "deepseek-v3.2": 163_840,
+    "deepseek-chat": 163_840,
+    "deepseek-r1": 64_000,
+    "glm-5.3-flash": 1_048_576,
+    "glm-5.3-flashx": 1_048_576,
+    "glm-5.3-prime": 1_000_000,
+    "glm-5.3": 1_048_576,
+    "qwen3.8-flash": 1_000_000,
+    "qwen3.8-max-0902": 1_000_000,
+    "qwen3.8-max-prime": 1_000_000,
+    "qwen3.8-omni-flash": 1_000_000,
 }
 
 LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "lmstudio"})
@@ -188,9 +212,11 @@ async def resolve_metadata(
 
 def _resolve_cloud_context_window(model: str) -> int:
     """Look up context window for a cloud model. Supports prefix matching."""
+    from distill.llm.openrouter_policy import underlying_model_id
+
     # Catalog keys are lowercase; normalize so a differently-cased model id does
     # not silently fall back to the smaller default window and over-chunk input.
-    normalized = model.strip().lower()
+    normalized = underlying_model_id(model)
     if normalized in CLOUD_CONTEXT_WINDOWS:
         return CLOUD_CONTEXT_WINDOWS[normalized]
     # Prefix match, longest key first so a broad alias cannot shadow a more

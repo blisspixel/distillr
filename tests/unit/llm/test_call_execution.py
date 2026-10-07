@@ -139,6 +139,31 @@ def test_budgeted_hosted_local_route_fails_closed_before_provider(
     assert tracker.entries == []
 
 
+@pytest.mark.parametrize("model", ["z-ai/glm-5.3-prime", "z-ai/glm-5.3-prime-20261001"])
+def test_routed_price_refuses_budget_before_provider_construction(model: str) -> None:
+    from distill.pipeline.costs import ProjectedBudgetExceededError
+
+    tracker = CostTracker(budget=0.002)
+    authorizer, reservation = usage_admission(tracker, call_type="analysis")
+    constructed: list[str] = []
+
+    def get_provider(name: str) -> _Provider:
+        constructed.append(name)
+        raise AssertionError("Budget refusal must precede construction")
+
+    options = replace(
+        _options(_Provider(RuntimeError("unused")), []),
+        provider_getter=get_provider,
+        usage_authorizer=authorizer,
+        usage_reservation=reservation,
+    )
+    with pytest.raises(ProjectedBudgetExceededError):
+        execute_call(options, "openrouter", model)
+
+    assert constructed == []
+    assert tracker.entries == []
+
+
 def test_provider_type_requires_loopback_for_local_cost_class(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

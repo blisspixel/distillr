@@ -162,19 +162,22 @@ speculatively. Current state:
 
 Dependency-ordered and versioned, never calendar-estimated:
 
-1. `0.19.74`: shipped provider accountability, optional OpenRouter, Python 3.15
-   watch, and exact release truth.
-2. `0.20.0`: explicitly requested editorial consumer and standalone skill.
-3. `0.20.1`: local-inference billing proof, interoperability maintenance, and
-   bounded API pacing.
-4. `0.20.2`: claim-generation currentness and derived-origin
-   correction.
-5. `0.20.3`: research-desk evaluation baseline.
-6. `0.20.4`: operator, accessibility, performance, and live-journey evidence.
-7. `0.20.5`: strict-boundary, deterministic-core, and security closure.
-8. `1.0.0rc1`: freeze and exercise covered contracts without new surface.
-9. `1.0.0`: publish the stability promise only while every gate remains true.
-10. Post-1.0: evidence anchors and unified contribution handoff, research
+1. `0.19.74`: shipped provider accountability, optional OpenRouter, and Python
+   3.15 readiness evidence.
+2. `0.20.0`: shipped the requested editorial consumer and standalone skill.
+3. `0.20.1`: shipped local-inference billing proof, interoperability, and API pacing.
+4. `0.20.2`: shipped frontier model registration and fallback workflow budgets.
+5. `0.20.3`: shipped strict typing expansion, modular boundaries, and coverage.
+6. `0.20.4`: shipped site-capture receipts and dependency security maintenance.
+7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
+8. `0.20.6`: correct active claim generations and preserve derived origin.
+9. `0.20.7`: publish the research-desk evaluation baseline before changing defaults.
+10. `0.20.8`: publish operator, accessibility, install, export, cold-start, and live
+    reference-journey evidence.
+11. `0.20.9`: close strict-boundary, deterministic-core, and security evidence gaps.
+12. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
+13. `1.0.0`: publish only while every gate remains true on the final commit.
+14. Post-1.0: evidence anchors and unified contribution handoff, research
    program and portfolio selection, field model, meaningful refresh, reading
    paths, bounded stewardship loops, qualified provider breadth, recipes,
    merge, and plugins.

@@ -253,6 +253,23 @@ def test_await_interaction_returns_completed_interaction():
     assert interaction_text(result) == "done"
 
 
+@pytest.mark.parametrize("interaction_id", [None, "", "  "])
+def test_missing_interaction_id_keeps_submission_receipt_without_polling(interaction_id):
+    tracker = CostTracker()
+    accepted = submit_metered_interaction(
+        lambda: SimpleNamespace(id=interaction_id),
+        tracker=tracker,
+        model="deep-research-preview-04-2026",
+    )
+    client = _FakeClient([])
+    console, buf = _console()
+
+    assert await_interaction(client, accepted.id, console, label="Research") is None
+    assert "provider returned no interaction ID" in buf.getvalue()
+    assert tracker.gemini_query_outcomes == ["accepted"]
+    assert tracker.gemini_queries == 1
+
+
 def test_await_interaction_polls_through_in_progress():
     client = _FakeClient(
         [

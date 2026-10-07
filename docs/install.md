@@ -135,6 +135,11 @@ explicitly, permit metered spend, and review the estimate before running it.
 OpenAI model IDs are retained only for cost-registry and future-routing truth;
 OpenAI is not currently a runnable Distill provider.
 
+The [October 6 model and SDK audit](research/api-models-2026-10-06.md) records
+current selectable candidates, provider-specific rates, context limits, and
+verification boundaries. New candidates require explicit selection; default
+routes change only after the research-quality evaluation gate.
+
 ### OpenRouter optional metered route
 
 OpenRouter is useful when a direct-provider quota is unavailable and local

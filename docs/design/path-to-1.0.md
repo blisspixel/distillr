@@ -2,11 +2,9 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-for the `distillr==0.20.0` editorial release and subsequent maintenance
-reviews. The `0.20.1` boundary closed billing and interoperability
-blockers; `0.20.2` registered frontier models and OpenRouter routing; `0.20.3`
-expands strict Pyright checking, modular boundaries, and test coverage;
-`0.20.4` retains the claim-generation trust backlog.
+for the `0.20.5` API and billing maintenance boundary. Releases `0.20.1`
+through `0.20.4` shipped billing, routing, typing, and capture fixes;
+`0.20.6` is next for claim generations and derived-origin preservation.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -112,27 +110,21 @@ The authoritative version table and update protocol live in
 [`ROADMAP.md`](../../ROADMAP.md#versioned-execution-sequence). No row carries a
 date or duration estimate.
 
-1. `0.19.74`: shipped provider accountability, OpenRouter, and Python 3.15
-   readiness evidence.
-2. `0.20.0`: release the explicitly requested editorial consumer and standalone
-   perspective skill independently of the remaining research-desk backlog.
-3. `0.20.1`: close local-inference billing and interoperability blockers, with
-   bounded request pacing and current release evidence.
-4. `0.20.2`: correct active claim generations and derived-origin
-   preservation.
-5. `0.20.3`: publish the expert-authored research-desk evaluation baseline.
-6. `0.20.4`: publish operator, accessibility, install, export, cold-start, and
-   live reference-journey evidence.
-7. `0.20.5`: close remaining strict-boundary, deterministic-core, and
-   freeze-time security evidence.
-8. `1.0.0rc1`: freeze and exercise the exact compatibility promise without new
-   product surface.
-9. `1.0.0`: publish only when the release-candidate evidence remains valid on
-   the final commit.
-
-Post-1.0 work retains its existing dependency order: research program,
-evidence portfolio, field model, meaningful refresh, navigation, bounded
-stewardship loops, qualified provider breadth, recipes, merge, and plugins.
+1. `0.19.74`: shipped provider accountability, optional OpenRouter, and Python
+   3.15 readiness evidence.
+2. `0.20.0`: shipped the requested editorial consumer and standalone skill.
+3. `0.20.1`: shipped local-inference billing proof, interoperability, and API pacing.
+4. `0.20.2`: shipped frontier model registration and fallback workflow budgets.
+5. `0.20.3`: shipped strict typing expansion, modular boundaries, and coverage.
+6. `0.20.4`: shipped site-capture receipts and dependency security maintenance.
+7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
+8. `0.20.6`: correct active claim generations and preserve derived origin.
+9. `0.20.7`: publish the research-desk evaluation baseline before changing defaults.
+10. `0.20.8`: publish operator, accessibility, install, export, cold-start, and live
+    reference-journey evidence.
+11. `0.20.9`: close strict-boundary, deterministic-core, and security evidence gaps.
+12. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
+13. `1.0.0`: publish only while every gate remains true on the final commit.
 
 ## Success criteria for 1.0.0
 
@@ -181,10 +173,12 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.20.0` | released | budgeted editorial workflow, Markdown/DOCX sample, optional portable skill, tests and release artifacts |
 | `0.20.1` | shipped | local-inference billing proof, MCP and Agent Plugins compatibility, bounded API pacing, release evidence |
 | `0.20.2` | shipped | frontier model registration, OpenRouter DeepSeek routing and defaults, global workflow budget fallbacks, tests and release evidence |
-| `0.20.3` | current | strict Pyright expansion (7 subpackages), modular module refactorings, test coverage elevation to 95.43%, persistent agent instructions |
-| `0.20.4` | next | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
-| `0.20.5` | queued | expert-authored research-desk fixtures and published baseline results |
-| `0.20.6` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
-| `0.20.7` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `0.20.3` | shipped | strict Pyright expansion, modular boundaries, coverage, and agent instructions |
+| `0.20.4` | shipped | typed site-capture receipts, bounded visits, readiness, and dependency security |
+| `0.20.5` | current | current model and pricing audit, SDK compatibility, routed billing regressions, dependency security, full release gates |
+| `0.20.6` | next | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
+| `0.20.7` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.8` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.20.9` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
 | `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

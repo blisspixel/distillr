@@ -72,7 +72,7 @@ class GrokProvider:
                 if temperature is not None:
                     kwargs["temperature"] = temperature
                 if reasoning_effort is not None and model.startswith(
-                    ("grok-4.6", "grok-4.5", "grok-4.3")
+                    ("grok-4.7", "grok-4.6", "grok-4.5", "grok-4.3")
                 ):
                     kwargs["reasoning_effort"] = reasoning_effort
 

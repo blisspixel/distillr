@@ -147,6 +147,7 @@ def test_prefix_matching_for_versioned_model_names() -> None:
 @pytest.mark.parametrize(
     "model,expected_input,expected_output",
     [
+        ("grok-4.7", 2.00, 6.00),
         ("grok-4.6", 2.00, 6.00),
         ("grok-4.5", 2.00, 6.00),
         ("grok-4.3", 1.25, 2.50),
@@ -162,10 +163,17 @@ def test_prefix_matching_for_versioned_model_names() -> None:
         ("claude-fable-5", 10.00, 50.00),
         ("claude-mythos-5", 10.00, 50.00),
         ("claude-opus-5", 5.00, 25.00),
+        ("claude-opus-5-5", 4.00, 20.00),
+        ("anthropic/claude-opus-5.5", 4.00, 20.00),
+        ("claude-sonnet-5-5", 2.00, 10.00),
+        ("anthropic/claude-sonnet-5.5", 2.00, 10.00),
         ("claude-sonnet-4", 3.00, 15.00),
         ("claude-haiku-4-5", 1.00, 5.00),
         ("claude-haiku-4", 0.80, 4.00),
         ("gpt-5.6-sol", 5.00, 30.00),
+        ("gpt-6-astra", 10.00, 50.00),
+        ("gpt-6.1-sol", 2.00, 10.00),
+        ("gpt-6-luna", 0.10, 0.50),
         ("gpt-5.6", 5.00, 30.00),
         ("gpt-5.6-terra", 2.50, 15.00),
         ("gpt-5.6-luna", 1.00, 6.00),
@@ -183,6 +191,8 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
 @pytest.mark.parametrize(
     ("model", "threshold", "short_cost", "long_cost"),
     [
+        ("grok-4.7", 200_000, 0.999998, 2.0),
+        ("x-ai/grok-4.7", 200_000, 0.999998, 2.0),
         ("grok-4.6", 200_000, 0.999998, 2.0),
         ("grok-4.3", 200_000, 0.49999875, 1.0),
         ("gemini-3.1-pro-preview", 200_001, 1.6, 2.600004),
@@ -190,6 +200,9 @@ def test_per_token_model_rates(model: str, expected_input: float, expected_outpu
         ("gpt-5.6-sol", 272_001, 4.36, 7.22001),
         ("gpt-5.6-terra", 272_001, 2.18, 3.610005),
         ("gpt-5.6-luna", 272_001, 0.872, 1.444002),
+        ("gpt-6-astra", 272_001, 7.72, 12.94002),
+        ("gpt-6.1-sol", 272_001, 1.544, 2.588004),
+        ("gpt-6-luna", 272_001, 0.0772, 0.1294002),
     ],
 )
 def test_long_context_pricing_starts_at_registered_boundary(
@@ -284,7 +297,7 @@ def test_gemini38_standard_pricing_after_cutover(monkeypatch: pytest.MonkeyPatch
 
 
 def test_pricing_sources_are_auditable_without_network_access() -> None:
-    assert PRICING_VERIFIED_ON == "2026-09-15"
+    assert PRICING_VERIFIED_ON == "2026-10-06"
     assert pricing_source_for_model("grok-4.6") == PRICING_SOURCE_URLS["xai"]
     assert pricing_source_for_model("gemini-3.8-flash") == PRICING_SOURCE_URLS["gemini"]
     assert pricing_source_for_model("gemini-3.7-flash") == PRICING_SOURCE_URLS["gemini"]
@@ -303,14 +316,16 @@ def test_pricing_sources_are_auditable_without_network_access() -> None:
 
 def test_openrouter_candidate_model_pricing() -> None:
     rates = get_pricing("z-ai/glm-5.3-flash")
-    assert rates["input"] == 0.09
-    assert rates["output"] == 0.30
-    assert compute_cost("z-ai/glm-5.3-flash", 1_000_000, 1_000_000) == pytest.approx(0.39)
+    assert rates["input"] == 0.15
+    assert rates["output"] == 0.50
+    assert compute_cost("z-ai/glm-5.3-flash", 1_000_000, 1_000_000) == pytest.approx(0.65)
+    assert get_pricing("glm-5.3-flash") == {"input": 0.09, "output": 0.30}
 
     rates = get_pricing("z-ai/glm-5.3")
-    assert rates["input"] == 1.40
-    assert rates["output"] == 4.40
-    assert compute_cost("z-ai/glm-5.3", 1_000_000, 1_000_000) == pytest.approx(5.80)
+    assert rates["input"] == 0.07
+    assert rates["output"] == 7.00
+    assert compute_cost("z-ai/glm-5.3", 1_000_000, 1_000_000) == pytest.approx(7.07)
+    assert get_pricing("glm-5.3") == {"input": 1.40, "output": 4.40}
 
     rates = get_pricing("qwen/qwen3.8-flash")
     assert rates["input"] == 0.15
@@ -321,6 +336,31 @@ def test_openrouter_candidate_model_pricing() -> None:
     assert rates["input"] == 2.00
     assert rates["output"] == 6.00
     assert compute_cost("qwen/qwen3.8-max-0902", 1_000_000, 1_000_000) == pytest.approx(8.00)
+
+
+@pytest.mark.parametrize(
+    "model,input_rate,output_rate",
+    [
+        ("z-ai/glm-5.3-flashx", 0.37, 1.25),
+        ("deepseek/deepseek-v4-pro-0813", 1.32, 3.96),
+        ("deepseek/deepseek-v4-pro", 0.2088, 0.4176),
+        ("deepseek/deepseek-v4-flash", 0.03, 1.28),
+        ("deepseek/deepseek-v3.2", 0.28, 0.42),
+        ("deepseek/deepseek-chat", 0.2574, 1.0287),
+        ("deepseek/deepseek-r1", 0.70, 2.50),
+        ("z-ai/glm-5.3-prime", 2.80, 8.80),
+        ("qwen/qwen3.8-max-prime", 4.00, 12.00),
+        ("qwen/qwen3.8-omni-flash", 0.15, 0.47),
+        ("  Z-AI/GLM-5.3-PRIME  ", 2.80, 8.80),
+        ("z-ai/glm-5.3-prime-20261001", 2.80, 8.80),
+        ("deepseek/deepseek-v4-pro-0813-20261001", 1.32, 3.96),
+    ],
+)
+def test_openrouter_exact_variant_does_not_inherit_cheaper_family_rate(
+    model: str, input_rate: float, output_rate: float
+) -> None:
+    assert has_known_pricing(model)
+    assert get_pricing(model) == {"input": input_rate, "output": output_rate}
 
 
 def test_deep_research_query_cost_model_aware() -> None:

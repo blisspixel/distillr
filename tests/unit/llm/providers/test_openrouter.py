@@ -265,6 +265,21 @@ def test_missing_usage_and_cost_fall_back_conservatively(caplog: pytest.LogCaptu
     assert "billed-cost" in caplog.text
 
 
+@pytest.mark.parametrize("echo", ["glm-5.3-prime", "z-ai/glm-5.3-prime", ""])
+def test_bare_echo_preserves_route_price_when_billed_cost_is_missing(echo: str) -> None:
+    from distill.pipeline.costs import CostTracker, TokenUsage
+
+    provider, client, _catalog = _provider()
+    client.chat.completions.create.return_value = _response(model=echo, cost=None)
+    result = asyncio.run(provider.call("z-ai/glm-5.3-prime", "hello", retries=0))
+
+    assert result.model == "z-ai/glm-5.3-prime"
+    assert result.usage_attempts[0].model == "z-ai/glm-5.3-prime"
+    tracker = CostTracker(budget=1.0)
+    tracker.record(TokenUsage.from_response(result))
+    assert tracker.total_cost == pytest.approx((12 * 2.80 + 7 * 8.80) / 1_000_000)
+
+
 def test_retry_preserves_each_attempt_and_billed_success() -> None:
     provider, client, _catalog = _provider()
     client.chat.completions.create.side_effect = [RuntimeError("temporary"), _response()]

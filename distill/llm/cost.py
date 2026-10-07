@@ -36,7 +36,8 @@ _GEMINI_FLASH_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.5
 # Registry review metadata is deliberately code-visible so operators and tests
 # can distinguish a recently verified price from an old hard-coded guess. CI
 # never scrapes vendor pages or contacts a paid API.
-PRICING_VERIFIED_ON: str = "2026-09-15"
+# The dated audit scopes current routes; retained legacy rates are historical.
+PRICING_VERIFIED_ON: str = "2026-10-06"
 PRICING_SOURCE_URLS: dict[str, str] = {
     "xai": "https://docs.x.ai/developers/models",
     "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
@@ -64,6 +65,14 @@ MAX_TRANSCRIPTION_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 # ---------------------------------------------------------------------------
 
 PRICING: dict[str, dict[str, float]] = {
+    # Current named routes are reviewed in docs/research/api-models-2026-10-06.md.
+    "grok-4.7": {
+        "input": 2.00,
+        "output": 6.00,
+        "long_context_min_input": 200_000,
+        "long_input": 4.00,
+        "long_output": 12.00,
+    },
     # xAI Grok — current models
     # xAI bills the higher rates for every token in a request once its prompt
     # reaches 200K tokens. Cached-input discounts are intentionally omitted:
@@ -181,6 +190,8 @@ PRICING: dict[str, dict[str, float]] = {
     "claude-mythos-5.1": {"input": 10.00, "output": 50.00},
     "claude-mythos-5-1": {"input": 10.00, "output": 50.00},
     "claude-mythos-5": {"input": 10.00, "output": 50.00},
+    "claude-opus-5-5": {"input": 4.00, "output": 20.00},
+    "claude-opus-5.5": {"input": 4.00, "output": 20.00},
     "claude-opus-5": {"input": 5.00, "output": 25.00},
     "claude-opus-4-8": {"input": 5.00, "output": 25.00},
     "claude-opus-4-7": {"input": 5.00, "output": 25.00},
@@ -191,12 +202,35 @@ PRICING: dict[str, dict[str, float]] = {
     # a budget cap overshoot by the same factor. Longest-prefix-wins keeps the
     # exact entries above authoritative.
     "claude-opus-4": {"input": 5.00, "output": 25.00},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00},
+    "claude-sonnet-5.5": {"input": 2.00, "output": 10.00},
     "claude-sonnet-5": {"input": 2.00, "output": 10.00},
     "claude-sonnet-4": {"input": 3.00, "output": 15.00},
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "claude-haiku-4": {"input": 0.80, "output": 4.00},
     # OpenAI reserved route pricing. The route remains unimplemented, but
     # registry entries keep future estimates and historical ledgers honest.
+    "gpt-6-astra": {
+        "input": 10.00,
+        "output": 50.00,
+        "long_context_min_input": 272_001,
+        "long_input": 20.00,
+        "long_output": 75.00,
+    },
+    "gpt-6.1-sol": {
+        "input": 2.00,
+        "output": 10.00,
+        "long_context_min_input": 272_001,
+        "long_input": 4.00,
+        "long_output": 15.00,
+    },
+    "gpt-6-luna": {
+        "input": 0.10,
+        "output": 0.50,
+        "long_context_min_input": 272_001,
+        "long_input": 0.20,
+        "long_output": 0.75,
+    },
     "gpt-5.6-sol": {
         "input": 5.00,
         "output": 30.00,
@@ -229,6 +263,15 @@ PRICING: dict[str, dict[str, float]] = {
     "gpt-4.1": {"input": 2.00, "output": 8.00},
     "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
     # DeepSeek models (available via OpenRouter and local runtimes)
+    "deepseek/deepseek-v4.1-flash": {"input": 0.30, "output": 1.20},
+    # Scheduled OpenRouter promotions can halve these rates. Authorize at the
+    # full rate so a call crossing a UTC pricing window remains bounded.
+    "deepseek/deepseek-v4-pro-0813": {"input": 1.32, "output": 3.96},
+    "deepseek/deepseek-v4-pro": {"input": 0.2088, "output": 0.4176},
+    "deepseek/deepseek-v4-flash": {"input": 0.03, "output": 1.28},
+    "deepseek/deepseek-v3.2": {"input": 0.28, "output": 0.42},
+    "deepseek/deepseek-chat": {"input": 0.2574, "output": 1.0287},
+    "deepseek/deepseek-r1": {"input": 0.70, "output": 2.50},
     "deepseek-v4.1-flash": {"input": 0.30, "output": 1.20},
     "deepseek-v4-flash": {"input": 0.09, "output": 0.18},
     "deepseek-v4-pro": {"input": 1.60, "output": 3.20},
@@ -236,12 +279,19 @@ PRICING: dict[str, dict[str, float]] = {
     "deepseek-chat": {"input": 0.27, "output": 1.10},
     "deepseek-r1": {"input": 0.55, "output": 2.19},
     # Zhipu AI GLM models (available via OpenRouter)
+    # Exact OpenRouter rates take precedence over supplier estimates below.
+    "z-ai/glm-5.3-flash": {"input": 0.15, "output": 0.50},
+    "z-ai/glm-5.3": {"input": 0.07, "output": 7.00},
+    "z-ai/glm-5.3-flashx": {"input": 0.37, "output": 1.25},
+    "z-ai/glm-5.3-prime": {"input": 2.80, "output": 8.80},
     "glm-5.3-flash": {"input": 0.09, "output": 0.30},
     "glm-5.3": {"input": 1.40, "output": 4.40},
     # Alibaba Qwen models (available via OpenRouter)
     "qwen3.8-flash": {"input": 0.15, "output": 0.47},
     "qwen3.8-max-0902": {"input": 2.00, "output": 6.00},
     "qwen3.8-max": {"input": 2.00, "output": 6.00},
+    "qwen/qwen3.8-max-prime": {"input": 4.00, "output": 12.00},
+    "qwen/qwen3.8-omni-flash": {"input": 0.15, "output": 0.47},
 }
 
 DEFAULT_MODEL: str = "grok-4.6"
@@ -324,9 +374,9 @@ def get_pricing(model: str) -> dict[str, float]:
     """Look up pricing for *model*, with prefix-match and default fallback.
 
     Resolution order:
-    1. Date-resolved temporary pricing windows.
-    2. Exact match in ``PRICING``.
-    3. Prefix match, e.g. ``"grok-4.6-beta"`` matches ``"grok-4.6"``.
+    1. Exact provider-specific route in ``PRICING``.
+    2. Date-resolved temporary pricing windows.
+    3. Exact underlying model or longest-prefix compatibility match.
     4. Fall back to ``DEFAULT_MODEL`` and log a warning.
     """
     # Normalize first: catalog keys are lowercase, but a model id reaches here
@@ -366,6 +416,15 @@ def is_nonbinding_planning_price(model: str) -> bool:
 def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     from distill.llm.openrouter_policy import underlying_model_id
 
+    route_id = model.strip().lower()
+    # A routed endpoint can charge differently from the original supplier.
+    # Keep exact provider identity before resolving compatibility aliases.
+    if route_id in PRICING and not _is_intro_priced_gemini_flash_model(route_id):
+        return PRICING[route_id]
+    if "/" in route_id:
+        for key in sorted(PRICING, key=len, reverse=True):
+            if "/" in key and route_id.startswith(key):
+                return PRICING[key]
     normalized = underlying_model_id(model)
     if not normalized:
         return None

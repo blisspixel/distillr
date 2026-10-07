@@ -25,17 +25,21 @@ does not independently schedule releases.
 - `0.20.3` shipped strict Pyright checking across seven core subpackages
   (64.7% of codebase), anti-god file modular refactorings, branch coverage
   elevation to 95.43%, and refined persistent agentic instructions.
-- `0.20.4` is the current release: site crawls now account for every URL they
+- `0.20.4` shipped: site crawls now account for every URL they
   visit through typed capture receipts, page readiness is observed rather than
   assumed, attempted visits carry their own ceiling, and the `anyio` security
   floor clears a critical TLS certificate-validation advisory. It was inserted
   under the release-blocker rule, so the rows below each moved down one place
   with their scope unchanged.
-- `0.20.5` is next and owns claim-generation retirement and derived-origin
+- `0.20.5` is current and closes API, routed billing, SDK compatibility, and
+  dependency security defects. See the [dated audit](research/api-models-2026-10-06.md).
+  It inserts a maintenance boundary and shifts the remaining rows without
+  expanding their scope.
+- `0.20.6` is next and owns claim-generation retirement and derived-origin
   preservation.
-- `0.20.6` owns the research-desk evaluation baseline.
-- `0.20.7` owns operator, accessibility, and performance evidence.
-- `0.20.8` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.7` owns the research-desk evaluation baseline.
+- `0.20.8` owns operator, accessibility, and performance evidence.
+- `0.20.9` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
@@ -70,17 +74,18 @@ The current acquisition and trust foundation covers eight source types:
 
 Current product priorities, in release order:
 
-The `0.20.1` maintenance release first closes the billing and compatibility
-blockers discovered during the current-source review. The product sequence is:
+The shipped `0.20.1` maintenance release closed the billing and compatibility
+blockers discovered during the current-source review. The remaining product
+sequence is:
 
 1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.20.5`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.6`
+   in `0.20.6`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.7`
    before changing discovery or synthesis behavior.
 3. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.20.7`.
+   journey evidence in `0.20.8`.
 4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.20.8`.
+   verification, and the freeze-time security receipt in `0.20.9`.
 5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -105,7 +110,7 @@ Remaining editorial increments include corpus receipt selection, per-topic
 queues, digest-bound resume, calibrated local model profiles, qualified quota
 workers, and Retonr rewriting after its adapter contract exists. The research
 desk's remaining trust, evaluation and operator work stays scheduled in
-`0.20.2` through `0.20.5`, before the 1.0 stability commitment.
+`0.20.2` through `0.20.6`, before the 1.0 stability commitment.
 
 The work ahead is ordered around the outcomes a strong research desk provides:
 
@@ -298,7 +303,20 @@ score merely to expose these capabilities.
   source selection, canonical versus peripheral role, redundancy, method and
   viewpoint coverage, disagreement causes, field-model quality, meaningful
   change, reading order, honest gaps, and stopping. Record the current system's
-  performance before changing prompts or orchestration.
+  performance before changing prompts or orchestration. Include the
+  [correction and disagreement episode](design/research-desk-doctrine.md#correction-and-disagreement-episode)
+  in the `0.20.7` baseline: two conflicting sources and a synthesis, followed
+  by a correction to one source. Report history retention, affected conclusions,
+  preserved qualifications, unresolved disagreement, and collection limits
+  separately; record failures without claiming planned behavior is implemented.
+- [ ] **Source correction and withdrawal handling.** Use existing capture,
+  verification, claim history, audit, and refresh mechanisms before adding
+  infrastructure. Preserve appropriate earlier receipts and interpretation,
+  record the correction or withdrawal and its date, flag affected synthesis,
+  and revise only dependent conclusions. Retain unaffected findings and
+  unresolved disagreement, and explain relevance to the reader's question.
+  This is post-1.0 research-desk work; `0.20.6` remains the bounded claim
+  generation and derived-origin correction.
 - [ ] **Inquiry map.** Derive revisable lines of inquiry from operator-owned
   intent, including why each matters, useful evidence roles, current support,
   and important unknowns. The model owns the semantic decomposition. Python
