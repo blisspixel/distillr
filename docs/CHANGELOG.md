@@ -72,9 +72,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Validation
 
-- The initial audit passed 7,493 tests at 95.45% branch-enabled coverage. The
-  final billing corrections passed 132 focused cost, execution, and real-SDK
-  tests. The release requires full CI on its exact main commit before tagging;
+- The final release candidate passed 7,503 tests at 95.46% branch-enabled
+  coverage on Windows/Python 3.12.13, with 4 skips, 9 deselections, and one
+  upstream Starlette deprecation warning. The final billing corrections also
+  passed 132 focused cost, execution, and real-SDK tests. The release requires
+  full CI on its exact main commit before tagging;
   final run receipts are retained in the release pull request and workflows.
 - Frozen resolution, lint, formatting, Pyright with warnings denied, import
   contracts, Bandit, dependency auditing, public contracts, both generated

@@ -234,7 +234,10 @@ above. Final hosted receipts are linked from the release and its pull request.
   for successful responses, rate limits, and local redirect refusal. Missing
   research IDs refused polling while retaining the submission receipt.
 
-The final release candidate also passed 132 focused cost, call-execution, and
+The final release candidate passed **7,503 tests**, with **95.46% branch-enabled
+coverage**, 4 skips, 9 deselections, and the same single upstream warning, in
+719.02 seconds on Windows/Python 3.12.13. This supersedes the initial full-suite
+receipt for release gating. It also passed 132 focused cost, call-execution, and
 real-SDK tests after the scheduled-pricing correction. Its rebuilt wheel passed
 the isolated installation checks. The six retained native plugin cases and
 their reports match their recorded hashes; skills, references, evals, and
