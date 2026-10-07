@@ -249,14 +249,15 @@ class TestGeminiProviderSuccess:
             "temperature": 0.4,
         }
 
-    def test_temperature_is_omitted_for_models_that_deprecate_sampling(self) -> None:
+    @pytest.mark.parametrize("model", ["gemini-3.7-flash", "gemini-3.8-flash"])
+    def test_temperature_is_omitted_for_models_that_deprecate_sampling(self, model: str) -> None:
         """Current Flash families ignore sampling params, so do not forward them."""
         provider, mock_client = _build_provider()
         mock_client.models.generate_content.return_value = _make_mock_response()
 
         asyncio.run(
             provider.call(
-                "gemini-3.7-flash",
+                model,
                 "hello",
                 max_tokens=123,
                 temperature=0.4,

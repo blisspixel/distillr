@@ -15,6 +15,32 @@ The corpus is the product. Its value is not the number of files it contains.
 Its value is how quickly and faithfully it helps a person or agent understand
 the body of evidence.
 
+## Responsibility to the evidence
+
+The research collection is knowledge held with responsibilities: preserve
+context, represent sources fairly, and help readers understand changes.
+
+Keep the original source and its publication or revision date, the capture
+date and receipt, extracted material, and authored interpretation
+distinguishable. A synthesis is an authored interpretation, not the source
+speaking directly. Compression must preserve qualifications that change
+meaning: who a claim applies to, under which conditions and methods, during
+which period, and with what uncertainty.
+
+Explain meaningful disagreement with the evidence on each side. Distinguish
+conflicting findings from differences in scope, and retain unresolved conflict
+when the evidence does not justify resolution.
+
+Make collection boundaries visible alongside conclusions: known omitted
+sources and selection reasons, inaccessible material, language limits, and
+areas where discovery may be incomplete. Do not imply that the collection is
+exhaustive or that unavailable evidence supports a conclusion.
+
+These are product requirements. Existing capture receipts, write-time
+verification, append-only claim history, audit, and recurring profiles provide
+the implementation seams. Complete correction handling and selective revision
+remain planned; instructions alone do not implement or validate them.
+
 ## Human role
 
 Distillr augments an exceptional research librarian, literature analyst, and
@@ -283,6 +309,19 @@ Each change must name the affected inquiry and resolve to current evidence
 handles. New publication count is structural metadata, not proof of meaningful
 change.
 
+Select refresh work for its likely effect on the reader's question. Explain
+what changed in a source, which prior conclusions depend on that change, and
+whether it changes the answer. Preserve unaffected conclusions; a refreshed
+publication date alone does not justify revising them.
+
+When a source is corrected or withdrawn, retain appropriate earlier receipts
+and provenance, identify the later notice or revision and its date, and flag
+affected synthesis for review. Keep historical interpretation distinguishable
+from the current view. Do not silently replace the record, continue presenting
+obsolete conclusions as current, or treat an inaccessible source as withdrawn.
+If fresh verification refuses publication, retain the earlier record with its
+affected status visible rather than implying it is still current.
+
 `unchanged` is a valuable result. It prevents a recurring profile from
 manufacturing novelty merely because it found recent documents.
 
@@ -403,6 +442,40 @@ controlled expectations, bounded behavior, and reproducible plan commitment.
 Semantic success belongs to per-case model-judge verdicts and representative
 human review. No keyword, length, overlap, embedding, or fine-grained model
 score may impersonate research quality.
+
+### Correction and disagreement episode
+
+This is required acceptance evidence for the research-desk evaluation baseline,
+not a claim that the current pipeline passes it.
+
+1. Start with a reader's question and two dated sources, A and B, that disagree
+   under comparable conditions. A also supports a separate, unaffected
+   conclusion. Capture both receipts and produce a synthesis that attributes
+   each position, preserves material qualifications, and leaves the conflict
+   unresolved.
+2. Capture a later correction to A that narrows one finding but does not settle
+   the remaining conflict with B. Keep the earlier receipt, extraction, and
+   synthesis inspectable with their dates and origin.
+3. Refresh through the existing capture, claim, verification, and synthesis
+   paths. Identify the changed evidence and the conclusions that depend on it;
+   flag the earlier affected synthesis and revise only those conclusions.
+4. Verify that the unaffected conclusion retains its meaning and support, the
+   remaining disagreement and each side's evidence stay visible, and the change
+   explanation addresses the reader's question. Disclose fixture omissions,
+   access limits, and language boundaries.
+
+Add variants for a withdrawal, a successful zero-claim extraction, an invalid
+extraction or refused verification, and a later batch with no meaningful change.
+Withdrawal preserves history and removes current reliance on withdrawn support;
+failed extraction must not masquerade as a successful correction or retirement.
+
+Offline tests check exact identities, dates, receipts, preserved history,
+active evidence membership, affected status, and publication boundaries with
+mocked model calls. Per-criterion semantic review checks faithful qualification,
+fair disagreement, unchanged meaning of unaffected conclusions, and useful
+explanation. Record current failures before changing defaults. The baseline
+belongs to `0.20.7`; broader correction and selective-revision behavior remains
+in the post-1.0 research-desk program unless the roadmap explicitly admits it.
 
 ## Failure modes to resist
 

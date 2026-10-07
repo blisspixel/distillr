@@ -41,6 +41,27 @@ The native corpus remains the source of truth. MCP, Agent Skills, Agent Plugins,
 OKF exports, dashboard views, and future indexes are interfaces or projections
 over those files, not alternate databases of record.
 
+## Responsibility to the evidence
+
+The collection must preserve context, source fidelity, material qualifications,
+and explicit uncertainty. Keep source identity and dates, extraction, and
+authored interpretation distinct. Explain conflicting evidence and expose
+collection limits, including omissions, inaccessible material, language limits,
+and incomplete discovery.
+
+Refresh should explain what changed, which conclusions depend on it, and its
+effect on the reader's question. Corrections and withdrawals must preserve
+appropriate earlier provenance, flag affected synthesis, and revise affected
+conclusions while retaining unresolved disagreement and unaffected findings.
+
+Existing capture receipts, verification, claim history, audit, and profiles are
+the starting points. `0.20.6` keeps the bounded evidence-state correction scope after maintenance.
+`0.20.7` records current failures against the
+[two-source correction episode](docs/design/research-desk-doctrine.md#correction-and-disagreement-episode).
+Complete correction handling and selective revision remain planned in the
+post-1.0 research-desk program; this requirement does not claim shipped support
+or introduce new infrastructure.
+
 ## Decision boundaries
 
 Distill uses deterministic rules for facts with ground truth: schema parsing,
@@ -84,25 +105,27 @@ and a scope; they are not schedule promises.
 | 3 | `0.20.1` | Shipped | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.1) |
 | 4 | `0.20.2` | Shipped | Register frontier models, OpenRouter DeepSeek routing, and fallback workflow budgets | Verified pricing for Gemini 3.8 Flash, Claude Fable 5.1/Mythos 5.1, and OpenRouter DeepSeek models; default OpenRouter model selection and catalog; global workflow budget fallback; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.2) |
 | 5 | `0.20.3` | Shipped | Expand strict type checking, decouple near-limit modules, elevate unit test coverage, and refine persistent agent instructions | Seven core subpackages promoted to strict Pyright with zero errors/warnings (64.7% of codebase); anti-god file decompositions for commands and worker tasks keeping all files under 915 lines; branch coverage raised to 95.43%; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
-| 6 | `0.20.4` | Current | Make site capture account for every URL it visits, and clear a critical dependency vulnerability | Typed per-URL capture receipts reaching the manifest, run summary, and status line; whole-seed budget and worker failures recorded rather than returned as an empty crawl; observed network quiescence in place of a fixed post-load wait; receipt URLs redacted at the persistence boundary; `anyio` security floor with clean `pip-audit`; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
-| 7 | `0.20.5` | Next | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Complete versus invalid extraction tests; generation and zero-claim retirement; no stale synthesis fallback; source-versus-derived origin; migration and legacy-read coverage; audit and synthesis behavior; full CI and release notes |
-| 8 | `0.20.6` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
-| 9 | `0.20.7` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
-| 10 | `0.20.8` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
-| 11 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
-| 12 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
+| 6 | `0.20.4` | Shipped | Make site capture account for every URL it visits, and clear a critical dependency vulnerability | Typed per-URL capture receipts reaching the manifest, run summary, and status line; whole-seed budget and worker failures recorded rather than returned as an empty crawl; observed network quiescence in place of a fixed post-load wait; receipt URLs redacted at the persistence boundary; `anyio` security floor with clean `pip-audit`; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
+| 7 | `0.20.5` | Current | Close current API, billing, and dependency security defects | Dated primary-source pricing and model audit; compatible SDK requests; routed price and ledger regressions; unchanged budget refusal, retries, and local transport boundaries; clean dependency audit; full CI, exact-wheel smoke, aligned skill archives, and matching GitHub/PyPI artifacts |
+| 8 | `0.20.6` | Next | Correct active derived evidence so removed assertions retire and corpus-derived answers retain derived origin | Complete versus invalid extraction tests; generation and zero-claim retirement; no stale synthesis fallback; source-versus-derived origin; migration and legacy-read coverage; audit and synthesis behavior; full CI and release notes |
+| 9 | `0.20.7` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
+| 10 | `0.20.8` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
+| 11 | `0.20.9` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
+| 12 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
+| 13 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
 
 The current row names the maintained release boundary; publication receipts
 live in the changelog and [releases](https://github.com/blisspixel/distillr/releases).
-`0.20.4` was inserted under the release-blocker rule above: a site crawl
-discarded every URL it could not read, so an operator could not tell an empty
-page from a blocked one or from a crawl that stopped at its resource boundary,
-and a transitive dependency carried a critical TLS certificate-validation
-vulnerability. Evidence integrity and security defects take precedence, so the
-remaining rows each moved down one place with their scope unchanged. Next is
-`0.20.5` because removed assertions can remain active after an artifact is
-reanalyzed, and derived answers can lose their origin. Correct that evidence
-state before `0.20.6` measures research quality or changes discovery defaults.
+`0.20.4` closed site-capture accounting and a critical TLS dependency defect.
+`0.20.5` is inserted under the release-blocker rule for provider-specific
+underpricing, SDK compatibility, and dependency security defects found in the
+[October 6 API audit](docs/research/api-models-2026-10-06.md). The remaining rows
+move down one place with their scope unchanged. Model candidates are current;
+default routes remain pinned until the `0.20.7` research-quality evaluation gate.
+
+Next is `0.20.6` because removed assertions can remain active after an artifact
+is reanalyzed, and derived answers can lose their origin. Correct that evidence
+state before `0.20.7` measures research quality or changes discovery defaults.
 
 ### How the plan stays current
 
@@ -112,7 +135,7 @@ Release `0.20.0` advances that independent consumer. The September 13
 [review](docs/research/roadmap-review-2026-09-13.md) found a localhost
 cloud-routing billing gap and confirmed current interoperability requirements.
 The requested maintenance release uses `0.20.1`; unfinished trust, evaluation,
-operator and security work retains its order in `0.20.2` through `0.20.5`.
+operator and security work retains its order in `0.20.6` through `0.20.9`.
 It does not change default discovery, synthesis or source-versus-derived truth.
 The same request also includes an optional
 [standalone editorial skill](docs/portable-editorial-skill.md), versioned
@@ -146,12 +169,12 @@ product outcome each release advances.
 | Target | Outcome | Exit evidence |
 |---|---|---|
 | `0.20.4` | A site crawl accounts for every URL it visits, and no dependency carries a known vulnerability | Per-URL capture receipts in the manifest, summary, and status line; observed readiness in place of a fixed wait; clean `pip-audit`; full CI |
-| `0.20.5` | Removed or rewritten assertions do not survive a successful refresh, and corpus-derived answers never become apparent independent evidence | Generation and zero-claim retirement tests, origin-preservation tests, legacy compatibility, and full CI |
-| `0.20.6` | Product work is judged on source selection, redundancy, disagreement, meaningful change, navigation, and stopping rather than source volume | Representative mature, fast-moving, and contested-field fixtures with per-case findings |
-| `0.20.7` | Hosted-runner variance is characterized and install, cold start, export, and live reference journeys are measured | Published, hash-bound receipts and an advisory policy |
-| `0.20.7` | A representative user can install, preview, ingest, audit, and recover without hidden state or unclear spend | Cross-platform journey evidence, accessibility checks, and professional docs |
-| `0.20.8` | No credential persistence, unsafe paths, partial metadata publication, or silent malformed-input fallback | Focused regression tests, full CI, release notes, and a freeze-time adversarial receipt |
-| `0.20.8` | External values are parsed once into strict domain types before core logic sees them | Pyright coverage, boundary tests, and no reduction in branch coverage |
+| `0.20.6` | Removed or rewritten assertions do not survive a successful refresh, and corpus-derived answers never become apparent independent evidence | Generation and zero-claim retirement tests, origin-preservation tests, legacy compatibility, and full CI |
+| `0.20.7` | Product work is judged on source selection, redundancy, disagreement, meaningful change, navigation, and stopping rather than source volume | Representative mature, fast-moving, and contested-field fixtures with per-case findings |
+| `0.20.8` | Hosted-runner variance is characterized and install, cold start, export, and live reference journeys are measured | Published, hash-bound receipts and an advisory policy |
+| `0.20.8` | A representative user can install, preview, ingest, audit, and recover without hidden state or unclear spend | Cross-platform journey evidence, accessibility checks, and professional docs |
+| `0.20.9` | No credential persistence, unsafe paths, partial metadata publication, or silent malformed-input fallback | Focused regression tests, full CI, release notes, and a freeze-time adversarial receipt |
+| `0.20.9` | External values are parsed once into strict domain types before core logic sees them | Pyright coverage, boundary tests, and no reduction in branch coverage |
 | `1.0.0rc1` | Covered CLI, MCP, artifact, configuration, and state snapshots remain stable | Drift-gated snapshots, migration evidence, and the published compatibility policy |
 
 Feature work and hardening releases remain interleaved. A hardening release adds
@@ -216,7 +239,7 @@ Product-facing comparisons live in
 - **0.20.3.** Expand strict Pyright checking across seven subpackages, decouple
   near-limit modules into focused units, elevate branch coverage, and refine
   persistent agentic instructions.
-- **0.20.4 through 0.20.7.** Follow the versioned sequence above: evidence
+- **0.20.4 through 0.20.9.** Follow the versioned sequence above: capture and API maintenance, evidence
   correctness, research-desk evaluation, operator and
   performance evidence, then strict-boundary and security closure.
 - **1.0.0rc1.** Freeze and exercise the exact compatibility promise. Only

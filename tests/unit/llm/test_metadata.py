@@ -82,6 +82,43 @@ def test_exact_cloud_model_lookup() -> None:
     assert metadata.provider_type == "cloud"
 
 
+@pytest.mark.parametrize(
+    "provider,model,context_window",
+    [
+        ("xai", "grok-4.7", 500_000),
+        ("gemini", "gemini-3.8-flash", 1_048_576),
+        ("anthropic", "claude-opus-5-5", 1_000_000),
+        ("anthropic", "claude-sonnet-5-5", 1_000_000),
+        ("openrouter", "x-ai/grok-4.7", 500_000),
+        ("openrouter", "google/gemini-3.8-flash", 1_048_576),
+        ("openrouter", "anthropic/claude-opus-5.5", 1_000_000),
+        ("openrouter", "anthropic/claude-sonnet-5.5", 1_000_000),
+        ("openrouter", "deepseek/deepseek-v4.1-flash", 1_048_576),
+        ("openrouter", "deepseek/deepseek-v4-pro-0813", 1_048_576),
+        ("openrouter", "deepseek/deepseek-v4-pro", 1_048_576),
+        ("openrouter", "deepseek/deepseek-v4-flash", 1_048_576),
+        ("openrouter", "deepseek/deepseek-v3.2", 163_840),
+        ("openrouter", "deepseek/deepseek-chat", 163_840),
+        ("openrouter", "deepseek/deepseek-r1", 64_000),
+        ("openrouter", "z-ai/glm-5.3-flashx", 1_048_576),
+        ("openrouter", "z-ai/glm-5.3-prime", 1_000_000),
+        ("openrouter", "qwen/qwen3.8-max-prime", 1_000_000),
+        ("openrouter", "qwen/qwen3.8-omni-flash", 1_000_000),
+        ("openai", "gpt-6-astra", 1_050_000),
+        ("openai", "gpt-6.1-sol", 1_050_000),
+        ("openai", "gpt-6-luna", 1_050_000),
+    ],
+)
+def test_current_model_context_windows_preserve_provider_slug(
+    provider: str, model: str, context_window: int
+) -> None:
+    sync = resolve_metadata_sync(provider, model)
+    asynchronous = asyncio.run(resolve_metadata(provider, model))
+    assert sync == asynchronous
+    assert sync.context_window == context_window
+    assert sync.provider_name == provider
+
+
 def test_gemini37_context_window_lookup() -> None:
     metadata = asyncio.run(resolve_metadata("gemini", "gemini-3.7-flash"))
     assert metadata.context_window == 1_000_000

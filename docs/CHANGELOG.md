@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## 0.20.5 - 2026-10-07
+
+### Fixed
+
+- Add missing context limits for Gemini 3.8 Flash and current OpenRouter
+  candidates, including provider-prefixed model IDs, so known routes avoid the
+  4096-token unknown-model fallback. Price exact OpenRouter GLM and DeepSeek
+  routes before supplier aliases; register distinct Prime and FlashX rates
+  rather than inheriting cheaper family prices. Preserve previous bare supplier
+  estimates. Preserve routed prices for versioned compatibility IDs and bare
+  supplier model echoes when billed-cost metadata is absent.
+- Preserve DeepSeek V4 Pro 0813's scheduled pricing qualifications. Use the
+  full $1.32/$3.96 rate for budget authorization in every UTC window, rather
+  than assuming the observed $0.66/$1.98 promotion always applies. Distinguish
+  public endpoint minimums, conservative routing ceilings, and billed cost.
+- Offer hyphenated native Claude minor-version IDs in the Anthropic catalog;
+  retain dotted OpenRouter spellings in their routed catalog and price registry.
+- Forward Grok 4.7 reasoning effort and omit deprecated sampling parameters for
+  Gemini 3.8. Adapt LM Studio to the OpenAI SDK's supported HTTP client while
+  preserving disabled redirects, disabled proxy inheritance for loopback
+  inference, and disabled SDK retries. Preserve HTTP status errors even when
+  the provider's message contains "refused". Refuse Deep Research polling when
+  the provider omits its interaction ID, retaining the submission receipt and
+  existing cleanup.
+- Repair the dependency security gate found during documentation review. Raise
+  runtime floors to `pyjwt>=2.15.0`, `pypdf>=6.19.0`, and `urllib3>=2.8.0`, and
+  the development floor to `virtualenv>=21.7.13`. Refresh only those locked
+  packages and virtualenv's required `python-discovery` dependency. The updated
+  environment clears the 33 advisory rows reported by `pip-audit` on the prior
+  lock, without advisory exclusions. Upstream fixes:
+  [PyJWT](https://pyjwt.readthedocs.io/en/2.15.0/changelog.html),
+  [pypdf](https://pypdf.readthedocs.io/en/6.19.0/meta/CHANGELOG.html),
+  [urllib3](https://urllib3.readthedocs.io/en/2.8.0/changelog.html), and
+  [virtualenv](https://virtualenv.pypa.io/en/latest/changelog.html).
+
+### Changed
+
+- Refresh the locked API and capture stack to OpenAI 3.26.0, Google GenAI
+  2.28.0, MCP 2.3.0, and yt-dlp 2026.8.19, with required Google Auth, jiter,
+  and MCP types updates. Raise the OpenAI, Google GenAI, and yt-dlp package
+  floors; bound both model SDKs to their supported major versions. The
+  [dated audit](research/api-models-2026-10-06.md) records primary evidence and
+  compatibility checks. Defaults stay pinned pending research-quality evals.
+
+### Added
+
+- Catalog Grok 4.7, native Claude Opus/Sonnet 5.5, and current OpenRouter
+  GLM, Qwen, Grok, Gemini, and Claude candidates. Add GPT-6 Astra, GPT-6.1 Sol,
+  and GPT-6 Luna metadata and long-context estimates to the reserved OpenAI
+  registry. OpenAI remains an unimplemented route. Catalog review date:
+  October 6, 2026; this is public metadata verification, not live API validation.
+
+### Documentation
+
+- Emphasize dependable understanding in the README and require source-faithful
+  summaries, explicit uncertainty, fair disagreement, visible collection
+  boundaries, and responsible correction handling in repository instructions.
+- Define the two-source correction acceptance episode in the research-desk
+  doctrine and roadmap. Separate planned selective revision from existing
+  capture, verification, claim history, audit, and refresh mechanisms; insert a bounded
+  maintenance release under the blocker rule and shift the remaining scopes
+  intact. Align both supporting release plans with the public sequence.
+
+### Validation
+
+- The final release candidate passed 7,503 tests at 95.46% branch-enabled
+  coverage on Windows/Python 3.12.13, with 4 skips, 9 deselections, and one
+  upstream Starlette deprecation warning. The final billing corrections also
+  passed 132 focused cost, execution, and real-SDK tests. The release requires
+  full CI on its exact main commit before tagging;
+  final run receipts are retained in the release pull request and workflows.
+- Frozen resolution, lint, formatting, Pyright with warnings denied, import
+  contracts, Bandit, dependency auditing, public contracts, both generated
+  skill distributions, archives, and isolated installed-wheel checks passed.
+- A fresh public catalog read covered all 19 curated routes, including
+  scheduled overrides, and checked the four reviewed SDK and extractor
+  versions against the latest published stable package metadata. No metered
+  model call was used; default routes remain pinned pending semantic evaluation.
+- Reuse the authorized native plugin behavior evidence from `0.20.1`: all six
+  current case and report hashes match the retained successful receipts, and
+  skill, reference, eval, and bundled runtime content is byte-identical. Only
+  package version metadata and generated distribution instructions change.
+  No new native run or waiver is claimed.
+
 ## 0.20.4 - 2026-09-20
 
 ### Fixed

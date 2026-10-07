@@ -91,6 +91,12 @@ _CATALOG_EXCLUDED_PREFIXES: tuple[str, ...] = (
 
 _CATALOG_EXCLUDED_IDS: frozenset[str] = frozenset(
     {
+        # OpenRouter spelling and historical aliases are priced, but the native
+        # Messages API uses hyphenated minor versions.
+        "claude-opus-5.5",
+        "claude-sonnet-5.5",
+        "claude-fable-5.1",
+        "claude-mythos-5.1",
         # Compatibility-only alias. Google's current public model id includes
         # the preview suffix, so do not offer the shorter historical spelling.
         "gemini-3.1-pro",
@@ -143,6 +149,7 @@ def known_models_for_provider(provider: str) -> list[str]:
     if name == "openrouter":
         models = [
             "deepseek/deepseek-v4.1-flash",
+            "deepseek/deepseek-v4-pro-0813",
             "deepseek/deepseek-v4-flash",
             "deepseek/deepseek-v4-pro",
             "deepseek/deepseek-v3.2",
@@ -150,8 +157,16 @@ def known_models_for_provider(provider: str) -> list[str]:
             "deepseek/deepseek-r1",
             "z-ai/glm-5.3-flash",
             "z-ai/glm-5.3",
+            "z-ai/glm-5.3-flashx",
+            "z-ai/glm-5.3-prime",
             "qwen/qwen3.8-flash",
             "qwen/qwen3.8-max-0902",
+            "qwen/qwen3.8-max-prime",
+            "qwen/qwen3.8-omni-flash",
+            "x-ai/grok-4.7",
+            "google/gemini-3.8-flash",
+            "anthropic/claude-opus-5.5",
+            "anthropic/claude-sonnet-5.5",
         ]
         preferred = default_model_for_provider(name)
         models.sort(key=lambda item: (0 if item == preferred else 1, item))

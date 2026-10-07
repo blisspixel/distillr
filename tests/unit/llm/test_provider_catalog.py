@@ -40,6 +40,7 @@ def test_openrouter_catalog_includes_deepseek_models() -> None:
     assert models[0] == "deepseek/deepseek-v4.1-flash"
     assert "deepseek/deepseek-v4-flash" in models
     assert "deepseek/deepseek-v4-pro" in models
+    assert "deepseek/deepseek-v4-pro-0813" in models
     assert "deepseek/deepseek-v3.2" in models
     assert "deepseek/deepseek-chat" in models
     assert "deepseek/deepseek-r1" in models
@@ -47,6 +48,16 @@ def test_openrouter_catalog_includes_deepseek_models() -> None:
     assert "z-ai/glm-5.3" in models
     assert "qwen/qwen3.8-flash" in models
     assert "qwen/qwen3.8-max-0902" in models
+    assert {
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime",
+        "qwen/qwen3.8-max-prime",
+        "qwen/qwen3.8-omni-flash",
+        "x-ai/grok-4.7",
+        "google/gemini-3.8-flash",
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-sonnet-5.5",
+    }.issubset(models)
 
 
 def test_gemini_catalog_includes_new_flash_models() -> None:
@@ -66,13 +77,19 @@ def test_current_xai_and_anthropic_models_are_catalogued() -> None:
     anthropic_models = known_models_for_provider("anthropic")
 
     assert xai_models[0] == "grok-4.6"
+    assert "grok-4.7" in xai_models
     assert "grok-4.5" in xai_models
     assert "grok-4.3" in xai_models
     assert "grok-4.20-0309-non-reasoning" in xai_models
     assert "grok-4.20-non-reasoning" not in xai_models
-    assert "claude-fable-5.1" in anthropic_models
+    assert "claude-fable-5-1" in anthropic_models
+    assert "claude-fable-5.1" not in anthropic_models
+    assert "claude-opus-5.5" not in anthropic_models
+    assert "claude-sonnet-5.5" not in anthropic_models
     assert "claude-fable-5" in anthropic_models
     assert "claude-opus-5" in anthropic_models
+    assert "claude-opus-5-5" in anthropic_models
+    assert "claude-sonnet-5-5" in anthropic_models
     assert "claude-sonnet-5" in anthropic_models
 
 
@@ -126,7 +143,7 @@ def test_price_summary_for_catalog_models() -> None:
 @pytest.mark.parametrize("provider", ["xai", "gemini", "anthropic", "openrouter"])
 def test_routable_cloud_catalogs_have_auditable_pricing_sources(provider: str) -> None:
     audit = pricing_audit_for_provider(provider)
-    assert audit["verified_on"] == "2026-09-15"
+    assert audit["verified_on"] == "2026-10-06"
     assert audit["source"].startswith("https://")
 
 

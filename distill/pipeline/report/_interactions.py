@@ -184,7 +184,7 @@ def interaction_text(interaction: object) -> str:
 
 def await_interaction(
     client: object,
-    interaction_id: str,
+    interaction_id: str | None,
     console: Console,
     *,
     label: str,
@@ -206,6 +206,10 @@ def await_interaction(
     Research typically completes in 5-15 minutes, so the bound never trips on a
     healthy run; if it does, the function reports a timeout and returns ``None``.
     """
+    if not interaction_id or not interaction_id.strip():
+        console.print(f"[red]{label} cannot be polled: provider returned no interaction ID[/red]")
+        return None
+
     status = "unknown"
     poll = 0
     while poll < max_polls:

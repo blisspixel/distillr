@@ -325,13 +325,14 @@ class TestLMStudioProviderInit:
     def test_proxy_environment_is_disabled_only_for_loopback(self) -> None:
         with (
             patch("distill.llm.providers.lmstudio.OpenAI") as openai_cls,
-            patch("distill.llm.providers.lmstudio.httpx.Client") as client_cls,
+            patch("distill.llm.providers.lmstudio.DefaultHttpxClient") as client_cls,
         ):
             openai_cls.return_value = MagicMock()
             LMStudioProvider(base_url="http://localhost:1234/v1")
             LMStudioProvider(base_url="https://hosted.example/v1")
 
         assert [call.kwargs["trust_env"] for call in client_cls.call_args_list] == [False, True]
+        assert all(call.kwargs["follow_redirects"] is False for call in client_cls.call_args_list)
 
     @pytest.mark.parametrize(
         "endpoint",

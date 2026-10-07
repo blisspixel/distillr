@@ -12,8 +12,7 @@ import logging
 import os
 from typing import cast
 
-import httpx
-from openai import OpenAI
+from openai import APIStatusError, DefaultHttpxClient, OpenAI
 
 from distill.llm.cost_policy import classify_provider, local_provider_endpoint_is_valid
 from distill.llm.providers._usage import conservative_usage
@@ -46,7 +45,10 @@ class LMStudioProvider:
             "local" if classify_provider("lmstudio", endpoint=url) == "local" else "unknown"
         )
         self._trust_env = self._provider_type != "local"
-        self._http_client = httpx.Client(trust_env=self._trust_env)
+        self._http_client = DefaultHttpxClient(
+            trust_env=self._trust_env,
+            follow_redirects=False,
+        )
         self._client = OpenAI(
             api_key="lm-studio",
             base_url=url,
@@ -117,7 +119,7 @@ class LMStudioProvider:
                 )
                 # Check for connection errors specifically
                 exc_str = str(exc).lower()
-                is_conn_err = (
+                is_conn_err = not isinstance(exc, APIStatusError) and (
                     "connection" in exc_str or "refused" in exc_str or "timeout" in exc_str
                 )
                 if is_conn_err and attempt == 0:

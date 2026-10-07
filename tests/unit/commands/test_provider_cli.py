@@ -48,7 +48,7 @@ def test_provider_show_json(isolated_cwd: Path) -> None:
     assert payload["status"] == "ok"
     assert payload["data"]["provider"] == "xai"
     assert payload["data"]["model"] == "grok-4.6"
-    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-09-15"
+    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-10-06"
     assert payload["data"]["pricing_audit"]["source"] == "https://docs.x.ai/developers/models"
 
 
@@ -63,7 +63,7 @@ def test_provider_list_gemini_json(isolated_cwd: Path) -> None:
     assert "gemini-3.8-flash" in model_ids
     assert "gemini-3.6-flash" in model_ids
     assert "gemini-3.5-flash-lite" in model_ids
-    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-09-15"
+    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-10-06"
     assert payload["data"]["pricing_audit"]["source"].startswith("https://ai.google.dev/")
 
 
