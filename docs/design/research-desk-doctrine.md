@@ -474,7 +474,7 @@ active evidence membership, affected status, and publication boundaries with
 mocked model calls. Per-criterion semantic review checks faithful qualification,
 fair disagreement, unchanged meaning of unaffected conclusions, and useful
 explanation. Record current failures before changing defaults. The baseline
-belongs to `0.20.7`; broader correction and selective-revision behavior remains
+belongs to `0.20.8`; broader correction and selective-revision behavior remains
 in the post-1.0 research-desk program unless the roadmap explicitly admits it.
 
 ## Failure modes to resist

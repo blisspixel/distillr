@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+
+- Record 0.20.6 as the published maintenance release and move unfinished
+  evidence-state correction, evaluation, operator, and freeze-time security
+  work to 0.20.7 through 0.20.10 without changing their acceptance gates.
+
 ## 0.20.6 - 2026-10-13
 
 ### Fixed
