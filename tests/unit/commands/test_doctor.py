@@ -38,6 +38,14 @@ def _isolate_local_provider_probes(monkeypatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_live_ollama_cloud_line(monkeypatch):
+    monkeypatch.setattr(
+        "distill.commands._doctor_report._ollama_cloud_notice",
+        lambda: "",
+    )
+
+
 def _config(tmp_path: Path, **kwargs) -> DistillConfig:
     defaults = {
         "xai_api_key": "test-key",
@@ -361,8 +369,24 @@ class TestDoctorHumanOutputBranches:
 
         result = runner.invoke(cli.app, ["doctor"])
 
-        assert "NOT SET (required)" in result.output
+        assert "not required in no-metered" in result.output
+        assert "NOT SET (required)" not in result.output
         assert "GEMINI_API_KEY" in result.output
+
+    def test_xai_missing_is_required_outside_no_metered(self, tmp_path, monkeypatch):
+        config = _config(tmp_path, xai_api_key="", distill_cost_mode="auto")
+
+        def fake(provider, _config):
+            if provider == "xai":
+                return ("missing", "")
+            return ("not_set", "")
+
+        monkeypatch.setattr(doctor_mod, "get_config", lambda: config)
+        monkeypatch.setattr(doctor_mod, "_doctor_validate_key", fake)
+
+        result = runner.invoke(cli.app, ["doctor"])
+
+        assert "NOT SET (required)" in result.output
 
     def test_openai_optional_states(self, tmp_path, monkeypatch):
         config = _config(tmp_path, openai_api_key="set")

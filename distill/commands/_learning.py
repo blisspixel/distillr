@@ -266,7 +266,39 @@ def _llm_expand_paper_queries(
     return _query_strings_from_response_text(text)
 
 
+def _paper_console_width() -> int:
+    """Console width, falling back to a narrow layout when it is unknown."""
+
+    width = getattr(console, "width", None)
+    if isinstance(width, int) and width > 0:
+        return width
+    size = getattr(console, "size", None)
+    size_width = getattr(size, "width", None)
+    if isinstance(size_width, int) and size_width > 0:
+        return size_width
+    return 80
+
+
+def _paper_author_line(item: RankedPaper) -> tuple[str, str, str]:
+    authors = ", ".join(item.paper.authors[:2]) if item.paper.authors else "unknown"
+    if item.paper.authors and len(item.paper.authors) > 2:
+        authors += f" +{len(item.paper.authors) - 2}"
+    categories = ", ".join(item.paper.categories[:3]) if item.paper.categories else "-"
+    published = (item.paper.published_at or "")[:10] or "-"
+    return authors, published, categories
+
+
 def _display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
+    if _paper_console_width() < 120:
+        lines = [title]
+        for idx, item in enumerate(ranked, 1):
+            authors, published, categories = _paper_author_line(item)
+            lines.append(f"{idx}. {item.paper.title} ({item.final_score:.2f})")
+            lines.append(f"   {authors} | {published} | {categories}")
+            if item.rationale:
+                lines.append(f"   {item.rationale}")
+        console.print("\n".join(lines))
+        return
     table = Table(title=title, box=box.SIMPLE_HEAVY)
     table.add_column("#", justify="right")
     table.add_column("Title", overflow="fold")
@@ -276,11 +308,7 @@ def _display_ranked_papers(ranked: list[RankedPaper], title: str) -> None:
     table.add_column("Score", justify="right")
     table.add_column("Why", overflow="fold")
     for idx, item in enumerate(ranked, 1):
-        authors = ", ".join(item.paper.authors[:2]) if item.paper.authors else "unknown"
-        if item.paper.authors and len(item.paper.authors) > 2:
-            authors += f" +{len(item.paper.authors) - 2}"
-        categories = ", ".join(item.paper.categories[:3]) if item.paper.categories else "-"
-        published = (item.paper.published_at or "")[:10] or "-"
+        authors, published, categories = _paper_author_line(item)
         table.add_row(
             str(idx),
             item.paper.title,

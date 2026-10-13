@@ -1,5 +1,6 @@
 """Video discovery - list channel videos and search results via yt-dlp."""
 
+import contextvars
 import logging
 import math
 from dataclasses import dataclass
@@ -272,8 +273,39 @@ def is_youtube_url(url: str) -> bool:
     return bool(normalize_youtube_video_url(url))
 
 
+_VIDEO_INFO_URL_FAILURE = "Could not get video info. Check the URL."
+_last_video_info_failure: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "distill_last_video_info_failure",
+    default=None,
+)
+
+
+def video_info_failure_message() -> str:
+    """Return the last capture failure, or the invalid-URL message when none was recorded."""
+
+    recorded = _last_video_info_failure.get()
+    if recorded:
+        return recorded
+    return _VIDEO_INFO_URL_FAILURE
+
+
+def _describe_video_capture_failure(exc: BaseException) -> str:
+    text = str(exc).strip() or exc.__class__.__name__
+    lowered = text.casefold()
+    if (
+        "file descriptor cannot be a negative integer" in lowered
+        or "closed deadline socket" in lowered
+    ):
+        return (
+            "YouTube capture failed because a deadline socket was reused after it was "
+            f"closed ({text}). The response deadline and byte limits are still in effect."
+        )
+    return f"YouTube capture failed: {text}"
+
+
 def get_video_info(video_url: str) -> VideoInfo | None:
     """Get metadata for a single video URL."""
+    _last_video_info_failure.set(None)
     _bind_safe_ytdlp()
     canonical_url = normalize_youtube_video_url(video_url)
     if not canonical_url:
@@ -296,7 +328,9 @@ def get_video_info(video_url: str) -> VideoInfo | None:
                 return None
             return _entry_to_video_info(info)
     except Exception as e:
-        console.print(f"[red]Failed to get video info: {e}[/red]")
+        message = _describe_video_capture_failure(e)
+        _last_video_info_failure.set(message)
+        console.print(f"[red]Failed to get video info: {message}[/red]")
         return None
 
 

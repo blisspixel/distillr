@@ -480,6 +480,7 @@ def test_site_page_metadata_and_page_id():
     assert metadata["has_attachment_context"] is False
     assert metadata["source_url"] == "https://example.com/start"
     assert metadata["depth"] == 1
+    assert metadata["capture"] == ""
     assert metadata["final_url"] == "https://example.com/research/agent-memory"
 
 
@@ -782,7 +783,10 @@ def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, obser
         observed["launch"] = {"headless": headless, **kwargs}
         return browser
 
-    playwright = SimpleNamespace(chromium=SimpleNamespace(launch=launch))
+    monkeypatch.delenv("DISTILL_BROWSER_EXECUTABLE", raising=False)
+    playwright = SimpleNamespace(
+        chromium=SimpleNamespace(launch=launch, executable_path=sys.executable)
+    )
 
     monkeypatch.setitem(
         sys.modules,

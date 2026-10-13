@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import math
+import os
 import threading
 import time
 import urllib.parse
@@ -169,11 +170,68 @@ class _DeadlineSocketIO(io.RawIOBase):
 class _DeadlineSocket:
     """Socket proxy whose every blocking operation is capped by one deadline."""
 
-    def __init__(self, sock: Any, deadline: _OperationDeadline) -> None:
+    def __init__(
+        self,
+        sock: Any,
+        deadline: _OperationDeadline,
+        *,
+        owner: Any | None = None,
+    ) -> None:
         self._socket = sock
         self._deadline = deadline
         self._live_views = 0
         self._closed = False
+        self._owner = owner
+        self._dropped_fd: int | None = None
+
+    def fileno(self) -> int:
+        """Return a live fd, or a readable EOF fd after the inner socket closes.
+
+        urllib3 treats a pooled connection as reusable when ``is_connected``
+        polls the socket. A closed socket reports fd -1, and that poll raises
+        ``ValueError`` before the pool can discard the connection. After the
+        inner socket closes, report a pipe that is already at EOF so the poll
+        sees the connection as dropped and opens a new one.
+        """
+
+        fd = self._inner_fileno()
+        if fd >= 0:
+            return fd
+        return self._ensure_dropped_fd()
+
+    def _inner_fileno(self) -> int:
+        inner = self._socket
+        try:
+            fd = inner.fileno()
+        except (AttributeError, OSError, ValueError):
+            return -1
+        if isinstance(fd, bool) or not isinstance(fd, int):
+            return -1
+        return fd
+
+    def _ensure_dropped_fd(self) -> int:
+        existing = self._dropped_fd
+        if existing is not None:
+            return existing
+        read_fd, write_fd = os.pipe()
+        os.close(write_fd)
+        self._dropped_fd = read_fd
+        return read_fd
+
+    def _close_dropped_fd(self) -> None:
+        fd = self._dropped_fd
+        self._dropped_fd = None
+        if fd is None:
+            return
+        with contextlib.suppress(OSError):
+            os.close(fd)
+
+    def _detach_owner(self) -> None:
+        owner = self._owner
+        if owner is None:
+            return
+        if getattr(owner, "sock", None) is self:
+            owner.sock = None
 
     def _cap_timeout(self, requested: float | None) -> None:
         remaining = self._deadline.remaining()
@@ -229,6 +287,10 @@ class _DeadlineSocket:
         return io.BufferedReader(raw, buffer_size)
 
     def _close_inner(self) -> None:
+        # Drop the pool's reference before the inner fd becomes -1. urllib3
+        # checks the connection on the next checkout, and a None sock is a
+        # dropped connection rather than a send on a closed fd.
+        self._detach_owner()
         close = getattr(self._socket, "close", None)
         if callable(close):
             with contextlib.suppress(OSError):
@@ -247,6 +309,9 @@ class _DeadlineSocket:
         self._closed = True
         if self._live_views == 0:
             self._close_inner()
+
+    def __del__(self) -> None:
+        self._close_dropped_fd()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._socket, name)
@@ -344,7 +409,7 @@ class _PinnedPublicHTTPSAdapter(RequestsHTTPAdapter):
 
             def getresponse(self) -> Any:
                 if self.sock is not None and not isinstance(self.sock, _DeadlineSocket):
-                    self.sock = _DeadlineSocket(self.sock, deadline)  # type: ignore[assignment]
+                    self.sock = _DeadlineSocket(self.sock, deadline, owner=self)  # type: ignore[assignment]
                 deadline.register(self)
                 try:
                     return super().getresponse()
@@ -362,7 +427,7 @@ class _PinnedPublicHTTPSAdapter(RequestsHTTPAdapter):
 
             def getresponse(self) -> Any:
                 if self.sock is not None and not isinstance(self.sock, _DeadlineSocket):
-                    self.sock = _DeadlineSocket(self.sock, deadline)  # type: ignore[assignment]
+                    self.sock = _DeadlineSocket(self.sock, deadline, owner=self)  # type: ignore[assignment]
                 deadline.register(self)
                 try:
                     return super().getresponse()

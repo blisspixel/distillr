@@ -387,6 +387,7 @@ class TestDetectHardware:
     def test_apple_silicon_system(self) -> None:
         with (
             patch("distill.doctor.hardware._detect_nvidia", return_value=None),
+            patch("distill.doctor.hardware._detect_amd", return_value=None),
             patch("distill.doctor.hardware._get_system_ram", return_value=24.0),
             patch("distill.doctor.hardware._get_apple_chip_name", return_value="Apple M4"),
             patch("distill.doctor.hardware._is_container", return_value=False),

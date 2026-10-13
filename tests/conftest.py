@@ -80,6 +80,15 @@ _hypothesis_settings.load_profile("distill")
 
 
 @pytest.fixture(autouse=True)
+def _isolate_user_env_files(monkeypatch, tmp_path_factory):
+    """Keep per-user env files out of the real home directory."""
+
+    root = tmp_path_factory.mktemp("distill-user-env")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(root / "xdg"))
+    monkeypatch.setattr("distill.env_files.Path.home", lambda: root / "home")
+
+
+@pytest.fixture(autouse=True)
 def _enforce_default_test_boundaries(monkeypatch, request):
     """Keep default tests deterministic, local-only, and unable to spend."""
 

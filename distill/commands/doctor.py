@@ -27,6 +27,7 @@ from distill.commands._doctor_report import (
     _doctor_adapter_report,
     _doctor_local_inference_section,
     _local_route_availability_report,
+    reported_browser_status,
 )
 from distill.commands._doctor_report import (
     _doctor_adapter_support_statement as _doctor_adapter_support_statement,  # re-exported for tests / patching
@@ -468,11 +469,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
             lmstudio_models=tuple(lmstudio_models),
         )
 
-        # Browser capture readiness (the #1 silent ingest failure for YouTube/web).
-        # Reuses init's launch probe and unsafe-override refusal.
-        from distill.commands.init import chromium_status
-
-        checks["browser"] = chromium_status()  # installed | missing | unknown
+        # Browser capture readiness. Installed and unsafe keep those labels.
+        # A missing bundled browser can still name a system executable.
+        checks["browser"] = reported_browser_status()
 
         local_inference = {
             "gpu_type": profile.gpu_type,
@@ -556,6 +555,11 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     if xai_status == "ok":
         console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{escape(xai_detail)}[/dim]")
+    elif xai_status == "missing" and config.distill_cost_mode == "no-metered":
+        console.print(
+            "  [yellow]--[/yellow]  XAI_API_KEY       "
+            "[dim]not set (not required in no-metered)[/dim]"
+        )
     elif xai_status == "missing":
         console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
     elif xai_status == "skipped":
@@ -680,12 +684,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
     except Exception:
         console.print("  [red]XX[/red]  yt-dlp            [red]not found[/red]")
 
-    # Playwright
-    from distill.commands.init import chromium_status
-
-    browser_status = chromium_status()
+    # Playwright or a recorded system browser. No extra launch here.
+    browser_status = reported_browser_status()
     if browser_status == "installed":
-        console.print("  [green]OK[/green]  playwright        [dim]browser search[/dim]")
+        console.print("  [green]OK[/green]  playwright        [dim]bundled Chromium[/dim]")
+    elif browser_status.startswith("system "):
+        console.print(f"  [green]OK[/green]  playwright        [dim]{escape(browser_status)}[/dim]")
     elif browser_status == "unsafe":
         console.print(
             "  [yellow]--[/yellow]  playwright        "
@@ -722,9 +726,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
             f"  [green]OK[/green]  faster-whisper    [dim]v{fw_version} (local provider)[/dim]"
         )
     except importlib_metadata.PackageNotFoundError:
+        from distill.update import optional_package_install_hint
+
+        whisper_hint = escape(optional_package_install_hint("faster-whisper"))
         console.print(
             "  [dim]--  faster-whisper    not installed "
-            "(pip install faster-whisper for local GPU/CPU transcription)[/dim]"
+            f"({whisper_hint} for local GPU/CPU transcription)[/dim]"
         )
     except Exception as exc:
         console.print(f"  [yellow]--[/yellow]  faster-whisper    [yellow]{exc!s:.60}[/yellow]")
@@ -802,12 +809,24 @@ def doctor(  # noqa: C901 - legacy, will refactor
             "[dim]transformers installed; HHEM loads on first verified write[/dim]"
         )
     else:
+        from distill.update import optional_extra_install_hint
+
+        entailment_hint = escape(optional_extra_install_hint("entailment"))
         console.print(
             "  [dim]--  entailment tier   not installed "
-            r"(pip install distillr\[entailment] to check prose claims locally)[/dim]"
+            f"({entailment_hint} to check prose claims locally)[/dim]"
         )
 
     # Library
+    from distill.env_files import existing_env_files
+
+    env_files = existing_env_files()
+    if env_files:
+        console.print()
+        console.print("  [bold]Config files[/bold]")
+        console.print(f"  [dim]{'-' * 50}[/dim]")
+        for env_path in env_files:
+            console.print(f"  [dim]{escape(str(env_path))}[/dim]")
     console.print()
     console.print("  [bold]Library[/bold]")
     console.print(f"  [dim]{'-' * 50}[/dim]")

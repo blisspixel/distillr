@@ -33,6 +33,7 @@ def _scripted_prompt(answers: list[str]) -> Callable[..., str]:
 @pytest.fixture
 def isolated_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
+    (tmp_path / "pyproject.toml").write_text('name = "distillr"\n', encoding="utf-8")
     monkeypatch.setenv("XAI_API_KEY", "test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("DISTILL_PROVIDER", "xai")
@@ -296,6 +297,7 @@ def test_provider_set_human_output_with_price(isolated_cwd: Path) -> None:
     assert "Set" in result.output
     assert "DISTILL_PROVIDER=gemini" in result.output
     assert "Pricing" in result.output
+    assert "distill --cost-mode paid-ok doctor" in result.output
     assert "One-run override" in result.output
 
 
@@ -304,6 +306,7 @@ def test_provider_set_local_model_has_no_price(isolated_cwd: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "DISTILL_PROVIDER=ollama" in result.output
     assert "DISTILL_MODEL=qwen3.5:27b" in result.output
+    assert "distill --cost-mode no-metered doctor" in result.output
     # No catalog price for a local model id -> the pricing line is omitted.
     assert "Pricing" not in result.output
 

@@ -150,8 +150,9 @@ def _recovery_hint(cost_class: RouteCostClass, provider: str) -> str:
 
     if cost_class == "metered-api":
         return (
-            "Rerun with `distill --cost-mode paid-ok <same command>` or set "
-            "`DISTILL_COST_MODE=paid-ok` after confirming the spend cap."
+            "Point a local runtime at an installed model with "
+            "`distill provider set ollama <installed-model>`, or rerun with "
+            "`distill --cost-mode paid-ok <same command>` after confirming the spend cap."
         )
     if cost_class == "credit-metered":
         return (

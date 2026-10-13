@@ -34,7 +34,8 @@ does not independently schedule releases.
 - `0.20.5` is current and closes API, routed billing, SDK compatibility, and
   dependency security defects. See the [dated audit](research/api-models-2026-10-06.md).
   It inserts a maintenance boundary and shifts the remaining rows without
-  expanding their scope.
+  expanding their scope. Unreleased maintenance for first-run setup, exact
+  preview replay, and browser fallback does not change the 0.20.6 outcome.
 - `0.20.6` is next and owns claim-generation retirement and derived-origin
   preservation.
 - `0.20.7` owns the research-desk evaluation baseline.

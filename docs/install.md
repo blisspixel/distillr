@@ -91,6 +91,12 @@ playwright install chromium
 distill --cost-mode no-metered doctor
 ```
 
+`distill init` uses that Playwright browser when it launches. It can instead
+record a system Chromium, Chrome, or Brave executable, including
+`distill init --browser-path /path/to/chromium`. When no browser executable is
+available, an exact page is fetched over HTTPS and stored with
+`capture: http-static`. A multi-page crawl still needs a browser.
+
 **Windows note:** If you use a system Python under `C:\Program Files\Python...`
 without admin rights, bare `pip` installs to your user directory. The CLI may
 land in a Scripts folder that is not on `PATH`. Prefer venv, pipx, or uv, or

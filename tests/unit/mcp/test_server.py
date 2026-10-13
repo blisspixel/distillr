@@ -151,7 +151,7 @@ class TestConfigHelpers:
     def test_config_loads_dotenv(self):
         fake_config = MagicMock()
         with (
-            patch("distill.mcp.server.load_dotenv") as mock_load,
+            patch("distill.env_files.load_distill_dotenv") as mock_load,
             patch("distill.mcp.server.DistillConfig", return_value=fake_config) as mock_ctor,
         ):
             result = _config()

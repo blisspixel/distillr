@@ -592,7 +592,7 @@ def test_papers_query_fallback_persists_lens_and_warns_on_model_fallback(paper_c
         "search_sort": "relevance",
         "expand": False,
         "top_n": 2,
-        "use_llm": True,
+        "use_llm": False,
     }
     assert "deterministic ranking fallback" in result.output
 
@@ -979,6 +979,8 @@ def test_papers_run_projection_prints_local_time_budget(paper_config, capsys) ->
     assert "$0.00" in output
     assert "wall clock is the budget" in output
     assert "qwen3.8:27b" in output
+    assert "This projection covers analysis only" in output
+    assert "--from-shortlist" in output
 
 
 def test_papers_run_projection_warns_on_metered_cloud(paper_config, capsys) -> None:
@@ -1001,3 +1003,243 @@ def test_planned_paper_seconds_are_zero_on_cloud_and_positive_when_benched(
     assert papers_cmd._planned_paper_seconds(_Router("ollama", "qwen3.8:27b"), paper_config) == 0.0
     _write_paper_bench(paper_config.library_dir)
     assert papers_cmd._planned_paper_seconds(_Router("ollama", "qwen3.8:27b"), paper_config) > 0
+
+
+def test_papers_usage_requires_a_query_or_one_shortlist_flag() -> None:
+    missing = runner.invoke(cli.app, ["papers"])
+    both = runner.invoke(
+        cli.app,
+        ["papers", "query", "--from-shortlist", "abc123abc123", "--run-last-preview"],
+    )
+    preview = runner.invoke(
+        cli.app,
+        ["papers", "query", "--preview", "--run-last-preview"],
+    )
+
+    assert missing.exit_code == 2
+    assert "Pass a query, --from-shortlist, or --run-last-preview." in missing.output
+    assert both.exit_code == 2
+    assert "only one of --from-shortlist or --run-last-preview" in both.output
+    assert preview.exit_code == 2
+    assert "--preview cannot be combined" in preview.output
+
+
+def test_unpreviewed_search_still_requests_llm_rerank(paper_config, monkeypatch) -> None:
+    record = _paper()
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        papers_cmd,
+        "search_arxiv_papers",
+        lambda query, *, limit, sort: [record],
+    )
+
+    def rerank(query, candidates, config, *, tracker, top_n, use_llm):
+        seen["use_llm"] = use_llm
+        return [_ranked(record)]
+
+    monkeypatch.setattr(papers_cmd, "rerank_papers", rerank)
+    monkeypatch.setattr(papers_cmd, "model_available", lambda workload: False)
+    monkeypatch.setattr(papers_cmd, "_display_ranked_papers", lambda ranked, *, title: None)
+    monkeypatch.setattr(
+        papers_cmd,
+        "analyze_paper",
+        lambda received, config, *, tracker, intent: ("# Insights", "# Paper"),
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "_write_paper_artifacts",
+        lambda topic, received, config, insights, document: paper_config.library_dir,
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "find_artifact",
+        lambda path, kind, *, identity=None: path / f"{kind}.md",
+    )
+
+    result = _invoke_papers("--no-expand")
+
+    assert result.exit_code == 0, result.output
+    assert seen["use_llm"] is True
+    assert "deterministic ranking fallback" in result.output
+
+
+def test_preview_falls_back_when_the_route_is_blocked(paper_config, monkeypatch) -> None:
+    from distill.llm.cost_policy import CostPolicyError
+
+    record = _paper()
+    calls: list[bool] = []
+
+    def expand(query, *, config, tracker, expand):
+        raise CostPolicyError("metered")
+
+    def rerank(query, candidates, config, *, tracker, top_n, use_llm):
+        calls.append(use_llm)
+        if use_llm:
+            raise CostPolicyError("metered")
+        return [_ranked(record)]
+
+    monkeypatch.setattr(papers_cmd, "_expand_paper_queries", expand)
+    monkeypatch.setattr(papers_cmd, "search_arxiv_papers", lambda query, *, limit, sort: [record])
+    monkeypatch.setattr(papers_cmd, "rerank_papers", rerank)
+    monkeypatch.setattr(papers_cmd, "model_available", lambda workload: True)
+    monkeypatch.setattr(papers_cmd, "_display_ranked_papers", lambda ranked, *, title: None)
+
+    blocked = _invoke_papers()
+    assert isinstance(blocked.exception, CostPolicyError)
+
+    preview = _invoke_papers("--preview", "--limit", "1")
+    assert preview.exit_code == 0, preview.output
+    assert "Query expansion skipped under no-metered" in preview.output
+    assert calls == [True, False]
+    assert "deterministic ranking fallback" in preview.output
+    assert "--from-shortlist" in preview.output
+
+
+def test_preview_shortlist_replays_the_same_papers_without_search(
+    paper_config, monkeypatch
+) -> None:
+    first = _paper("2607.00001v1", title="First Paper")
+    second = _paper("2607.00002v1", title="Second Paper")
+    searches: list[str] = []
+    reranks: list[str] = []
+    analyzed: list[str] = []
+
+    def search(query, *, limit, sort):
+        searches.append(query)
+        return [second, first]
+
+    def rerank(query, candidates, config, *, tracker, top_n, use_llm):
+        reranks.append(query)
+        return [
+            _ranked(first),
+            _ranked(second),
+        ]
+
+    monkeypatch.setattr(papers_cmd, "search_arxiv_papers", search)
+    monkeypatch.setattr(papers_cmd, "rerank_papers", rerank)
+    monkeypatch.setattr(papers_cmd, "_display_ranked_papers", lambda ranked, *, title: None)
+    monkeypatch.setattr(
+        papers_cmd,
+        "analyze_paper",
+        lambda received, config, *, tracker, intent: (
+            analyzed.append(received.paper_id) or ("# I", "# P")
+        ),
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "_write_paper_artifacts",
+        lambda topic, received, config, insights, document: paper_config.library_dir,
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "find_artifact",
+        lambda path, kind, *, identity=None: path / f"{kind}.md",
+    )
+
+    preview = runner.invoke(
+        cli.app,
+        [
+            "papers",
+            "temporal knowledge graph",
+            "--topic",
+            "tkg",
+            "--limit",
+            "1",
+            "--no-expand",
+            "--preview",
+        ],
+    )
+    assert preview.exit_code == 0, preview.output
+    assert "Planned arXiv searches: 1" in preview.output
+    assert searches == ["temporal knowledge graph"]
+    assert reranks == ["temporal knowledge graph"]
+    directory = paper_config.topic_dir("tkg") / ".distill" / "shortlists"
+    shortlist_id = next(path.stem for path in directory.glob("*.json"))
+    assert len(shortlist_id) == 12
+    assert f"--from-shortlist {shortlist_id}" in preview.output
+
+    searches.clear()
+    reranks.clear()
+    replay = runner.invoke(
+        cli.app,
+        ["papers", "--from-shortlist", shortlist_id, "--topic", "tkg", "--limit", "1"],
+    )
+    assert replay.exit_code == 0, replay.output
+    assert searches == []
+    assert reranks == []
+    assert analyzed == [first.paper_id]
+    assert "No arXiv search and no rerank" in replay.output
+    assert "saved preview" in replay.output or "Shortlist:" in replay.output
+
+    empty = runner.invoke(
+        cli.app,
+        ["papers", "--from-shortlist", shortlist_id, "--topic", "tkg", "--limit", "0"],
+    )
+    assert empty.exit_code == 1
+    assert "empty at this limit" in empty.output
+
+    mismatch = runner.invoke(cli.app, ["papers", "--from-shortlist", "abc123abc123"])
+    assert mismatch.exit_code == 1
+    assert "Pass --topic" in mismatch.output
+
+    last = runner.invoke(
+        cli.app, ["papers", "--run-last-preview", "--topic", "tkg", "--limit", "1"]
+    )
+    assert last.exit_code == 0, last.output
+    assert analyzed == [first.paper_id, first.paper_id]
+
+
+def test_small_limit_keeps_two_expanded_queries(paper_config, monkeypatch) -> None:
+    record = _paper()
+    observed: dict[str, object] = {}
+
+    def expand(query, *, config, tracker, expand):
+        return [f"q{index}" for index in range(6)]
+
+    def search(queries, *, limit_per_query, sort):
+        observed["queries"] = list(queries)
+        return [record]
+
+    monkeypatch.setattr(papers_cmd, "_expand_paper_queries", expand)
+    monkeypatch.setattr(papers_cmd, "search_arxiv_multi", search)
+    monkeypatch.setattr(
+        papers_cmd,
+        "rerank_papers",
+        lambda query, candidates, config, *, tracker, top_n, use_llm: [_ranked(record)],
+    )
+    monkeypatch.setattr(papers_cmd, "_display_ranked_papers", lambda ranked, *, title: None)
+
+    result = runner.invoke(
+        cli.app,
+        ["papers", "temporal", "--topic", "tkg", "--limit", "1", "--preview", "--no-rerank"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert observed["queries"] == ["q0", "q1"]
+    assert "Planned arXiv searches: 2" in result.output
+    assert "3 second minimum" in result.output
+
+
+def test_saved_shortlist_can_be_refused_as_stale(paper_config, monkeypatch) -> None:
+    record = _paper()
+    monkeypatch.setattr(papers_cmd, "search_arxiv_papers", lambda query, *, limit, sort: [record])
+    monkeypatch.setattr(
+        papers_cmd,
+        "rerank_papers",
+        lambda query, candidates, config, *, tracker, top_n, use_llm: [_ranked(record)],
+    )
+    monkeypatch.setattr(papers_cmd, "_display_ranked_papers", lambda ranked, *, title: None)
+    preview = runner.invoke(
+        cli.app,
+        ["papers", "temporal", "--topic", "tkg", "--limit", "1", "--no-expand", "--preview"],
+    )
+    assert preview.exit_code == 0, preview.output
+    directory = paper_config.topic_dir("tkg") / ".distill" / "shortlists"
+    path = next(directory.glob("*.json"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["created_at"] = "2020-01-01T00:00:00Z"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    stale = runner.invoke(cli.app, ["papers", "--run-last-preview", "--topic", "tkg"])
+    assert stale.exit_code == 1
+    assert "DISTILL_SHORTLIST_MAX_AGE_HOURS" in stale.output

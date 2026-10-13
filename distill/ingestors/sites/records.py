@@ -49,6 +49,7 @@ class SitePage:
     truncation_reasons: list[str] = field(default_factory=list)
     source_url: str = ""
     depth: int = 0
+    capture: str = ""
 
     @property
     def page_id(self) -> str:
@@ -77,6 +78,7 @@ class SitePage:
             "truncation_reasons": self.truncation_reasons,
             "source_url": self.source_url,
             "depth": self.depth,
+            "capture": self.capture,
         }
 
 

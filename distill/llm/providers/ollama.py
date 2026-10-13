@@ -439,6 +439,10 @@ class OllamaProvider:
         """Run the same prompt-free local proof used by inference admission."""
         await self._show.require_local(model)
 
+    async def cloud_status(self) -> str:
+        """Delegate the prompt-free ``/api/status`` cloud gate."""
+        return await self._show.cloud_gate()
+
     _parse_context_window = staticmethod(parse_context_window)
 
     async def list_models(self) -> list[dict[str, Any]]:

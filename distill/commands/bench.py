@@ -181,6 +181,13 @@ def bench_cmd(
             "Start Ollama and pull one, then re-run. See distill doctor."
         )
         raise typer.Exit(1)
+    if _ollama_cloud_gate() == "enabled":
+        from distill.llm.providers._ollama_show import (
+            _LOCAL_PROOF_RECOVERY,  # pyright: ignore[reportPrivateUsage]
+        )
+
+        console.print(_LOCAL_PROOF_RECOVERY)
+        raise typer.Exit(1)
 
     machine = _machine_facts()
     if not json_out:
@@ -228,7 +235,7 @@ def bench_cmd(
     for row in rows:
         speed = row.speed
         if not speed.usable:
-            note = speed.error[:38] if speed.error else "reloaded mid-probe; re-run"
+            note = speed.error if speed.error else "reloaded mid-probe; re-run"
             console.print(f"  {speed.model:<32}{'-':>8}{'-':>13}{'-':>13}  [yellow]{note}[/yellow]")
             continue
         paper = estimate_stage_duration("paper", row.calibration)
@@ -242,6 +249,17 @@ def bench_cmd(
     console.print()
     console.print(f"  [dim]Stored: {path}[/dim]")
     console.print("  [dim]Speed only. To judge quality, run distill eval.[/dim]")
+
+
+def _ollama_cloud_gate() -> str:
+    """One ``/api/status`` read before any timed model probe."""
+
+    try:
+        from distill.llm.providers.ollama import OllamaProvider
+
+        return asyncio.run(OllamaProvider().cloud_status())
+    except Exception:
+        return "unknown"
 
 
 def register(app: typer.Typer) -> None:

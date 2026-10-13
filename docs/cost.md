@@ -114,8 +114,9 @@ templates, and eval proof exist.
 
 When a route is blocked, Distill reports the blocked provider, workload, route
 cost class, reason, required proof when applicable, and the next allowed action.
-Metered API routes point to `distill --cost-mode paid-ok <same command>` only
-after the operator has confirmed the spend cap.
+Metered API routes name `distill provider set ollama <installed-model>` before
+`distill --cost-mode paid-ok <same command>`. The paid-ok command is for after
+the operator has confirmed the spend cap.
 
 Use `distill --cost-mode no-metered <command>` for a one-run override without
 editing `.env`. Recurring profile previews include that global override in

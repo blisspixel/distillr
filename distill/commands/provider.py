@@ -14,6 +14,7 @@ from distill._console import console
 from distill.commands._helpers import isatty, tty_prompt
 from distill.commands._json import ExitCode, emit_json, json_mode_active
 from distill.commands.init import env_file_path, set_env_var
+from distill.llm.cost_policy import LOCAL_PROVIDER_NAMES
 from distill.llm.provider_catalog import (
     PROVIDER_HELP,
     ROUTABLE_PROVIDERS,
@@ -253,7 +254,8 @@ def provider_set_cmd(
             f"  [dim]Verified[/dim] {escape(audit['verified_on'])}  {escape(audit['source'])}"
         )
     console.print()
-    console.print("[dim]Check readiness:[/dim]  distill --cost-mode paid-ok doctor")
+    follow_up = "no-metered" if chosen_provider in LOCAL_PROVIDER_NAMES else "paid-ok"
+    console.print(f"[dim]Check readiness:[/dim]  distill --cost-mode {follow_up} doctor")
     console.print(
         "[dim]One-run override:[/dim]  distill --provider "
         f"{escape(chosen_provider)} --model {escape(chosen_model)} <command>"

@@ -145,6 +145,33 @@ class ShowProbe:
             self._parse_context_window(metadata) or DEFAULT_CONTEXT_WINDOW
         )
 
+    async def cloud_gate(self) -> str:
+        """Read ``/api/status`` once: ``disabled``, ``enabled``, or ``unknown``.
+
+        Unreachable daemons and missing contracts stay ``unknown`` so callers
+        keep their existing per-model errors. ``enabled`` means ``disabled`` is
+        explicitly false.
+        """
+
+        try:
+            async with asyncio.timeout(_SHOW_TIMEOUT_SECONDS):
+                status = await self._proof_document("/api/status")
+        except (httpx.HTTPError, TimeoutError, ValueError, TypeError, RecursionError, OSError):
+            return "unknown"
+        if not isinstance(status, dict):
+            return "unknown"
+        status_dict = cast(dict[str, Any], status)
+        cloud = status_dict.get("cloud")
+        if set(status_dict) != {"cloud"} or not isinstance(cloud, dict):
+            return "unknown"
+        cloud_dict = cast(dict[str, Any], cloud)
+        disabled = cloud_dict.get("disabled")
+        if disabled is True:
+            return "disabled"
+        if disabled is False:
+            return "enabled"
+        return "unknown"
+
     async def _post_show(self, model: str) -> object:
         async with httpx.AsyncClient(
             timeout=_SHOW_TIMEOUT_SECONDS,

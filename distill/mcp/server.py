@@ -26,7 +26,6 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, ParamSpec, TypeVar, cast
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 from mcp.server.caching import CacheableMethod, CacheHint
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import (
@@ -251,7 +250,9 @@ def write_tool_annotations(
 
 
 def _config() -> DistillConfig:
-    load_dotenv()
+    from distill.env_files import load_distill_dotenv
+
+    load_distill_dotenv()
     return DistillConfig()
 
 

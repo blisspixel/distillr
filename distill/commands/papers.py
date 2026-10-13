@@ -30,6 +30,7 @@ from distill.commands._helpers import (
     get_config,
     resolve_intent,
 )
+from distill.commands._json import ExitCode
 from distill.commands._learning import (
     apply_source_rigor,
     display_ranked_papers,
@@ -63,7 +64,7 @@ from distill.pipeline.duration_estimates import (
     format_run_projection,
     load_speed_calibration,
 )
-from distill.pipeline.ranking import rerank_papers
+from distill.pipeline.ranking import RankedPaper, rerank_papers
 from distill.pipeline.summary import BatchProgress, RunSummary, display_summary
 from distill.pipeline.synthesis.corpus import has_corpus_synthesis_inputs, synthesize_corpus
 
@@ -105,6 +106,10 @@ def _papers_run_projection(
     line = format_run_projection(cost_usd=projected_cost, duration=duration, local=local)
     if local:
         console.print(line)
+        console.print(
+            "[dim]This projection covers analysis only. "
+            "Follow up with --from-shortlist to skip search and rerank.[/dim]"
+        )
     else:
         console.print(f"[yellow]{line}[/yellow]")
 
@@ -333,8 +338,263 @@ def paper(
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
+def _papers_usage(message: str) -> None:
+    console.print(f"[red]{message}[/red]")
+    raise typer.Exit(int(ExitCode.USAGE_ERROR))
+
+
+def _deterministic_rank_notice() -> None:
+    console.print(
+        "[yellow]No model configured; used deterministic ranking fallback "
+        "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
+    )
+
+
+def _expanded_paper_queries(
+    query: str,
+    *,
+    config: DistillConfig,
+    tracker: CostTracker,
+    expand: bool,
+    limit: int,
+    preview: bool,
+) -> list[str]:
+    try:
+        queries = _expand_paper_queries(query, config=config, tracker=tracker, expand=expand)
+    except CostPolicyError:
+        if not preview:
+            raise
+        console.print(
+            "[yellow]Query expansion skipped under no-metered. Using the original query.[/yellow]"
+        )
+        queries = [query]
+    if not queries:
+        queries = [query]
+    return queries[: max(2, limit)]
+
+
+def _rank_for_run(
+    query: str,
+    candidates: list[PaperRecord],
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    limit: int,
+    rerank: bool,
+    rigor: str,
+    preview: bool,
+) -> list[RankedPaper]:
+    use_llm = rerank
+    if preview and rerank:
+        try:
+            if not model_available("rerank"):
+                use_llm = False
+        except CostPolicyError:
+            use_llm = False
+    pool_n = len(candidates) if (rerank and rigor != "off") else limit
+    try:
+        ranked = rerank_papers(
+            query,
+            candidates,
+            config,
+            tracker=tracker,
+            top_n=pool_n,
+            use_llm=use_llm,
+        )
+    except CostPolicyError:
+        if not preview:
+            raise
+        use_llm = False
+        ranked = rerank_papers(
+            query,
+            candidates,
+            config,
+            tracker=tracker,
+            top_n=pool_n,
+            use_llm=False,
+        )
+    if rerank and (not use_llm or not model_available("rerank")):
+        _deterministic_rank_notice()
+    return ranked
+
+
+def _analysis_model_label(router_config: RouterConfig) -> str:
+    provider, model = router_config.resolve("analysis")
+    return f"{provider}/{model}"
+
+
+def _save_preview_shortlist(
+    config: DistillConfig,
+    *,
+    topic: str,
+    query: str,
+    expansion_queries: list[str],
+    router_config: RouterConfig,
+    ranked: list[RankedPaper],
+):
+    from distill.pipeline.paper_shortlist import save_paper_shortlist
+
+    return save_paper_shortlist(
+        config,
+        topic=topic,
+        query=query,
+        expansion_queries=expansion_queries,
+        model=_analysis_model_label(router_config),
+        ranked=ranked,
+    )
+
+
+def _run_paper_ingest(
+    *,
+    ranked: list[RankedPaper],
+    query: str,
+    topic_name: str,
+    config: DistillConfig,
+    router_config: RouterConfig,
+    tracker: CostTracker,
+    summary: RunSummary,
+    lens: str,
+    workers: int,
+    concepts_flag: bool,
+) -> None:
+    if lens:
+        _persist_lens(config, topic_name, query, lens)
+    records = [item.paper for item in ranked]
+    projected_cost = estimate_paper_workflow_cost(
+        len(records),
+        synthesis_calls=_paper_tail_calls(topic_name, config),
+        router_config=router_config,
+    )
+    enforce_projected_workflow_budget(config, "papers", projected_cost)
+    summary.estimated_cost = projected_cost
+    _display_ranked_papers(ranked, title="Selected Papers")
+    console.print()
+    _papers_run_projection(
+        len(records),
+        synthesis_calls=_paper_tail_calls(topic_name, config),
+        projected_cost=projected_cost,
+        config=config,
+        router_config=router_config,
+    )
+    console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
+    _analyze_paper_batch(
+        records,
+        topic=topic_name,
+        config=config,
+        tracker=tracker,
+        router_config=router_config,
+        workers=workers,
+        summary=summary,
+    )
+    synthesis = synthesize_papers(topic_name, config, tracker=tracker)
+    if synthesis:
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
+        )
+    corpus_synth = synthesize_corpus(topic_name, config, tracker=tracker)
+    if corpus_synth:
+        summary.add_output(
+            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
+        )
+    if concepts_flag:
+        _run_concepts_after_ingest(topic_name, tracker=tracker)
+    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+
+
+def _ingest_saved_shortlist(
+    config: DistillConfig,
+    *,
+    topic: str,
+    shortlist_id: str,
+    limit: int,
+    lens: str,
+    workers: int,
+    concepts_flag: bool,
+) -> None:
+    loaded = _load_saved_shortlist(config, topic, shortlist_id)
+    topic_name = topic or loaded.topic
+    _require_model()
+    router_config = RouterConfig()
+    tracker = budgeted_cost_tracker(config, "papers")
+    summary = RunSummary(command="papers")
+    summary.set_metadata(topic=topic_name, workflow="papers", source_type="paper")
+    chosen = list(loaded.papers[: max(limit, 0)])
+    scores = list(loaded.scores[: len(chosen)])
+    console.print(f"\n[bold]Papers: {loaded.query}[/bold]")
+    console.print(
+        f"[dim]Topic: {topic_name} | Shortlist: {loaded.id} | "
+        f"Limit: {limit} | Workers: {workers}[/dim]\n"
+    )
+    console.print("[dim]Using the saved preview. No arXiv search and no rerank.[/dim]")
+    if not chosen:
+        summary.add_issue(
+            "paper-search", "Saved shortlist is empty at this limit", context=loaded.id
+        )
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        raise typer.Exit(1)
+    ranked = [
+        RankedPaper(
+            paper=paper,
+            final_score=scores[index] if index < len(scores) else 0.0,
+            relevance_score=scores[index] if index < len(scores) else 0.0,
+            depth_score=0.0,
+            novelty_score=0.0,
+            credibility_score=0.0,
+            rationale="saved preview",
+            selected_by="shortlist",
+        )
+        for index, paper in enumerate(chosen)
+    ]
+    _run_paper_ingest(
+        ranked=ranked,
+        query=loaded.query,
+        topic_name=topic_name,
+        config=config,
+        router_config=router_config,
+        tracker=tracker,
+        summary=summary,
+        lens=lens,
+        workers=workers,
+        concepts_flag=concepts_flag,
+    )
+
+
+def _load_saved_shortlist(config: DistillConfig, topic: str, shortlist_id: str):
+    from distill.pipeline.paper_shortlist import (
+        PaperShortlist,
+        PaperShortlistError,
+        load_library_last,
+        load_topic_latest,
+        load_topic_shortlist,
+    )
+
+    try:
+        loaded: PaperShortlist
+        if shortlist_id:
+            if topic:
+                loaded = load_topic_shortlist(config, topic, shortlist_id)
+            else:
+                loaded = load_library_last(config)
+                if loaded.id != shortlist_id:
+                    raise PaperShortlistError(
+                        "Pass --topic to load that shortlist. "
+                        "The library's last preview has a different id."
+                    )
+        elif topic:
+            loaded = load_topic_latest(config, topic)
+        else:
+            loaded = load_library_last(config)
+        return loaded
+    except PaperShortlistError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+
+
 def papers(  # noqa: C901 — legacy, will refactor
-    query: str = typer.Argument(help="Paper topic query for arXiv discovery"),
+    query: str | None = typer.Argument(
+        None,
+        help="Paper topic query. Omit with --from-shortlist or --run-last-preview.",
+    ),
     topic: str = typer.Option("", "--topic", "-t", help="Topic to file under"),
     limit: int = typer.Option(10, "--limit", "-n", help="How many papers to analyze"),
     sort: str = typer.Option(
@@ -388,10 +648,26 @@ def papers(  # noqa: C901 — legacy, will refactor
         max=MAX_INGEST_WORKERS,
         help="Concurrent independent paper analyses (1-3; default 1 for conservative spend).",
     ),
+    from_shortlist: str = typer.Option(
+        "",
+        "--from-shortlist",
+        help="Ingest a saved preview shortlist id instead of searching again",
+    ),
+    run_last_preview: bool = typer.Option(
+        False,
+        "--run-last-preview",
+        help="Ingest the latest saved paper preview",
+    ),
 ):
     """Search arXiv and ingest a paper set into the topic corpus."""
     from distill.pipeline.discovery import RIGOR_LEVELS_WITH_OFF
 
+    if from_shortlist and run_last_preview:
+        _papers_usage("Pass only one of --from-shortlist or --run-last-preview.")
+    if preview and (from_shortlist or run_last_preview):
+        _papers_usage("--preview cannot be combined with a saved shortlist.")
+    if query is None and not from_shortlist and not run_last_preview:
+        _papers_usage("Pass a query, --from-shortlist, or --run-last-preview.")
     if sort not in {"relevance", "date"}:
         console.print("[red]--sort must be 'relevance' or 'date'[/red]")
         raise typer.Exit(1)
@@ -403,6 +679,18 @@ def papers(  # noqa: C901 — legacy, will refactor
     _apply_verify_override(verify)
 
     config = get_config()
+    if from_shortlist or run_last_preview:
+        _ingest_saved_shortlist(
+            config,
+            topic=topic,
+            shortlist_id=from_shortlist,
+            limit=limit,
+            lens=lens,
+            workers=workers,
+            concepts_flag=concepts_flag,
+        )
+        return
+    assert query is not None
     topic_name = topic or _topic_from_query(query)
     router_config = RouterConfig()
     if not preview:
@@ -412,7 +700,8 @@ def papers(  # noqa: C901 — legacy, will refactor
             router_config=router_config,
         )
         enforce_projected_workflow_budget(config, "papers", projected_limit_cost)
-    _require_model()
+    if not preview:
+        _require_model()
     tracker = budgeted_cost_tracker(config, "papers")
     summary = RunSummary(command="papers")
     summary.set_metadata(topic=topic_name, workflow="papers", source_type="paper")
@@ -423,9 +712,19 @@ def papers(  # noqa: C901 — legacy, will refactor
         f"| Rerank: {'on' if rerank else 'off'} | Limit: {limit} | Workers: {workers}[/dim]\n"
     )
 
-    queries = _expand_paper_queries(query, config=config, tracker=tracker, expand=expand)
-    if not queries:
-        queries = [query]
+    queries = _expanded_paper_queries(
+        query,
+        config=config,
+        tracker=tracker,
+        expand=expand,
+        limit=limit,
+        preview=preview,
+    )
+    if preview:
+        console.print(
+            f"[dim]Planned arXiv searches: {len(queries)} "
+            "(spaced at the documented 3 second minimum).[/dim]"
+        )
     for idx, variant in enumerate(queries, 1):
         console.print(f"[dim]Candidate search {idx}/{len(queries)}: {variant}[/dim]")
 
@@ -475,26 +774,29 @@ def papers(  # noqa: C901 — legacy, will refactor
         f"[dim]Found {len(candidates)} candidate paper(s) across {len(queries)} search(es)[/dim]\n"
     )
 
-    # With a rigor bar, rerank the whole candidate pool so the threshold has
-    # something to drop; otherwise keep the cheap top-N behavior.
-    pool_n = len(candidates) if (rerank and rigor != "off") else limit
-    ranked = rerank_papers(
+    ranked = _rank_for_run(
         query,
         candidates,
         config,
-        tracker=tracker,
-        top_n=pool_n,
-        use_llm=rerank,
+        tracker,
+        limit=limit,
+        rerank=rerank,
+        rigor=rigor,
+        preview=preview,
     )
-    if rerank and not model_available("rerank"):
-        console.print(
-            "[yellow]No model configured; used deterministic ranking fallback "
-            "(set a cloud key or DISTILL_PROVIDER=ollama for LLM reranking)[/yellow]"
-        )
     ranked = _apply_source_rigor(ranked, source="paper", rigor=rigor, rerank_on=rerank, limit=limit)
+    ranked = ranked[: max(limit, 0)]
 
     if preview:
         _display_ranked_papers(ranked, title="Paper Best-Pick Learning Set")
+        saved = _save_preview_shortlist(
+            config,
+            topic=topic_name,
+            query=query,
+            expansion_queries=queries,
+            router_config=router_config,
+            ranked=ranked,
+        )
         projected_cost = estimate_paper_workflow_cost(
             len(ranked),
             synthesis_calls=_paper_tail_calls(topic_name, config),
@@ -508,7 +810,11 @@ def papers(  # noqa: C901 — legacy, will refactor
             config=config,
             router_config=router_config,
         )
-        console.print("[dim]Run without `--preview` to process this set.[/dim]")
+        console.print(
+            f"[dim]Saved shortlist {saved.id}. Ingest this exact set with "
+            f"`distill papers --from-shortlist {saved.id} --topic {topic_name}`.[/dim]"
+        )
+        console.print("[dim]Or rerun it with `distill papers --run-last-preview`.[/dim]")
         display_summary(
             summary,
             cost_tracker=tracker,
@@ -518,51 +824,18 @@ def papers(  # noqa: C901 — legacy, will refactor
         )
         return
 
-    if lens:
-        _persist_lens(config, topic_name, query, lens)
-
-    records = [item.paper for item in ranked]
-    projected_cost = estimate_paper_workflow_cost(
-        len(records),
-        synthesis_calls=_paper_tail_calls(topic_name, config),
-        router_config=router_config,
-    )
-    enforce_projected_workflow_budget(config, "papers", projected_cost)
-    summary.estimated_cost = projected_cost
-
-    _display_ranked_papers(ranked, title="Selected Papers")
-    console.print()
-    _papers_run_projection(
-        len(records),
-        synthesis_calls=_paper_tail_calls(topic_name, config),
-        projected_cost=projected_cost,
+    _run_paper_ingest(
+        ranked=ranked,
+        query=query,
+        topic_name=topic_name,
         config=config,
         router_config=router_config,
-    )
-    console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
-    _analyze_paper_batch(
-        records,
-        topic=topic_name,
-        config=config,
         tracker=tracker,
-        router_config=router_config,
-        workers=workers,
         summary=summary,
+        lens=lens,
+        workers=workers,
+        concepts_flag=concepts_flag,
     )
-
-    synthesis = synthesize_papers(topic_name, config, tracker=tracker)
-    if synthesis:
-        summary.add_output(
-            find_artifact(config.topic_dir(topic_name), "paper_synthesis", identity=topic_name)
-        )
-    corpus_synth = synthesize_corpus(topic_name, config, tracker=tracker)
-    if corpus_synth:
-        summary.add_output(
-            find_artifact(config.topic_dir(topic_name), "corpus_synthesis", identity=topic_name)
-        )
-    if concepts_flag:
-        _run_concepts_after_ingest(topic_name, tracker=tracker)
-    display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
 
 
 def register(app: typer.Typer) -> None:

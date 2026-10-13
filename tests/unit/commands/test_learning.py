@@ -359,3 +359,45 @@ def test_display_ranked_papers_and_videos_render_without_error(monkeypatch):
     learning._display_ranked_videos([ranked_video], title="Videos")
 
     assert len(printed) == 2
+
+
+def test_narrow_paper_preview_is_one_block_and_wide_is_a_table(monkeypatch):
+    printed = []
+    monkeypatch.setattr(learning.console, "print", lambda obj: printed.append(obj))
+    paper = SimpleNamespace(
+        title="Compact Title",
+        authors=[],
+        categories=[],
+        published_at="",
+    )
+    ranked = RankedPaper(
+        paper=paper,
+        final_score=0.5,
+        relevance_score=0.5,
+        depth_score=0.0,
+        novelty_score=0.0,
+        credibility_score=0.0,
+        rationale="",
+        selected_by="heuristic",
+    )
+
+    monkeypatch.setattr(learning, "_paper_console_width", lambda: 80)
+    learning._display_ranked_papers([ranked], title="Papers")
+    assert isinstance(printed[-1], str)
+    assert "Compact Title" in printed[-1]
+    assert "unknown | - | -" in printed[-1]
+
+    monkeypatch.setattr(learning, "_paper_console_width", lambda: 140)
+    learning._display_ranked_papers([ranked], title="Papers")
+    assert printed[-1].title == "Papers"
+
+
+def test_paper_console_width_falls_back_when_unknown(monkeypatch):
+    monkeypatch.setattr(learning, "console", SimpleNamespace())
+    assert learning._paper_console_width() == 80
+    monkeypatch.setattr(
+        learning,
+        "console",
+        SimpleNamespace(width=0, size=SimpleNamespace(width=140)),
+    )
+    assert learning._paper_console_width() == 140

@@ -33,7 +33,11 @@ def process_video_url(url: str, topic: str = "ai") -> str:
         topic: Topic to file under
     """
     from distill.cli_shared import ensure_channel_context, process_video, resolve_video_channel_name
-    from distill.ingestors.youtube.discovery import get_video_info, resolve_channel_name
+    from distill.ingestors.youtube.discovery import (
+        get_video_info,
+        resolve_channel_name,
+        video_info_failure_message,
+    )
     from distill.pipeline.summary import RunSummary
 
     canonical = normalize_youtube_video_url(url)
@@ -56,7 +60,7 @@ def process_video_url(url: str, topic: str = "ai") -> str:
 
     info = get_video_info(canonical)
     if not info:
-        return "Error: Could not get video info. Check the URL."
+        return f"Error: {video_info_failure_message()}"
 
     channel_name = resolve_video_channel_name(url, info, resolve_channel_name)
     tracker = capped_tracker()

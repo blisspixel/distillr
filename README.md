@@ -26,8 +26,10 @@ distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --l
 ```
 
 `no-metered` refuses API-billed or unproved routes. Preview builds a current
-arXiv shortlist without ingesting. Ollama requires a cloud-disabled daemon
-and an installed local model; localhost alone is insufficient. Follow the
+arXiv shortlist without ingesting, and prints a shortlist id. Ollama requires
+a cloud-disabled daemon and an installed local model; localhost alone is
+insufficient. `distill --cost-mode no-metered init` selects a local provider
+and does not validate a cloud key. Follow the
 [local setup and upgrade steps](docs/install.md#local-models-ollama--lm-studio)
 before inference. On a proven local Ollama or LM Studio route the direct API
 spend is `$0.00` and the budget is wall clock: a two-paper
@@ -40,9 +42,13 @@ their distinct evidence and useful context. When API spend is OK, the same
 pipeline can process a broader shortlist quickly. When the shortlist looks right:
 
 ```bash
+distill --cost-mode paid-ok papers --from-shortlist <id> --topic tkg
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20
 distill --cost-mode paid-ok papers "temporal knowledge graph" --topic tkg --limit 20 --workers 3
 ```
+
+`--from-shortlist` ingests the previewed papers and skips search and rerank.
+The preview command prints the id. A new query still searches and ranks.
 
 Paid-ok shortens turnaround for a reviewed source set: preview for relevance,
 distinct evidence, and useful context, then ingest the selected sources in
