@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## 0.20.6 - 2026-10-13
+
 ### Fixed
 
 - YouTube capture no longer fails when a reused connection polls a closed
