@@ -2554,6 +2554,22 @@
       "parameters": [
         {
           "count": false,
+          "default": null,
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "browser_path",
+          "names": [
+            "--browser-path"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
+        },
+        {
+          "count": false,
           "default": false,
           "flag_value": null,
           "is_flag": true,
@@ -3787,7 +3803,7 @@
           "name": "query",
           "nargs": 1,
           "position": 0,
-          "required": true,
+          "required": false,
           "type": {
             "name": "text"
           }
@@ -3827,6 +3843,22 @@
           ],
           "type": {
             "name": "boolean"
+          }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "from_shortlist",
+          "names": [
+            "--from-shortlist"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
           }
         },
         {
@@ -3913,6 +3945,23 @@
           "required": false,
           "type": {
             "name": "text"
+          }
+        },
+        {
+          "count": false,
+          "default": false,
+          "flag_value": null,
+          "is_flag": true,
+          "kind": "option",
+          "multiple": false,
+          "name": "run_last_preview",
+          "names": [
+            "--run-last-preview"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "boolean"
           }
         },
         {

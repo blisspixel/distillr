@@ -1309,7 +1309,7 @@ configuration status, so billing gates stay distinguishable from bad setup.
 
 ## Setup (`distill init`)
 
-The guided first-run wizard. It creates a `.env` (and **never** overwrites an existing one without `--force`, so your keys are safe), helps you choose the cloud or local provider, live-validates your key against the provider, installs the Playwright browser if it's missing, and ends with a ready/not-ready verdict plus the first command to try. Cloud key validation can make a small billed request in `auto` mode and records it in the local cost ledger. Use `distill --cost-mode no-metered init` to refuse API-billed or ambiguous validation.
+The guided first-run wizard. It creates a `.env` (and **never** overwrites an existing one without `--force`, so your keys are safe), helps you choose the cloud or local provider, live-validates a cloud key only outside `no-metered`, records a browser, and ends with a ready/not-ready verdict plus the first command to try. Cloud key validation can make a small billed request in `auto` mode and records it in the local cost ledger. Use `distill --cost-mode no-metered init` to pick a local provider and skip cloud-key validation. Outside a source checkout, that file is `$XDG_CONFIG_HOME/distill/.env` (or `~/.config/distill/.env`), which later commands load from any working directory.
 
 ```bash
 distill --cost-mode no-metered init # recommended: setup with fail-closed validation
@@ -1323,11 +1323,16 @@ distill init --force               # recreate .env from the template (overwrites
 distill --json init                # machine-readable readiness verdict
 ```
 
-`distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. Ollama setup writes `DISTILL_MODEL=qwen3.5:27b` only when no model is already configured; LM Studio asks for an exact loaded model id. Existing model choices are preserved. `--force` starts from the new template, removes process values that came only from the replaced file, and preserves real shell or global CLI overrides. Env updates leave exactly one active assignment for each key. The exit code is `0` only when the selected local service responds successfully, the exact configured model is present, and the browser is installed. `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
+`distill init` is no-TTY-safe: with no terminal and no `--yes`, it creates the env file and prints the manual next steps rather than blocking on a prompt, so a scripted or agent-driven setup never hangs. Under `no-metered`, `--yes` and a non-TTY both choose local. Ollama setup writes `DISTILL_MODEL` to the smallest installed model that bench rates as feasible when no model is already configured. With no bench history, it uses the smallest size hint. LM Studio still asks for an exact loaded model id. Existing model choices are preserved. `--force` starts from the new template, removes process values that came only from the replaced file, and preserves real shell or global CLI overrides. Env updates leave exactly one active assignment for each key. The exit code is `0` only when the selected local service responds successfully, the exact configured model is present, and a browser is ready (`installed` or `system <path>`). `distill doctor` remains the read-only diagnostic; `init` is the one that *sets things up*.
 
 The suggested `distill papers ... --preview` step stops before paper ingest and
 corpus writes. It can still use the configured model for expansion or reranking,
-so any preview model cost is recorded in the local ledger. Use
+so any preview model cost is recorded in the local ledger. Under `no-metered`,
+a metered route skips expansion and uses deterministic ranking instead of
+calling that API. Preview writes the ranked shortlist. Ingest that exact set
+with `distill papers --from-shortlist <id> --topic <topic>` or
+`distill papers --run-last-preview`. Those commands skip search and rerank.
+A fresh search that was not previewed still ranks as before. Use
 `--cost-mode no-metered` when the requirement is to refuse API-billed routes.
 
 ## Version
@@ -1428,7 +1433,7 @@ distill --json show <topic> 1        # a video's insights (or --what transcript)
 distill --cost-mode no-metered --json doctor  # readiness without API-billed probes
 ```
 
-`distill --json doctor` carries a top-level **`ready`** boolean alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown`) and `warnings`. A cloud route is ready only after the exact resolved model succeeds on its configured provider. Known cross-provider assignments are rejected before a call. A local route is ready only when its configured analysis model is explicit, its endpoint is strict loopback, the service responds successfully, and that exact model appears in the bounded inventory. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires that proven local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
+`distill --json doctor` carries a top-level **`ready`** boolean alongside per-check status in `checks` (including a `browser` entry: `installed` / `missing` / `unknown` / `system (<path>)`) and `warnings`. A cloud route is ready only after the exact resolved model succeeds on its configured provider. Known cross-provider assignments are rejected before a call. A local route is ready only when its configured analysis model is explicit, its endpoint is strict loopback, the service responds successfully, and that exact model appears in the bounded inventory. Under `no-metered`, cloud-key checks report `skipped`, so readiness requires that proven local route. Use `paid-ok` only when an intentional live cloud validation is required. An agent can gate on `ready` in one read; a not-ready environment is fixed with the cost-explicit `init` paths above.
 
 Bare `distill --json` and `distill --json dashboard` return the same
 `dashboard.v2` data object. It includes a `first_run` verdict, primitive count

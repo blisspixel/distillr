@@ -24,7 +24,6 @@ from urllib.parse import urlparse
 from distill import _bootstrap  # noqa: F401  -- imported for stdio side effect  # pyright: ignore[reportUnusedImport] "import applies UTF-8 stdio side effect"
 
 import typer
-from dotenv import load_dotenv
 from rich.console import Console
 from rich.markdown import Markdown
 
@@ -170,7 +169,9 @@ def get_config() -> DistillConfig:
     modules can obtain config without importing `_logic` -- the enabler for
     decomposing `_logic.py` without import cycles (how-we-build.md remediation #1).
     """
-    load_dotenv(dotenv_path=Path.cwd() / ".env")
+    from distill.env_files import load_distill_dotenv
+
+    load_distill_dotenv()
     return DistillConfig()
 
 

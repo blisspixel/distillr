@@ -29,6 +29,7 @@ def library(tmp_path, monkeypatch):
     config.library_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(bench_mod, "get_config", lambda: config)
     monkeypatch.setattr(bench_mod, "run_preflight", lambda: None)
+    monkeypatch.setattr(bench_mod, "_ollama_cloud_gate", lambda: "unknown")
     return config
 
 
@@ -122,6 +123,33 @@ def test_bench_json_mode_emits_an_envelope(library, one_model):
     assert models and models[0]["model"] == "m:8b"
 
 
+def test_ollama_cloud_gate_is_unknown_when_the_probe_fails(monkeypatch):
+    class Boom:
+        def cloud_status(self):
+            raise RuntimeError("down")
+
+    monkeypatch.setattr("distill.llm.providers.ollama.OllamaProvider", Boom)
+
+    assert bench_mod._ollama_cloud_gate() == "unknown"
+
+
+def test_bench_stops_before_probes_when_ollama_cloud_is_enabled(library, monkeypatch):
+    monkeypatch.setattr("distill.commands.eval._ollama_model_sizes", lambda: {"m:8b": 4.9})
+    monkeypatch.setattr(bench_mod, "_ollama_cloud_gate", lambda: "enabled")
+
+    def unexpected_probe(provider: str, model: str) -> ModelSpeed:
+        raise AssertionError(f"probe ran for {provider}/{model}")
+
+    monkeypatch.setattr(bench_mod, "_probe_one", _async_probe(unexpected_probe))
+
+    result = runner.invoke(cli.app, ["bench"])
+
+    assert result.exit_code == 1
+    assert "OLLAMA_NO_CLOUD=1" in result.output
+    assert "Cloud-backed Ollama is unsupported in every cost mode." in result.output
+    assert not (library.library_dir / ".distill" / "bench" / "results.jsonl").exists()
+
+
 def test_bench_exits_when_no_local_model_is_available(library, monkeypatch):
     monkeypatch.setattr("distill.commands.eval._ollama_model_sizes", dict)
 
@@ -159,7 +187,12 @@ def test_a_failed_probe_does_not_end_the_sweep(library, monkeypatch):
 
     def probe(provider: str, model: str) -> ModelSpeed:
         if model == "bad:8b":
-            return ModelSpeed(model=model, provider=provider, outcome="error", error="boom")
+            return ModelSpeed(
+                model=model,
+                provider=provider,
+                outcome="error",
+                error="cloud-enabled daemon refused the local proof contract",
+            )
         return _measured(model)
 
     monkeypatch.setattr(bench_mod, "_probe_one", _async_probe(probe))
@@ -167,7 +200,7 @@ def test_a_failed_probe_does_not_end_the_sweep(library, monkeypatch):
     result = runner.invoke(cli.app, ["bench"])
 
     assert result.exit_code == 0, result.output
-    assert "boom" in result.output
+    assert "cloud-enabled daemon refused the local proof contract" in result.output
     assert "16.0 t/s" in result.output  # the healthy model still measured
 
 

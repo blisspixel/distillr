@@ -2,9 +2,12 @@
 
 import contextlib
 import io
+import select
 import socket
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -749,6 +752,77 @@ def test_request_handler_builds_environment_independent_pinned_session():
         assert isinstance(session.adapters["http://"], _PinnedPublicHTTPSAdapter)
     finally:
         session.close()
+
+
+def test_deadline_socket_detaches_owner_and_stays_pollable_after_close() -> None:
+    left, right = socket.socketpair()
+    deadline = _OperationDeadline(5)
+    owner = SimpleNamespace(sock=None)
+    wrapped = safe_mod._DeadlineSocket(left, deadline, owner=owner)
+    owner.sock = wrapped
+    right.close()
+    try:
+        view = wrapped.makefile("rb", buffering=0)
+        view.close()
+        assert owner.sock is None
+        fd = wrapped.fileno()
+        assert fd >= 0
+        readable, _, _ = select.select([fd], [], [], 0)
+        assert readable == [fd]
+    finally:
+        deadline.cancel()
+        wrapped._close_dropped_fd()
+        left.close()
+
+
+def test_pinned_adapter_survives_second_request_after_deadline_socket_closes(monkeypatch):
+    """Two keep-alive responses must not send on the closed deadline fd."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            body = b"ok"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    host, port = server.server_address
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(
+        "distill.ingestors.youtube.safe_ytdlp._validated_public_https_target",
+        lambda _url, _deadline=None: (host, host),
+    )
+    monkeypatch.setattr(
+        "distill.ingestors.youtube.safe_ytdlp.pin_host_to_ip",
+        lambda _host, _ip, **_kwargs: contextlib.nullcontext(),
+    )
+    deadline = _OperationDeadline(5)
+    adapter = _PinnedPublicHTTPSAdapter(operation_deadline=deadline)
+    session = requests.Session()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    url = f"http://{host}:{port}/watch"
+    try:
+        first = session.get(url, timeout=2)
+        second = session.get(url, timeout=2)
+        assert first.status_code == 200
+        assert first.content == b"ok"
+        assert second.status_code == 200
+        assert second.content == b"ok"
+        assert adapter._operation_deadline is deadline
+    finally:
+        session.close()
+        deadline.cancel()
+        server.shutdown()
+        server.server_close()
 
 
 def test_request_handler_forces_identity_content_encoding():

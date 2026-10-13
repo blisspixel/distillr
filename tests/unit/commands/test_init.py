@@ -37,6 +37,16 @@ def _isolate_local_proof(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_system_browser(monkeypatch):
+    """Missing-browser tests must not pick up a host Chromium."""
+
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.validated_system_browser",
+        lambda: None,
+    )
+
+
 # ─── Pure file helpers ────────────────────────────────────────────────
 
 
@@ -456,6 +466,18 @@ class TestEnvFileHelpers:
 
 
 class TestBrowserSetup:
+    @pytest.fixture(autouse=True)
+    def _clear_host_browser_overrides(self, monkeypatch):
+        """Host NODE_PATH must not turn a mocked probe into an unsafe refusal."""
+
+        for name in (
+            "NODE_OPTIONS",
+            "NODE_PATH",
+            "PLAYWRIGHT_BROWSERS_PATH",
+            "PLAYWRIGHT_NODEJS_PATH",
+        ):
+            monkeypatch.delenv(name, raising=False)
+
     @pytest.mark.parametrize(
         ("executable_exists", "expected"),
         [(True, "installed"), (False, "missing")],
@@ -625,6 +647,7 @@ class TestProviderBoundaries:
 def in_tmp(tmp_path, monkeypatch):
     """Run init in an isolated cwd so .env lands in tmp, not the repo."""
     monkeypatch.chdir(tmp_path)
+    (tmp_path / "pyproject.toml").write_text('name = "distillr"\n', encoding="utf-8")
     base_names = (
         "DISTILL_PROVIDER",
         "DISTILL_COST_MODE",
@@ -934,8 +957,7 @@ def test_local_non_json_path_sets_default_and_renders_status(in_tmp, monkeypatch
     [
         (
             "ollama",
-            "Start Ollama and pull a model, e.g. `ollama pull qwen3.5:27b`, "
-            "then re-run `distill init`.",
+            "Start Ollama and pull a model, then re-run `distill init`.",
         ),
         (
             "lmstudio",
@@ -962,6 +984,7 @@ def test_local_unreachable_path_reports_blocker(in_tmp, monkeypatch, provider, e
 
 
 def test_local_model_mismatch_reports_exact_ollama_recovery(in_tmp, monkeypatch):
+    (in_tmp / ".env").write_text("DISTILL_MODEL=qwen3.5:27b\n", encoding="utf-8")
     monkeypatch.setattr(
         init_mod,
         "_local_model_inventory",
@@ -1128,6 +1151,195 @@ def test_yes_installs_missing_browser(in_tmp, monkeypatch, install_succeeds, exp
     assert "Installing Chromium" in result.output
     expected_status = "installed" if install_succeeds else "missing"
     assert f"Browser: {expected_status}" in result.output
+
+
+def test_no_metered_yes_picks_the_smallest_local_model_without_a_cloud_probe(in_tmp, monkeypatch):
+    def forbidden(model=""):
+        pytest.fail("no-metered init must not validate a cloud key")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden)
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["qwen3.5:27b", "gemma4:e4b"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+    monkeypatch.setattr("distill.commands.bench.stored_decode_rates", lambda: {})
+
+    result = runner.invoke(app, ["--json", "--cost-mode", "no-metered", "init", "--yes"])
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["data"]["provider"] == "local"
+    assert payload["data"]["local_model"] == "gemma4:e4b"
+    assert "DISTILL_MODEL=gemma4:e4b" in (in_tmp / ".env").read_text(encoding="utf-8")
+
+
+def test_rated_model_wins_over_a_smaller_unrated_name(in_tmp, monkeypatch):
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["qwen3.5:27b", "gemma4:e4b"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+    monkeypatch.setattr(
+        "distill.commands.bench.stored_decode_rates",
+        lambda: {"qwen3.5:27b": 10.0},
+    )
+
+    result = runner.invoke(
+        app,
+        ["--json", "--cost-mode", "no-metered", "init", "--provider", "local", "--yes"],
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.exit_code == 0, result.output
+    assert payload["data"]["local_model"] == "qwen3.5:27b"
+
+
+def test_explicit_cloud_under_no_metered_does_not_validate_a_key(in_tmp, monkeypatch):
+    def forbidden(model=""):
+        pytest.fail("cloud under no-metered must not validate a key")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden)
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["gemma4:e4b"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+    monkeypatch.setattr("distill.commands.bench.stored_decode_rates", lambda: {})
+
+    result = runner.invoke(
+        app,
+        ["--cost-mode", "no-metered", "init", "--provider", "cloud", "--yes"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "does not validate a key in no-metered mode" in result.output
+    assert "paid-ok --provider cloud" in result.output
+    assert "DISTILL_PROVIDER=ollama" in (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "Browser: installed" in result.output
+
+
+def test_system_browser_is_recorded_without_a_download(in_tmp, monkeypatch):
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "missing")
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.validated_system_browser",
+        lambda: "/usr/bin/chromium",
+    )
+
+    result = runner.invoke(app, ["init", "--yes", "--provider", "cloud"])
+
+    assert result.exit_code == 0, result.output
+    assert "Browser: system (/usr/bin/chromium)" in result.output
+    assert "Installing Chromium" not in result.output
+    assert "DISTILL_BROWSER_EXECUTABLE=/usr/bin/chromium" in (in_tmp / ".env").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_unsupported_os_without_a_browser_still_attempts_download(in_tmp, monkeypatch):
+    monkeypatch.setattr(init_mod, "_validate_xai", lambda model="": ("ok", model))
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "missing")
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.playwright_os_supported",
+        lambda release_text=None: False,
+    )
+    monkeypatch.setattr(init_mod, "_install_chromium", lambda: True)
+
+    result = runner.invoke(app, ["init", "--yes", "--provider", "cloud"])
+
+    assert result.exit_code == 0, result.output
+    assert "not an official Playwright browser target" in result.output
+    assert "Installing Chromium" in result.output
+
+
+def test_readme_no_metered_preview_does_not_call_a_metered_route(in_tmp, monkeypatch):
+    from distill.commands import papers as papers_cmd
+    from distill.config import DistillConfig
+    from distill.ingestors.papers.arxiv import PaperRecord
+    from distill.llm.cost_policy import CostPolicyError
+    from distill.pipeline.ranking import RankedPaper
+
+    def forbidden(model=""):
+        pytest.fail("readme init must not validate a cloud key")
+
+    monkeypatch.setattr(init_mod, "_validate_xai", forbidden)
+    monkeypatch.setattr(
+        init_mod,
+        "_local_model_inventory",
+        lambda provider: ("running", ["gemma4:e4b"]),
+    )
+    monkeypatch.setattr(init_mod, "chromium_status", lambda: "installed")
+    monkeypatch.setattr("distill.commands.bench.stored_decode_rates", lambda: {})
+
+    setup = runner.invoke(app, ["--cost-mode", "no-metered", "init", "--yes"])
+    assert setup.exit_code == 0, setup.output
+    env_text = (in_tmp / ".env").read_text(encoding="utf-8")
+    assert "DISTILL_PROVIDER=ollama" in env_text
+    assert "DISTILL_MODEL=gemma4:e4b" in env_text
+
+    record = PaperRecord(
+        paper_id="2607.00001v1",
+        title="Temporal Graphs",
+        abstract="A paper.",
+        authors=["Ada"],
+    )
+    library = DistillConfig(
+        distill_output_dir=in_tmp / "library",
+        distill_cost_mode="no-metered",
+    )
+    library.library_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(papers_cmd, "get_config", lambda: library)
+
+    def expand(*args, **kwargs):
+        raise CostPolicyError("metered")
+
+    def rerank(query, candidates, received, *, tracker, top_n, use_llm):
+        assert use_llm is False
+        return [
+            RankedPaper(
+                paper=record,
+                final_score=0.5,
+                relevance_score=0.5,
+                depth_score=0.0,
+                novelty_score=0.0,
+                credibility_score=0.0,
+                rationale="deterministic",
+                selected_by="heuristic",
+            )
+        ]
+
+    monkeypatch.setattr(papers_cmd, "_expand_paper_queries", expand)
+    monkeypatch.setattr(papers_cmd, "search_arxiv_papers", lambda query, *, limit, sort: [record])
+    monkeypatch.setattr(papers_cmd, "rerank_papers", rerank)
+    monkeypatch.setattr(
+        papers_cmd,
+        "model_available",
+        lambda workload: (_ for _ in ()).throw(CostPolicyError("metered")),
+    )
+
+    preview = runner.invoke(
+        app,
+        [
+            "--cost-mode",
+            "no-metered",
+            "papers",
+            "temporal knowledge graph",
+            "--topic",
+            "tkg",
+            "--limit",
+            "5",
+            "--preview",
+        ],
+    )
+
+    assert preview.exit_code == 0, preview.output
+    assert "Query expansion skipped under no-metered" in preview.output
+    assert "deterministic ranking fallback" in preview.output
+    assert "--from-shortlist" in preview.output
 
 
 class TestEnvValueRoundTrip:

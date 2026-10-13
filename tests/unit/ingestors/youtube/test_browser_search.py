@@ -91,6 +91,7 @@ class _FakeChromium:
     def __init__(self, browser):
         self.browser = browser
         self.launch_kwargs = []
+        self.executable_path = sys.executable
 
     def launch(self, **kwargs):
         self.launch_kwargs.append(kwargs)
@@ -113,6 +114,14 @@ def _install_fake_playwright(monkeypatch, page):
     browser = _FakeBrowser(context)
     chromium = _FakeChromium(browser)
     manager = _FakePlaywrightManager(chromium)
+    for name in (
+        "DISTILL_BROWSER_EXECUTABLE",
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "PLAYWRIGHT_BROWSERS_PATH",
+        "PLAYWRIGHT_NODEJS_PATH",
+    ):
+        monkeypatch.delenv(name, raising=False)
     fake_module = SimpleNamespace(sync_playwright=lambda: manager)
     monkeypatch.setitem(sys.modules, "playwright", SimpleNamespace(sync_api=fake_module))
     monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_module)

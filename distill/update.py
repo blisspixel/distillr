@@ -118,6 +118,28 @@ def detect_install_method() -> str:
     return METHOD_PIP
 
 
+def optional_package_install_hint(package: str) -> str:
+    """Install hint for an optional distribution, matching how distillr was installed."""
+
+    method = detect_install_method()
+    if method == METHOD_UV:
+        return f"uv tool install distillr --with {package}"
+    if method == METHOD_PIPX:
+        return f"pipx inject distillr {package}"
+    return f"pip install {package}"
+
+
+def optional_extra_install_hint(extra: str) -> str:
+    """Install hint for an optional extra. Source checkouts keep the pip command."""
+
+    method = detect_install_method()
+    if method == METHOD_UV:
+        return f"uv tool install 'distillr[{extra}]' --force"
+    if method == METHOD_PIPX:
+        return f"pipx install 'distillr[{extra}]'"
+    return f"pip install 'distillr[{extra}]'"
+
+
 def upgrade_command(method: str) -> list[str] | None:
     """The argv that upgrades distillr for *method*, or None for source installs."""
     if method == METHOD_UV:

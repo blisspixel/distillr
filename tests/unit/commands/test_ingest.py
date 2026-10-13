@@ -401,9 +401,13 @@ def test_ingest_tweet_preserves_raw_fetch_url_but_omits_it_from_output(
     assert "FETCH-CANARY" not in capsys.readouterr().out
 
 
-def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
+def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path, monkeypatch) -> None:
     from distill.cli import app
 
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.browser_can_launch",
+        lambda: True,
+    )
     with patch("distill.commands.ingest.get_config") as get_config_mock:
         from distill.config import DistillConfig
 
@@ -418,9 +422,59 @@ def test_ingest_cmd_unknown_host_exits_with_code_2(tmp_path: Path) -> None:
     assert not (tmp_path / "lib" / ".distill" / "cost_log.jsonl").exists()
 
 
-def test_ingest_cmd_unknown_host_json_is_loop_readable(tmp_path: Path) -> None:
+def test_unknown_https_host_uses_one_static_page_without_a_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from distill.cli import app
+    from distill.ingestors.sites.records import SiteSeed
+
+    seen: dict[str, object] = {}
+
+    def process(seed: SiteSeed, config, tracker, summary, scrape_only: bool = False) -> None:
+        seen["seed"] = seed
+        seen["scrape_only"] = scrape_only
+
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.browser_can_launch",
+        lambda: False,
+    )
+    monkeypatch.setattr("distill.commands._site_ingest.process_site_seed", process)
+    monkeypatch.setattr(_ingest, "get_config", lambda: _config(tmp_path))
+
+    result = CliRunner().invoke(app, ["ingest", "https://example.com/notes"])
+
+    assert result.exit_code == 0, result.output
+    seed = seen["seed"]
+    assert isinstance(seed, SiteSeed)
+    assert seed.max_pages == 1
+    assert seed.max_depth == 0
+    assert seen["scrape_only"] is False
+
+
+def test_unknown_http_host_does_not_use_the_static_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from distill.cli import app
 
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.browser_can_launch",
+        lambda: False,
+    )
+    monkeypatch.setattr(_ingest, "get_config", lambda: _config(tmp_path))
+
+    result = CliRunner().invoke(app, ["ingest", "http://example.com/notes"])
+
+    assert result.exit_code == 2
+    assert "no dedicated adapter" in result.output.lower()
+
+
+def test_ingest_cmd_unknown_host_json_is_loop_readable(tmp_path: Path, monkeypatch) -> None:
+    from distill.cli import app
+
+    monkeypatch.setattr(
+        "distill.ingestors.sites.system_browser.browser_can_launch",
+        lambda: True,
+    )
     with patch("distill.commands.ingest.get_config") as get_config_mock:
         get_config_mock.return_value = DistillConfig(
             xai_api_key="x", distill_output_dir=tmp_path / "lib"

@@ -58,6 +58,7 @@ from distill.ingestors.youtube.discovery import (
     discover_videos,
     get_video_info,
     resolve_channel_name,
+    video_info_failure_message,
 )
 from distill.library import Library
 from distill.library.paths import find_artifact
@@ -179,14 +180,15 @@ def video(
     console.print("\n[bold]Fetching video info...[/bold]")
     info = get_video_info(url)
     if not info:
+        failure = video_info_failure_message()
         summary.add_issue(
             "video-info",
-            "Could not get video info. Check the URL.",
+            failure,
             context=url_for_diagnostic(url),
             details={"topic": topic},
         )
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
-        console.print("[red]Could not get video info. Check the URL.[/red]")
+        console.print(f"[red]{failure}[/red]")
         raise typer.Exit(1)
 
     channel_name = _resolve_video_channel_name(url, info, resolve_channel_name)

@@ -2538,11 +2538,9 @@ class TestWatchCommands:
 
         assert result.exit_code == 0
         assert len(multi_calls) == 1
-        # Should include original query plus the two LLM variants
+        # --limit 1 keeps the original query and one expansion, at most two searches.
         queries_sent = multi_calls[0]
-        assert "music transformer" in queries_sent
-        assert "q1 variant" in queries_sent
-        assert "q2 variant" in queries_sent
+        assert queries_sent == ["music transformer", "q1 variant"]
 
     def test_discover_preview_shows_goal_ranked_plan(self, mock_config, monkeypatch):
         """discover --preview should generate queries, fetch candidates, rerank, display, stop."""

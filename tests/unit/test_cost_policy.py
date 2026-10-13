@@ -183,7 +183,9 @@ def test_route_block_report_includes_recovery_hint_for_metered_api() -> None:
     assert report["provider"] == "xai"
     assert report["workload"] == "synthesis"
     assert report["cost_class"] == "metered-api"
-    assert "paid-ok" in str(report["recovery_hint"])
+    hint = str(report["recovery_hint"])
+    assert "paid-ok" in hint
+    assert hint.index("provider set ollama") < hint.index("paid-ok")
     assert "Blocked provider: xai" in str(report["message"])
 
 

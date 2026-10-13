@@ -445,6 +445,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 "canonical_url": page_meta.get("canonical_url", ""),
                 "section": page_meta.get("section", ""),
                 "legacy_filename": "content.md",
+                **({"capture": page_obj.capture} if page_obj.capture else {}),
             },
         )
         content_path = write_markdown_artifact(

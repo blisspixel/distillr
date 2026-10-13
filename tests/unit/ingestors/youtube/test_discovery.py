@@ -20,6 +20,7 @@ from distill.ingestors.youtube.discovery import (
     get_video_info,
     is_youtube_url,
     resolve_channel_name,
+    video_info_failure_message,
 )
 
 
@@ -580,6 +581,29 @@ class TestVideoInfoHelpers:
         )
 
         assert get_video_info("https://youtube.com/watch?v=abc") is None
+        assert video_info_failure_message() == "YouTube capture failed: boom"
+
+    def test_get_video_info_names_closed_deadline_socket(self, monkeypatch):
+        class FakeYDL:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def extract_info(self, url, download=False):
+                raise ValueError("file descriptor cannot be a negative integer (-1)")
+
+        monkeypatch.setattr(
+            "distill.ingestors.youtube.discovery.SafeYoutubeDL",
+            lambda _opts, **_limits: FakeYDL(),
+        )
+
+        assert get_video_info("https://youtube.com/watch?v=abc") is None
+        message = video_info_failure_message()
+        assert "deadline socket was reused after it was closed" in message
+        assert "file descriptor cannot be a negative integer (-1)" in message
+        assert "Check the URL" not in message
 
     def test_enrich_videos_merges_richer_metadata(self, monkeypatch):
         base = VideoInfo("v1", "Base", "20260301", 100, "https://youtube.com/watch?v=v1", "Chan")

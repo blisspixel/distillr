@@ -49,6 +49,45 @@ def _reply(request: httpx.Request, value: object) -> httpx.Response:
     return httpx.Response(200, json=value, request=request)
 
 
+def test_cloud_gate_distinguishes_enabled_from_unknown() -> None:
+    probe = ShowProbe(
+        "http://127.0.0.1:9",
+        trust_env=False,
+        parse_context_window=lambda value: 0,
+    )
+
+    async def respond(payload: object) -> str:
+        async def document(path: str, model: str | None = None) -> object:
+            assert path == "/api/status"
+            assert model is None
+            return payload
+
+        probe._proof_document = document  # type: ignore[method-assign]
+        return await probe.cloud_gate()
+
+    assert asyncio.run(respond({"cloud": {"disabled": False, "source": "env"}})) == "enabled"
+    assert asyncio.run(respond({"cloud": {"disabled": True, "source": "env"}})) == "disabled"
+    assert asyncio.run(respond({"cloud": {"disabled": "yes", "source": "env"}})) == "unknown"
+    assert asyncio.run(respond({"cloud": {"disabled": True, "source": "env"}, "extra": 1})) == (
+        "unknown"
+    )
+    assert asyncio.run(respond("nope")) == "unknown"
+
+    async def fail(path: str, model: str | None = None) -> object:
+        raise httpx.ConnectError("down")
+
+    probe._proof_document = fail  # type: ignore[method-assign]
+    assert asyncio.run(probe.cloud_gate()) == "unknown"
+
+    provider = OllamaProvider()
+
+    async def enabled(path: str, model: str | None = None) -> object:
+        return {"cloud": {"disabled": False, "source": "env"}}
+
+    provider._show._proof_document = enabled  # type: ignore[method-assign]
+    assert asyncio.run(provider.cloud_status()) == "enabled"
+
+
 @pytest.mark.parametrize("name", ["ordinary-alias", "gpt-oss:120b-cloud"])
 @pytest.mark.parametrize(
     "status",

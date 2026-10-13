@@ -136,6 +136,49 @@ def _local_route_availability_report(
     ]
 
 
+def reported_browser_status() -> str:
+    """Bundled status, or ``system (path)`` when only a system browser is present.
+
+    Does not launch Chromium. ``installed`` and ``unsafe`` stay unchanged so a
+    working Playwright browser is still reported as installed.
+    """
+
+    from distill.commands.init import chromium_status
+    from distill.ingestors.sites.system_browser import candidate_browser_path
+
+    status = chromium_status()
+    if status in {"installed", "unsafe"}:
+        return status
+    found = candidate_browser_path()
+    if found:
+        return f"system ({found})"
+    return status
+
+
+def _ollama_cloud_notice() -> str:
+    """Short cloud-gate line, or empty when the daemon contract is unknown."""
+
+    try:
+        import asyncio
+
+        from distill.llm.providers.ollama import OllamaProvider
+
+        status = asyncio.run(OllamaProvider().cloud_status())
+    except Exception:
+        return ""
+    if status == "disabled":
+        return "cloud: disabled (config)"
+    if status == "enabled":
+        return "cloud: ENABLED, local routes refused"
+    return ""
+
+
+def _suggested_model(installed: list[str] | tuple[str, ...]) -> str:
+    from distill.commands._local_model_choice import suggest_installed_model
+
+    return suggest_installed_model(installed)
+
+
 def _doctor_local_inference_section(  # noqa: C901
     config: DistillConfig,
     accent: str,
@@ -204,6 +247,9 @@ def _doctor_local_inference_section(  # noqa: C901
         console.print(
             f"  Ollama:     [green]running[/green]  [dim]({len(ollama_models)} model(s))[/dim]"
         )
+        cloud_notice = _ollama_cloud_notice()
+        if cloud_notice:
+            console.print(f"              [dim]{escape(cloud_notice)}[/dim]")
         if ollama_models:
             for m in ollama_models[:5]:
                 console.print(f"              [dim]- {escape(m)}[/dim]")
@@ -289,9 +335,10 @@ def _doctor_local_inference_section(  # noqa: C901
                 "  Volume without spend ($0, hours):  [cyan]distill --cost-mode no-metered "
                 "profile refresh --max-hours 6[/cyan]"
             )
+            compared = _suggested_model(ollama_models) or ollama_models[0]
             console.print(
-                f"  Compare local vs cloud:  "
-                f"[cyan]distill eval --models grok-4.6,{escape(ollama_models[0])}[/cyan]"
+                "  Compare local vs cloud:  "
+                f"[cyan]distill eval --models grok-4.6,{escape(compared)}[/cyan]"
             )
     elif local_model_ready:
         console.print("  Local ready: ingest more, stay current, $0. Time is the budget.")
@@ -311,7 +358,8 @@ def _doctor_local_inference_section(  # noqa: C901
     elif readiness_warnings:
         console.print("  Resolve the local-only proof issue above, then re-run `distill doctor`.")
     elif ollama_models or lmstudio_models:
-        example_model = ollama_models[0] if ollama_models else lmstudio_models[0]
+        installed = ollama_models or lmstudio_models
+        example_model = _suggested_model(installed) or installed[0]
         example_provider = "ollama" if ollama_models else "lmstudio"
         console.print(
             "  Model available but routing is not ready: set "
@@ -321,9 +369,9 @@ def _doctor_local_inference_section(  # noqa: C901
     else:
         console.print(
             "  Not set up yet:  [cyan]distill --cost-mode no-metered init[/cyan]  "
-            "[dim](guided: writes .env, validates your key, installs the browser)[/dim]"
+            "[dim](guided: writes .env, checks a local runtime, records the browser)[/dim]"
         )
         console.print(
             "  [dim]Or by hand: add XAI_API_KEY to .env for cloud, "
-            "or `ollama pull qwen3.5:27b` to run local.[/dim]"
+            "or pull a local model and re-run distill init.[/dim]"
         )

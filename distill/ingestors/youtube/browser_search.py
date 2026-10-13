@@ -194,12 +194,15 @@ def _fetch_with_playwright(search_url: str) -> str:
 
     try:
         with sync_playwright() as p, PinnedBrowserProxy() as proxy_server:
+            from distill.ingestors.sites.system_browser import chromium_launch_kwargs
+
             browser = p.chromium.launch(
                 headless=True,
                 args=[
                     "--disable-quic",
                     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
                 ],
+                **chromium_launch_kwargs(bundled_executable=p.chromium.executable_path),
             )
             try:
                 context = browser.new_context(

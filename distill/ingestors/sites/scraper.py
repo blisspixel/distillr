@@ -237,7 +237,32 @@ def crawl_site_with_receipts(seed: SiteSeed) -> SiteCrawlResult:
 
     if not _seed_is_crawlable(seed):
         return SiteCrawlResult()
+    if seed.max_pages == 1 and seed.max_depth == 0:
+        from distill.ingestors.sites.system_browser import browser_can_launch
+
+        if not browser_can_launch():
+            return _static_seed_page(seed)
     return _run_browser_worker(seed)
+
+
+def _static_seed_page(seed: SiteSeed) -> SiteCrawlResult:
+    """One exact page via HTTPS when no browser executable is available."""
+
+    from distill.ingestors.sites.http_static import StaticFetchError, fetch_static_page
+
+    try:
+        page = fetch_static_page(seed.url)
+    except StaticFetchError as exc:
+        return SiteCrawlResult(
+            failures=[
+                CaptureFailure(
+                    url=seed.url,
+                    outcome="navigation-failed",
+                    detail=str(exc)[:500],
+                )
+            ]
+        )
+    return SiteCrawlResult(pages=[page])
 
 
 def _worker_string(row: dict[str, Any], key: str, maximum: int) -> str:
@@ -538,6 +563,8 @@ def crawl_site_in_browser_worker(seed: SiteSeed) -> SiteCrawlResult:
             failures.append(failure)
 
     with PinnedBrowserProxy() as proxy_server, sync_playwright() as playwright:
+        from distill.ingestors.sites.system_browser import chromium_launch_kwargs
+
         browser = playwright.chromium.launch(
             headless=True,
             args=[
@@ -549,6 +576,7 @@ def crawl_site_in_browser_worker(seed: SiteSeed) -> SiteCrawlResult:
                 "--metrics-recording-only",
                 "--no-first-run",
             ],
+            **chromium_launch_kwargs(bundled_executable=playwright.chromium.executable_path),
         )
         try:
             context = browser.new_context(

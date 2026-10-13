@@ -108,9 +108,14 @@ _ENV_KEY_PATTERN = re.compile(r"[A-Z][A-Z0-9_]*")
 
 
 def env_file_path() -> Path:
-    """The ``.env`` distill loads -- the one in the current working directory
-    (Pydantic Settings reads ``.env`` relative to cwd)."""
-    return Path.cwd() / ".env"
+    """The env file ``init`` and ``provider set`` write.
+
+    A distillr checkout keeps ``./.env``. Any other directory writes the user
+    config file so the choice survives a later working directory.
+    """
+    from distill.env_files import writable_env_path
+
+    return writable_env_path()
 
 
 def _initial_env_stat(path: Path) -> os.stat_result | None:
@@ -252,6 +257,7 @@ def _create_env_if_absent(path: Path, content: str) -> bool:
 def _env_update_lock(path: Path) -> Generator[None]:
     """Serialize env read-modify-write operations across threads and processes."""
 
+    path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_name(f"{path.name}.distill.lock")
     with (
         open_lock_file(lock_path) as lock_file,
@@ -556,6 +562,11 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
     install_browser: bool = typer.Option(
         True, "--browser/--no-browser", help="Install Playwright Chromium if missing"
     ),
+    browser_path: str | None = typer.Option(
+        None,
+        "--browser-path",
+        help="Use this system Chromium instead of downloading Playwright's browser",
+    ),
 ) -> None:
     """Set up Distill and ready a browser.
 
@@ -603,17 +614,27 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
         else:
             console.print(f"  [dim]Found existing[/dim] {env_path} [dim](kept as-is)[/dim]")
 
-    # 2. Provider choice (cloud is the default; honor an explicit flag or --yes).
-    if provider in ("cloud", "local"):
-        choice: InitProvider = "local" if provider == "local" else "cloud"
+    # 2. Provider choice. no-metered never defaults to a metered key.
+    no_metered = os.environ.get("DISTILL_COST_MODE", "").strip().lower() == "no-metered"
+    if no_metered and provider == "cloud":
+        if not quiet:
+            console.print(
+                "  [yellow]Cloud setup does not validate a key in no-metered mode.[/yellow] "
+                "Re-run with `--cost-mode paid-ok --provider cloud` to validate xAI. "
+                "Continuing with a local provider."
+            )
+        choice: InitProvider = "local"
+    elif provider in ("cloud", "local"):
+        choice = "local" if provider == "local" else "cloud"
     elif yes:
-        choice = "cloud"
+        choice = "local" if no_metered else "cloud"
     else:
+        default_provider = "local" if no_metered else "cloud"
         prompt_choice = (
             tty_prompt(
                 "Provider -- cloud (xAI) or local (ollama/lmstudio)?",
-                default="cloud",
-                non_tty_default="cloud",
+                default=default_provider,
+                non_tty_default=default_provider,
             )
             .strip()
             .lower()
@@ -811,24 +832,30 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                     "then re-run `distill init`."
                 )
         else:
+            local_status, local_models = _local_model_inventory(route_provider)
             if (
                 not configured_model
                 and not _has_any_model_override()
                 and route_provider == "ollama"
+                and local_status == "running"
             ):
-                configured_model = "qwen3.5:27b"
-                _env_file_operation(
-                    env_path,
-                    lambda: set_env_var(env_path, "DISTILL_MODEL", configured_model),
-                )
-                # Mirror so the readiness verdict below resolves the model that was
-                # just written rather than a stale process-env value.
-                os.environ["DISTILL_MODEL"] = configured_model
-                state["local_model"] = configured_model
-                if not quiet:
-                    console.print(f"  [green]Set[/green] DISTILL_MODEL={configured_model} in .env")
+                from distill.commands._local_model_choice import suggest_installed_model
 
-            local_status, local_models = _local_model_inventory(route_provider)
+                suggested = suggest_installed_model(local_models)
+                if suggested:
+                    configured_model = suggested
+                    _env_file_operation(
+                        env_path,
+                        lambda: set_env_var(env_path, "DISTILL_MODEL", configured_model),
+                    )
+                    # Mirror so the readiness verdict below resolves the model that was
+                    # just written rather than a stale process-env value.
+                    os.environ["DISTILL_MODEL"] = configured_model
+                    state["local_model"] = configured_model
+                    if not quiet:
+                        console.print(
+                            f"  [green]Set[/green] DISTILL_MODEL={configured_model} in .env"
+                        )
             state["local"] = f"{route_provider}: {local_status}"
             state["local_reachable"] = local_status == "running"
             state["local_models"] = local_models
@@ -844,16 +871,16 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
 
         if route_allowed and not state["local_reachable"]:
             if route_provider == "ollama":
-                blocker = (
-                    "Start Ollama and pull a model, e.g. `ollama pull qwen3.5:27b`, "
-                    "then re-run `distill init`."
-                )
+                blocker = "Start Ollama and pull a model, then re-run `distill init`."
             else:
                 blocker = "Start LM Studio and load a model, then re-run `distill init`."
             state["blocking"].append(blocker)
         elif route_allowed and not configured_model:
             available = state["local_models"]
-            example = f", for example '{available[0]}'" if available else ""
+            from distill.commands._local_model_choice import suggest_installed_model
+
+            example_name = suggest_installed_model(available)
+            example = f", for example '{example_name}'" if example_name else ""
             state["blocking"].append(
                 f"Set DISTILL_MODEL or DISTILL_ANALYSIS_MODEL to an exact loaded "
                 f"{route_provider} model id{example}, "
@@ -873,33 +900,68 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
                     "Load that exact model, then re-run `distill init`."
                 )
 
-    # 4. Browser -- the #1 silent ingest failure if absent.
+    # 4. Browser. Prefer a system Chromium when Playwright's build is missing.
     browser = chromium_status()
+    if browser_path:
+        os.environ["DISTILL_BROWSER_EXECUTABLE"] = browser_path
+    if browser not in {"installed", "unsafe"}:
+        from distill.ingestors.sites.system_browser import (
+            playwright_os_supported,
+            validated_system_browser,
+        )
+
+        found = validated_system_browser() or ""
+        supported = playwright_os_supported()
+        if found:
+            browser = f"system ({found})"
+            _env_file_operation(
+                env_path,
+                lambda: set_env_var(env_path, "DISTILL_BROWSER_EXECUTABLE", found),
+            )
+            os.environ["DISTILL_BROWSER_EXECUTABLE"] = found
+            if not supported and not quiet:
+                console.print(
+                    "  [yellow]This OS is not an official Playwright browser target. "
+                    "Using the system browser instead of downloading Chromium.[/yellow]"
+                )
+        else:
+            if browser_path:
+                os.environ.pop("DISTILL_BROWSER_EXECUTABLE", None)
+            if not supported and not quiet:
+                console.print(
+                    "  [yellow]This OS is not an official Playwright browser target. "
+                    "A bundled Chromium download is likely to fail. "
+                    "Install a system Chromium or pass --browser-path.[/yellow]"
+                )
     if browser == "missing" and install_browser:
         do_install = yes or tty_confirm(
-            "Playwright Chromium is missing -- install it now (~150MB)?", default=False
+            "Playwright Chromium is missing. Install it now (about 150MB)?", default=False
         )
         if do_install:
             if not quiet:
                 console.print("  Installing Chromium ...")
             browser = "installed" if _install_chromium() else "missing"
     state["browser"] = browser
+    browser_ready = browser == "installed" or browser.startswith("system ")
     if browser == "unsafe":
         from distill.process_security import unsafe_package_overrides
 
         names = ", ".join(unsafe_package_overrides())
         state["blocking"].append(f"Remove unsafe browser execution environment variables: {names}.")
-    elif browser != "installed":
-        state["blocking"].append("Run `playwright install chromium` for YouTube + web capture.")
+    elif not browser_ready:
+        state["blocking"].append(
+            "Run `distill init --browser` for YouTube and web capture, "
+            "or pass --browser-path to a system Chromium."
+        )
 
     # 5. Readiness verdict + first command.
     if choice == "cloud":
-        state["ready"] = cloud_route_ready and state["browser"] == "installed"
+        state["ready"] = cloud_route_ready and browser_ready
     else:
         state["ready"] = (
             state.get("local_reachable", False)
             and state.get("local_model_ready", False)
-            and state["browser"] == "installed"
+            and browser_ready
         )
     next_cost_mode = "paid-ok" if choice == "cloud" else "no-metered"
     state["next"] = (

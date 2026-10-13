@@ -180,6 +180,10 @@ def ingest_cmd(
             )
             return
 
+        if _static_https_fallback(url):
+            _ingest_static_https(url, topic, config, tracker, analyze=not no_analyze)
+            return
+
         exit_with_refusal(
             f"No dedicated adapter for host {host!r} yet. "
             "Use `distill site` for arbitrary websites, `distill latest`/`distill video` "
@@ -191,6 +195,40 @@ def ingest_cmd(
         )
     finally:
         _save_ingest_cost(config, tracker, topic=topic, source_type=source_type)
+
+
+def _static_https_fallback(url: str) -> bool:
+    """Use a plain fetch only when this host has no browser to launch."""
+
+    if not url.lower().startswith("https://"):
+        return False
+    from distill.ingestors.sites.system_browser import browser_can_launch
+
+    return not browser_can_launch()
+
+
+def _ingest_static_https(
+    url: str,
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    analyze: bool,
+) -> None:
+    """Capture one exact page through the site writer and mark the method."""
+
+    from distill.commands._site_ingest import process_site_seed
+    from distill.ingestors.sites.records import SiteSeed
+    from distill.pipeline.summary import RunSummary
+
+    seed = SiteSeed(url=url, topic=topic, max_pages=1, max_depth=0)
+    process_site_seed(
+        seed,
+        config,
+        tracker,
+        RunSummary(command="ingest"),
+        scrape_only=not analyze,
+    )
 
 
 def _save_ingest_cost(

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- YouTube capture no longer fails when a reused connection polls a closed
+  deadline socket. The deadline and the metadata byte limits stay in effect.
+- `distill --cost-mode no-metered init` chooses a local provider, does not
+  validate a cloud key, and records the smallest installed model that bench
+  rates as feasible. Preview under no-metered uses deterministic ranking when
+  the configured route is metered.
+- `distill papers --preview` saves that shortlist. `--from-shortlist` and
+  `--run-last-preview` ingest the same papers and skip search and rerank.
+  A fresh search that was not previewed still ranks as before.
+- When Playwright's browser cannot be installed, launch uses a validated
+  system Chromium. An exact page with no browser falls back to one bounded
+  HTTPS fetch and records `capture: http-static`.
+- `distill bench` stops before probing when Ollama cloud is enabled, and
+  `distill doctor` reports that state. Optional-package hints follow uv or
+  pipx. Setup outside a source checkout writes the per-user env file, which
+  later commands load from any working directory.
+
 ## 0.20.5 - 2026-10-07
 
 ### Fixed
