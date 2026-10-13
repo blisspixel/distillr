@@ -31,16 +31,17 @@ does not independently schedule releases.
   floor clears a critical TLS certificate-validation advisory. It was inserted
   under the release-blocker rule, so the rows below each moved down one place
   with their scope unchanged.
-- `0.20.5` is current and closes API, routed billing, SDK compatibility, and
-  dependency security defects. See the [dated audit](research/api-models-2026-10-06.md).
-  It inserts a maintenance boundary and shifts the remaining rows without
-  expanding their scope. Unreleased maintenance for first-run setup, exact
-  preview replay, and browser fallback does not change the 0.20.6 outcome.
-- `0.20.6` is next and owns claim-generation retirement and derived-origin
+- `0.20.5` shipped API, routed billing, SDK compatibility, and dependency
+  security repairs. See the [dated audit](research/api-models-2026-10-06.md).
+- `0.20.6` shipped first-run setup, exact preview replay, and bounded capture
+  fallbacks. See the [published maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6).
+  This inserts another maintenance boundary; the remaining rows move down one
+  place with their outcomes and exit evidence unchanged.
+- `0.20.7` is next and owns claim-generation retirement and derived-origin
   preservation.
-- `0.20.7` owns the research-desk evaluation baseline.
-- `0.20.8` owns operator, accessibility, and performance evidence.
-- `0.20.9` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.8` owns the research-desk evaluation baseline.
+- `0.20.9` owns operator, accessibility, and performance evidence.
+- `0.20.10` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
@@ -80,13 +81,13 @@ blockers discovered during the current-source review. The remaining product
 sequence is:
 
 1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.20.6`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.7`
+   in `0.20.7`.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.8`
    before changing discovery or synthesis behavior.
 3. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.20.8`.
+   journey evidence in `0.20.9`.
 4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.20.9`.
+   verification, and the freeze-time security receipt in `0.20.10`.
 5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -111,7 +112,7 @@ Remaining editorial increments include corpus receipt selection, per-topic
 queues, digest-bound resume, calibrated local model profiles, qualified quota
 workers, and Retonr rewriting after its adapter contract exists. The research
 desk's remaining trust, evaluation and operator work stays scheduled in
-`0.20.2` through `0.20.6`, before the 1.0 stability commitment.
+`0.20.7` through `0.20.10`, before the 1.0 stability commitment.
 
 The work ahead is ordered around the outcomes a strong research desk provides:
 
@@ -306,7 +307,7 @@ score merely to expose these capabilities.
   change, reading order, honest gaps, and stopping. Record the current system's
   performance before changing prompts or orchestration. Include the
   [correction and disagreement episode](design/research-desk-doctrine.md#correction-and-disagreement-episode)
-  in the `0.20.7` baseline: two conflicting sources and a synthesis, followed
+  in the `0.20.8` baseline: two conflicting sources and a synthesis, followed
   by a correction to one source. Report history retention, affected conclusions,
   preserved qualifications, unresolved disagreement, and collection limits
   separately; record failures without claiming planned behavior is implemented.
@@ -316,7 +317,7 @@ score merely to expose these capabilities.
   record the correction or withdrawal and its date, flag affected synthesis,
   and revise only dependent conclusions. Retain unaffected findings and
   unresolved disagreement, and explain relevance to the reader's question.
-  This is post-1.0 research-desk work; `0.20.6` remains the bounded claim
+  This is post-1.0 research-desk work; `0.20.7` remains the bounded claim
   generation and derived-origin correction.
 - [ ] **Inquiry map.** Derive revisable lines of inquiry from operator-owned
   intent, including why each matters, useful evidence roles, current support,
