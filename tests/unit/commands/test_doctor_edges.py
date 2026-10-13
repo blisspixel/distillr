@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from distill import cli
+from distill._console import console
 from distill.commands import _doctor_report as report
 from distill.commands import doctor as doctor_mod
 from distill.commands.init import set_env_var
@@ -121,8 +122,10 @@ def test_user_env_is_visible_from_another_directory(
     monkeypatch.setattr("distill.commands.init.chromium_status", lambda: "installed")
     monkeypatch.setattr("distill.commands._doctor_report._ollama_cloud_notice", lambda: "")
 
+    # A Windows temp path is wider than the default console and would wrap.
+    monkeypatch.setattr(console, "_width", 400)
     result = runner.invoke(cli.app, ["doctor"])
 
     assert result.exit_code == 0, result.output
     assert "Config files" in result.output
-    assert str(path) in result.output
+    assert str(path) in result.output.replace("\r", "").replace("\n", "")

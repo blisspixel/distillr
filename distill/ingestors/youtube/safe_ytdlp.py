@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import math
-import os
+import socket
 import threading
 import time
 import urllib.parse
@@ -183,6 +183,7 @@ class _DeadlineSocket:
         self._closed = False
         self._owner = owner
         self._dropped_fd: int | None = None
+        self._dropped_socket: socket.socket | None = None
 
     def fileno(self) -> int:
         """Return a live fd, or a readable EOF fd after the inner socket closes.
@@ -190,8 +191,8 @@ class _DeadlineSocket:
         urllib3 treats a pooled connection as reusable when ``is_connected``
         polls the socket. A closed socket reports fd -1, and that poll raises
         ``ValueError`` before the pool can discard the connection. After the
-        inner socket closes, report a pipe that is already at EOF so the poll
-        sees the connection as dropped and opens a new one.
+        inner socket closes, report a socket that is already at EOF. A pipe
+        is not selectable on Windows.
         """
 
         fd = self._inner_fileno()
@@ -213,18 +214,20 @@ class _DeadlineSocket:
         existing = self._dropped_fd
         if existing is not None:
             return existing
-        read_fd, write_fd = os.pipe()
-        os.close(write_fd)
-        self._dropped_fd = read_fd
-        return read_fd
+        read_sock, write_sock = socket.socketpair()
+        write_sock.close()
+        self._dropped_socket = read_sock
+        self._dropped_fd = read_sock.fileno()
+        return self._dropped_fd
 
     def _close_dropped_fd(self) -> None:
-        fd = self._dropped_fd
+        dropped = self._dropped_socket
+        self._dropped_socket = None
         self._dropped_fd = None
-        if fd is None:
+        if dropped is None:
             return
         with contextlib.suppress(OSError):
-            os.close(fd)
+            dropped.close()
 
     def _detach_owner(self) -> None:
         owner = self._owner
