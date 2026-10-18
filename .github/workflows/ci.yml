@@ -11,7 +11,7 @@ on:
 # resolution; pinning uv guarantees the resolver/installer itself is identical
 # across runs. Bumped manually when a new uv release is adopted.
 env:
-  UV_VERSION: "0.11.11"
+  UV_VERSION: "0.13.1"
 
 jobs:
   test:
@@ -20,14 +20,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
     env:
       UV_PYTHON: ${{ matrix.python-version }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -44,8 +44,8 @@ jobs:
 
   test-os:
     name: Test (${{ matrix.os }} smoke)
-    # Cross-platform enforcement: Linux gets the full 3.12-3.14 coverage-gated
-    # matrix above; macOS and Windows run the unit suite on 3.12 (no coverage
+    # Cross-platform enforcement: Linux gets the full 3.12-3.15 coverage-gated
+    # matrix above; macOS and Windows run the unit suite on 3.15 (no coverage
     # gate -- the floor is platform-independent) plus a CLI import smoke, so
     # path handling, console rendering, and subprocess behavior are proven on
     # every OS users actually run. Development happens on Windows; CI was
@@ -56,12 +56,12 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     env:
-      UV_PYTHON: "3.12"
+      UV_PYTHON: "3.15"
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -75,58 +75,13 @@ jobs:
       - name: CLI smoke
         run: uv run --frozen distill --help
 
-  test-python-prerelease:
-    name: Test (Python 3.15 prerelease, advisory)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    env:
-      UV_PYTHON: "3.15"
-      PRERELEASE_UV_VERSION: "0.12.6"
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
-        with:
-          # The prerelease lane needs uv's current managed-Python catalog.
-          # uv 0.11.11 selects an obsolete Python 3.15 alpha on Linux.
-          version: ${{ env.PRERELEASE_UV_VERSION }}
-          enable-cache: true
-
-      - name: Compile source on the current prerelease runtime
-        run: uv run --no-project --python 3.15 python -m compileall -q distill
-
-      - name: Probe prerelease dependency readiness
-        id: prerelease_sync
-        shell: bash
-        run: |
-          set +e
-          uv sync --frozen > prerelease-sync.log 2>&1
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "ready=false" >> "$GITHUB_OUTPUT"
-          echo "::warning::Python 3.15 source compilation passed, but the locked dependency set is not ready."
-          tail -n 40 prerelease-sync.log
-
-      - name: Run unit suite on prerelease runtime
-        if: steps.prerelease_sync.outputs.ready == 'true'
-        run: uv run --frozen pytest -q
-
-      - name: CLI smoke on prerelease runtime
-        if: steps.prerelease_sync.outputs.ready == 'true'
-        run: uv run --frozen distill --help
-
   lint:
     name: Lint (ruff)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -143,9 +98,9 @@ jobs:
     name: Import contracts (import-linter)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -158,9 +113,9 @@ jobs:
     name: Security scan (bandit + pip-audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -177,9 +132,9 @@ jobs:
     name: Type check (pyright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -193,10 +148,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, lint, imports, security]
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -221,6 +176,10 @@ jobs:
             distill/web/templates/base.html \
             distill/web/static/app.js \
             distill/web/static/style.css \
+            distill/web/static/theme-init.js \
+            distill/web/static/export.css \
+            distill/web/themes/house-dark.toml \
+            distill/web/themes/house-light.toml \
             distill/editorial/default-perspective.toml \
             distill/resources/agent-skills/distill-corpus/SKILL.md \
             distill/resources/agent-skills/distill-corpus.manifest.json; do
@@ -237,6 +196,7 @@ jobs:
           uv venv .wheel-smoke
           uv pip install --python .wheel-smoke/bin/python "$whl"
           .wheel-smoke/bin/python -I -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
+          .wheel-smoke/bin/python -I -c "from distill.web.theme import load_themes; themes = load_themes(); assert len(themes.themes) == 12; assert not themes.notices"
           .wheel-smoke/bin/python -I -c "from pathlib import Path; from tempfile import TemporaryDirectory; from distill.editorial.perspective import init_perspective, load_perspective; temp = TemporaryDirectory(); brief = load_perspective(init_perspective(Path(temp.name) / 'perspective.toml')); assert not brief.budget.allow_metered; temp.cleanup()"
 
       - name: Upload artifacts
@@ -250,3 +210,14 @@ jobs:
         with:
           name: agent-distributions
           path: agent-dist/
+
+  container:
+    name: Container (Python 3.15)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and smoke the default container
+        run: |
+          docker build --tag distillr:ci .
+          docker run --rm distillr:ci distill --version
+          docker run --rm distillr:ci python -c "from distill.web.theme import load_themes; assert len(load_themes().themes) == 12"

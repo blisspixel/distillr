@@ -12,6 +12,7 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from distill.config import DistillConfig
 from distill.library.confined import read_confined_text
@@ -20,7 +21,7 @@ from distill.library.insights import (
     insight_content_sha256,
     read_discovered_insight,
 )
-from distill.library.paths import strip_frontmatter
+from distill.library.paths import extract_frontmatter, strip_frontmatter
 
 __all__ = [
     "MAX_SEARCH_QUERY_CHARS",
@@ -76,6 +77,7 @@ class SearchResult:
     score: float  # Relevance score (higher = more relevant)
     artifact_type: str  # insights | synthesis | diff | trends | corpus | paper
     content_sha256: str = ""  # Digest of the exact content snapshot that was ranked
+    origin: Literal["source", "derived", "unknown"] = "unknown"
 
 
 def is_corpus_artifact_path(config: DistillConfig, path: Path) -> bool:
@@ -90,7 +92,12 @@ def is_corpus_artifact_path(config: DistillConfig, path: Path) -> bool:
         return False
     if any(part.startswith(".") for part in parts[1:]):
         return False
-    return not path.name.casefold().endswith("_answer.md")
+    name = path.stem.casefold()
+    return not (
+        name.endswith(("_answer", "_audit"))
+        or name in {"audit", "answer", "agents", "claude"}
+        or (len(parts) > 3 and parts[2].casefold() in {"audits", "reports", "answers"})
+    )
 
 
 def read_search_result(config: DistillConfig, result: SearchResult) -> str | None:
@@ -145,8 +152,6 @@ def search_corpus(
         if not md_file.is_file() or not is_corpus_artifact_path(config, md_file):
             continue
         artifact_name = md_file.name.casefold()
-        if artifact_name.endswith("_answer.md"):
-            continue
         if artifact_name.endswith("_insights.md"):
             ref = trusted_insights.get(md_file)
             content = read_discovered_insight(ref, library_root) if ref is not None else None
@@ -157,6 +162,12 @@ def search_corpus(
                 max_bytes=_MAX_CORPUS_ARTIFACT_BYTES,
             )
         if content is None:
+            continue
+        frontmatter = extract_frontmatter(content)
+        if (
+            frontmatter.get("type", "").casefold() in {"audit", "answer", "report", "run_summary"}
+            or frontmatter.get("source") == "distill-answer"
+        ):
             continue
 
         body = strip_frontmatter(content)
@@ -180,11 +191,42 @@ def search_corpus(
                 score=score,
                 artifact_type=artifact_type,
                 content_sha256=insight_content_sha256(content),
+                origin=_artifact_origin(md_file, frontmatter),
             )
         )
 
     results.sort(key=lambda result: (-result.score, result.path))
     return results[:limit]
+
+
+def _artifact_origin(
+    path: Path, frontmatter: dict[str, str]
+) -> Literal["source", "derived", "unknown"]:
+    kind = frontmatter.get("type", "").casefold()
+    name = path.stem.casefold()
+    if (
+        kind
+        in {
+            "insights",
+            "synthesis",
+            "corpus_synthesis",
+            "topic_synthesis",
+            "paper_synthesis",
+            "site_synthesis",
+            "diff",
+            "trends",
+        }
+        or name in {"insights", "synthesis", "diff", "trends"}
+        or name.endswith(("_insights", "_synthesis", "_diff", "_trends"))
+    ):
+        return "derived"
+    if (
+        kind in {"content", "paper", "transcript"}
+        or name in {"content", "paper", "transcript"}
+        or name.endswith(("_content", "_paper", "_transcript"))
+    ):
+        return "source"
+    return "unknown"
 
 
 def extract_section(content: str, section_name: str) -> tuple[str, bool]:

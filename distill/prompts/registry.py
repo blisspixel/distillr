@@ -44,7 +44,7 @@ PROMPT_IDS: dict[str, str] = {
     "synthesis.topic": "synthesis.topic.v1",
     # Knowledge layers
     "claims.extract": "claims.extract.v1",
-    "claims.synthesis": "claims.synthesis.v3",
+    "claims.synthesis": "claims.synthesis.v4",
     "concepts.extract": "concepts.extract.v2",
     # Reports / briefs / answers
     "report.dossier": "report.dossier.v1",
@@ -52,7 +52,7 @@ PROMPT_IDS: dict[str, str] = {
     "report.corpus": "report.corpus.v1",
     "report.deep_research": "report.deep_research.v1",
     "brief.topic": "brief.topic.v1",
-    "ask": "ask.v1",
+    "ask": "ask.v2",
 }
 
 _MAX_PROMPT_ID_CHARS = 256

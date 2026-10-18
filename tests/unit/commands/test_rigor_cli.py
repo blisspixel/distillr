@@ -78,7 +78,11 @@ def test_papers_rigor_drops_subthreshold_candidates(mock_config, monkeypatch):
     captured = {}
     monkeypatch.setattr(_papers, "_expand_paper_queries", lambda *a, **k: ["q"])
     monkeypatch.setattr(
-        _papers, "search_arxiv_papers", lambda *a, **k: [object(), object(), object()]
+        _papers,
+        "search_arxiv_papers",
+        lambda *a, **k: [
+            PaperRecord(paper_id=f"id{i}", title=f"T{i}", abstract="a") for i in range(3)
+        ],
     )
     monkeypatch.setattr(_papers, "rerank_papers", fake_rerank)
     monkeypatch.setattr(

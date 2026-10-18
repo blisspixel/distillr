@@ -17,11 +17,11 @@ from pathlib import Path
 
 import typer
 from rich import box
+from rich.markup import escape
 from rich.table import Table
 
 from distill._console import console
 from distill._version import get_version as _get_version
-from distill.banner import show_banner
 from distill.cli_shared import output_path as _output_path
 from distill.cli_shared import require_model as _require_model
 from distill.commands._cost_data import (
@@ -54,6 +54,7 @@ from distill.commands._costs_sections import (
 from distill.commands._costs_sections import (
     costs_local_cloud_section as _costs_local_cloud_section,
 )
+from distill.commands._diagnostics import print_diagnostic
 from distill.commands._helpers import (
     _complete_topics,
     budgeted_cost_tracker,
@@ -632,7 +633,7 @@ def status(  # noqa: C901 — legacy, will refactor
     """Show library status -- channels, videos, artifacts."""
     config = get_config()
     lib = Library(config)
-    _ACCENT = "rgb(100,149,237)"
+    _ACCENT = "cyan"
 
     topics = lib.get_corpus_topics()
     if not topics:
@@ -675,11 +676,9 @@ def status(  # noqa: C901 — legacy, will refactor
         insight_label = (
             f"{source_insight_count} source insight{'s' if source_insight_count != 1 else ''}"
         )
-        console.print(
-            f"\n  [bold]{topic}[/bold]"
-            f"    [dim]{ch_label},"
-            f" [{_ACCENT}]{topic_videos}[/{_ACCENT}]"
-            f" analyzed, {insight_label}[/dim]"
+        console.print()
+        print_diagnostic(
+            console, f"  --  {escape(topic)}  {ch_label}, {topic_videos} analyzed, {insight_label}"
         )
 
         # Per-channel details
@@ -717,11 +716,12 @@ def status(  # noqa: C901 — legacy, will refactor
             )
             padding = " " * (max_name_len - len(display_name) + 2)
             art_str = f"  [dim]{', '.join(artifacts)}[/dim]" if artifacts else ""
-            console.print(
-                f"    {display_name}{padding}"
-                f"[{_ACCENT}]{count}[/{_ACCENT}] analyzed"
+            print_diagnostic(
+                console,
+                f"  --  {escape(display_name)}{padding}"
+                f"{count} analyzed"
                 f"  [dim]{last_str}[/dim]"
-                f"{art_str}"
+                f"{art_str}",
             )
 
         # Topic-level outputs with dates
@@ -909,10 +909,6 @@ def dashboard(
     """Show the dashboard in terminal or generate a lightweight local web view."""
     config = get_config()
     if not web:
-        from distill.commands._json import json_mode_active
-
-        if not json_mode_active():
-            show_banner(console)
         show_dashboard()
         return
 

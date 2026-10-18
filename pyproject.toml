@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "distillr"
-version = "0.20.6"
+version = "0.20.7"
 description = "Current-source research corpus: discover, capture, verify, and synthesize public sources and local files into durable Markdown."
 readme = "README.md"
 license = "Apache-2.0"
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Linguistic",
 ]
@@ -32,18 +33,22 @@ dependencies = [
     "google-genai>=2.28.0,<3",
     "typer>=0.9.0",
     "pydantic>=2.0",
+    "pydantic>=2.14.1; python_version >= '3.15'",
     "pydantic-settings>=2.14.2",
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0.0",
     "python-docx>=1.0.0",
     "playwright>=1.52.0",
+    # Earlier 3.15 beta wheels can crash on the stable interpreter.
+    "greenlet>=3.5.5; python_version >= '3.15'",
     # MCP SDK v2 speaks protocol 2026-07-28 and answers legacy initialize
     # clients from the same server. Graduated per the adoption design doc;
     # the v3 line must clear its own compatibility review before entering.
     "mcp>=2.2.0,<3",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
+    "uvloop>=0.23.0; python_version >= '3.15' and sys_platform != 'win32'",
     "jinja2>=3.1.0",
     "markdown>=3.5.0",
     "nh3>=0.2.0",
@@ -98,6 +103,7 @@ dev = [
     "pyright>=1.1.390",
     "bandit[toml]>=1.7",
     "pip-audit>=2.7",
+    "pip-api>=0.0.35",
     "msgpack>=1.2.1",
     "pre-commit>=3.5",
     # pre-commit uses virtualenv; refuse vulnerable activation scripts.

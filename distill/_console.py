@@ -29,11 +29,11 @@ __all__ = ["console", "err_console", "is_quiet", "set_json_mode", "set_verbosity
 
 # The one shared human-output console. Modules import THIS object (not their own
 # Console()) so a single redirect governs every print.
-console = Console()
+console = Console(highlight=False)
 
 # Always-stderr console for the few callers that must write to the terminal
 # while stdout is reserved for structured output.
-err_console = Console(stderr=True)
+err_console = Console(stderr=True, highlight=False)
 _quiet = False
 
 

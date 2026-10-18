@@ -40,6 +40,66 @@ def _report(freshness: SynthesisFreshness) -> AuditReport:
 
 
 class TestCollect:
+    def test_mixed_legacy_wall_clock_and_aware_timestamps_are_unknown(self, tmp_path):
+        _write(tmp_path / "papers" / "p1" / "p1_Insights.md", "2026-06-01T10:00:00")
+        _write(tmp_path / "t_Paper_Synthesis.md", "2026-06-01T11:00:00Z")
+        result = collect_synthesis_freshness(tmp_path, "t")
+        assert result.unknown == ("t_Paper_Synthesis.md",)
+        assert result.current == 0
+
+    def test_unreadable_sibling_cannot_be_hidden_by_readable_older_input(self, tmp_path):
+        _write(tmp_path / "papers" / "p1" / "p1_Insights.md", "2026-06-01T10:00:00Z")
+        broken = tmp_path / "papers" / "p2" / "p2_Insights.md"
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"\xff\xfe")
+        _write(tmp_path / "t_Paper_Synthesis.md", "2026-06-01T11:00:00Z")
+        result = collect_synthesis_freshness(tmp_path, "t")
+        assert result.unknown == ("t_Paper_Synthesis.md",)
+        assert result.current == 0
+
+    def test_changed_claim_generation_keeps_old_synthesis_unknown(self, tmp_path):
+        from distill.library.freshness import CLAIMS_DERIVED_DIRTY
+
+        _write(tmp_path / "papers" / "p1" / "p1_Insights.md", "2026-06-01T10:00:00Z")
+        _write(tmp_path / "t_Corpus_Synthesis.md", "2026-06-01T11:00:00Z")
+        (tmp_path / CLAIMS_DERIVED_DIRTY).write_text("changed", encoding="utf-8")
+        assert collect_synthesis_freshness(tmp_path, "t").unknown == ("t_Corpus_Synthesis.md",)
+
+    def test_offset_times_compare_as_utc_instants(self, tmp_path):
+        _write(tmp_path / "papers" / "p" / "p_Insights.md", "2026-06-01T03:00:00-07:00")
+        _write(tmp_path / "t_Paper_Synthesis.md", "2026-06-01T10:00:00Z")
+        result = collect_synthesis_freshness(tmp_path, "t")
+        assert result.current == 1
+        assert not result.stale
+
+    def test_missing_scoped_input_is_unknown_everywhere(self, tmp_path):
+        from distill.config import DistillConfig
+        from distill.library.claude_md import render_topic_claude_md
+        from distill.pipeline.dashboard_data import stale_synthesis_warnings
+
+        config = DistillConfig(xai_api_key="t", distill_output_dir=tmp_path / "library")
+        topic = config.topic_dir("t")
+        _write(topic / "t_Paper_Synthesis.md", "2026-06-01T10:00:00Z")
+        result = collect_synthesis_freshness(topic, "t")
+        assert result.unknown == ("t_Paper_Synthesis.md",)
+        assert result.current == 0
+        assert _report(result).issue_count == 1
+        assert "freshness unknown" in render_audit_md(_report(result), now_iso="x")
+        assert "All 1" not in render_audit_md(_report(result), now_iso="x")
+        assert "freshness unknown" in render_topic_claude_md(topic, "t", now_iso="x")
+        assert "freshness unknown" in stale_synthesis_warnings(config, ["t"])[0]
+        assert len(stale_synthesis_warnings(config, ["t"], limit=1)) == 1
+
+    def test_legacy_mtime_tolerance_still_applies(self, tmp_path):
+        insight = tmp_path / "papers" / "p" / "p_Insights.md"
+        synth = tmp_path / "t_Paper_Synthesis.md"
+        _write(insight, None)
+        _write(synth, None)
+        now = time.time()
+        os.utime(synth, (now, now))
+        os.utime(insight, (now + 1800, now + 1800))
+        assert collect_synthesis_freshness(tmp_path, "t").current == 1
+
     def test_fresh_synthesis_no_findings(self, tmp_path):
         _write(tmp_path / "papers" / "p1" / "p1_Insights.md", "2026-06-01T10:00:00")
         _write(tmp_path / "t_Paper_Synthesis.md", "2026-06-01T10:05:00")
@@ -60,13 +120,12 @@ class TestCollect:
         assert item["behind"] == 2  # only the two insights newer than the synthesis
         assert item["gap_days"] == 52
 
-    def test_same_run_ordering_tolerated(self, tmp_path):
-        # Insights are written minutes before the synthesis in one run; and
-        # cloud-sync can touch mtimes minutes apart. Neither is staleness.
+    def test_newer_explicit_input_is_stale_within_one_hour(self, tmp_path):
         _write(tmp_path / "papers" / "p1" / "p1_Insights.md", "2026-06-01T10:30:00")
         _write(tmp_path / "t_Paper_Synthesis.md", "2026-06-01T10:00:00")
         f = collect_synthesis_freshness(tmp_path, "t")
-        assert f.stale == []
+        assert f.stale == [{"synthesis": "t_Paper_Synthesis.md", "behind": 1, "gap_days": 0}]
+        assert f.current == 0
 
     def test_shadowed_legacy_flagged(self, tmp_path):
         # kilo-tkg in the dogfood library: paper_synthesis.md (April) beside
@@ -155,7 +214,7 @@ class TestRenderAndCount:
 
     def test_all_current_renders_clean_line(self):
         md = render_audit_md(_report(SynthesisFreshness(checked=2)), now_iso="x")
-        assert "All 2 synthesis artifact(s) current" in md
+        assert "All 2 synthesis artifact(s) current by checked timestamps" in md
 
     def test_no_synthesis_points_at_gaps(self):
         md = render_audit_md(_report(SynthesisFreshness()), now_iso="x")

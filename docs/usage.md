@@ -664,6 +664,7 @@ distill ingest https://x.com/example/status/1234567890 --topic agent-harnesses
 distill ingest https://github.com/example/project --topic agent-harnesses
 distill ingest https://example.com/feed.xml --rss --episodes 3 --topic agent-harnesses
 distill ingest private/research-notes.md --topic agent-harnesses
+distill ingest private/research-notes.md --topic agent-harnesses --verify strict
 
 # Capture an X post without attached-video transcription or model analysis
 distill ingest https://x.com/example/status/1234567890 --topic agent-harnesses \
@@ -674,6 +675,13 @@ A non-HTTP target stays on the local-file path. If it does not exist, Distill
 prints the exact target, suggests checking the path, and exits with
 `NOT_FOUND` (5) before URL adapter routing or model work. A missing local file
 is never reported as an unsupported website host.
+
+`--verify warn|strict|off` overrides verification for this ingest. Default
+verification checks numeric tokens; prose needs the optional checker. Strict
+refusal exits nonzero and retains the captured source. Unchanged local analysis
+is a recorded no-op only when source, route, prompt and verification settings
+match a bound receipt. `--force` reruns it and preserves the previous generation
+under hidden history. Persistent lock files coordinate waiting processes.
 
 X uses the public syndication endpoint and never bypasses login or anti-bot
 walls. Artifacts land under
@@ -1050,6 +1058,22 @@ field is null when retained cost evidence cannot support a complete total. The
 web dashboard adds keyboard-accessible drill-downs with rendered markdown, cost
 history, and watchlist status. Scripts are same-origin static assets under a
 restrictive CSP. Every dashboard reads library files only (no database).
+
+Appearance defaults to House Dark and supports Light and System, with separate
+palettes for both variants. Server and standalone export share the same tokens
+and component styles. Choices persist in this browser; System follows OS
+changes. Import validated TOML from Appearance, or manage palettes with:
+
+```bash
+distill theme list
+distill theme install ./my-theme.toml
+distill theme update
+distill theme remove my-theme
+```
+
+Appearance imports write validated palette files in the user configuration
+directory. See [themes.md](themes.md) for GitHub repository installation,
+contrast requirements, bounds, screenshots and fallback behavior.
 
 ## Diagnostics
 

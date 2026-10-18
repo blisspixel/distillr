@@ -38,7 +38,7 @@ def test_extraction_prompt_has_topic_and_schema():
 def test_prompt_ids_are_versioned():
     assert CLAIM_EXTRACTION_PROMPT_ID == "claims.extract.v1"
     # v3 adds the thesis / white-space rung.
-    assert CLAIM_SYNTHESIS_PROMPT_ID == "claims.synthesis.v3"
+    assert CLAIM_SYNTHESIS_PROMPT_ID == "claims.synthesis.v4"
 
 
 def test_synthesis_prompt_has_thesis_rung():

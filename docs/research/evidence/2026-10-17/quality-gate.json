@@ -1,0 +1,58 @@
+{
+  "schema_version": "local-release-gate.v1",
+  "reviewed_base": "b5a75036a7cac70523b7566a0113b69485ec7ab3",
+  "python": "3.15.0",
+  "platform": "Windows",
+  "version": "0.20.7",
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8",
+  "checkout_and_wheel_runtime_files_byte_matched": 432,
+  "tests": {
+    "passed": 7672,
+    "skipped": 4,
+    "deselected_live_network": 9,
+    "duration_seconds": 541.75
+  },
+  "coverage": {
+    "covered_lines": 45509,
+    "num_statements": 47115,
+    "percent_covered": 95.39529725646507,
+    "percent_covered_display": "95",
+    "missing_lines": 1606,
+    "excluded_lines": 254,
+    "percent_statements_covered": 96.59131911280909,
+    "percent_statements_covered_display": "97",
+    "num_branches": 15104,
+    "num_partial_branches": 1185,
+    "covered_branches": 13845,
+    "missing_branches": 1259,
+    "percent_branches_covered": 91.66445974576271,
+    "percent_branches_covered_display": "92"
+  },
+  "gates_passed": [
+    "uv lock --check",
+    "uv sync --frozen",
+    "ruff check",
+    "ruff format --check",
+    "pyright --warnings: zero diagnostics",
+    "lint-imports: four kept",
+    "pytest with branch measurement and combined coverage floor 95",
+    "Bandit: zero medium/high severity",
+    "pip-audit: no known vulnerabilities",
+    "public contracts",
+    "canonical agent/editorial distribution checks and archives",
+    "sdist and wheel build",
+    "isolated installed wheel resources and refusal probes",
+    "locked Python 3.15 Linux container build/version/themes/Chromium render"
+  ],
+  "upstream_deprecation_warnings_retained": [
+    "Starlette BlockingPortal alias",
+    "google-genai _UnionGenericAlias"
+  ],
+  "hosted_ci_and_publication": "Required on the exact commit; this local receipt does not substitute for them.",
+  "cost_usd": 0,
+  "pre_commit_normalization": {
+    "runtime_files_matched_after_LF_normalization": 432,
+    "runtime_behavior_changed": false,
+    "note": "Commit hooks normalized line endings after the byte-matched candidate validation. Hosted CI and publication build the committed LF source."
+  }
+}

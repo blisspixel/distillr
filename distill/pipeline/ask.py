@@ -31,11 +31,12 @@ from distill.library.paths import (
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.pipeline.citation_refs import (
+    artifact_citation_handles,
     citation_refusal_reason,
     extract_source_citations,
 )
 from distill.pipeline.costs import CostTracker, TokenUsage, estimate_ask_workflow_cost
-from distill.pipeline.search import read_search_result, search_corpus
+from distill.pipeline.search import SearchResult, read_search_result, search_corpus
 from distill.pipeline.verify import (
     VerifyOutcome,
     entailment_checker_available,
@@ -79,21 +80,36 @@ def _stem(rel_path: str) -> str:
     return Path(rel_path).stem
 
 
-def _gather_sources(config: DistillConfig, topic: str, question: str) -> tuple[list[str], str, str]:
+def _gather_sources(
+    config: DistillConfig,
+    topic: str,
+    question: str,
+    *,
+    origins: dict[str, str] | None = None,
+    paths: dict[str, str] | None = None,
+    snapshots: list[SearchResult] | None = None,
+) -> tuple[list[str], str, str]:
     """Retrieve top-K artifacts; return (stems, prompt block, concatenated receipt)."""
     results = search_corpus(config, topic, question, limit=_TOP_K)
     stems: list[str] = []
     blocks: list[str] = []
     receipt_parts: list[str] = []
+    handles = artifact_citation_handles(result.path for result in results)
     for r in results:
         content = read_search_result(config, r)
         if content is None:
             continue
         body = strip_frontmatter(content)
         body = body[:_MAX_SOURCE_CHARS]
-        stem = _stem(r.path)
+        stem = handles[r.path]
         stems.append(stem)
-        blocks.append(f"[{stem}]\n{body}")
+        if origins is not None:
+            origins[stem] = r.origin
+        if paths is not None:
+            paths[stem] = r.path
+        if snapshots is not None:
+            snapshots.append(r)
+        blocks.append(f"[{stem}]\nArtifact: {r.path}\nOrigin: {r.origin}\n{body}")
         receipt_parts.append(body)
     return stems, "\n\n---\n\n".join(blocks), "\n\n".join(receipt_parts)
 
@@ -200,7 +216,12 @@ def ask_corpus(
     tracker: CostTracker | None = None,
 ) -> AskResult:
     """Answer *question* from *topic*'s corpus; optionally promote the answer."""
-    stems, sources_block, receipt = _gather_sources(config, topic, question)
+    origins: dict[str, str] = {}
+    paths: dict[str, str] = {}
+    snapshots: list[SearchResult] = []
+    stems, sources_block, receipt = _gather_sources(
+        config, topic, question, origins=origins, paths=paths, snapshots=snapshots
+    )
     if not stems:
         return AskResult(question=question, answer_path=None, answer_text="", no_coverage=True)
     rc = RouterConfig()
@@ -229,6 +250,16 @@ def ask_corpus(
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="ask"))
     answer = response.text.strip()
+    if any(read_search_result(config, snapshot) is None for snapshot in snapshots):
+        refusal = "retrieved artifacts changed during answer generation; nothing was written"
+        return AskResult(
+            question=question,
+            answer_path=None,
+            answer_text=answer[:MAX_ASK_ANSWER_CHARS],
+            answer_refused_reason=refusal,
+            save_refused_reason=refusal if save else "",
+            estimated_cost=projected_cost,
+        )
     if len(answer) > MAX_ASK_ANSWER_CHARS:
         refusal = f"answer exceeds the {MAX_ASK_ANSWER_CHARS}-character artifact limit"
         return AskResult(
@@ -280,7 +311,12 @@ def ask_corpus(
             "",
             "## Sources",
             "",
-            *(f"- [[{s}]]" for s in (cited or stems)),
+            *(
+                f"- [[{s if _stem(paths[s]) == s else paths[s].removesuffix('.md') + '|' + s}]] (origin: {origins.get(s, 'unknown')})"
+                for s in (cited or stems)
+            ),
+            "",
+            "Citation identities and origin do not prove semantic support. Default verification checks numeric tokens; prose requires the optional semantic checker.",
             "",
         ]
     )
@@ -296,7 +332,12 @@ def ask_corpus(
             source="distill-answer",
             source_id=slug,
             tags=tags_for(topic, "answer"),
-            extra={"question": question, "cited_sources": cited or stems},
+            extra={
+                "question": question,
+                "cited_sources": cited or stems,
+                "citation_origins": {s: origins.get(s, "unknown") for s in cited or stems},
+                "citation_paths": {s: paths[s] for s in cited or stems},
+            },
             provenance=ProvenanceFields(
                 model=response.model,
                 model_version=response.model,
@@ -325,7 +366,7 @@ def ask_corpus(
         source_name="(retrieved corpus excerpts)",
         require_entailment=save,
     )
-    if outcome is not None and outcome.has_flags:
+    if outcome is not None:
         style = "red" if save else "yellow"
         console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
 

@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+from collections import Counter
+from collections.abc import Iterable
+from pathlib import PurePosixPath
 
 __all__ = [
     "citation_refusal_reason",
@@ -11,11 +15,28 @@ __all__ = [
     "unresolved_numbered_citation_reason",
 ]
 
-_SOURCE_CITATION_RE = re.compile(r"\[([A-Za-z0-9][A-Za-z0-9_.-]*)\]")
+_SOURCE_CITATION_RE = re.compile(
+    r"\[([A-Za-z0-9][A-Za-z0-9_.-]*(?:\s*,\s*[A-Za-z0-9][A-Za-z0-9_.-]*)*)\]"
+)
 _NUMBERED_REPORT_CITATION_RE = re.compile(r"\[cite:\s*[\d,\s]+\]", flags=re.IGNORECASE)
 _NON_SOURCE_BRACKET_LABELS = frozenset(
     {"Analysis", "Confirmed", "Estimated", "Reported", "Speculated"}
 )
+
+
+def artifact_citation_handles(paths: Iterable[str]) -> dict[str, str]:
+    """Disambiguate identical legacy basenames by exact artifact identity."""
+    ordered = list(paths)
+    counts = Counter(PurePosixPath(path).stem for path in ordered)
+    return {
+        path: PurePosixPath(path).stem
+        + (
+            "_" + hashlib.sha256(path.encode()).hexdigest()[:12]
+            if counts[PurePosixPath(path).stem] > 1
+            else ""
+        )
+        for path in ordered
+    }
 
 
 def extract_source_citations(text: str) -> list[str]:
@@ -24,11 +45,11 @@ def extract_source_citations(text: str) -> list[str]:
     citations: list[str] = []
     seen: set[str] = set()
     for match in _SOURCE_CITATION_RE.finditer(text):
-        citation = match.group(1)
-        if citation in _NON_SOURCE_BRACKET_LABELS or citation in seen:
-            continue
-        seen.add(citation)
-        citations.append(citation)
+        for citation in (part.strip() for part in match.group(1).split(",")):
+            if citation in _NON_SOURCE_BRACKET_LABELS or citation in seen:
+                continue
+            seen.add(citation)
+            citations.append(citation)
     return citations
 
 

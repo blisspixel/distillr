@@ -649,6 +649,10 @@ def stale_synthesis_warnings(
     warnings: list[str] = []
     for topic in topics:
         freshness = collect_synthesis_freshness(config.topic_dir(topic), topic)
+        for name in freshness.unknown:
+            warnings.append(f"{topic} {name}: freshness unknown; scoped evidence not assessable")
+            if len(warnings) >= limit:
+                return warnings
         for item in freshness.stale:
             row = json_object(item)
             warnings.append(

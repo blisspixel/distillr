@@ -22,6 +22,7 @@ from rich.markup import escape
 
 from distill._console import console
 from distill._version import get_version as _get_version
+from distill.commands._diagnostics import print_diagnostic
 from distill.commands._doctor_data import corpus_library_stats as _corpus_library_stats
 from distill.commands._doctor_report import (
     _doctor_adapter_report,
@@ -237,7 +238,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
 
     json_mode = ctx.obj.get("json", False) if ctx.obj else False
 
-    _ACCENT = "rgb(100,149,237)"
+    _ACCENT = "cyan"
     config = get_config()
 
     if adapters:
@@ -320,7 +321,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
             if migration_result.errors:
                 console.print(f"  Errors:             {len(migration_result.errors)}")
                 for err in migration_result.errors:
-                    console.print(f"    [red]•[/red] {err}")
+                    console.print(f"    [red]Error[/red] {escape(err)}", soft_wrap=True)
                 raise typer.Exit(1)
 
         return
@@ -529,22 +530,27 @@ def doctor(  # noqa: C901 - legacy, will refactor
         if ok:
             update_succeeded = True
             if was_noop:
-                console.print(
+                print_diagnostic(
+                    console,
                     f"  [green]OK[/green]  yt-dlp [bold]v{detail}[/bold] "
-                    "is already the latest published release"
+                    "is already the latest published release",
                 )
             else:
-                console.print(f"  [green]OK[/green]  yt-dlp upgraded to [bold]v{detail}[/bold]")
+                print_diagnostic(
+                    console, f"  [green]OK[/green]  yt-dlp upgraded to [bold]v{detail}[/bold]"
+                )
             invalidate_preflight_cache(config.library_dir)
         else:
-            console.print(f"  [red]XX[/red]  yt-dlp upgrade failed: [red]{detail}[/red]")
+            print_diagnostic(
+                console, f"  [red]XX[/red]  yt-dlp upgrade failed: [red]{detail}[/red]"
+            )
         console.print()
 
     console.print()
     console.print("  [bold]API Keys[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
 
-    # XAI/Grok -- required. Live-validated via the shared helper so this human
+    # Keys are live-validated through the shared helper so this human
     # view and the --json view can never disagree about a key's health.
     with doctor_key_validation_session(config):
         xai_status, xai_detail = _doctor_key_result("xai", config)
@@ -554,105 +560,78 @@ def doctor(  # noqa: C901 - legacy, will refactor
         or_status, or_detail = _doctor_key_result("openrouter", config)
 
     if xai_status == "ok":
-        console.print(f"  [green]OK[/green]  XAI_API_KEY       [dim]{escape(xai_detail)}[/dim]")
-    elif xai_status == "missing" and config.distill_cost_mode == "no-metered":
-        console.print(
+        print_diagnostic(
+            console, f"  [green]OK[/green]  XAI_API_KEY       [dim]{escape(xai_detail)}[/dim]"
+        )
+    elif xai_status == "missing" and (
+        config.distill_cost_mode == "no-metered" or RouterConfig().resolve("site")[0] != "xai"
+    ):
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  XAI_API_KEY       "
-            "[dim]not set (not required in no-metered)[/dim]"
+            "[dim]optional paid xAI route; not required for the selected route[/dim]",
         )
     elif xai_status == "missing":
-        console.print("  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]")
+        print_diagnostic(
+            console, "  [red]XX[/red]  XAI_API_KEY       [red]NOT SET (required)[/red]"
+        )
     elif xai_status == "skipped":
-        console.print(
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  XAI_API_KEY       "
-            "[yellow]live validation skipped by no-metered policy[/yellow]"
+            "[yellow]live validation skipped by no-metered policy[/yellow]",
         )
     elif xai_status == "unknown":
-        console.print(
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  XAI_API_KEY       [yellow]could not verify: "
-            f"{escape(xai_detail[:45])}[/yellow]"
+            f"{escape(xai_detail[:45])}[/yellow]",
         )
     else:
-        console.print(f"  [red]XX[/red]  XAI_API_KEY       [red]{escape(xai_detail[:60])}[/red]")
+        print_diagnostic(
+            console, f"  [red]XX[/red]  XAI_API_KEY       [red]{escape(xai_detail[:60])}[/red]"
+        )
 
     # Gemini -- needed for reports
     if gem_status == "ok":
-        console.print(f"  [green]OK[/green]  GEMINI_API_KEY    [dim]{escape(gem_detail)}[/dim]")
+        print_diagnostic(
+            console, f"  [green]OK[/green]  GEMINI_API_KEY    [dim]{escape(gem_detail)}[/dim]"
+        )
     elif gem_status == "not_set":
-        console.print(
-            "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (needed for reports)[/dim]"
+        print_diagnostic(
+            console,
+            "  [yellow]--[/yellow]  GEMINI_API_KEY    [dim]not set (optional Gemini route)[/dim]",
         )
     elif gem_status == "skipped":
-        console.print(
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  GEMINI_API_KEY    "
-            "[yellow]live validation skipped by no-metered policy[/yellow]"
+            "[yellow]live validation skipped by no-metered policy[/yellow]",
         )
     elif gem_status == "unknown":
-        console.print(
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  GEMINI_API_KEY    [yellow]could not verify: "
-            f"{escape(gem_detail[:45])}[/yellow]"
+            f"{escape(gem_detail[:45])}[/yellow]",
         )
     else:
-        console.print(f"  [red]XX[/red]  GEMINI_API_KEY    [red]{escape(gem_detail[:60])}[/red]")
+        print_diagnostic(
+            console, f"  [red]XX[/red]  GEMINI_API_KEY    [red]{escape(gem_detail[:60])}[/red]"
+        )
 
-    # Anthropic -- optional metered analysis route
-    if ant_status == "ok":
-        console.print(f"  [green]OK[/green]  ANTHROPIC_API_KEY [dim]{escape(ant_detail)}[/dim]")
-    elif ant_status == "not_set":
-        console.print("  [dim]--  ANTHROPIC_API_KEY not set (optional)[/dim]")
-    elif ant_status == "skipped":
-        console.print(
-            "  [yellow]--[/yellow]  ANTHROPIC_API_KEY "
-            "[yellow]live validation skipped by no-metered policy[/yellow]"
-        )
-    elif ant_status == "unknown":
-        console.print(
-            "  [yellow]--[/yellow]  ANTHROPIC_API_KEY [yellow]could not verify: "
-            f"{escape(ant_detail[:45])}[/yellow]"
-        )
-    else:
-        console.print(f"  [red]XX[/red]  ANTHROPIC_API_KEY [red]{escape(ant_detail[:60])}[/red]")
+    from distill.commands._doctor_rows import print_key_row
 
-    # OpenAI -- optional
-    if oai_status == "ok":
-        console.print(f"  [green]OK[/green]  OPENAI_API_KEY    [dim]{escape(oai_detail)}[/dim]")
-    elif oai_status == "not_set":
-        console.print("  [dim]--  OPENAI_API_KEY    not set (optional)[/dim]")
-    elif oai_status == "skipped":
-        console.print(
-            "  [yellow]--[/yellow]  OPENAI_API_KEY    "
-            "[yellow]live validation skipped by no-metered policy[/yellow]"
-        )
-    elif oai_status == "unknown":
-        console.print(
-            "  [yellow]--[/yellow]  OPENAI_API_KEY    [yellow]could not verify: "
-            f"{escape(oai_detail[:45])}[/yellow]"
-        )
-    else:
-        console.print(f"  [red]XX[/red]  OPENAI_API_KEY    [red]{escape(oai_detail[:60])}[/red]")
-
-    # OpenRouter -- optional paid multi-model route
-    if or_status == "ok":
-        console.print(f"  [green]OK[/green]  OPENROUTER_API_KEY [dim]{escape(or_detail)}[/dim]")
-    elif or_status == "not_set":
-        console.print("  [dim]--  OPENROUTER_API_KEY not set (optional)[/dim]")
-    elif or_status == "skipped":
-        console.print(
-            "  [yellow]--[/yellow]  OPENROUTER_API_KEY "
-            "[yellow]live validation skipped by no-metered policy[/yellow]"
-        )
-    elif or_status == "unknown":
-        console.print(
-            "  [yellow]--[/yellow]  OPENROUTER_API_KEY [yellow]could not verify: "
-            f"{escape(or_detail[:45])}[/yellow]"
-        )
-    else:
-        console.print(f"  [red]XX[/red]  OPENROUTER_API_KEY [red]{escape(or_detail[:60])}[/red]")
+    for key, status, detail in (
+        ("ANTHROPIC_API_KEY", ant_status, ant_detail),
+        ("OPENAI_API_KEY", oai_status, oai_detail),
+        ("OPENROUTER_API_KEY", or_status, or_detail),
+    ):
+        print_key_row(console, key, status, detail)
 
     # Tools
     console.print()
     console.print("  [bold]Tools[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
 
     try:
         if importlib_util.find_spec("yt_dlp") is None:
@@ -678,34 +657,43 @@ def doctor(  # noqa: C901 - legacy, will refactor
             )
         else:
             age_label = f"  [dim]({age}d old; could not reach PyPI to check)[/dim]"
-        console.print(
-            f"  [green]OK[/green]  yt-dlp            [dim]v{ytdlp_version}[/dim]{age_label}"
+        print_diagnostic(
+            console,
+            f"  [green]OK[/green]  yt-dlp            [dim]v{ytdlp_version}[/dim]{age_label}",
         )
     except Exception:
-        console.print("  [red]XX[/red]  yt-dlp            [red]not found[/red]")
+        print_diagnostic(console, "  [red]XX[/red]  yt-dlp            [red]not found[/red]")
 
     # Playwright or a recorded system browser. No extra launch here.
     browser_status = reported_browser_status()
     if browser_status == "installed":
-        console.print("  [green]OK[/green]  playwright        [dim]bundled Chromium[/dim]")
+        print_diagnostic(
+            console, "  [green]OK[/green]  playwright        [dim]bundled Chromium[/dim]"
+        )
     elif browser_status.startswith("system "):
-        console.print(f"  [green]OK[/green]  playwright        [dim]{escape(browser_status)}[/dim]")
+        print_diagnostic(
+            console, f"  [green]OK[/green]  playwright        [dim]{escape(browser_status)}[/dim]"
+        )
     elif browser_status == "unsafe":
-        console.print(
+        print_diagnostic(
+            console,
             "  [yellow]--[/yellow]  playwright        "
-            "[yellow]unsafe package execution override configured[/yellow]"
+            "[yellow]unsafe package execution override configured[/yellow]",
         )
     else:
-        console.print(
-            "  [yellow]--[/yellow]  playwright        [dim]not available (fallback search used)[/dim]"
+        print_diagnostic(
+            console,
+            "  [yellow]--[/yellow]  playwright        [dim]not available (fallback search used)[/dim]",
         )
 
     # Scribe
     if config.scribe_path and Path(config.scribe_path).exists():
-        console.print(f"  [green]OK[/green]  scribe            [dim]{config.scribe_path}[/dim]")
+        print_diagnostic(console, "  [green]OK[/green]  scribe            configured")
+        console.print(config.scribe_path, markup=False, soft_wrap=True)
     elif config.scribe_path:
-        console.print(
-            f"  [red]XX[/red]  scribe            [red]not found at {config.scribe_path}[/red]"
+        print_diagnostic(
+            console,
+            f"  [red]XX[/red]  scribe            [red]not found at {config.scribe_path}[/red]",
         )
     else:
         console.print("  [dim]--  scribe            not set (optional transcript fallback)[/dim]")
@@ -716,14 +704,15 @@ def doctor(  # noqa: C901 - legacy, will refactor
     # relevant for sources outside that path.
     console.print()
     console.print("  [bold]Transcription[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
 
     fw_installed = False
     try:
         fw_version = importlib_metadata.version("faster-whisper")
         fw_installed = True
-        console.print(
-            f"  [green]OK[/green]  faster-whisper    [dim]v{fw_version} (local provider)[/dim]"
+        print_diagnostic(
+            console,
+            f"  [green]OK[/green]  faster-whisper    [dim]v{fw_version} (local provider)[/dim]",
         )
     except importlib_metadata.PackageNotFoundError:
         from distill.update import optional_package_install_hint
@@ -734,7 +723,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
             f"({whisper_hint} for local GPU/CPU transcription)[/dim]"
         )
     except Exception as exc:
-        console.print(f"  [yellow]--[/yellow]  faster-whisper    [yellow]{exc!s:.60}[/yellow]")
+        print_diagnostic(
+            console, f"  [yellow]--[/yellow]  faster-whisper    [yellow]{exc!s:.60}[/yellow]"
+        )
 
     if fw_installed:
         try:
@@ -743,17 +734,21 @@ def doctor(  # noqa: C901 - legacy, will refactor
             if cuda_count > 0:
                 compute_types = ct2.get_supported_compute_types("cuda")
                 preferred = "float16" if "float16" in compute_types else next(iter(compute_types))
-                console.print(
+                print_diagnostic(
+                    console,
                     f"  [green]OK[/green]  CUDA device       "
-                    f"[dim]{cuda_count} device(s), compute={preferred}[/dim]"
+                    f"[dim]{cuda_count} device(s), compute={preferred}[/dim]",
                 )
             else:
-                console.print(
+                print_diagnostic(
+                    console,
                     "  [yellow]--[/yellow]  CUDA device       "
-                    "[dim]none detected; local Whisper will run on CPU (slower)[/dim]"
+                    "[dim]none detected; local Whisper will run on CPU (slower)[/dim]",
                 )
         except Exception as exc:
-            console.print(f"  [yellow]--[/yellow]  CUDA device       [yellow]{exc!s:.60}[/yellow]")
+            print_diagnostic(
+                console, f"  [yellow]--[/yellow]  CUDA device       [yellow]{exc!s:.60}[/yellow]"
+            )
 
         # Peek HF cache for already-downloaded Whisper models so users
         # know whether the first run will incur a ~3GB download.
@@ -767,8 +762,9 @@ def doctor(  # noqa: C901 - legacy, will refactor
                     if name.startswith("models--") and "whisper" in name.lower():
                         cached_models.append(name.replace("models--", "").replace("--", "/"))
         if cached_models:
-            console.print(
-                f"  [green]OK[/green]  whisper models    [dim]{', '.join(cached_models[:3])}[/dim]"
+            print_diagnostic(
+                console,
+                f"  [green]OK[/green]  whisper models    [dim]{', '.join(cached_models[:3])}[/dim]",
             )
         else:
             console.print(
@@ -799,22 +795,31 @@ def doctor(  # noqa: C901 - legacy, will refactor
     # checked (docs/design/entailment-tier.md).
     console.print()
     console.print("  [bold]Verification[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
-    console.print("  [green]OK[/green]  numeric tier      [dim]deterministic, always on[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
+    print_diagnostic(
+        console,
+        "  [green]OK[/green]  numeric tier      [dim]deterministic; prose not checked by this tier[/dim]",
+    )
     from distill.pipeline.verify_entailment import entailment_available
 
     if entailment_available():
-        console.print(
+        print_diagnostic(
+            console,
             "  [green]OK[/green]  entailment tier   "
-            "[dim]transformers installed; HHEM loads on first verified write[/dim]"
+            "[dim]transformers installed; HHEM loads on first verified write[/dim]",
         )
     else:
         from distill.update import optional_extra_install_hint
 
         entailment_hint = escape(optional_extra_install_hint("entailment"))
+        print_diagnostic(
+            console,
+            "  [dim]--  entailment tier   not installed; prose not checked[/dim]",
+        )
+        console.print(f"Next: {entailment_hint}", soft_wrap=True)
         console.print(
-            "  [dim]--  entailment tier   not installed "
-            f"({entailment_hint} to check prose claims locally)[/dim]"
+            "  CPU-only wheels and Python compatibility: docs/install.md#cpu-only-prose-verification",
+            soft_wrap=True,
         )
 
     # Library
@@ -824,12 +829,12 @@ def doctor(  # noqa: C901 - legacy, will refactor
     if env_files:
         console.print()
         console.print("  [bold]Config files[/bold]")
-        console.print(f"  [dim]{'-' * 50}[/dim]")
+        console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
         for env_path in env_files:
             console.print(f"  [dim]{escape(str(env_path))}[/dim]")
     console.print()
     console.print("  [bold]Library[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
 
     lib = Library(config)
     topics, total_ch, total_vids, scan_vids = _corpus_library_stats(config, lib)
@@ -863,7 +868,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
     # Config
     console.print()
     console.print("  [bold]Config[/bold]")
-    console.print(f"  [dim]{'-' * 50}[/dim]")
+    console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
     console.print(
         f"  Lookback:   [dim]{config.distill_default_months} month{'s' if config.distill_default_months != 1 else ''}[/dim]"
     )
@@ -878,7 +883,7 @@ def doctor(  # noqa: C901 - legacy, will refactor
     if retired_warnings:
         console.print()
         console.print("  [bold]Retired Models[/bold]")
-        console.print(f"  [dim]{'-' * 50}[/dim]")
+        console.print(f"  [dim]{'-' * max(1, min(console.width - 2, 72))}[/dim]")
         for warning in retired_warnings:
             console.print(f"  [yellow]⚠[/yellow]  {warning}")
 

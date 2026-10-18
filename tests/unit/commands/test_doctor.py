@@ -198,12 +198,13 @@ class TestDoctorMigrationMode:
         assert "Migration Complete" in result.output
         assert (topic_dir / "ai_Insights.md").exists()
 
+    @pytest.mark.parametrize("width", [60, 80, 120])
     def test_migrate_links_apply_exits_nonzero_after_printing_write_error(
-        self, tmp_path, monkeypatch
+        self, tmp_path, monkeypatch, width
     ):
         from distill.library import migration as migration_mod
 
-        monkeypatch.setattr(doctor_mod.console, "width", 200)
+        monkeypatch.setattr(doctor_mod.console, "width", width)
         config = _config(tmp_path)
         topic_dir = config.library_dir / "topics" / "ai"
         source_dir = topic_dir / "source"
@@ -222,7 +223,7 @@ class TestDoctorMigrationMode:
         assert result.exit_code == 1
         assert "Migration Complete" in result.output
         assert "Errors:" in result.output
-        assert reference.name in result.output
+        assert str(reference) in result.output
         assert "DOCTOR_LINK_WRITE_DENIED" in result.output
         assert (source_dir / "source_Insights.md").exists()
 
@@ -369,11 +370,12 @@ class TestDoctorHumanOutputBranches:
 
         result = runner.invoke(cli.app, ["doctor"])
 
-        assert "not required in no-metered" in result.output
+        assert "not required for the selected route" in " ".join(result.output.split())
         assert "NOT SET (required)" not in result.output
         assert "GEMINI_API_KEY" in result.output
 
     def test_xai_missing_is_required_outside_no_metered(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
         config = _config(tmp_path, xai_api_key="", distill_cost_mode="auto")
 
         def fake(provider, _config):
@@ -437,7 +439,7 @@ class TestDoctorHumanOutputBranches:
 
         result = runner.invoke(cli.app, ["doctor"])
 
-        assert "yt-dlp            not found" in result.output
+        assert "yt-dlp not found" in " ".join(result.output.split())
         assert "entailment tier" in result.output
 
     def test_faster_whisper_and_provider_routing(self, tmp_path, monkeypatch):

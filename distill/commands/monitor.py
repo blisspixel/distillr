@@ -23,7 +23,7 @@ from distill.pipeline.summary import log_preview_cost
 
 __all__ = ["monitor"]
 
-_ACCENT = "rgb(100,149,237)"
+_ACCENT = "cyan"
 
 
 def monitor(

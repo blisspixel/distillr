@@ -232,7 +232,11 @@ def _patch_discover_pipeline(monkeypatch):
         ),
     ]
     monkeypatch.setattr(_discover, "_discover_generate_queries", lambda *a, **k: (["q"], ["q"]))
-    monkeypatch.setattr(_discover, "search_arxiv_multi", lambda *a, **k: [object()])
+    monkeypatch.setattr(
+        _discover,
+        "search_arxiv_multi",
+        lambda *a, **k: [PaperRecord(paper_id="2601.1", title="P", abstract="a")],
+    )
     monkeypatch.setattr(_discover, "_discover_fetch_videos", lambda *a, **k: [object()])
     monkeypatch.setattr(_discover, "_discover_rerank", lambda *a, **k: ranked)
     return ranked

@@ -17,9 +17,11 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 import typer
+from rich.markup import escape
 from rich.text import Text
 
 from distill._console import console, set_json_mode
+from distill.commands._diagnostics import print_diagnostic
 from distill.commands._helpers import _complete_topics, get_config, tty_prompt
 from distill.commands._json import emit_json, json_mode_active, set_json_active
 from distill.config import DistillConfig
@@ -198,9 +200,11 @@ def audit_cmd(
         return
 
     total_findings = sum(r.issue_count for r in reports)
-    if report_only or total_findings == 0:
+    if report_only or total_findings == 0 or not console.is_terminal:
         if total_findings == 0:
-            console.print("\n[green]Corpus is healthy: no findings.[/green]")
+            console.print(
+                "\n[green]Recorded audit checks: no findings. Coverage limits remain.[/green]"
+            )
         return
 
     _action_menu(config, topics, reports, link_result, now_iso)
@@ -214,18 +218,32 @@ def _write_topic_audit_report(
         return
     v = report.verify
     s = report.staleness
-    console.print(
-        f"[bold]{report.topic}[/bold]: {report.issue_count} finding(s) -- "
-        f"verify {v.clean}/{v.insights_total} clean, {len(v.flagged)} flagged, "
-        f"{v.unverified} unverified, {v.synthesis_unverified} synthesis unverified | "
+    state = "--" if report.issue_count else "OK"
+    print_diagnostic(
+        console, f"  {state}  {escape(report.topic)}:  {report.issue_count} finding(s)"
+    )
+    print_diagnostic(
+        console,
+        "  --  Verification  "
+        f"{v.clean}/{v.insights_total} recorded checks passed, {len(v.flagged)} flagged, "
+        f"{v.numeric_only} numeric-only (prose not checked), "
+        f"{v.unverified} unverified, {v.synthesis_unverified} synthesis unverified",
+    )
+    print_diagnostic(
+        console,
+        "  --  Freshness  "
         f"{len(s.stale)} stale prompt(s), "
-        f"{len(report.freshness.stale)} stale synthesis/es, "
+        f"{len(report.freshness.stale)} stale synthesis/es, {len(report.freshness.unknown)} unknown; timestamp checks only",
+    )
+    print_diagnostic(
+        console,
+        "  --  Collection  "
         f"{len(report.exact_video_duplicates)} exact video duplicate group(s), "
         f"{len(report.thin_transcripts)} thin transcript(s), "
         f"{len(report.near_duplicates)} duplicate group(s) | {len(report.gaps)} gap(s), "
-        f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested"
+        f"{len(report.broken_links)} broken link(s), {len(report.contested)} contested",
     )
-    console.print(f"  [dim]{path}[/dim]")
+    console.print(str(path), markup=False, soft_wrap=True)
 
 
 def _write_library_audit(config: DistillConfig, now_iso: str, *, quiet: bool = False) -> None:
@@ -254,8 +272,8 @@ def _print_next_action_plan(plan: NextActionPlan) -> None:
     for action in plan.actions:
         command = " ".join(action.command)
         console.print(f"  [cyan]{action.id}[/cyan] [{action.severity}] {action.rationale}")
-        console.print(f"    command: {command}")
-        console.print(f"    verifier: {' '.join(action.verifier.command)}")
+        console.print(f"Next: {command}", markup=False, soft_wrap=True)
+        console.print(f"Check: {' '.join(action.verifier.command)}", markup=False, soft_wrap=True)
 
 
 def _bucket_broken_links(broken_links: list[BrokenLink]) -> dict[str, list[BrokenLink]]:
@@ -363,20 +381,23 @@ def _action_menu(
     """Phase 2: only safe, free actions execute directly; anything that would
     spend money is printed as a command, never run."""
     options: list[tuple[str, str]] = []
+    cost_note = (
+        "local route only; $0 API spend"
+        if config.distill_cost_mode == "no-metered"
+        else "configured route may be metered"
+    )
     if any(r.broken_links for r in reports):
         options.append(("fix-links", "Fix broken wiki-links (deterministic rewrite)"))
     options.append(("orientation", "Regenerate CLAUDE.md / AGENTS.md orientation files"))
     if any(r.gaps for r in reports):
-        options.append(("gaps", "Show the gap-fill discover commands (costs money; not auto-run)"))
+        options.append(("gaps", f"Show gap-fill discover commands ({cost_note}; not auto-run)"))
     if any(r.staleness.stale for r in reports):
-        options.append(
-            ("stale", "Show re-analysis commands for stale artifacts (costs money; not auto-run)")
-        )
+        options.append(("stale", f"Show re-analysis commands ({cost_note}; not auto-run)"))
     if any(r.freshness.stale or r.freshness.shadowed_legacy for r in reports):
         options.append(
             (
                 "freshness",
-                "Show re-synthesis commands for stale syntheses (costs money; not auto-run)",
+                f"Show re-synthesis commands ({cost_note}; not auto-run)",
             )
         )
 

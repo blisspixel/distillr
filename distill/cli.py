@@ -110,6 +110,7 @@ from distill.commands.reports import register as _register_reports
 from distill.commands.reprocess import register as _register_reprocess
 from distill.commands.roles import register as _register_roles
 from distill.commands.skill import skill_app
+from distill.commands.theme import theme_app
 from distill.commands.topic import (  # noqa: F401
     _collect_topic_bundle_files,
     _export_topic_bundle,
@@ -168,6 +169,7 @@ _register_topic_watch(app)
 _register_watch(app)
 app.add_typer(worker_app, name="worker", rich_help_panel="Operations")
 app.add_typer(skill_app, name="skill", rich_help_panel="Operations")
+app.add_typer(theme_app, name="theme", rich_help_panel="Operations")
 
 __all__ = ["app", "main"]
 

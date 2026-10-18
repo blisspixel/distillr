@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from io import StringIO
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -40,6 +41,17 @@ def test_debug_records_write_to_file_when_console_is_warning(
 
     assert "debug-only-file" in (tmp_path / "distill.log").read_text(encoding="utf-8")
     assert "debug-only-file" not in capsys.readouterr().err
+
+
+def test_reused_cli_handler_does_not_write_to_a_closed_capture(distill_logger, monkeypatch):
+    previous = StringIO()
+    monkeypatch.setattr("sys.stderr", previous)
+    _logging.configure_logging()
+    previous.close()
+    current = StringIO()
+    monkeypatch.setattr("sys.stderr", current)
+    logging.getLogger("distill.tests").warning("after capture closed")
+    assert "after capture closed" in current.getvalue()
 
 
 def test_late_ops_dir_adds_file_handler(distill_logger: logging.Logger, tmp_path: Path) -> None:

@@ -1,0 +1,61 @@
+{
+  "status": "retained native evaluation, six cases, three runs per arm",
+  "validation": "case and report hashes matched; canonical skills, references, evals and runtime skill content unchanged since v0.20.1",
+  "new_native_calls": 0,
+  "cases": [
+    {
+      "case": "billing-truth",
+      "input_sha256": "b0d9c0bbba7fd996d5cac50d1e0f214c68f371218ce2c1ea99fa17fce1def909",
+      "report": "native-final.json",
+      "report_sha256": "254d45414ff5d841ea76c6da34cbe0c0b5b8b996c5bbc974254587a0cf851e2b",
+      "with_score": 1,
+      "without_score": 0.5,
+      "runs_per_arm": 3
+    },
+    {
+      "case": "local-recency",
+      "input_sha256": "a0999ed7d80692a6e9a99fe4aecc9c75570688ce2257bed7af470033db517178",
+      "report": "native-final.json",
+      "report_sha256": "254d45414ff5d841ea76c6da34cbe0c0b5b8b996c5bbc974254587a0cf851e2b",
+      "with_score": 1,
+      "without_score": 0.16666666666666666,
+      "runs_per_arm": 3
+    },
+    {
+      "case": "safe-curation",
+      "input_sha256": "dc614776320f81ded46d551454256f936f5225f951bc0985ddb1f3dbb405638e",
+      "report": "native-final.json",
+      "report_sha256": "254d45414ff5d841ea76c6da34cbe0c0b5b8b996c5bbc974254587a0cf851e2b",
+      "with_score": 1,
+      "without_score": 0.8333333333333334,
+      "runs_per_arm": 3
+    },
+    {
+      "case": "unrelated-code-task",
+      "input_sha256": "737cc75220d28ab19bb8ddf3e5649eab3f43aae21e503a18453490248c82fc2a",
+      "report": "native-final.json",
+      "report_sha256": "254d45414ff5d841ea76c6da34cbe0c0b5b8b996c5bbc974254587a0cf851e2b",
+      "with_score": 1,
+      "without_score": 1,
+      "runs_per_arm": 3
+    },
+    {
+      "case": "worker-handoff",
+      "input_sha256": "baa450f22283dbb1c7be4c1b890ac4a83f0155bd69eaa6086adcc52f690ae214",
+      "report": "native-calibrated.json",
+      "report_sha256": "e6d7eb65661740dcd4c4bb09dae7ba97de0734f8b4f8996c3609425bd7fca666",
+      "with_score": 1,
+      "without_score": 0,
+      "runs_per_arm": 3
+    },
+    {
+      "case": "corpus-reading",
+      "input_sha256": "ca54919238e3ef4bf784b288af97963074375f328f7d2c9bfe83051f4c5b3fb9",
+      "report": "native-corpus.json",
+      "report_sha256": "bcd9a9ed25a68a447136654469263c193a2921e35e0c736c7aee70e88026ab19",
+      "with_score": 1,
+      "without_score": 0,
+      "runs_per_arm": 3
+    }
+  ]
+}

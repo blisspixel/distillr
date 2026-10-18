@@ -27,11 +27,12 @@ from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
 from distill.parsing import read_bounded_json_object
 from distill.pipeline.citation_refs import (
+    artifact_citation_handles,
     citation_refusal_reason,
     extract_source_citations,
 )
 from distill.pipeline.costs import CostTracker, TokenUsage
-from distill.pipeline.search import read_search_result, search_corpus
+from distill.pipeline.search import SearchResult, read_search_result, search_corpus
 from distill.prompts.summary_query import summary_query_prompt
 
 __all__ = ["QuerySummary", "summarize_query"]
@@ -117,19 +118,22 @@ def summarize_query(
     if not results:
         return None
 
-    files = [config.library_dir / result.path for result in results]
+    handles = artifact_citation_handles(result.path for result in results)
 
     blocks: list[str] = []
     stems: list[str] = []
     revision_sources: list[tuple[str, str]] = []
-    for result, source_file in zip(results, files, strict=True):
+    snapshots: list[SearchResult] = []
+    for result in results:
         source_text = read_search_result(config, result)
         if source_text is None:
             continue
         body = strip_frontmatter(source_text)[:_MAX_SOURCE_CHARS]
-        stems.append(source_file.stem)
-        blocks.append(f"[{source_file.stem}]\n{body}")
-        revision_sources.append((result.path, body))
+        stem = handles[result.path]
+        stems.append(stem)
+        blocks.append(f"[{stem}]\nArtifact: {result.path}\nOrigin: {result.origin}\n{body}")
+        revision_sources.append((result.path, result.origin + "\n" + body))
+        snapshots.append(result)
     if not blocks:
         return None
 
@@ -160,6 +164,14 @@ def summarize_query(
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="find_summary"))
     summary = response.text.strip()
+    if any(read_search_result(config, result) is None for result in snapshots):
+        return QuerySummary(
+            summary=summary,
+            sources=[],
+            cached=False,
+            model=response.model,
+            refused_reason="retrieved artifacts changed during summary generation",
+        )
     cited, refusal = _cited_sources(summary, stems)
     if refusal:
         return QuerySummary(

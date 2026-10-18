@@ -78,8 +78,30 @@ def synthesize_corpus_from_claims(
     and ``two_pass: true`` provenance.
     """
     topic = require_safe_topic_identity(topic)
-    from distill.claims.exports import latest_claims, read_claims
     from distill.claims.pipeline import run_claims
+
+    topic_dir = config.topic_dir(topic)
+    rc = RouterConfig()
+
+    summary = run_claims(topic, topic_dir, rc=rc, tracker=tracker, now_iso=now_iso)
+    if summary.incomplete:
+        logger.warning(
+            "Two-pass synthesis refused: %d incomplete claim generations", summary.incomplete
+        )
+        return None
+    from distill.claims.locking import claims_transaction
+
+    with claims_transaction(topic_dir):
+        return _synthesize_claim_snapshot(topic, config, tracker, style=style)
+
+
+def _synthesize_claim_snapshot(
+    topic: str, config: DistillConfig, tracker: CostTracker | None, *, style: str
+) -> str | None:
+    from distill.claims.exports import read_active_claims
+    from distill.library.confined_state import confined_file_identity, unlink_confined_file
+    from distill.library.freshness import CLAIMS_DERIVED_DIRTY
+    from distill.library.insights import discover_insights
     from distill.prompts.claims import (
         CLAIM_SYNTHESIS_PROMPT_ID,
         claim_synthesis_prompt,
@@ -88,12 +110,16 @@ def synthesize_corpus_from_claims(
 
     topic_dir = config.topic_dir(topic)
     rc = RouterConfig()
-
-    run_claims(topic, topic_dir, rc=rc, tracker=tracker, now_iso=now_iso)
-    claims = latest_claims(read_claims(topic_dir))
+    refs = discover_insights(topic_dir)
+    active_artifacts = {(ref.source_id, ref.artifact_path) for ref in refs}
+    claims = [
+        claim
+        for claim in read_active_claims(topic_dir)
+        if (claim.source_id, claim.artifact_path) in active_artifacts
+    ]
     if not claims:
         logger.info("Two-pass synthesis: no claims extracted for %s", topic)
-        return ""
+        return None
 
     response = llm_call(
         rc,
@@ -105,6 +131,12 @@ def synthesize_corpus_from_claims(
     synthesis = response.text
     if tracker:
         tracker.record(TokenUsage.from_response(response, call_type="corpus_synthesis_two_pass"))
+
+    if discover_insights(topic_dir) != refs:
+        logger.warning(
+            "corpus synthesis for %s not written: source artifacts changed during synthesis", topic
+        )
+        return None
 
     unknown_handles = _unknown_claim_handles(synthesis, len(claims))
     if unknown_handles:
@@ -154,6 +186,11 @@ def synthesize_corpus_from_claims(
     if output is None:
         logger.warning("corpus synthesis for %s not written (verification gate)", topic)
         return None
+
+    dirty = topic_dir / CLAIMS_DERIVED_DIRTY
+    dirty_identity = confined_file_identity(dirty, topic_dir)
+    if dirty_identity is not None:
+        unlink_confined_file(dirty, topic_dir, expected=dirty_identity)
 
     try:
         from distill.library import claude_md
@@ -259,9 +296,7 @@ def synthesize_corpus(
             # Verify strict refused the two-pass write. Falling back would
             # spend again on a synthesis built from the same flagged corpus.
             return ""
-        if result:
-            return result
-        logger.info("Two-pass produced no claims for %s; falling back to single-pass", topic)
+        return result
 
     source_sections: dict[str, str] = {}
 

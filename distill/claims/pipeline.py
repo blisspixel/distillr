@@ -23,23 +23,28 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from distill.claims.exports import (
     already_extracted_source_ids,
     append_claims,
+    completed_generations,
     ensure_claim_store_append_capacity,
     ensure_extracted_sources_capacity,
-    read_claims,
+    read_active_claims,
     read_extracted_sources,
     record_extracted_sources,
 )
 from distill.claims.extract import extract_claims_from_insight
+from distill.claims.generations import ClaimGeneration
 from distill.claims.locking import claims_transaction
 from distill.claims.records import Claim, utcnow_iso
+from distill.library.confined_state import atomic_write_confined_text
+from distill.library.freshness import CLAIMS_DERIVED_DIRTY
 from distill.library.insights import InsightRef, discover_insights, read_discovered_insight
+from distill.library.paths import extract_frontmatter
 from distill.llm import RouterConfig
 from distill.parsing import parse_ascii_uint
 from distill.pipeline.costs import BudgetExceededError, CostTracker
@@ -104,7 +109,17 @@ def _pending_claim_refs(
         record_extracted_sources(topic_dir, missing_completion)
         completed_sources.update(missing_completion)
     seen = set[str]() if refresh else claim_sources | completed_sources
-    pending = [ref for ref in refs if ref.source_id not in seen]
+    generations = completed_generations(topic_dir)
+    pending = [
+        ref
+        for ref in refs
+        if refresh
+        or (
+            generations.get((ref.source_id, ref.artifact_path)) != ref.content_sha256
+            if (ref.source_id, ref.artifact_path) in generations
+            else ref.source_id not in seen
+        )
+    ]
     uncapped_count = len(pending)
     cap = _max_insights_per_run()
     if cap:
@@ -136,6 +151,7 @@ class ClaimsSummary:
     insights_extracted: int = 0
     claims_added: int = 0
     total_claims: int = 0
+    incomplete: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -144,6 +160,7 @@ class ClaimsSummary:
             "insights_extracted": self.insights_extracted,
             "claims_added": self.claims_added,
             "total_claims": self.total_claims,
+            "incomplete": self.incomplete,
         }
 
 
@@ -219,6 +236,7 @@ def _run_claims_transaction(
             topic,
         )
     summary.insights_extracted = len(pending)
+    failed = {(ref.source_id, ref.artifact_path) for ref in pending}
 
     for ref in pending:
         try:
@@ -241,21 +259,52 @@ def _run_claims_transaction(
         except Exception as exc:
             logger.warning("Claim extraction failed for %s: %s", ref.path, exc)
             continue
-        claims = _validated_source_claims(ref, result.claims)
+        if not result.parsed or result.skipped_rows:
+            logger.warning(
+                "Incomplete claim extraction leaves prior generation unchanged for %s", ref.path
+            )
+            continue
+        if read_discovered_insight(ref, topic_dir.parent.parent) is None:
+            logger.warning(
+                "Insight changed during extraction; generation not committed: %s", ref.path
+            )
+            continue
+        frontmatter = extract_frontmatter(content)
+        origin = (
+            "derived"
+            if frontmatter.get("source") == "distill-answer"
+            or ref.artifact_path.startswith("answers/")
+            else "external"
+            if frontmatter.get("source")
+            in {"arxiv", "youtube", "site", "local", "repo", "podcast", "newsletter", "x"}
+            else "unknown"
+        )
+        claims = _validated_source_claims(
+            ref, [replace(claim, origin=origin) for claim in result.claims]
+        )
         # Evidence is durable before completion. If the ledger update fails,
         # claim-producing sources are repaired from claims.jsonl on the next
         # run. A zero-claim source has no independent evidence receipt, so a
         # failed ledger write aborts immediately and leaves that source pending;
         # replay is safer than publishing unproven completion.
-        if claims:
-            append_claims(topic_dir, claims)
-            summary.claims_added += len(claims)
-        if result.parsed:
-            record_extracted_sources(topic_dir, [ref.source_id])
+        atomic_write_confined_text(topic_dir / CLAIMS_DERIVED_DIRTY, timestamp, topic_dir)
+        append_claims(
+            topic_dir,
+            claims,
+            generation=ClaimGeneration(
+                ref.source_id, ref.artifact_path, ref.content_sha256, tuple(claims)
+            ),
+        )
+        summary.claims_added += len(claims)
+        record_extracted_sources(topic_dir, [ref.source_id])
+        failed.discard((ref.source_id, ref.artifact_path))
 
     # Count distinct claims, not raw rows: claims.jsonl is append-only, so a
     # --refresh re-appends a source's claims and len(read_claims) would double-
     # count them. Dedup by claim_id (stable hash of normalized text) for an
     # honest total.
-    summary.total_claims = len({c.claim_id for c in read_claims(topic_dir)})
+    summary.total_claims = len({c.claim_id for c in read_active_claims(topic_dir)})
+    _, remaining, remaining_count = _pending_claim_refs(topic_dir)
+    remaining_keys = {(ref.source_id, ref.artifact_path) for ref in remaining}
+    summary.incomplete = remaining_count + len(failed - remaining_keys)
     return summary

@@ -710,7 +710,7 @@ class TestRenderAndWrite:
     def test_render_contains_all_sections_and_counts(self):
         out = render_audit_md(_report(), now_iso=NOW)
         assert "# Audit: t" in out
-        assert "verified clean: 1" in out
+        assert "recorded checks passed: 1" in out
         assert "unverified/no checked claims: 1" in out
         assert "zero checked claims is coverage metadata, not a passing result" in out
         assert "`99.9` (decimal)" in out

@@ -936,7 +936,7 @@ def trends(
         limit=limit,
     )
 
-    console.print(Panel(f"[bold]Topic Trends: {topic}[/bold]", border_style="magenta"))
+    console.print(Panel(f"[bold]Topic Trends: {topic}[/bold]", border_style="cyan"))
     _print_markdown_safely(console, rendered)
 
     if write:

@@ -653,7 +653,7 @@ def _verified_insights_write(
         insight_name=artifact_path(post_dir, "insights", identity=identity).name,
         source_name=source_name,
     )
-    if outcome is not None and outcome.has_flags:
+    if outcome is not None:
         style = "red" if outcome.refused else "yellow"
         console.print(f"        [{style}]{outcome.summary_line}[/{style}]")
     if outcome is not None and outcome.refused:

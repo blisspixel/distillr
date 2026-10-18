@@ -34,6 +34,10 @@ Rules for the answer:
 - Ground every claim in the excerpts. After each claim, cite the source stem
   in brackets exactly as given, e.g. [some_paper_2410034_Insights].
 - Multiple sources strengthening one claim: cite them all.
+- Cite the exact artifact containing the evidence. An Insights or synthesis
+  excerpt is derived interpretation: cite its own handle and identify that
+  origin. Never move its wording to a source receipt's handle. Unknown origin
+  stays unknown. Derived artifacts do not provide independent corroboration.
 - Where sources disagree, present the disagreement explicitly with both
   citations -- do not average it away.
 - If the corpus does not cover the question (or covers it only partially),

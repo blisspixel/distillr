@@ -1,0 +1,183 @@
+{
+  "fixture": "synthetic local library",
+  "axe_version": "4.14.0",
+  "axe_integrity": "official npm SHA-512 verified before execution",
+  "cost_usd": 0,
+  "results": [
+    {
+      "mode": "dark",
+      "route": "/",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "dark",
+      "route": "/topics",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "dark",
+      "route": "/costs",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "dark",
+      "route": "/watchlist",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "light",
+      "route": "/",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "light",
+      "route": "/topics",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "light",
+      "route": "/costs",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "light",
+      "route": "/watchlist",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".theme-cards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "width": 360,
+      "layout": {
+        "width": 360,
+        "scroll": 360
+      }
+    },
+    {
+      "width": 390,
+      "layout": {
+        "width": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "width": 640,
+      "layout": {
+        "width": 640,
+        "scroll": 640
+      }
+    },
+    {
+      "route": "appearance-interactions",
+      "system_live": true,
+      "import_refresh_remove": true,
+      "persisted": true,
+      "keyboard_skip_and_settings": true,
+      "css_zoom": 2,
+      "layout": {
+        "width": 1280,
+        "scroll": 1280
+      }
+    },
+    {
+      "route": "empty-state-copy",
+      "clipboard_exact": true,
+      "aria_live": "Copied"
+    },
+    {
+      "route": "export",
+      "violations": [],
+      "incomplete": [
+        {
+          "id": "aria-prohibited-attr",
+          "nodes": [
+            [
+              ".footer"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Automated checks do not replace screen-reader review."
+  ]
+}

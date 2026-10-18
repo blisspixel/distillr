@@ -1,6 +1,7 @@
 """Distill local web server: read-only dashboard over the file-based library."""
 
 import ipaddress
+import secrets
 import threading
 import webbrowser
 from pathlib import Path
@@ -23,10 +24,21 @@ WEB_DIR = Path(__file__).parent
 def create_app(config: DistillConfig) -> FastAPI:
     app = FastAPI(title="Distill", docs_url=None, redoc_url=None)
     app.state.config = config
+    app.state.theme_token = secrets.token_urlsafe(32)
 
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 
-    templates = Jinja2Templates(directory=WEB_DIR / "templates")
+    from distill.web.theme import load_themes
+    from distill.web.theme_ui import appearance_controls
+
+    def theme_context(_request: Request) -> dict[str, object]:
+        collection = load_themes()
+        return {
+            "theme_collection": collection.to_row(),
+            "theme_controls": appearance_controls(collection, token=app.state.theme_token),
+        }
+
+    templates = Jinja2Templates(directory=WEB_DIR / "templates", context_processors=[theme_context])
 
     # Register template filters.
     #
@@ -104,6 +116,9 @@ def create_app(config: DistillConfig) -> FastAPI:
     app.include_router(videos.router)
     app.include_router(costs.router)
     app.include_router(watchlist.router)
+    from distill.web.theme_routes import router as theme_router
+
+    app.include_router(theme_router)
 
     return app
 

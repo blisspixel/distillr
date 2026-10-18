@@ -2546,6 +2546,22 @@
           "type": {
             "name": "text"
           }
+        },
+        {
+          "count": false,
+          "default": "",
+          "is_flag": false,
+          "kind": "option",
+          "multiple": false,
+          "name": "verify",
+          "names": [
+            "--verify"
+          ],
+          "nargs": 1,
+          "required": false,
+          "type": {
+            "name": "text"
+          }
         }
       ],
       "path": "distill ingest"
@@ -6221,6 +6237,50 @@
         }
       ],
       "path": "distill synthesize"
+    },
+    {
+      "parameters": [],
+      "path": "distill theme"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "target",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill theme install"
+    },
+    {
+      "parameters": [],
+      "path": "distill theme list"
+    },
+    {
+      "parameters": [
+        {
+          "default": null,
+          "kind": "argument",
+          "name": "slug",
+          "nargs": 1,
+          "position": 0,
+          "required": true,
+          "type": {
+            "name": "text"
+          }
+        }
+      ],
+      "path": "distill theme remove"
+    },
+    {
+      "parameters": [],
+      "path": "distill theme update"
     },
     {
       "parameters": [],

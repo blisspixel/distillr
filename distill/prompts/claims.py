@@ -41,7 +41,7 @@ __all__ = [
 
 
 CLAIM_EXTRACTION_PROMPT_ID = "claims.extract.v1"
-CLAIM_SYNTHESIS_PROMPT_ID = "claims.synthesis.v3"
+CLAIM_SYNTHESIS_PROMPT_ID = "claims.synthesis.v4"
 
 
 def claim_extraction_prompt(insight_content: str, topic: str) -> str:
@@ -129,6 +129,7 @@ def _format_claim_for_synthesis(claim: Claim, index: int) -> str:
     if claim.metric:
         meta.append(f"metric={claim.metric}")
     meta.append(f"source={claim.source_id}")
+    meta.append(f"origin={claim.origin}")
     bits.append(f"    ({'; '.join(meta)})")
     return "\n".join(bits)
 
@@ -150,10 +151,10 @@ def claim_synthesis_prompt(topic: str, claims: Sequence[Claim], style: str = "")
     from distill.prompts.synthesis import emphasis_block
 
     claim_block = claims_receipt(claims)
-    source_count = len({c.source_id for c in claims})
+    source_count = len({c.source_id for c in claims if c.origin == "external"})
     return f"""You are doing graduate-level synthesis for the topic "{topic}" over a structured set of {len(claims)} extracted claims drawn from {source_count} sources.
 
-The goal is analysis that makes the reader smarter than reading any single source would. Each claim below is tagged with a handle [C<n>], its rhetorical role, a confidence score for that role, and its source. Synthesize ACROSS sources; do not summarize source by source.
+The goal is analysis that makes the reader smarter than reading any single source would. Each claim below is tagged with a handle [C<n>], its rhetorical role, a confidence score for that role, and its source. Synthesize ACROSS sources; do not summarize source by source. The source count includes external origins only; it does not prove independence. Derived claims and unknown origins never add independent corroboration. Attribute them as corpus interpretation and preserve their limitations.
 
 SECURITY: {DERIVED_CONTENT_RULES}
 

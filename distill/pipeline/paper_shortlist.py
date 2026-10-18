@@ -14,6 +14,8 @@ from typing import cast
 
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import PaperRecord
+from distill.ingestors.papers.search_receipts import SearchReceipt
+from distill.library.paper_revisions import parse_revision_status
 from distill.library.paths import atomic_write_text
 from distill.parsing import strict_json_loads
 from distill.pipeline.ranking import RankedPaper
@@ -52,6 +54,7 @@ class PaperShortlist:
     created_at: str
     papers: tuple[PaperRecord, ...]
     scores: tuple[float, ...]
+    search_receipts: tuple[SearchReceipt, ...] = ()
 
 
 def _topic_name(config: DistillConfig, topic: str) -> str:
@@ -153,6 +156,10 @@ def _paper_from_row(row: object) -> tuple[PaperRecord, float]:
         abs_url=_string(typed, "abs_url"),
         pdf_url=_string(typed, "pdf_url"),
         source=_string(typed, "source") or "arxiv",
+        revision_status=parse_revision_status(_string(typed, "revision_status") or "new"),
+        captured_revisions=tuple(
+            _string_list(typed.get("captured_revisions"), "captured_revisions")
+        ),
     ), _score(typed)
 
 
@@ -174,6 +181,8 @@ def _paper_row(item: RankedPaper) -> dict[str, object]:
         "score": item.final_score,
         "rationale": item.rationale,
         "selected_by": item.selected_by,
+        "revision_status": paper.revision_status,
+        "captured_revisions": list(paper.captured_revisions),
     }
 
 
@@ -226,6 +235,13 @@ def _from_payload(payload: dict[str, object], *, expected_id: str) -> PaperShort
     scores = tuple(score for _paper, score in decoded)
     created_at = _string(payload, "created_at")
     _check_age(created_at)
+    raw_receipts = payload.get("search_receipts", [])
+    if not isinstance(raw_receipts, list):
+        raise PaperShortlistError("Shortlist search receipts must be an array")
+    try:
+        receipts = tuple(SearchReceipt.from_row(row) for row in cast(list[object], raw_receipts))
+    except ValueError as exc:
+        raise PaperShortlistError(f"Invalid shortlist search receipt: {exc}") from exc
     return PaperShortlist(
         id=shortlist_id,
         topic=_string(payload, "topic"),
@@ -237,6 +253,7 @@ def _from_payload(payload: dict[str, object], *, expected_id: str) -> PaperShort
         created_at=created_at,
         papers=papers,
         scores=scores,
+        search_receipts=receipts,
     )
 
 
@@ -248,6 +265,7 @@ def save_paper_shortlist(
     expansion_queries: list[str],
     model: str,
     ranked: list[RankedPaper],
+    search_receipts: tuple[SearchReceipt, ...] = (),
 ) -> PaperShortlist:
     """Write the previewed set and point the topic and library at it."""
 
@@ -264,6 +282,7 @@ def save_paper_shortlist(
         "model": model,
         "created_at": created_at,
         "papers": [_paper_row(item) for item in ranked],
+        "search_receipts": [receipt.to_row() for receipt in search_receipts],
     }
     directory = _shortlist_dir(config, topic_name)
     directory.mkdir(parents=True, exist_ok=True)
@@ -285,6 +304,7 @@ def save_paper_shortlist(
         created_at=created_at,
         papers=tuple(item.paper for item in ranked),
         scores=tuple(item.final_score for item in ranked),
+        search_receipts=search_receipts,
     )
 
 

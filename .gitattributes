@@ -11,5 +11,7 @@ distill/resources/agent-skills/** text eol=lf linguist-generated=true
 .claude-plugin/marketplace.json text eol=lf linguist-generated=true
 gemini-extension.json text eol=lf linguist-generated=true
 docs/contracts/** text eol=lf
+docs/research/evidence/**/*.json text eol=lf
+docs/research/evidence/**/SHA256SUMS text eol=lf
 docs/performance/cross-platform-*/** -text linguist-generated=true
 docs/performance/comparable-history-*/** -text linguist-generated=true

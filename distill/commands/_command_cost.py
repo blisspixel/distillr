@@ -39,11 +39,14 @@ class _CommandCostTracker(CostTracker):
         super().__init__(budget=budget)
         self._config = config
         self._command = command
-        self._terminal_metadata: dict[str, Any] = {}
+        self._terminal_metadata: dict[str, str] = {}
         self.budget_failure_logged = False
 
     def update_terminal_metadata(self, metadata: dict[str, str]) -> None:
         self._terminal_metadata.update({key: value for key, value in metadata.items() if value})
+
+    def terminal_metadata(self) -> dict[str, str]:
+        return dict(self._terminal_metadata)
 
     def _check_budget(self) -> None:
         try:
@@ -79,6 +82,10 @@ def set_command_cost_metadata(tracker: CostTracker, **metadata: str) -> None:
     """Attach known command context to a possible terminal budget ledger row."""
     if isinstance(tracker, _CommandCostTracker):
         tracker.update_terminal_metadata(metadata)
+
+
+def command_cost_metadata(tracker: CostTracker) -> dict[str, str]:
+    return tracker.terminal_metadata() if isinstance(tracker, _CommandCostTracker) else {}
 
 
 def _workflow_budget_usd(config: DistillConfig, command: str) -> float | None:

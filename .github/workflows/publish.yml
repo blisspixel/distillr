@@ -13,7 +13,7 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need full history so the ancestry check below can verify the
           # tagged commit is reachable from main. The default fetch-depth=1
@@ -21,9 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.11.11"
+          version: "0.13.1"
           enable-cache: true
 
       - name: Resolve tagged commit
@@ -95,6 +95,10 @@ jobs:
             distill/web/templates/base.html \
             distill/web/static/app.js \
             distill/web/static/style.css \
+            distill/web/static/theme-init.js \
+            distill/web/static/export.css \
+            distill/web/themes/house-dark.toml \
+            distill/web/themes/house-light.toml \
             distill/editorial/default-perspective.toml \
             distill/resources/agent-skills/distill-corpus/SKILL.md \
             distill/resources/agent-skills/distill-corpus.manifest.json; do
@@ -111,6 +115,7 @@ jobs:
           uv venv .wheel-smoke
           uv pip install --python .wheel-smoke/bin/python "$whl"
           .wheel-smoke/bin/python -I -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
+          .wheel-smoke/bin/python -I -c "from distill.web.theme import load_themes; themes = load_themes(); assert len(themes.themes) == 12; assert not themes.notices"
           .wheel-smoke/bin/python -I -c "from pathlib import Path; from tempfile import TemporaryDirectory; from distill.editorial.perspective import init_perspective, load_perspective; temp = TemporaryDirectory(); brief = load_perspective(init_perspective(Path(temp.name) / 'perspective.toml')); assert not brief.budget.allow_metered; temp.cleanup()"
 
       - name: Generate CycloneDX SBOM
@@ -212,7 +217,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download distribution
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8

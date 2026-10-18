@@ -434,9 +434,10 @@ class TestAuditCommand:
         result = CliRunner().invoke(cli.app, ["audit", "t"])
 
         assert result.exit_code == 0
-        assert "Corpus is healthy: no findings" in result.output
+        assert "Recorded audit checks: no findings" in result.output
 
     def test_interactive_action_menu_when_findings(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(type(audit_mod.console), "is_terminal", property(lambda self: True))
         config = _config(tmp_path)
         _seed_topic(config)
         monkeypatch.setattr(audit_mod, "get_config", lambda: config)

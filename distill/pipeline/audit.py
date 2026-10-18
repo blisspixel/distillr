@@ -417,7 +417,7 @@ def _read_sidecar(
     allow_nameless_legacy: bool = False,
     require_content_binding: bool = False,
     confinement_root: Path,
-) -> tuple[bool, list[VerifyFlag]] | None:
+) -> tuple[bool, list[VerifyFlag], bool] | None:
     """Read one ``_Verify.json`` sidecar. Returns ``(is_clean, flags)`` or
     ``None`` when the file is absent, unreadable, or violates its versioned
     schema. The caller counts ``None`` as unverified.
@@ -462,7 +462,7 @@ def _read_sidecar(
         }
         for flag in parsed.flags
     ]
-    return (not flags, flags)
+    return (not flags, flags, parsed.entailment_status in {"passed", "flagged"})
 
 
 def _legacy_sidecar_matches(
@@ -499,6 +499,7 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
     consumed_sidecars: set[Path] = set()
     checked = 0
     clean = 0
+    numeric_only = 0
     flagged: list[VerifyFlag] = []
     for ref in insights:
         sidecar = verify_sidecar_for_insight(ref.path)
@@ -515,7 +516,8 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
             continue
         consumed_sidecars.add(sidecar)
         checked += 1
-        is_clean, flags = result
+        is_clean, flags, semantic_checked = result
+        numeric_only += int(not semantic_checked)
         flagged += flags
         clean += int(is_clean)
 
@@ -540,7 +542,7 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
         if result is None:
             continue
         synthesis_checked += 1
-        is_clean, flags = result
+        is_clean, flags, _semantic_checked = result
         flagged += flags
         synthesis_clean += int(is_clean)
 
@@ -552,6 +554,7 @@ def collect_verify_rollup(topic_dir: Path) -> VerifyRollup:
         synthesis_total=synthesis_total,
         synthesis_checked=synthesis_checked,
         synthesis_clean=synthesis_clean,
+        numeric_only=numeric_only,
     )
 
 
@@ -631,13 +634,17 @@ def _verify_section(report: AuditReport) -> list[str]:
     lines = [
         "## Verification coverage",
         "",
-        f"- Insights: {report.verify.insights_total} | verified clean: {report.verify.clean} | "
+        f"- Insights: {report.verify.insights_total} | recorded checks passed: {report.verify.clean} | "
         f"flagged: {len(report.verify.flagged)} | unverified/no checked claims: "
         f"{report.verify.unverified}",
     ]
+    if report.verify.numeric_only:
+        lines.append(
+            f"- Numeric-only: {report.verify.numeric_only} insight(s); prose not checked. Numeric token matches do not establish prose support."
+        )
     if report.verify.synthesis_total:
         lines.append(
-            f"- Syntheses: {report.verify.synthesis_total} | verified clean: "
+            f"- Syntheses: {report.verify.synthesis_total} | recorded checks passed: "
             f"{report.verify.synthesis_clean} | unverified/no checked claims: "
             f"{report.verify.synthesis_unverified} (syntheses are verified against "
             "their own inputs at write time; pre-0.13 syntheses re-check on regeneration)"
@@ -668,8 +675,13 @@ def _freshness_section(report: AuditReport) -> list[str]:
     lines = ["## Synthesis freshness (stale prose reads as confidently as fresh prose)", ""]
     if not f.checked:
         return [*lines, "- No topic-level synthesis artifacts yet (see coverage gaps)."]
-    if not f.stale and not f.shadowed_legacy:
-        return [*lines, f"- All {f.checked} synthesis artifact(s) current with their sources."]
+    lines.append(
+        "- Timestamp check only; dependency membership and removed inputs are not verified."
+    )
+    if not f.stale and not f.shadowed_legacy and not f.unknown:
+        return [*lines, f"- All {f.current} synthesis artifact(s) current by checked timestamps."]
+    for name in f.unknown:
+        lines.append(f"- `{name}`: freshness unknown; scoped evidence could not be assessed.")
     for item in f.stale:
         lines.append(
             f"- `{item['synthesis']}` predates {item['behind']} newer source(s) "

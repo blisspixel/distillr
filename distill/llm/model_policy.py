@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
+
 XAI_MEDIA_GENERATION_MODEL_PREFIXES: tuple[str, ...] = (
     "grok-imagine-image",
     "grok-imagine-video",
@@ -19,6 +21,20 @@ RETIRED_MODELS: dict[str, str] = {
     "grok-3": "grok-4.6",
     "grok-imagine-image-pro": "grok-imagine-image",
 }
+
+
+def scheduled_model_refusal(model: str, *, today: date | None = None) -> str:
+    """Gate published shutdown dates without rewriting historical receipts."""
+    normalized = model.strip().lower()
+    if normalized == "deep-research-pro-preview-12-2025" and (
+        today or datetime.now(UTC).date()
+    ) >= date(2026, 10, 23):
+        return (
+            f"Model '{model}' reached its published earliest shutdown date, 2026-10-23. "
+            "Use deep-research-preview-04-2026 for the research workflow, or "
+            "gemini-3.8-flash for text analysis. Historical receipts remain readable."
+        )
+    return ""
 
 
 def is_xai_media_generation_model(model: str) -> bool:

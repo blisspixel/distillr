@@ -31,10 +31,10 @@ allow_metered = false # Explicitly enable to allow the named OpenRouter routes.
 [routes]
 local_provider = "ollama"
 local_model = "" # Set an installed model, for example qwen3.6:27b. Never auto-download.
-research_model = "google/gemini-3.7-flash"
+research_model = "google/gemini-3.8-flash"
 writer_model = "anthropic/claude-sonnet-5"
 refinement_model = "openai/gpt-5.6-sol" # Mandatory independent rewrite before review.
-critic_model = "google/gemini-3.7-flash"
+critic_model = "google/gemini-3.8-flash"
 
 [sources]
 feeds = ["https://openai.com/news/rss.xml", "https://blog.google/technology/ai/rss/"]

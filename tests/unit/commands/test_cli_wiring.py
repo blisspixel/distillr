@@ -190,25 +190,13 @@ class TestTopLevelExperience:
         result = runner.invoke(cli.app, ["--help"])
         assert result.exit_code == 0, result.output
         output = ANSI_RE.sub("", result.output)
-        assert "First-time setup" in output
+        assert "Start:" in output
         assert "distill --cost-mode no-metered init" in output
-        assert "distill --cost-mode no-metered doctor" in output
         assert "distill provider list" in output
-        assert "OpenRouter opt-in" in output
-        assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
-        assert "distill --cost-mode paid-ok init" in output
-        assert "--preview" in output
-        assert "Have one YouTube URL?" in output
-        assert "Build a topic corpus?" in output
-        assert "Change analysis provider/model?" in output
-        assert "distill provider set gemini gemini-3.7-flash" in output
-        assert 'topic preview "AI news"' in output
-        assert 'topic create "AI news"' not in output
-        assert "Want recurring updates?" in output
-        assert "distill monitor" in output
-        assert "Overnight wiki fuel?" in output
-        assert "distill profile refresh --max-hours 6" in output
-        assert "Microsoft AI news" in output
+        for panel in ("Add sources:", "Keep current:", "Read and ask:", "Check:", "Operate:"):
+            assert panel in output
+        assert "gemini-" not in output
+        assert len(output.splitlines()) <= 55
 
     def test_topic_help_lists_preview_before_create(self):
         result = runner.invoke(cli.app, ["topic", "--help"])
@@ -263,9 +251,8 @@ class TestTopLevelExperience:
         result = runner.invoke(cli.app, [])
 
         assert result.exit_code == 0
-        assert "Distill Start" in result.output
-        # Panel title may not render in narrow test console; check for content instead
-        assert "distill video" in result.output
+        assert "First-Time Setup" in result.output
+        assert "distill --cost-mode no-metered init" in result.output
         assert "Recent Spend" not in result.output
 
     def test_no_args_with_library_shows_operational_dashboard(
@@ -278,7 +265,7 @@ class TestTopLevelExperience:
 
         assert result.exit_code == 0
         assert "Distill Home" in result.output
-        assert "Quick commands:" in result.output
+        assert "Recommended Next Actions" in result.output
         assert "Topics" in result.output
 
     def test_no_args_json_emits_one_dashboard_envelope(self, mock_config, capsys):
@@ -318,7 +305,7 @@ class TestTopLevelExperience:
         assert quiet.exit_code == 0
         assert quiet.output == ""
         assert normal.exit_code == 0
-        assert "Distill Start" in normal.output
+        assert "First-Time Setup" in normal.output
 
     def test_quiet_conflicts_with_verbose(self):
         result = runner.invoke(cli.app, ["--quiet", "--verbose", "alerts"])
@@ -368,11 +355,10 @@ class TestTopLevelExperience:
 
         assert captured == {"debug": False, "ops_dir": None}
 
-    def test_root_callback_clears_interactive_terminal(self, mock_config, monkeypatch):
+    def test_root_callback_preserves_terminal_history(self, mock_config, monkeypatch):
         calls: list[str] = []
 
         monkeypatch.setattr("distill._logging.configure_logging", lambda **_kwargs: None)
-        monkeypatch.setattr(_root.sys.stdout, "isatty", lambda: True)
         monkeypatch.setattr(_root.console, "clear", lambda: calls.append("clear"))
         monkeypatch.setattr(_root, "show_banner", lambda _console: calls.append("banner"))
         monkeypatch.setattr(_dashboard, "show_dashboard", lambda: calls.append("dashboard"))
@@ -389,7 +375,7 @@ class TestTopLevelExperience:
             version=False,
         )
 
-        assert calls == ["clear", "banner", "dashboard"]
+        assert calls == ["dashboard"]
 
     def test_root_model_override_reads_context_object(self):
         assert (
@@ -1876,7 +1862,8 @@ class TestExportOpenCostsAndStatus:
 
 
 class TestDoctorCleanupAndMigrate:
-    def test_doctor_reports_missing_keys(self, tmp_path):
+    def test_doctor_reports_missing_keys(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DISTILL_PROVIDER", "xai")
         config = DistillConfig(
             xai_api_key="",
             gemini_api_key="",

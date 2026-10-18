@@ -336,15 +336,14 @@ def test_filter_ingested_drops_exact_paper_and_video_matches():
     assert excluded == 2
 
 
-def test_filter_ingested_paper_match_is_version_insensitive():
-    # Corpus holds v1 (walk stores raw + version-stripped); the search now
-    # returns v2 of the same paper -- still a duplicate.
+def test_filter_ingested_paper_surfaces_newer_revision():
     kept_papers, _, excluded = discover.filter_ingested_candidates(
         [_paper("2601.00001v2")], [], ingested=frozenset({"2601.00001v1", "2601.00001"})
     )
 
-    assert kept_papers == []
-    assert excluded == 1
+    assert [p.paper_id for p in kept_papers] == ["2601.00001v2"]
+    assert kept_papers[0].revision_status == "update"
+    assert excluded == 0
 
 
 def _ranked_item(rationale: str) -> "discover.RankedDiscoverItem":

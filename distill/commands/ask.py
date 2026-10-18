@@ -80,8 +80,17 @@ def ask_cmd(
         "ask",
         tracker,
         estimated_cost=result.estimated_cost,
-        metadata={"topic": topic, "workflow": "ask", "source_type": "answer"},
+        metadata={
+            "topic": topic,
+            "workflow": "ask",
+            "source_type": "answer",
+            "terminal": "refused"
+            if result.answer_refused_reason or (save and result.save_refused_reason)
+            else "success",
+        },
     )
+    if result.answer_refused_reason or (save and result.save_refused_reason):
+        raise typer.Exit(1)
 
 
 def register(app: typer.Typer) -> None:

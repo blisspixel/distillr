@@ -85,7 +85,7 @@ def test_render_baseline_when_no_previous():
     assert "## Corpus Quality Trend" in text
     assert "Baseline recorded" in text
     assert "80%" in text  # verified-clean rate
-    assert "pp" not in text  # no delta rendered on a baseline
+    assert "pp since" not in text  # no delta rendered on a baseline
 
 
 def test_render_trend_shows_improvement_deltas():
@@ -97,7 +97,7 @@ def test_render_trend_shows_improvement_deltas():
     assert "Flagged 1 (-3)" in text  # improvements render as negative deltas
     assert "stale 0 (-6)" in text
     assert "gaps 1 (-2)" in text
-    assert "compounding" in text.lower()
+    assert "does not prove semantic fidelity" in text.lower()
 
 
 def test_render_trend_reports_no_change_for_identical_snapshots():

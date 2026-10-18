@@ -76,7 +76,7 @@ def test_cost_computation_correctness(model: str, input_tokens: int, output_toke
 def test_all_listed_models_return_correct_pricing() -> None:
     """Every model in PRICING is retrievable via get_pricing with exact match."""
     for model, expected_rates in PRICING.items():
-        if model in {"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"}:
+        if model in {"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-4-argon"}:
             rates = get_pricing(model)
             assert set(rates) == set(expected_rates)
             continue

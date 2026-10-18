@@ -1,0 +1,84 @@
+{
+  "schema_version": "controlled-verification.v1",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.15.0",
+  "distillr": "0.20.7",
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8",
+  "method": "Controlled synthetic analysis at the LLM boundary; real capture, verification, publication and audit. No model-generation call.",
+  "entailment_extra": false,
+  "cost_usd": 0,
+  "rows": [
+    {
+      "mode": "warn",
+      "published": true,
+      "wall_seconds": 0.045,
+      "verification_scope": "numeric-only; prose not checked; 0 recorded unsupported claim(s)",
+      "refusal": "",
+      "sidecars": [
+        {
+          "schema_version": 3,
+          "verification_scope": "numeric-only",
+          "mode": "warn",
+          "checked": 1,
+          "supported": 1,
+          "unsupported": [],
+          "insight": "planted_note_planted_Insights.md",
+          "source": "planted_note_planted_Content.md",
+          "generated_at": "2026-10-18T04:47:45Z",
+          "insight_sha256": "0359676194aa03e0966d78405b1d5a2ec1223b36e021b7704fd50153c30e3cef"
+        }
+      ],
+      "audit": {
+        "insights_total": 1,
+        "checked": 1,
+        "clean": 1,
+        "flagged": [],
+        "synthesis_total": 0,
+        "synthesis_checked": 0,
+        "synthesis_clean": 0,
+        "numeric_only": 1
+      },
+      "files": {
+        "topics/planted/local/planted-note_planted/planted_note_planted_Content.md": "d84a6f0deae55b56cae538b86b81f63475de9faa132582155886035c0c45ddca",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Insights.md": "0359676194aa03e0966d78405b1d5a2ec1223b36e021b7704fd50153c30e3cef",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Verify.json": "f3961669b901fa017d94f9e61c7ef0ef2872bf79eced406e79e05303a9c16221"
+      }
+    },
+    {
+      "mode": "strict",
+      "published": true,
+      "wall_seconds": 0.031,
+      "verification_scope": "numeric-only; prose not checked; 0 recorded unsupported claim(s)",
+      "refusal": "",
+      "sidecars": [
+        {
+          "schema_version": 3,
+          "verification_scope": "numeric-only",
+          "mode": "strict",
+          "checked": 1,
+          "supported": 1,
+          "unsupported": [],
+          "insight": "planted_note_planted_Insights.md",
+          "source": "planted_note_planted_Content.md",
+          "generated_at": "2026-10-18T04:47:45Z",
+          "insight_sha256": "7b87bd2d2a2a3c06ba978cff786f0a2f4f43a9bb41db103f94fbc980e90fabf6"
+        }
+      ],
+      "audit": {
+        "insights_total": 1,
+        "checked": 1,
+        "clean": 1,
+        "flagged": [],
+        "synthesis_total": 0,
+        "synthesis_checked": 0,
+        "synthesis_clean": 0,
+        "numeric_only": 1
+      },
+      "files": {
+        "topics/planted/local/planted-note_planted/planted_note_planted_Content.md": "d84a6f0deae55b56cae538b86b81f63475de9faa132582155886035c0c45ddca",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Insights.md": "7b87bd2d2a2a3c06ba978cff786f0a2f4f43a9bb41db103f94fbc980e90fabf6",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Verify.json": "03a58d4b9efbc93c8bdd8ec00d5d497543d0a375a47990d8a72a872213e89dc5"
+      }
+    }
+  ]
+}

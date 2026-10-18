@@ -164,7 +164,7 @@ def test_performance_evidence_workflow_is_manual_canonical_and_non_blocking() ->
     uses = [str(step["uses"]) for step in steps if "uses" in step]
     assert uses == [
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
+        "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884",
         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     ]
     checkout = next(
@@ -213,7 +213,7 @@ def test_user_experience_evidence_workflow_is_manual_cross_platform_and_strict()
     uses = [str(step["uses"]) for step in steps if "uses" in step]
     assert uses == [
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-        "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
+        "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884",
         "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     ]
     checkout = next(

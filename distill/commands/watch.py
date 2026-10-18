@@ -64,7 +64,7 @@ from distill.pipeline.summary import (
 from distill.pipeline.synthesis.topic import synthesize_channel, synthesize_topic
 from distill.youtube_urls import normalize_youtube_channel_url
 
-_ACCENT = "rgb(100,149,237)"
+_ACCENT = "cyan"
 
 __all__ = [
     "catch_up",

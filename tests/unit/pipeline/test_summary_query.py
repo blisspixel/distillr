@@ -243,6 +243,7 @@ class TestSummarizeQuery:
                 SimpleNamespace(
                     path=path.relative_to(config.library_dir).as_posix(),
                     content_sha256=insight_content_sha256(path.read_text(encoding="utf-8")),
+                    origin="derived",
                 )
                 for path in ranked_paths
             ]

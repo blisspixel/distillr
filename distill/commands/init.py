@@ -67,7 +67,7 @@ XAI_API_KEY=
 
 # Optional Gemini analysis route and Deep Research reports
 # (https://aistudio.google.com/apikey). After init defaults to xAI, switch with:
-#   distill provider set gemini gemini-3.7-flash
+#   distill provider set gemini gemini-3.8-flash
 GEMINI_API_KEY=
 
 # Local inference instead of cloud (no key needed): uncomment one, or run
@@ -450,6 +450,8 @@ def _emit_verdict(state: InitState) -> None:
             console.print(f"  Local model: {escape(local_model)} ({model_status})")
     analysis_provider = str(state.get("analysis_provider", "") or "")
     analysis_model = str(state.get("analysis_model", "") or "")
+    if analysis_provider in {"ollama", "lmstudio"} and not state.get("local_model"):
+        analysis_model = "(no model yet)"
     if analysis_provider and analysis_model:
         console.print(f"  Analysis route: {escape(analysis_provider)} / {escape(analysis_model)}")
     console.print(f"  Browser: {state['browser']}")
@@ -460,7 +462,7 @@ def _emit_verdict(state: InitState) -> None:
             console.print(
                 "  [dim]Other analysis routes:[/dim]  "
                 "distill provider list   |   "
-                "distill provider set gemini gemini-3.7-flash"
+                "distill provider set gemini gemini-3.8-flash"
             )
     else:
         for hint in state["blocking"]:
@@ -980,6 +982,11 @@ def init_cmd(  # noqa: C901 -- guided wizard; branchy by nature, each branch is 
     _emit_verdict(state)
     if not state["ready"]:
         raise typer.Exit(1)
+    from distill._version import get_version
+    from distill.banner import show_signature
+    from distill.commands._helpers import get_config as get_signature_config
+
+    show_signature(console, get_signature_config().library_dir, get_version())
 
 
 def register(app: typer.Typer) -> None:

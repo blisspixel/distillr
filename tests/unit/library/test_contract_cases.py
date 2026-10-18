@@ -171,6 +171,13 @@ def test_apply_frontmatter_preserves_existing_list_fields_as_lists() -> None:
     assert 'tags: ["a", "b"]' in patched
 
 
+@pytest.mark.parametrize("content", ["line\nnext\n", "line\r\nnext\r\n", "line\rnext\r"])
+def test_atomic_text_preserves_supplied_newlines(tmp_path: Path, content: str) -> None:
+    target = tmp_path / "exact.md"
+    atomic_write_text(target, content)
+    assert target.read_bytes() == content.encode("utf-8")
+
+
 def test_atomic_write_text_creates_parent_and_replaces_atomically(tmp_path: Path) -> None:
     """Atomic writes create nested parents, replace content, and clean temp files."""
     target = tmp_path / "nested" / "note.md"

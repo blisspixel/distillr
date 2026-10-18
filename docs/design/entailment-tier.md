@@ -49,7 +49,7 @@ The implementation lives in `distill/pipeline/verify_entailment.py`, isolated fr
    Units already fully covered by numeric checking are still scored (a
    correct number in a wrong sentence is the context-blindness class).
 2. **Evidence pairing (deterministic).** The source receipt is chunked into
-   ~1,500-char windows (HHEM's input budget), each claim is paired with its
+   ~1,500-char windows (Distill's retrieval window), each claim is paired with its
    top-K (default 3) chunks by token overlap -- the same cheap lexical
    ranking the corpus already uses elsewhere; no embeddings, per the
    no-database invariant.
@@ -85,6 +85,20 @@ can speed it up). The extra is required only for `distill ask --save`, not for
 ordinary ingest or unsaved question answering. CI does not install the extra -- unit tests mock the
 `EntailmentChecker` protocol; the model-loading path is covered by marked
 opt-in integration tests and live validation.
+
+Use the [CPU-only installation recipe](../install.md#cpu-only-prose-verification)
+on CPU hosts. Python 3.15 is the core default; use Python 3.12 through 3.14 for
+the currently published optional PyTorch wheels. An unsupported extra fails
+installation rather than silently omitting the checker.
+
+The pinned HHEM 2.1 implementation tokenizes complete pairs without truncation.
+Its inherited tokenizer metadata says 512 tokens, although HHEM 2.1 supports
+longer input. The October 17 CPU probe retained evidence after token 1,500:
+supported score 0.988, contradictory score 0.094. This is a boundary probe,
+not a general calibration result. Distill moves only the two exact, verified
+HHEM metadata diagnostics into debug logging; `--verbose` displays them.
+Unexpected warnings and checker failures retain their normal handling.
+See the [source review and receipt](../research/maintenance-2026-10-17.md).
 
 ## Verify on synthesis emits (shipped)
 

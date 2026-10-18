@@ -1,0 +1,17 @@
+name = "Catppuccin Mocha"
+slug = "catppuccin-mocha"
+variant = "dark"
+source = "https://github.com/catppuccin/palette"
+
+[colors]
+bg = "#1e1e2e"
+surface = "#313244"
+text = "#cdd6f4"
+muted = "#a6adc8"
+accent = "#89b4fa"
+success = "#a6e3a1"
+warning = "#f9e2af"
+error = "#f38ba8"
+info = "#74c7ec"
+selection = "#3f4153"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

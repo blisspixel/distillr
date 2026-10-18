@@ -75,7 +75,8 @@ def _ollama_model_sizes() -> dict[str, float]:
     except Exception:
         # Silence here previously made a registry-parse regression look exactly
         # like "no local models installed", which disables the local eval gate.
-        logger.warning("Ollama model discovery failed; treating as no local models", exc_info=True)
+        logger.warning("Ollama model discovery failed; run distill doctor for readiness details")
+        logger.debug("Ollama model discovery failure details", exc_info=True)
         return {}
 
 

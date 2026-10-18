@@ -26,6 +26,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol, TypedDict
 
@@ -52,6 +54,45 @@ _TOP_K_CHUNKS = 3  # per-claim evidence candidates by lexical overlap
 
 _HHEM_MODEL_ID = "vectara/hallucination_evaluation_model"
 _HHEM_REVISION = "8e4a2e6e96c708cc76c2344f7e4757df2515292c"  # pinned for safety (bandit B615) and reproducibility
+
+
+class _PinnedHHEMDiagnostics(logging.Filter):
+    """Retain two verified upstream metadata warnings in debug evidence."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        known = (
+            message
+            == (
+                "You are using a model of type HHEMv2Config to instantiate a model of type HHEMv2. "
+                "This is not supported for all configurations of models and can yield errors."
+            )
+            or re.fullmatch(
+                r"Token indices sequence length is longer than the specified maximum sequence length for this model \(\d+ > 512\)\. Running this sequence through the model will result in indexing errors",
+                message,
+            )
+            is not None
+        )
+        if known:
+            logger.debug("Pinned HHEM metadata diagnostic (input is not truncated): %s", message)
+        return not known
+
+
+@contextmanager
+def _pinned_hhem_diagnostics() -> Generator[None]:
+    selected = [
+        logging.getLogger(name)
+        for name in ("transformers.configuration_utils", "transformers.tokenization_utils_base")
+    ]
+    diagnostic_filter = _PinnedHHEMDiagnostics()
+    for selected_logger in selected:
+        selected_logger.addFilter(diagnostic_filter)
+    try:
+        yield
+    finally:
+        for selected_logger in selected:
+            selected_logger.removeFilter(diagnostic_filter)
+
 
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
@@ -248,6 +289,7 @@ class HHEMChecker:
     """
 
     model_name = _HHEM_MODEL_ID
+    model_revision = _HHEM_REVISION
     # transformers ships no type stubs, so the model handle is Unknown by nature.
     # It is held as Any and exercised only through the narrow score() contract.
     _model: Any
@@ -259,12 +301,14 @@ class HHEMChecker:
             AutoModelForSequenceClassification,  # pyright: ignore[reportUnknownVariableType]
         )
 
-        self._model = AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
-            _HHEM_MODEL_ID, revision=_HHEM_REVISION, trust_remote_code=True
-        )
+        with _pinned_hhem_diagnostics():
+            self._model = AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
+                _HHEM_MODEL_ID, revision=_HHEM_REVISION, trust_remote_code=True
+            )
 
     def score(self, evidence: str, claim: str) -> float:
-        result: Any = self._model.predict([(evidence, claim)])
+        with _pinned_hhem_diagnostics():
+            result: Any = self._model.predict([(evidence, claim)])
         return float(result[0])
 
 
@@ -287,5 +331,8 @@ def load_default_checker() -> EntailmentChecker | None:
     try:
         return HHEMChecker()
     except Exception as exc:
+        logger.warning(
+            "Local prose checker could not load (%s); prose not checked.", type(exc).__name__
+        )
         logger.debug("entailment checker unavailable: %s", exc)
         return None

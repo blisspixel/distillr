@@ -30,6 +30,8 @@ from distill.ingestors.net import (
     NetworkError,
     safe_urlopen,
 )
+from distill.ingestors.papers.search_receipts import SearchReceipt
+from distill.library.paper_revisions import RevisionStatus
 from distill.parsing import parse_ascii_uint
 
 logger = logging.getLogger(__name__)
@@ -121,6 +123,8 @@ class PaperRecord:
     abs_url: str = ""
     pdf_url: str = ""
     source: str = "arxiv"
+    revision_status: RevisionStatus = "new"
+    captured_revisions: tuple[str, ...] = ()
 
     def metadata(self) -> dict[str, Any]:
         return {
@@ -140,10 +144,18 @@ class PaperRecord:
 
 def parse_arxiv_id(value: str) -> str:
     text = value.strip()
-    match = re.search(r"arxiv\.org/(?:abs|pdf)/([^/?#]+)", text, re.IGNORECASE)
+    match = re.search(r"arxiv\.org/(?:abs|pdf)/([^?#]+)", text, re.IGNORECASE)
     paper_id = match.group(1) if match else text
     paper_id = paper_id.removesuffix(".pdf")
     return paper_id.strip()
+
+
+class PaperSearchResults(list[PaperRecord]):
+    """List-compatible candidates with persistent per-query coverage."""
+
+    def __init__(self, papers: list[PaperRecord], receipts: tuple[SearchReceipt, ...]):
+        super().__init__(papers)
+        self.receipts = receipts
 
 
 def search_arxiv_papers(query: str, limit: int = 10, *, sort: str = "date") -> list[PaperRecord]:
@@ -165,13 +177,15 @@ def search_arxiv_papers(query: str, limit: int = 10, *, sort: str = "date") -> l
     }
     url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
     try:
-        return _parse_arxiv_feed(_fetch_text(url))
+        papers = _parse_arxiv_feed(_fetch_text(url))
     except NetworkError as exc:
         if exc.status_code == 429:
             logger.warning("arXiv rate-limited. Waiting 30s before retry...")
             time.sleep(30)
-            return _parse_arxiv_feed(_fetch_text(url))
-        raise
+            papers = _parse_arxiv_feed(_fetch_text(url))
+        else:
+            raise
+    return PaperSearchResults(papers, (SearchReceipt.capture(query, len(papers)),))
 
 
 def search_arxiv(query: str, max_results: int = 10) -> list[PaperRecord]:
@@ -192,6 +206,7 @@ def search_arxiv_multi(
         return []
     seen: set[str] = set()
     combined: list[PaperRecord] = []
+    receipts: list[SearchReceipt] = []
     spacing = _ARXIV_REQUEST_SPACING_SECONDS
     consecutive_failures = 0
 
@@ -203,8 +218,10 @@ def search_arxiv_multi(
             time.sleep(spacing)
         try:
             records = search_arxiv_papers(q, limit=limit_per_query, sort=sort)
+            receipts.append(SearchReceipt.capture(q, len(records)))
             consecutive_failures = 0  # Reset on success
         except Exception as exc:
+            receipts.append(SearchReceipt.capture(q, 0, error=f"{type(exc).__name__}: {exc}"))
             logger.warning("arXiv search failed (%s): %s", type(exc).__name__, exc)
             consecutive_failures += 1
             # Extra batch cooldown is separate from mandatory request pacing.
@@ -216,7 +233,7 @@ def search_arxiv_multi(
                 continue
             seen.add(record.paper_id)
             combined.append(record)
-    return combined
+    return PaperSearchResults(combined, tuple(receipts))
 
 
 def _build_search_query(query: str) -> str:
@@ -410,9 +427,13 @@ def _fetch_text(url: str) -> str:
         ):
             data = response.read(_FEED_CAP_BYTES + 1)
     except NetworkError as exc:
+        hint = (
+            " arXiv reported HTTP 429; wait before retrying."
+            if exc.status_code == 429
+            else " Check the reported connection or response failure before retrying."
+        )
         raise NetworkError(
-            f"arXiv request failed ({exc}). arXiv enforces a 3-second rate limit; "
-            f"if you're seeing 429 errors, space requests further apart.",
+            f"arXiv request failed ({exc}).{hint}",
             url=exc.url or url,
             status_code=exc.status_code,
         ) from exc
@@ -427,19 +448,27 @@ def _parse_arxiv_feed(payload: str) -> list[PaperRecord]:
     try:
         root = xml_fromstring(payload)
     except Exception as exc:  # defusedxml raises several parse/defense errors
-        # arXiv returns an HTML error page on some bad/rate-limited requests;
-        # a non-XML body must degrade to "no results", not abort the run.
-        logger.warning("arXiv feed is not parseable XML; treating as no results: %s", exc)
-        return []
+        raise NetworkError("arXiv returned an invalid XML feed", url=ARXIV_API) from exc
+    if root.tag != f"{{{ATOM_NS['atom']}}}feed":
+        raise NetworkError("arXiv returned a non-Atom response", url=ARXIV_API)
     results: list[PaperRecord] = []
     for entry in root.findall("atom:entry", ATOM_NS):
-        entry_id = _entry_text(entry, "atom:id").split("/")[-1]
+        identity = _entry_text(entry, "atom:id")
+        if identity.startswith(("http://arxiv.org/api/errors#", "https://arxiv.org/api/errors#")):
+            raise NetworkError(
+                "arXiv API error: " + _entry_text(entry, "atom:summary")[:240], url=ARXIV_API
+            )
+        entry_id = parse_arxiv_id(identity)
         title = _clean_space(_entry_text(entry, "atom:title"))
         # Skip malformed/error entries (e.g. arXiv's API error feed) that carry no
         # real paper id or title; without this they become ghost records with an
         # empty paper_id, which collide on slug and contaminate the corpus.
         if not entry_id or not title:
             continue
+        if not re.fullmatch(
+            r"(?:\d{4}\.\d{4,5}|[a-zA-Z][a-zA-Z.\-]*/\d{7})(?:v[1-9]\d*)?", entry_id
+        ):
+            raise NetworkError("arXiv returned an invalid paper identity", url=ARXIV_API)
         abstract = _clean_space(_entry_text(entry, "atom:summary"))
         authors = [
             _clean_space(author.findtext("atom:name", default="", namespaces=ATOM_NS))

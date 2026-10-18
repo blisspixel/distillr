@@ -30,7 +30,20 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Literal
+
+ClaimOrigin = Literal["external", "derived", "unknown"]
+
+
+def parse_claim_origin(value: object) -> ClaimOrigin:
+    if value == "external":
+        return "external"
+    if value == "derived":
+        return "derived"
+    if value == "unknown":
+        return "unknown"
+    raise ValueError("origin must be external, derived, or unknown")
+
 
 __all__ = [
     "Claim",
@@ -56,21 +69,21 @@ class ClaimRole(StrEnum):
     CONCLUSION = "conclusion"
 
 
-def _required_string(row: dict[str, Any], field: str) -> str:
+def _required_string(row: dict[str, object], field: str) -> str:
     value = row.get(field)
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field} must be a nonempty string")
     return value
 
 
-def _optional_string(row: dict[str, Any], field: str) -> str:
+def _optional_string(row: dict[str, object], field: str) -> str:
     value = row.get(field, "")
     if not isinstance(value, str):
         raise ValueError(f"{field} must be a string")
     return value
 
 
-def _role_confidence(row: dict[str, Any]) -> float:
+def _role_confidence(row: dict[str, object]) -> float:
     value = row.get("role_confidence", 0.0)
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError("role_confidence must be a finite number from 0 to 1")
@@ -127,8 +140,9 @@ class Claim:
     evidence_type: str = ""
     role_confidence: float = 0.0
     extracted_at: str = ""
+    origin: ClaimOrigin = "unknown"
 
-    def to_jsonl_row(self) -> dict[str, Any]:
+    def to_jsonl_row(self) -> dict[str, object]:
         """Serialize for the per-topic ``claims.jsonl`` append-only log."""
         return {
             "claim_id": self.claim_id,
@@ -144,10 +158,11 @@ class Claim:
             "evidence_type": self.evidence_type,
             "role_confidence": self.role_confidence,
             "extracted_at": self.extracted_at,
+            "origin": self.origin,
         }
 
     @classmethod
-    def from_jsonl_row(cls, row: dict[str, Any]) -> Claim:
+    def from_jsonl_row(cls, row: dict[str, object]) -> Claim:
         """Strictly hydrate one persisted claim with legacy optional defaults."""
 
         role = _required_string(row, "rhetorical_role")
@@ -165,6 +180,7 @@ class Claim:
             evidence_type=_optional_string(row, "evidence_type"),
             role_confidence=_role_confidence(row),
             extracted_at=_optional_string(row, "extracted_at"),
+            origin=parse_claim_origin(row.get("origin", "unknown")),
         )
 
 

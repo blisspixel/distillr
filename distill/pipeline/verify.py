@@ -36,6 +36,7 @@ import contextlib
 import json
 import re
 import threading
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -67,6 +68,7 @@ from distill.library.verify_sidecar import VERIFY_SCHEMA_VERSION, EntailmentStat
 from distill.pipeline.verify_entailment import (
     EntailmentChecker,
     EntailmentReport,
+    entailment_available,
     evaluate_entailment,
     load_default_checker,
 )
@@ -391,17 +393,24 @@ class VerifyOutcome:
             and self.entailment.checked > 0
             and not self.entailment.flagged
         )
-        semantic_refusal = self.entailment_required and not semantic_passed
+        semantic_refusal = (
+            self.entailment_required or self.entailment_status == "error"
+        ) and not semantic_passed
         return not self.report.ok or self._entailment_flags > 0 or semantic_refusal
 
     @property
     def summary_line(self) -> str:
         n, total = len(self.report.unsupported), self.report.checked
         ent = f" + {self._entailment_flags} prose claim(s)" if self._entailment_flags else ""
+        coverage = (
+            f"; prose status: {self.entailment_status}"
+            if self.entailment_status in {"error", "unavailable"}
+            else ""
+        )
         if self.refused:
             name = self.insight_name or "insight"
             semantic = ""
-            if self.entailment_required and self.entailment_status != "passed":
+            if self.entailment_status != "passed":
                 semantic = {
                     "unavailable": "; semantic checker unavailable",
                     "error": "; semantic checker failed",
@@ -410,12 +419,19 @@ class VerifyOutcome:
                     "not_required": "; semantic verification did not run",
                 }.get(self.entailment_status, "")
             return (
-                f"verify strict: refused {name} -- {n}/{total} unsupported "
-                f"numeric claim(s){ent}{semantic}; see {self.sidecar.name}"
+                f"verify strict: refused {name} -- {n} of {total} numeric claims unsupported; "
+                f"{self._entailment_flags} prose claims unsupported{semantic}; see {self.sidecar.name}"
+            )
+        if not self.has_flags:
+            if self.entailment is None:
+                return f"verify numeric-only: {total} numeric checks passed; prose not checked{coverage}"
+            return (
+                f"verify numeric + prose: {total} numeric checks passed; "
+                f"{self.entailment.checked} prose checks; semantic status: {self.entailment_status}"
             )
         return (
             f"verify: {n}/{total} numeric claim(s){ent} lack source support -- "
-            f"see {self.sidecar.name}"
+            f"see {self.sidecar.name}{coverage}"
         )
 
 
@@ -450,6 +466,7 @@ def run_verify_hook(
     entailment: EntailmentReport | None = None
     entailment_status: EntailmentStatus = "not_required"
     entailment_reason = ""
+    require_entailment = require_entailment or entailment_available()
     checker = _entailment_checker()
     if checker is None:
         if require_entailment:
@@ -460,9 +477,8 @@ def run_verify_hook(
             entailment = evaluate_entailment(insight_text, source_text, checker)
         except Exception:
             entailment = None
-            if require_entailment:
-                entailment_status = "error"
-                entailment_reason = "checker evaluation failed"
+            entailment_status = "error"
+            entailment_reason = "checker evaluation failed"
         else:
             if entailment.checked == 0:
                 entailment_status = "incomplete"
@@ -549,9 +565,22 @@ def run_synthesis_verify(
     if outcome.refused:
         summary = outcome.summary_line.rsplit("; see ", 1)[0]
         notify(f"{summary}; previous artifact and verification sidecar retained")
+        refusal_dir = directory / ".history" / "refusals" / uuid.uuid4().hex
+        try:
+            write_verify_sidecar(
+                refusal_dir,
+                outcome.report,
+                identity=identity,
+                insight_name=insight_name,
+                insight_sha256=insight_sha256,
+                source_name=source_name,
+                entailment=outcome.entailment,
+                entailment_status=outcome.entailment_status,
+                entailment_reason=outcome.entailment_reason,
+            )
+        except OSError:
+            notify("Refusal receipt could not be persisted; artifact publication remains refused.")
         return True
-    if outcome.has_flags:
-        notify(outcome.summary_line)
     try:
         write_verify_sidecar(
             directory,
@@ -570,6 +599,7 @@ def run_synthesis_verify(
             "could not be published."
         )
         return True
+    notify(outcome.summary_line)
     return False
 
 
@@ -816,6 +846,7 @@ def write_verify_sidecar(
     path = artifact_path(directory, "verify", identity=identity, extension="json")
     payload: dict[str, object] = {
         "schema_version": VERIFY_SCHEMA_VERSION,
+        "verification_scope": "numeric+prose" if entailment is not None else "numeric-only",
         "mode": report.mode,
         "checked": report.checked,
         "supported": report.supported,

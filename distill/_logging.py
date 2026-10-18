@@ -20,6 +20,14 @@ _MAX_LOG_BYTES = 8 * 1024 * 1024
 _LOG_BACKUP_COUNT = 3
 
 
+class _LiveStderrHandler(logging.StreamHandler):
+    """Resolve the current stream when a reused CLI process emits a record."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.stream = sys.stderr
+        super().emit(record)
+
+
 def configure_logging(debug: bool = False, ops_dir: Path | None = None) -> None:
     """Configure structured logging for the CLI.
 
@@ -42,7 +50,7 @@ def _configure_console_handler(root: logging.Logger, *, debug: bool) -> None:
     level = logging.DEBUG if debug else logging.WARNING
     handler = _find_console_handler(root)
     if handler is None:
-        handler = logging.StreamHandler(sys.stderr)
+        handler = _LiveStderrHandler(sys.stderr)
         setattr(handler, _CONSOLE_MARKER, True)
         root.addHandler(handler)
 

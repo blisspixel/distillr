@@ -81,6 +81,7 @@ class VerifyRollup:
     synthesis_total: int = 0
     synthesis_checked: int = 0
     synthesis_clean: int = 0
+    numeric_only: int = 0
 
     @property
     def unverified(self) -> int:
@@ -145,6 +146,7 @@ class AuditReport:
             + len(self.exact_video_duplicates)
             + len(self.thin_transcripts)
             + len(self.freshness.stale)
+            + len(self.freshness.unknown)
             + len(self.freshness.shadowed_legacy)
             + self.verify.unverified
             + self.verify.synthesis_unverified

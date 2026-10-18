@@ -20,9 +20,11 @@ from typer.core import TyperGroup
 if TYPE_CHECKING:
     from typer._click.core import Command as TyperClickCommand
     from typer._click.core import Context as TyperClickContext
+    from typer._click.formatting import HelpFormatter as TyperHelpFormatter
 else:
     TyperClickCommand = click.Command
     TyperClickContext = click.Context
+    TyperHelpFormatter = click.HelpFormatter
 
 
 class DistillGroup(TyperGroup):
@@ -34,6 +36,67 @@ class DistillGroup(TyperGroup):
     papres`` points at ``papers`` instead of dead-ending. Suggestion only; the
     original usage error and its exit code are unchanged.
     """
+
+    def format_help(self, ctx: TyperClickContext, formatter: TyperHelpFormatter) -> None:
+        if ctx.parent is not None:
+            super().format_help(ctx, formatter)
+            return
+        formatter.write_usage(ctx.command_path, "[OPTIONS] COMMAND [ARGS]...")
+        formatter.write_paragraph()
+        formatter.write_text(
+            "A research desk with current sources, inspectable receipts, and a Markdown corpus."
+        )
+        with formatter.section("Options"):
+            records = [parameter.get_help_record(ctx) for parameter in self.get_params(ctx)]
+            formatter.write_dl([record for record in records if record is not None])
+        panels = {
+            "Start": {"init", "doctor", "provider", "update"},
+            "Add sources": {
+                "ingest",
+                "paper",
+                "papers",
+                "video",
+                "channel",
+                "site",
+                "site-batch",
+                "discover",
+                "topic",
+                "ramp-up",
+                "learn",
+            },
+            "Keep current": {"watch", "topic-watch", "monitor", "latest", "catch-up", "profile"},
+            "Read and ask": {
+                "ask",
+                "show",
+                "synthesize",
+                "synthesis",
+                "report",
+                "export",
+                "serve",
+                "library",
+                "videos",
+                "findings",
+                "diff",
+                "trends",
+                "dashboard",
+                "research-brief",
+            },
+            "Check": {"audit", "costs", "status", "bench", "eval"},
+            "Operate": set[str](),
+        }
+        grouped: dict[str, list[str]] = {panel: [] for panel in panels}
+        for command in self.list_commands(ctx):
+            panel = next(
+                (name for name, commands in panels.items() if command in commands), "Operate"
+            )
+            grouped[panel].append(command)
+        for name, commands in grouped.items():
+            with formatter.section(name):
+                formatter.write_text(", ".join(commands))
+        formatter.write_paragraph()
+        formatter.write_text(
+            "Start: distill --cost-mode no-metered init\nModels: distill provider list\nDetails: distill COMMAND --help or docs/usage.md"
+        )
 
     def resolve_command(
         self, ctx: TyperClickContext, args: list[str]
@@ -51,36 +114,12 @@ class DistillGroup(TyperGroup):
             raise
 
 
-_HELP = (
-    "Distill source material into usable intelligence.\n\n"
-    "First-time setup (API-billed routes refused):\n"
-    "  distill --cost-mode no-metered init\n"
-    "      guided .env, provider, and browser setup\n"
-    "  distill --cost-mode no-metered doctor\n"
-    "      readiness check without API-billed provider probes\n"
-    "  distill provider list\n"
-    "      show analysis providers and known models (xAI default; Gemini, Anthropic, and OpenRouter opt-in)\n"
-    '  distill --cost-mode no-metered papers "topic" -n 5 --preview\n'
-    "      shortlist without paper ingest; refuses ambiguous billing\n\n"
-    "Cloud key validation requires explicit permission:\n"
-    "  distill --cost-mode paid-ok init\n\n"
-    "Then pick a starting point:\n"
-    "  Build a topic corpus?\n"
-    '      distill --cost-mode no-metered topic preview "AI news"\n'
-    "  Change analysis provider/model?\n"
-    "      distill provider set gemini gemini-3.7-flash\n"
-    "      distill --provider gemini --model gemini-3.5-flash-lite <command>\n"
-    '  Have one YouTube URL?  distill video "https://www.youtube.com/watch?v=..."\n'
-    "  Have one website URL?  distill site https://example.com/page --topic scratch --seed-only\n"
-    "  Have one paper URL?    distill paper https://arxiv.org/abs/2602.12670 --topic papers\n"
-    '  Need the latest on a topic?  distill latest "Microsoft AI news" --topic microsoft-news\n'
-    '  Want recurring updates?      distill monitor "Microsoft AI news" --topic microsoft-news\n'
-    "  Overnight wiki fuel?         distill profile refresh --max-hours 6\n"
-)
+_HELP = "Current sources, inspectable receipts, and a plain-Markdown research corpus."
 
 app = typer.Typer(
     cls=DistillGroup,
     help=_HELP,
     invoke_without_command=True,
     rich_markup_mode="rich",
+    context_settings={"help_option_names": ["-h", "--help"]},
 )

@@ -14,9 +14,9 @@ dashboard. The root callback in ``distill.commands.root`` imports
 
 from __future__ import annotations
 
+import os
 from html import escape
 
-from rich import box
 from rich.columns import Columns
 from rich.markup import escape as escape_markup
 from rich.panel import Panel
@@ -71,95 +71,124 @@ def _cost_run_display(entry: CostRun) -> str:
     return direct
 
 
-def _build_setup_table() -> Table:
-    table = Table.grid(expand=True)
-    table.add_column(style="bold cyan", width=16)
-    table.add_column()
-    table.add_row("Setup safely", "distill --cost-mode no-metered init")
-    table.add_row("Check readiness", "distill --cost-mode no-metered doctor")
-    table.add_row(
-        "Preview",
-        'distill --cost-mode no-metered papers "topic" -n 5 --preview',
-    )
-    return table
-
-
-def _build_start_here_table() -> Table:
-    table = Table.grid(expand=True)
-    table.add_column(style="bold cyan", width=17)
-    table.add_column()
-    table.add_row("YouTube URL", 'distill video "https://www.youtube.com/watch?v=..."')
-    table.add_row(
-        "Website URL",
-        "distill site https://example.com/page --topic scratch --seed-only",
-    )
-    table.add_row(
-        "Paper URL",
-        "distill paper https://arxiv.org/abs/2602.12670 --topic papers",
-    )
-    table.add_row(
-        "Topic corpus",
-        'distill --cost-mode no-metered topic preview "AI news"',
-    )
-    table.add_row(
-        "Recurring updates",
-        'distill monitor "Microsoft AI news" --topic microsoft-news',
-    )
-    return table
-
-
 def _show_first_run_home(version: str, help_hint: str = "distill --help for all commands") -> None:
-    console.print(f"  [dim]v{version}[/dim]  ·  [bold]Distill Start[/bold]")
+    console.print(f"distill {version}  First-Time Setup", markup=False)
+    console.print("Install Ollama, disable its cloud routes, and pull a local model first.")
+    rows = [
+        ("1. Setup safely", "distill --cost-mode no-metered init"),
+        ("2. Check readiness", "distill --cost-mode no-metered doctor"),
+        ("3. Preview", 'distill --cost-mode no-metered papers "topic" -n 5 --preview'),
+        ("After Setup: inspect models", "distill provider list"),
+        ("Then: read the corpus", "distill library"),
+        ("Then: check the evidence", "distill audit all --report-only"),
+    ]
+    for label, command in rows:
+        console.print(label, style="cyan", markup=False)
+        console.print(f"  {command}", soft_wrap=True, markup=False)
     console.print(
-        "  [dim]Set up once, preview next, then ingest. Build the library deliberately.[/dim]"
+        "Preview does not ingest. Default verification checks numbers; prose needs the optional checker."
     )
-    console.print()
-    console.print(
-        Panel(
-            _build_setup_table(),
-            title="First-Time Setup",
-            border_style="cyan",
-            box=box.ROUNDED,
-        )
-    )
-    console.print()
-    console.print(
-        Panel(
-            _build_start_here_table(),
-            title="After Setup: Pick A Starting Point",
-            border_style="cyan",
-            box=box.ROUNDED,
-        )
-    )
-    console.print()
+    console.print(help_hint, style="dim", markup=False)
 
-    notes = Table.grid(expand=True)
-    notes.add_column(style="bold cyan", width=14)
-    notes.add_column()
-    notes.add_row(
-        "What happens",
-        "Each ingest writes plain Markdown plus receipts into your local library.",
+
+def _show_plain_home(snapshot: DashboardSnapshot, version: str) -> None:
+    items = snapshot["total_videos"] + snapshot["page_count"] + snapshot["paper_count"]
+    console.print(
+        f"Distill Home {version}  library: {len(snapshot['topics'])} topics, {items} items",
+        markup=False,
     )
-    notes.add_row(
-        "Use --topic",
-        "Choose where output is filed. Default topic: [bold]ai[/bold].",
+    console.print("Stay Current", style="cyan")
+    console.print(f"Topics: {', '.join(snapshot['topics']) or 'No topics yet'}", markup=False)
+    console.print(
+        f"Sources: {snapshot['total_videos']} videos, {snapshot['page_count']} pages, {snapshot['paper_count']} papers"
     )
-    notes.add_row(
-        "Preview cost",
-        "Preview stops before corpus writes; any model-backed preview cost is logged.",
+    console.print(
+        f"Watches: {len(snapshot['watchlist'])} channels, {len(snapshot['topic_watchlist'])} topics; {snapshot['due_topic_watches']} due"
     )
-    notes.add_row(
-        "Spend control",
-        "Examples above refuse API-billed routes. Use [bold]--cost-mode paid-ok[/bold] "
-        "only for intended cloud validation or model work.",
+    for entry in snapshot["topic_watchlist"][:5]:
+        state = " / paused" if entry.paused else ""
+        console.print(f"  {entry.name}: {entry.topic} / {entry.cadence}{state}", markup=False)
+    console.print("Learn Fast", style="cyan")
+    console.print(
+        f"Outputs: {snapshot['synthesis_count']} syntheses, {snapshot['report_count']} reports, {snapshot['brief_count']} briefs"
     )
-    notes.add_row(
-        "Then",
-        "Open the files, run [bold]distill videos <topic>[/bold], [bold]distill audit <topic>[/bold], or synthesize/report later.",
+    console.print("Build Corpus", style="cyan")
+    _show_plain_activity(snapshot)
+    _show_plain_attention(snapshot)
+    console.print("Recommended Next Actions", style="cyan")
+    if snapshot["topics"]:
+        console.print(
+            f"  distill run {snapshot['topics'][0]} --refresh", markup=False, soft_wrap=True
+        )
+    else:
+        console.print('  distill latest "research topic" --preview', markup=False, soft_wrap=True)
+    for label, command in (
+        ("Keep current", "distill catch-up --preview"),
+        ("Read and ask", "distill library"),
+        ("Check evidence", "distill audit all --report-only"),
+        ("Commands", "distill --help"),
+    ):
+        console.print(label, style="cyan")
+        console.print(f"  {command}", markup=False, soft_wrap=True)
+
+
+def _show_plain_activity(snapshot: DashboardSnapshot) -> None:
+    spend = snapshot["recent_spend"]
+    spend_text = (
+        "Unavailable: cost evidence is incomplete or cannot be aggregated"
+        if spend is None
+        else f"${spend:.2f}"
     )
-    console.print(Panel(notes, title="How Distill Works", border_style="green", box=box.ROUNDED))
-    console.print()
-    console.print(f"  [dim]{help_hint}[/dim]")
+    if any(_cost_run_has_unknown_external_cost(row) for row in snapshot["recent_runs"]):
+        spend_text += " + external unknown"
+    console.print(f"Recent Spend: {spend_text}")
+    for label, rows in (
+        ("Top Spend", snapshot["topic_spend_rollups"]),
+        ("By Source", snapshot["source_spend_rollups"]),
+    ):
+        for name, cost, runs in rows:
+            console.print(f"{label}: {name}: ${cost:.2f} / {runs} runs", markup=False)
+    console.print("Recent Activity", style="cyan")
+    if not snapshot["recent_runs"]:
+        console.print("No runs logged yet")
+    for run in reversed(snapshot["recent_runs"]):
+        console.print(
+            f"{_cost_run_text(run, 'command', 'unknown')}: {_cost_run_display(run)}", markup=False
+        )
+    console.print("What Changed", style="cyan")
+    _show_plain_changes(snapshot)
+
+
+def _show_plain_changes(snapshot: DashboardSnapshot) -> None:
+    for topic, summary in snapshot["topic_changes"]:
+        console.print(f"{topic}: {summary}", markup=False)
+        if trend := snapshot["topic_trends"].get(topic):
+            console.print(trend, markup=False)
+    if not snapshot["topic_changes"]:
+        for _time, kind, label in snapshot["recent_artifacts"]:
+            console.print(f"{kind}: {label}", markup=False)
+        if not snapshot["recent_artifacts"]:
+            console.print("No recent synthesis/report artifacts detected")
+
+
+def _show_plain_attention(snapshot: DashboardSnapshot) -> None:
+    console.print("Needs Attention", style="cyan")
+    warnings = [
+        *snapshot["corpus_health_warnings"],
+        *snapshot["budget_messages"],
+        *snapshot["stale_topic_watches"],
+    ]
+    warnings.extend(row["message"] for row in snapshot["cost_warnings"])
+    if snapshot["latest_results"].get("failed"):
+        warnings.append(f"{snapshot['latest_results']['failed']} failed video items in latest run")
+    if snapshot["latest_issues"]:
+        warnings.append(f"{len(snapshot['latest_issues'])} persisted run issues")
+    for warning in warnings[:10]:
+        console.print(f"Attention: {warning}", markup=False)
+    if not warnings:
+        console.print("No immediate issues detected from the latest run logs")
+    for label, path in dashboard_evidence_paths(snapshot).items():
+        console.print(f"{label}: {path}", markup=False, soft_wrap=True)
 
 
 def _show_dashboard() -> None:  # noqa: C901
@@ -237,6 +266,9 @@ def _show_dashboard() -> None:  # noqa: C901
     )
     if is_first_run:
         _show_first_run_home(version)
+        return
+    if not console.is_terminal or os.environ.get("TERM") == "dumb" or console.width < 140:
+        _show_plain_home(snapshot, version)
         return
 
     console.print(
@@ -494,7 +526,7 @@ def _show_dashboard() -> None:  # noqa: C901
         [
             Panel(stay_current, title="Stay Current", border_style="blue"),
             Panel(learn_fast, title="Learn Fast", border_style="green"),
-            Panel(build_corpus, title="Build Corpus", border_style="magenta"),
+            Panel(build_corpus, title="Build Corpus", border_style="cyan"),
         ],
         equal=True,
         expand=True,
@@ -672,52 +704,26 @@ def render_dashboard_html(version: str, snapshot: DashboardSnapshot) -> str:  # 
         for source, cost, runs in snapshot["source_spend_rollups"]
     ]
 
+    from distill.web.theme import dashboard_styles, load_themes
+    from distill.web.theme_ui import appearance_controls, standalone_scripts, theme_metadata
+
+    theme_collection = load_themes()
     return f"""<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="house-dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Distill Dashboard</title>
-  <style>
-    :root {{
-      --bg: #f6f2e9;
-      --panel: #fffdf8;
-      --ink: #1c1f26;
-      --muted: #6b7280;
-      --line: #d9cfbf;
-      --accent: #0f766e;
-      --accent2: #b45309;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; font-family: Georgia, 'Times New Roman', serif; background: linear-gradient(180deg, #f4efe4 0%, var(--bg) 100%); color: var(--ink); }}
-    .skip-link {{ position: fixed; top: 8px; left: 8px; z-index: 10; padding: 10px 14px; border-radius: 8px; background: var(--ink); color: var(--panel); transform: translateY(-150%); }}
-    .skip-link:focus {{ transform: translateY(0); }}
-    .sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }}
-    :focus-visible {{ outline: 3px solid var(--accent2); outline-offset: 3px; }}
-    .wrap {{ max-width: 1400px; margin: 0 auto; padding: 28px; }}
-    h1 {{ margin: 0; font-size: 2.1rem; }}
-    .sub {{ color: var(--muted); margin-top: 8px; }}
-    .grid {{ display: grid; gap: 16px; }}
-    .metrics {{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 24px 0; }}
-    .cols3 {{ grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }}
-    .card {{ background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 8px 24px rgba(28,31,38,0.05); }}
-    .metric .label {{ font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }}
-    .metric .value {{ font-size: 2rem; margin-top: 8px; }}
-    h2 {{ margin: 0 0 12px 0; font-size: 1.15rem; }}
-    ul {{ margin: 0; padding-left: 18px; }}
-    li {{ margin: 6px 0; }}
-    table {{ width: 100%; border-collapse: collapse; font-size: 0.95rem; }}
-    th, td {{ text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }}
-    th {{ color: var(--muted); font-weight: 600; }}
-    .footer {{ margin-top: 20px; color: var(--muted); font-size: 0.9rem; }}
-    .accent {{ color: var(--accent); }}
-    .warn {{ color: var(--accent2); }}
-  </style>
+  <style>{dashboard_styles(theme_collection)}</style>
+  <meta name="color-scheme" content="light dark">
+  <meta name="distill-themes" content="{theme_metadata(theme_collection)}">
+  <script>{standalone_scripts()}</script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to main content</a>
   <main class="wrap" id="main-content" tabindex="-1">
     <h1>Distill Dashboard</h1>
+    {appearance_controls(theme_collection)}
     <div class="sub">v{escape(version)} · stay current / learn fast / build corpus</div>
     <div class="grid metrics">{metric_cards}</div>
 

@@ -1,0 +1,17 @@
+name = "Everforest Light"
+slug = "everforest-light"
+variant = "light"
+source = "https://github.com/sainnhe/everforest"
+
+[colors]
+bg = "#fdf6e3"
+surface = "#f4f0d9"
+text = "#5c6a72"
+muted = "#627061"
+accent = "#0a74a3"
+success = "#667404"
+warning = "#8f6502"
+error = "#ce2a2f"
+info = "#027c57"
+selection = "#eff0d0"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

@@ -16,7 +16,9 @@ from urllib.parse import urlparse
 import typer
 
 from distill._console import console
+from distill.commands._command_cost import command_cost_metadata
 from distill.commands._helpers import (
+    _apply_verify_override,
     budgeted_cost_tracker,
     get_config,
     set_command_cost_metadata,
@@ -71,7 +73,7 @@ def ingest_cmd(
     force: bool = typer.Option(
         False,
         "--force",
-        help="Reanalyze an unchanged completed X post instead of reusing its artifacts.",
+        help="Reanalyze an unchanged completed local file or X post.",
     ),
     rss: bool = typer.Option(
         False,
@@ -88,6 +90,7 @@ def ingest_cmd(
         "--episode-id",
         help="Ingest one exact feed item identity emitted by profile preview.",
     ),
+    verify: str = typer.Option("", "--verify", help="Verification mode: warn, strict, or off"),
 ) -> None:
     """Ingest a single URL or local file into the library, picking the right adapter.
 
@@ -96,6 +99,7 @@ def ingest_cmd(
       distill ingest private/research.pdf --topic papers
       distill ingest https://example.com/feed.xml --rss --episodes 3 --topic feeds
     """
+    _apply_verify_override(verify)
     config = get_config()
     tracker = budgeted_cost_tracker(config, "ingest")
     source_type = "unknown"
@@ -124,7 +128,9 @@ def ingest_cmd(
             else:
                 source_type = "local"
                 set_command_cost_metadata(tracker, topic=topic, source_type=source_type)
-                _ingest_local(local_path, topic, config, tracker, analyze=not no_analyze)
+                _ingest_local(
+                    local_path, topic, config, tracker, analyze=not no_analyze, force=force
+                )
             return
 
         if local_path is not None:
@@ -222,13 +228,21 @@ def _ingest_static_https(
     from distill.pipeline.summary import RunSummary
 
     seed = SiteSeed(url=url, topic=topic, max_pages=1, max_depth=0)
+    summary = RunSummary(command="ingest")
     process_site_seed(
         seed,
         config,
         tracker,
-        RunSummary(command="ingest"),
+        summary,
         scrape_only=not analyze,
     )
+    if any(issue.severity == "error" for issue in summary.issues):
+        exit_with_refusal(
+            "Page ingest did not complete. Review the reported failure.",
+            code=ExitCode.RUNTIME_ERROR,
+            reason="ingest_failed",
+            action="ingest",
+        )
 
 
 def _save_ingest_cost(
@@ -241,13 +255,17 @@ def _save_ingest_cost(
     """Persist every recorded ingest usage row, including zero-dollar local work."""
     if getattr(tracker, "budget_failure_logged", False):
         return
-    if not (tracker.entries or tracker.gemini_queries or tracker.transcriptions):
+    metadata = command_cost_metadata(tracker)
+    if (
+        not (tracker.entries or tracker.gemini_queries or tracker.transcriptions)
+        and metadata.get("no_op") != "true"
+    ):
         return
     save_run_log(
         config.library_dir,
         "ingest",
         tracker,
-        metadata={"topic": topic, "workflow": "ingest", "source_type": source_type},
+        metadata={**metadata, "topic": topic, "workflow": "ingest", "source_type": source_type},
     )
 
 
@@ -255,12 +273,37 @@ def _spend_line(tracker: CostTracker) -> None:
     console.print(f"\n  [dim]LLM spend: {tracker.format_cost()}[/dim]")
 
 
+def _check_strict_completion(
+    config: DistillConfig, tracker: CostTracker, *, analyze: bool, skipped: list[str]
+) -> None:
+    if analyze and config.distill_verify == "strict" and skipped:
+        set_command_cost_metadata(tracker, terminal="analysis_incomplete")
+        exit_with_refusal(
+            "Strict ingest did not publish every requested analysis. Review the skipped reasons above.",
+            code=ExitCode.RUNTIME_ERROR,
+            reason="analysis_incomplete",
+            action="ingest",
+        )
+
+
 def _ingest_local(
-    local_path: Path, topic: str, config: DistillConfig, tracker: CostTracker, *, analyze: bool
+    local_path: Path,
+    topic: str,
+    config: DistillConfig,
+    tracker: CostTracker,
+    *,
+    analyze: bool,
+    force: bool = False,
 ) -> None:
     try:
-        local = ingest_local_file(
-            local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
+        local = (
+            ingest_local_file(
+                local_path, topic=topic, config=config, analyze=analyze, tracker=tracker, force=True
+            )
+            if force
+            else ingest_local_file(
+                local_path, topic=topic, config=config, analyze=analyze, tracker=tracker
+            )
         )
     except LocalExtractionError as exc:
         exit_with_refusal(
@@ -280,6 +323,19 @@ def _ingest_local(
             f"  [green]Insights[/green]  {local.insights_path.relative_to(config.library_dir)}"
         )
     _spend_line(tracker)
+    set_command_cost_metadata(
+        tracker,
+        no_op=str(local.no_op).lower(),
+        verification_scope=local.verification_scope,
+        terminal="verification_refused" if local.refusal_reason else "success",
+    )
+    if local.refusal_reason:
+        exit_with_refusal(
+            local.refusal_reason,
+            code=ExitCode.RUNTIME_ERROR,
+            reason="verification_refused",
+            action="ingest",
+        )
 
 
 def _ingest_tweet_url(
@@ -328,6 +384,7 @@ def _ingest_tweet_url(
     for note in result.skipped_reasons:
         console.print(f"  [yellow]skipped[/yellow]    {note}")
     _spend_line(tracker)
+    _check_strict_completion(config, tracker, analyze=analyze, skipped=result.skipped_reasons)
 
 
 def _ingest_media(
@@ -348,6 +405,7 @@ def _ingest_media(
     for note in result.skipped_reasons:
         console.print(f"  [yellow]skipped[/yellow]    {note}")
     _spend_line(tracker)
+    _check_strict_completion(config, tracker, analyze=analyze, skipped=result.skipped_reasons)
 
 
 def _ingest_feed(
@@ -390,6 +448,7 @@ def _ingest_feed(
             for note in nl.skipped_reasons:
                 console.print(f"  [yellow]skipped[/yellow]      {note}")
             _spend_line(tracker)
+            _check_strict_completion(config, tracker, analyze=analyze, skipped=nl.skipped_reasons)
             return
         result = ingest_podcast(
             url,
@@ -418,6 +477,7 @@ def _ingest_feed(
     for note in result.skipped_reasons:
         console.print(f"  [yellow]skipped[/yellow]    {note}")
     _spend_line(tracker)
+    _check_strict_completion(config, tracker, analyze=analyze, skipped=result.skipped_reasons)
 
 
 def _ingest_github(
@@ -456,6 +516,7 @@ def _ingest_github(
     for note in result.skipped_reasons:
         console.print(f"  [yellow]skipped[/yellow]    {note}")
     _spend_line(tracker)
+    _check_strict_completion(config, tracker, analyze=analyze, skipped=result.skipped_reasons)
 
 
 def register(app: typer.Typer) -> None:

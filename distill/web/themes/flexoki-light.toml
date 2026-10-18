@@ -1,0 +1,17 @@
+name = "Flexoki Light"
+slug = "flexoki-light"
+variant = "light"
+source = "https://github.com/kepano/flexoki"
+
+[colors]
+bg = "#fffcf0"
+surface = "#f2f0e5"
+text = "#100f0f"
+muted = "#6e6d68"
+accent = "#205ea6"
+success = "#5d7508"
+warning = "#896704"
+error = "#af3029"
+info = "#167a72"
+selection = "#f2efe4"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

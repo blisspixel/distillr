@@ -36,14 +36,18 @@ from distill.commands._learning import (
     display_ranked_papers,
     expand_paper_queries,
 )
+from distill.commands._paper_artifacts import PaperPublicationRefusedError
 from distill.commands._paper_artifacts import write_paper_artifacts as _write_paper_artifacts
+from distill.commands._paper_search import report_revision_candidates, report_search_coverage
 from distill.config import DistillConfig
 from distill.ingestors.papers.arxiv import (
     PaperRecord,
+    PaperSearchResults,
     fetch_arxiv_paper,
     search_arxiv_multi,
     search_arxiv_papers,
 )
+from distill.ingestors.papers.search_receipts import SearchReceipt
 from distill.library.intent import CorpusIntent
 from distill.library.paths import find_artifact
 from distill.llm.availability import model_available
@@ -168,7 +172,7 @@ def _analyze_paper_batch(
     router_config: RouterConfig,
     workers: int,
     summary: RunSummary,
-) -> None:
+) -> int:
     """Analyze independent papers concurrently and serialize all shared writes."""
 
     intent: CorpusIntent | None = _resolve_intent(config, topic)
@@ -235,6 +239,7 @@ def _analyze_paper_batch(
         paper_dir = paper_dirs[index]
         summary.add_output(find_artifact(paper_dir, "paper"))
         summary.add_output(find_artifact(paper_dir, "insights"))
+    return len(paper_dirs)
 
 
 def _completed_paper_artifacts(
@@ -322,7 +327,12 @@ def paper(
         tracker=tracker,
         intent=_resolve_intent(config, topic),
     )
-    paper_dir = _write_paper_artifacts(topic, paper_record, config, insights, document)
+    try:
+        paper_dir = _write_paper_artifacts(topic, paper_record, config, insights, document)
+    except PaperPublicationRefusedError as exc:
+        summary.add_issue("paper-publication", str(exc), context=paper_record.paper_id)
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        raise typer.Exit(1) from exc
     summary.add_output(find_artifact(paper_dir, "paper"))
     summary.add_output(find_artifact(paper_dir, "insights"))
     synthesis = synthesize_papers(topic, config, tracker=tracker)
@@ -431,6 +441,7 @@ def _save_preview_shortlist(
     expansion_queries: list[str],
     router_config: RouterConfig,
     ranked: list[RankedPaper],
+    search_receipts: tuple[SearchReceipt, ...] = (),
 ):
     from distill.pipeline.paper_shortlist import save_paper_shortlist
 
@@ -441,6 +452,7 @@ def _save_preview_shortlist(
         expansion_queries=expansion_queries,
         model=_analysis_model_label(router_config),
         ranked=ranked,
+        search_receipts=search_receipts,
     )
 
 
@@ -477,7 +489,7 @@ def _run_paper_ingest(
         router_config=router_config,
     )
     console.print(f"[dim]Analyzing {len(records)} paper(s)[/dim]\n")
-    _analyze_paper_batch(
+    completed = _analyze_paper_batch(
         records,
         topic=topic_name,
         config=config,
@@ -486,6 +498,9 @@ def _run_paper_ingest(
         workers=workers,
         summary=summary,
     )
+    if completed == 0:
+        display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+        raise typer.Exit(1)
     synthesis = synthesize_papers(topic_name, config, tracker=tracker)
     if synthesis:
         summary.add_output(
@@ -499,6 +514,8 @@ def _run_paper_ingest(
     if concepts_flag:
         _run_concepts_after_ingest(topic_name, tracker=tracker)
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+    if any(issue.severity == "error" for issue in summary.issues):
+        raise typer.Exit(1)
 
 
 def _ingest_saved_shortlist(
@@ -519,13 +536,28 @@ def _ingest_saved_shortlist(
     summary = RunSummary(command="papers")
     summary.set_metadata(topic=topic_name, workflow="papers", source_type="paper")
     chosen = list(loaded.papers[: max(limit, 0)])
-    scores = list(loaded.scores[: len(chosen)])
+    from distill.library.ingested import ingested_source_ids
+    from distill.pipeline.discovery import filter_ingested_candidates
+
+    score_by_id = dict(
+        zip((paper.paper_id for paper in loaded.papers), loaded.scores, strict=False)
+    )
+    chosen, _, _ = filter_ingested_candidates(
+        chosen, [], ingested=ingested_source_ids(config.topic_dir(topic_name))
+    )
+    scores = [score_by_id.get(paper.paper_id, 0.0) for paper in chosen]
     console.print(f"\n[bold]Papers: {loaded.query}[/bold]")
     console.print(
         f"[dim]Topic: {topic_name} | Shortlist: {loaded.id} | "
         f"Limit: {limit} | Workers: {workers}[/dim]\n"
     )
     console.print("[dim]Using the saved preview. No arXiv search and no rerank.[/dim]")
+    report_search_coverage(loaded.search_receipts, summary)
+    if report_revision_candidates(chosen, topic_dir=config.topic_dir(topic_name)):
+        console.print(
+            "Revision publication requires a reviewed history-preserving update; corpus unchanged."
+        )
+        raise typer.Exit(1)
     if not chosen:
         summary.add_issue(
             "paper-search", "Saved shortlist is empty at this limit", context=loaded.id
@@ -739,12 +771,15 @@ def papers(  # noqa: C901 — legacy, will refactor
     except Exception as exc:
         console.print(
             f"[red]arXiv search failed: {exc}[/red]\n"
-            "[dim]arXiv rate-limits aggressively. If you're seeing 429 errors, wait a few minutes and try again.[/dim]"
+            "[dim]Discovery failed; no conclusion about corpus currency is available.[/dim]"
         )
         summary.add_issue("paper-search", f"arXiv request failed: {exc}", context=query)
+        report_search_coverage((SearchReceipt.capture(queries[0], 0, error=str(exc)),), summary)
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         raise typer.Exit(1) from exc
 
+    search_receipts = candidates.receipts if isinstance(candidates, PaperSearchResults) else ()
+    report_search_coverage(search_receipts, summary)
     if not candidates:
         summary.add_issue("paper-search", "No papers found for query", context=query)
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
@@ -758,6 +793,14 @@ def papers(  # noqa: C901 — legacy, will refactor
     candidates, _, excluded_ingested = filter_ingested_candidates(
         candidates, [], ingested=ingested_source_ids(config.topic_dir(topic_name))
     )
+    if (
+        report_revision_candidates(candidates, topic_dir=config.topic_dir(topic_name))
+        and not preview
+    ):
+        console.print(
+            "Review revisions with --preview; automatic revision publication is unavailable."
+        )
+        raise typer.Exit(1)
     if excluded_ingested:
         console.print(
             f"[dim]Excluded {excluded_ingested} paper(s) already in '{topic_name}'.[/dim]"
@@ -765,7 +808,8 @@ def papers(  # noqa: C901 — legacy, will refactor
     if not candidates:
         # Every search hit is already ingested -- a converged corpus, not an error.
         console.print(
-            f"[green]Corpus is current: every paper found is already in '{topic_name}'.[/green]"
+            f"[dim]Every returned paper is already in '{topic_name}'; "
+            "this does not certify corpus currency.[/dim]"
         )
         display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
         return
@@ -796,6 +840,7 @@ def papers(  # noqa: C901 — legacy, will refactor
             expansion_queries=queries,
             router_config=router_config,
             ranked=ranked,
+            search_receipts=search_receipts,
         )
         projected_cost = estimate_paper_workflow_cost(
             len(ranked),

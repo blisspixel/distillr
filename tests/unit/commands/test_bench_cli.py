@@ -175,7 +175,7 @@ def test_a_reloaded_probe_is_reported_rather_than_published(library, monkeypatch
 
     result = runner.invoke(cli.app, ["bench"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "reloaded" in result.output
     assert "128.0 t/s" not in result.output
 

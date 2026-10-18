@@ -260,7 +260,7 @@ def _add_formatted_text(para, text: str):
                 "Reported": RGBColor(0x0D, 0x6E, 0xBD),  # blue
                 "Medium": RGBColor(0x0D, 0x6E, 0xBD),
                 "Estimated": RGBColor(0xCA, 0x83, 0x00),  # amber
-                "Analysis": RGBColor(0x6D, 0x28, 0xD9),  # purple
+                "Analysis": RGBColor(0x11, 0x5E, 0x59),  # teal
                 "Speculated": RGBColor(0xDC, 0x26, 0x26),  # red
                 "Low": RGBColor(0xDC, 0x26, 0x26),
             }

@@ -236,7 +236,15 @@ def crawl_site_with_receipts(seed: SiteSeed) -> SiteCrawlResult:
     """Crawl one seed, returning captured pages and a receipt per failed URL."""
 
     if not _seed_is_crawlable(seed):
-        return SiteCrawlResult()
+        return SiteCrawlResult(
+            failures=[
+                CaptureFailure(
+                    url=seed.url,
+                    outcome="navigation-failed",
+                    detail="Seed rejected before capture: HTTPS, public DNS resolution, or supported page URL validation failed. Check DNS and URL safety.",
+                )
+            ]
+        )
     if seed.max_pages == 1 and seed.max_depth == 0:
         from distill.ingestors.sites.system_browser import browser_can_launch
 

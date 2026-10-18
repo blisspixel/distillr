@@ -644,7 +644,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
     else:
         effective_mode = analysis_mode
 
-    _ACCENT = "rgb(100,149,237)"
+    _ACCENT = "cyan"
     write_video_metadata(vid_dir, video, channel_name, analysis_mode=effective_mode)
 
     transcript_file = find_artifact(vid_dir, "transcript", extension="txt")
@@ -780,7 +780,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 f"metadata.json + {transcript_file.name} (upload date normalized for verification)"
             ),
         )
-        if outcome is not None and outcome.has_flags:
+        if outcome is not None:
             style = "red" if outcome.refused else "yellow"
             console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:

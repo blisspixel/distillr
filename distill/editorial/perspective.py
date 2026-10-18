@@ -46,10 +46,10 @@ class EditorialBudget(EditorialModel):
 class EditorialRoutes(EditorialModel):
     local_provider: Literal["ollama", "lmstudio"] = "ollama"
     local_model: str = Field(default="", max_length=200)
-    research_model: str = "google/gemini-3.7-flash"
+    research_model: str = "google/gemini-3.8-flash"
     writer_model: str = "anthropic/claude-sonnet-5"
     refinement_model: str = "openai/gpt-5.6-sol"
-    critic_model: str = "google/gemini-3.7-flash"
+    critic_model: str = "google/gemini-3.8-flash"
 
     @field_validator("research_model", "writer_model", "refinement_model", "critic_model")
     @classmethod

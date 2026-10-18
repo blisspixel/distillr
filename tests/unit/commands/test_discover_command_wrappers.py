@@ -20,6 +20,32 @@ from distill.pipeline.discovery import RankedDiscoverItem
 runner = CliRunner()
 
 
+def test_site_capture_failure_exits_nonzero_with_the_reason(tmp_path, monkeypatch):
+    from distill.commands import _site_ingest
+    from distill.ingestors.sites.capture import CaptureFailure
+    from distill.ingestors.sites.scraper import SiteCrawlResult
+
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    monkeypatch.setattr(_discover, "get_config", lambda: config)
+    monkeypatch.setattr(
+        _site_ingest,
+        "crawl_site_with_receipts",
+        lambda seed: SiteCrawlResult(
+            failures=[
+                CaptureFailure(
+                    url=seed.url,
+                    outcome="navigation-failed",
+                    detail="Public DNS resolution failed.",
+                )
+            ]
+        ),
+    )
+    result = runner.invoke(cli.app, ["site", "https://example.com", "--scrape-only"])
+    assert result.exit_code == 1, result.output
+    assert "Public DNS resolution failed" in " ".join(result.output.split())
+    assert "Traceback" not in result.output
+
+
 @pytest.fixture
 def mock_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DistillConfig:
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "library")

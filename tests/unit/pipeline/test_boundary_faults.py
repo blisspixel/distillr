@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from distill.claims.extract import extract_claims_from_insight
 from distill.commands import _helpers as helpers_mod
 from distill.commands import _site_ingest as ingest_mod
@@ -79,13 +81,15 @@ def _assert_no_insights(directory: Path) -> None:
 
 def test_empty_paper_analysis_keeps_receipt_and_skips_insight(tmp_path: Path) -> None:
     config = _config(tmp_path)
-    paper_dir = write_paper_artifacts(
-        "faults",
-        _paper(),
-        config,
-        insights=_frontmatter_only(),
-        document="The captured paper receipt.",
-    )
+    with pytest.raises(ValueError, match="no usable insight"):
+        write_paper_artifacts(
+            "faults",
+            _paper(),
+            config,
+            insights=_frontmatter_only(),
+            document="The captured paper receipt.",
+        )
+    paper_dir = config.paper_dir("faults", _paper().title, _paper().paper_id)
 
     assert list(paper_dir.glob("*_Paper.md"))
     assert list(paper_dir.glob("*_Verify.json")) == []
@@ -104,13 +108,14 @@ def test_empty_paper_analysis_does_not_overwrite_existing_insight(tmp_path: Path
     insight_path = find_artifact(paper_dir, "insights")
     before = insight_path.read_text(encoding="utf-8")
 
-    write_paper_artifacts(
-        "faults",
-        _paper(),
-        config,
-        insights=_frontmatter_only(),
-        document="The captured paper receipt.",
-    )
+    with pytest.raises(ValueError, match="no usable insight"):
+        write_paper_artifacts(
+            "faults",
+            _paper(),
+            config,
+            insights=_frontmatter_only(),
+            document="The captured paper receipt.",
+        )
 
     assert insight_path.read_text(encoding="utf-8") == before
 

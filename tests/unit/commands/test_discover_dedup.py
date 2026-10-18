@@ -82,7 +82,8 @@ def test_discover_drops_already_ingested_candidates_before_rerank(mock_config, m
     result = runner.invoke(cli.app, ["discover", "goal", "--topic", "t", "--yes"])
 
     assert result.exit_code == 0, result.output
-    assert "Excluded 2 candidate(s) already in 't'" in result.output
+    assert "Excluded 1 candidate(s) already in 't'" in result.output
+    assert "Revision update: 2601.00001v2" in result.output
     # The rerank prompt never saw the duplicates: fewer tokens, no re-suggestion.
     assert [p.paper_id for p in rerank_seen["papers"]] == ["2601.00002v1"]
     assert [v.video_id for v in rerank_seen["videos"]] == ["vNew"]
@@ -112,7 +113,8 @@ def test_discover_all_duplicates_is_a_converged_noop_not_an_error(mock_config, m
     result = runner.invoke(cli.app, ["discover", "goal", "--topic", "t", "--yes"])
 
     assert result.exit_code == 0, result.output
-    assert "Corpus is current" in result.output
+    assert "Every returned candidate is already" in result.output
+    assert "Corpus is current" not in result.output
     assert rerank_called["yes"] is False  # no rerank spend on a converged corpus
 
 
@@ -173,5 +175,6 @@ def test_papers_all_duplicates_is_a_converged_noop(mock_config, monkeypatch):
     result = runner.invoke(cli.app, ["papers", "query", "--topic", "t"])
 
     assert result.exit_code == 0, result.output
-    assert "Corpus is current" in result.output
+    assert "Every returned paper is already" in result.output
+    assert "Corpus is current" not in result.output
     assert rerank_called["yes"] is False

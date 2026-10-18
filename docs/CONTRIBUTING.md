@@ -21,7 +21,7 @@ cp .env.example .env               # then add API keys if you want to run live
 uv run distill doctor
 ```
 
-`uv sync` reads `.python-version` (3.12) and auto-downloads the interpreter if you don't have it. distillr requires **Python 3.12+**. Run any command in the project env with `uv run <cmd>` (e.g. `uv run distill ...`), or activate `.venv` directly. The install is editable, so source edits apply without reinstalling.
+`uv sync` reads `.python-version` (3.15) and auto-downloads the interpreter if you don't have it. Distill requires **Python 3.12+**; core CI blocks on 3.12 through 3.15. The optional entailment environment currently uses 3.12 through 3.14 for PyTorch wheels. Run commands with `uv run <cmd>`, or activate `.venv` directly. The install is editable, so source edits apply without reinstalling.
 
 You only need `XAI_API_KEY` and `GEMINI_API_KEY` for live end-to-end runs. The
 default test suite does not hit real APIs: offline integration tests use local

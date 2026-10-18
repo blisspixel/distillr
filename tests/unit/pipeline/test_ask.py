@@ -81,7 +81,7 @@ class TestAsk:
         assert result.answer_path is not None and result.answer_path.exists()
         body = result.answer_path.read_text(encoding="utf-8")
         assert "[[checker_paper_Insights]]" in body
-        assert 'prompt_id: "ask.v1"' in body
+        assert 'prompt_id: "ask.v2"' in body
         assert result.sources == ["checker_paper_Insights"]
         sidecars = list(result.answer_path.parent.glob("*_Verify.json"))
         assert len(sidecars) == 1
@@ -447,7 +447,12 @@ def test_ask_command_wiring(config, monkeypatch):
     assert saved_run == {
         "command": "ask",
         "estimated_cost": 0.0,
-        "metadata": {"topic": "t", "workflow": "ask", "source_type": "answer"},
+        "metadata": {
+            "topic": "t",
+            "workflow": "ask",
+            "source_type": "answer",
+            "terminal": "success",
+        },
     }
 
 
@@ -545,7 +550,7 @@ def test_ask_command_prints_answer_refusal(config, monkeypatch):
 
     result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "Grounded answer" in result.output
     assert "Answer not saved" in result.output
     assert "unknown source" in result.output
@@ -572,6 +577,6 @@ def test_ask_command_prints_save_refusal(config, monkeypatch):
 
     result = CliRunner().invoke(cli.app, ["ask", "which checker?", "--topic", "t", "--save"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert "Not promoted" in result.output
     assert "unsupported claim" in result.output
