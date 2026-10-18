@@ -5,6 +5,9 @@ and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 for the `0.20.7` research-trust maintenance boundary. Releases `0.20.1`
 through `0.20.6` shipped billing, routing, typing, and capture fixes;
 `0.20.7` shipped claim generations, derived origin, and issues #40 through #57.
+The 2026-10-18 readiness review found no open GitHub issues or pull requests;
+the remaining release gates below still require evidence. Closing the maintenance
+queue does not close those gates.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -59,7 +62,7 @@ snapshots are marked `freeze-ready`, and the project names are fixed as CLI
 more router environment settings and artifact-specific schemas, may expand
 additively under that policy and do not block 1.0.
 
-### B. Published performance baseline (partial harness, no freeze yet)
+### B. Published performance baseline (comparable history complete; journey gaps)
 
 `benchmarks/corpus_scale/` exists for deterministic offline scale evidence.
 Published: the [`0.19.66 Linux/macOS matrix and replay`](../performance/cross-platform-0.19.66.md),
@@ -75,6 +78,15 @@ run-bound manifest. Still open for the 1.0 bar:
 2. Live reference journeys as *release evidence*, not PR gates (20-paper run,
    50-video catch-up, site-batch) with hardware / provider / cost metadata.
 
+The [0.20.7 maintenance record](../research/maintenance-2026-10-17.md)
+adds a real Windows CPU paper journey, interrupt/recovery and zero-cost no-op
+receipts, a CPU optional-verifier install measurement, and frozen Linux
+container/browser smoke. These receipts narrow the remaining work; they do
+not establish native Linux/macOS end-to-end journeys or the larger batches.
+Use proven on-device inference for new local $0 evidence. A metered route
+requires separate cost authority; an unavailable platform remains an explicit
+gap rather than a simulated live pass.
+
 The comparable-run gate is complete. The published
 [`0.19.70 history`](../performance/comparable-history-0.19.70.md) revalidates
 five paired Linux/macOS workflows and derives an active advisory policy. Timing
@@ -86,7 +98,7 @@ remain blocking.
 | Gate | Status |
 |------|--------|
 | Combined coverage >=95%, branch measurement enabled | Met: 95.40% on the frozen follow-up tree; the blocking mechanism is unchanged |
-| Branch-only coverage >=95% | Remaining 1.0 target: the same receipt records 91.67%; do not describe combined coverage as branch-only coverage |
+| Branch-only coverage >=95% | Remaining 1.0 target: the same receipt records 91.67%; add meaningful missing-path tests and a separate branch-only assertion without lowering the combined floor or widening exclusions |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking; dependency audit covers the frozen core environment, with optional advisory limits recorded separately |
 | Python 3.12-3.15 + OS smoke | Met on the exact 0.20.7 release commit; [CI](https://github.com/blisspixel/distillr/actions/runs/39102971516) |
 | Golden structural offline gate | Met; do not extend to live model scoring |
@@ -101,9 +113,63 @@ remain blocking.
 2. Accessibility: CLI no-color / 40-column / exit taxonomy; web landmarks and
    keyboard (partial cycles already shipped; AT review incomplete).
 3. Security: continuous adversarial passes; no open validated MEDIUM+ findings
-   at freeze (current posture is strong; needs a freeze-time audit receipt).
-4. Screenshots / short recordings for README presentation pass (deliberately
-   deferred; still open).
+   at freeze. The frozen core audit passed; five optional Transformers version
+   alerts retain a [scoped path assessment](../research/optional-dependency-review-2026-10-17.md).
+   Recheck the exact frozen tree and explicitly remediate or justify retained
+   advisories; the optional audit is not clean.
+4. README house-theme screenshots and real-browser keyboard/automated
+   accessibility receipts shipped in 0.20.7. Complete representative onboarding
+   and assistive-technology evidence; automated checks do not establish screen
+   reader usability.
+
+### E. Research-quality baseline (next)
+
+`0.20.8` is the next outcome because the unit suite and one successful local
+paper journey cannot establish dependable research quality. Follow the
+[doctrine's evaluation design](research-desk-doctrine.md#evaluation-like-a-research-desk)
+through the existing evaluation and pipeline seams:
+
+1. Freeze representative mature, fast-moving, and contested-field cases with
+   dated receipts, explicit questions, essential and redundant candidates,
+   source roles, qualifications, unresolved gaps, and expert-reviewed expected
+   judgments. Draft fixtures can be prepared locally; expert review remains
+   a separate recorded requirement.
+2. Measure retrieval against the source pool separately from synthesis over a
+   fixed captured corpus. This distinguishes missing evidence from poor use of
+   available evidence. Record source-selection reasons and inaccessible or
+   omitted material.
+3. Include the correction/disagreement episode and its withdrawal, zero-claim,
+   invalid-extraction/refusal, and no-meaningful-change variants. Record current
+   behavior honestly, including failures in selective revision that belong to
+   the post-1.0 program.
+4. Collect per-criterion semantic verdicts, calibrate judges against recorded
+   human review, and report disagreements and uncertainty. Python validates
+   schemas and aggregates verdicts; keyword matching or one aggregate score
+   cannot establish faithfulness or research quality. Keep live semantic runs
+   separate from deterministic CI and record model, prompt, source, cost, and
+   code identities.
+5. Publish the baseline and disposition every failure: a defect in a covered
+   promise blocks freeze until fixed and re-evaluated; a planned capability is
+   documented with its limitation and existing roadmap owner. Passing this
+   gate requires a reviewed, reproducible assessment and honest dispositions,
+   not implementation of the entire post-1.0 research desk.
+
+Do not change discovery or synthesis defaults before this baseline exists.
+
+## Remaining work in release order
+
+| Order | Release | Work and exit evidence |
+|---|---|---|
+| 1 | `0.20.8` | Publish the reviewed retrieval/synthesis baseline above and classify failures against the covered compatibility promise |
+| 2 | `0.20.9` | Fill missing native-platform install, size, startup, export, onboarding, recovery, assistive-technology, and representative batch receipts; reuse existing Windows and container evidence with its stated limits |
+| 3 | `0.20.10` | Inventory remaining strict-package and parse-boundary gaps, close them with focused checks, raise branch-only coverage to >=95%, add its explicit assertion, and publish deterministic-core fault-injection/verification and freeze-time security evidence |
+| 4 | `1.0.0rc1` | Rehearse supported installs, upgrades, migrations, CLI/MCP contracts, corpus recovery, and built-artifact behavior on the frozen candidate; accept only release-blocking fixes |
+| 5 | `1.0.0` | Revalidate every required receipt against the final commit and publish matching artifacts, provenance, SBOM, compatibility statement, and release notes |
+
+Keep the scope in these rows. New adapters, external worker routes, ensembles,
+and the broader field-model/selective-refresh system retain their existing
+post-1.0 owners. A newly discovered correctness or security defect still needs
+an explicit disposition; a green historical CI run cannot waive it.
 
 ## Dependency-ordered release plan
 
@@ -118,9 +184,9 @@ date or duration estimate.
 4. `0.20.2`: shipped frontier model registration and fallback workflow budgets.
 5. `0.20.3`: shipped strict typing expansion, modular boundaries, and coverage.
 6. `0.20.4`: shipped site-capture receipts and dependency security maintenance.
-7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
+7. `0.20.5`: shipped current API, routed billing, SDK, and dependency security fixes.
 8. `0.20.6`: shipped no-metered setup, pinned previews and capture repairs.
-9. `0.20.7`: correct active claim generations, derived origin and open maintenance issues.
+9. `0.20.7`: shipped active claim generations, derived origin and maintenance fixes.
 10. `0.20.8`: publish the research-desk evaluation baseline before changing defaults.
 11. `0.20.9`: publish operator, accessibility, install, export, cold-start, and live
     reference-journey evidence.
@@ -141,13 +207,17 @@ All must be true and linked from the release notes:
    new product surface.
 7. Explicit **name freeze**: CLI `distill`, package `distillr`.
 8. Changelog entry that states what is frozen and what remains additive.
+9. Published expert-reviewed retrieval/synthesis baseline with calibrated
+   judgments, correction/disagreement results, and dispositions for failures.
+10. Separate branch-only >=95% assertion, remaining strict-package/boundary
+    ratchets, and deterministic-core verification evidence are complete.
 
 ## What "beyond 1.0" means immediately after freeze
 
 Do not reopen contracts casually. Next work is **2.0-shaped**:
 
-- Establish the research-desk evaluation baseline before changing discovery or
-  synthesis behavior.
+- Use the pre-freeze research-desk baseline to evaluate subsequent discovery
+  and synthesis changes; expand cases as capabilities grow.
 - Build inquiry maps, source-role and contribution handoffs, evidence-portfolio
   selection, one field model, meaningful refresh, and reading paths in that
   dependency order.

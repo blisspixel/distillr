@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+
+- Reconcile 1.0 readiness claims with measured combined and branch-only
+  coverage. Make the research-quality baseline an explicit release gate and
+  record its acceptance steps, remaining platform and operator evidence,
+  hardening work, and release-candidate exit criteria.
+
 ## 0.20.7 - 2026-10-17
 
 ### Fixed

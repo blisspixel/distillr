@@ -140,8 +140,8 @@ addopts = "-m 'not live_network' --strict-markers"
 xfail_strict = true
 
 [tool.coverage.run]
-# Branch coverage (stricter than line): every conditional must exercise both
-# arms. Ratcheted up-only in CI via --cov-fail-under toward the 1.0 >=95% gate.
+# Measure branches as well as statements. --cov-fail-under gates the combined
+# total; the separate 1.0 branch-only >=95% target remains open. Ratchet upward.
 branch = true
 source = ["distill"]
 

@@ -210,17 +210,20 @@ How Distill differs from Deep Research tools, notebooks, and Markdown wikis:
 
 Active beta with a broad working surface: sources, discovery, verification,
 synthesis, ask, audit, MCP, dashboard, profiles, and deferred workers. Every
-change clears the same release gate: 95% branch coverage, Ruff, Pyright,
-import-linter, Bandit, pip-audit, the supported Python matrix, and build
+change clears the same release gate: 95% combined coverage with branch
+measurement enabled, Ruff, Pyright, import-linter, Bandit, pip-audit, the
+supported Python matrix, and build
 provenance. Covered v1 contract snapshots are freeze-ready under the published
 compatibility policy. Pin versions if you integrate on MCP schemas or
 frontmatter because uncovered pre-1.0 surfaces can still improve additively.
 
 Version 1.0 is a future stability commitment, not a calendar date. Five paired
 Linux and macOS runs now characterize public-runner variance and support an
-advisory regression policy. The remaining gates include cross-platform install,
-cold-start, export, live-journey, accessibility, and freeze-time security
-evidence. See the [`roadmap`](ROADMAP.md#100---stability-commitment--quality-bar)
+advisory regression policy. The remaining gates include an expert-reviewed
+research-quality baseline, 95% branch-only coverage, strict typing and boundary
+ratchets, cross-platform install, cold-start, export, live-journey,
+accessibility, and freeze-time security evidence.
+See the [`roadmap`](ROADMAP.md#100---stability-commitment--quality-bar)
 and [`comparable performance history`](docs/performance/comparable-history-0.19.70.md).
 
 ## License

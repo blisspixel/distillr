@@ -35,7 +35,7 @@ mock therefore fails locally instead of reaching a public or billable service.
 ```bash
 uv run pytest -q                   # unit + contract + offline integration; no network
 uv run pytest -m live_network      # opt-in live YouTube and yt-dlp checks; needs network
-uv run pytest --cov=distill --cov-fail-under=95   # branch coverage gate
+uv run pytest --cov=distill --cov-fail-under=95   # combined floor with branch measurement
 ```
 
 ## Quality gates
@@ -46,7 +46,7 @@ CI enforces the following on every push to `main` and every pull request targeti
 ```bash
 uv lock --check                                             # project and dependency metadata match uv.lock
 uv run pytest -q                                              # unit + contract tests pass
-uv run pytest --cov=distill --cov-fail-under=95               # branch coverage stays above the floor
+uv run pytest --cov=distill --cov-fail-under=95               # combined coverage floor, with branch measurement enabled
 uv run ruff check .                                           # lint clean
 uv run ruff format --check .                                  # formatting clean
 uv run bandit -r distill/ -c pyproject.toml --severity-level medium   # no MEDIUM+ security issues
@@ -58,7 +58,15 @@ uv run python scripts/agent_skill_distributions.py --check    # generated agent 
 uv build                                                      # source and wheel archives build
 ```
 
-Coverage is **branch** coverage (every conditional must exercise both arms). The 1.0 target of 95% is now the blocking floor and only rises. `pip-audit --skip-editable` runs in CI against the locked dependency tree and catches known CVEs (it skips the editable distillr install itself).
+Branch measurement is enabled. Coverage.py's reported total combines statement
+and branch opportunities; `--cov-fail-under=95` enforces that combined total.
+The separate 1.0 target is at least 95% branch-only coverage, which remains open.
+Report both metrics from coverage JSON and add a separate branch-only assertion
+when closing that gate. Preserve the existing combined floor and exclusions.
+See the [coverage.py explanation](https://coverage.readthedocs.io/en/latest/branch.html)
+and [1.0 evidence](design/path-to-1.0.md#c-quality-bar-completeness-mostly-done-residual-ratchets).
+`pip-audit --skip-editable` runs in CI against the locked dependency tree and
+catches known CVEs (it skips the editable distillr install itself).
 
 ### Startup import hygiene
 
@@ -96,7 +104,7 @@ If a hook modifies your files (e.g. ruff auto-fixes something), re-`git add` the
 |---|---|---|
 | **uv** | Package / venv / Python-version manager; lockfile-driven reproducible envs | Yes - `uv lock --check` plus `uv sync --frozen` |
 | **ruff** | Lint (900+ rules) + formatter, replaces flake8 / black / isort | Yes, blocking |
-| **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted branch-coverage floor | Yes, blocking; only remote-service tests are gated behind `-m live_network` |
+| **pytest + coverage** | Unit, contract, and offline integration tests, plus a ratcheted combined-coverage floor with branch measurement | Yes, blocking; only remote-service tests are gated behind `-m live_network` |
 | **import-linter** | Dependency-direction (layer) contracts | Yes, blocking |
 | **bandit** | Python security scanner | Yes, blocking on MEDIUM+ |
 | **pip-audit** | Known-CVE scanner for dependencies | Yes, blocking |

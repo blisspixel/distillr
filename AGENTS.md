@@ -58,9 +58,12 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
   uv run --frozen pytest -q --cov=distill --cov-fail-under=95
   ```
 
-  The floor is 95% branch coverage. Preserve package/module strictness ratchets;
-  Pyright warnings also fail the gate. The remaining security, contract,
-  distribution, build, and platform checks are in
+  The 1.0 floor is 95% branch-only coverage. The command above currently
+  enforces 95% combined statement/branch coverage with branch measurement
+  enabled; report the separate branch-only result honestly and close that
+  remaining target without lowering either bar. Preserve package/module
+  strictness ratchets; Pyright warnings also fail the gate. The remaining
+  security, contract, distribution, build, and platform checks are in
   [CONTRIBUTING.md](docs/CONTRIBUTING.md#quality-gates) and
   [CI](.github/workflows/ci.yml). Local hooks cover only a subset.
 - Default tests must not spend or depend on developer services. Preserve the
