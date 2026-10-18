@@ -87,9 +87,12 @@ ordinary ingest or unsaved question answering. CI does not install the extra -- 
 opt-in integration tests and live validation.
 
 Use the [CPU-only installation recipe](../install.md#cpu-only-prose-verification)
-on CPU hosts. Python 3.15 is the core default; use Python 3.12 through 3.14 for
-the currently published optional PyTorch wheels. An unsupported extra fails
-installation rather than silently omitting the checker.
+on CPU hosts. Python 3.15 is supported by the explicit Windows/Linux CPU
+backend; generic PyPI and native macOS installations currently need Python
+3.12 through 3.14. An unsupported extra fails installation rather than silently
+omitting the checker. The approved HHEM revision and its foundation model's
+configuration and tokenizer are pinned independently. Changing either revision
+invalidates unchanged-file analysis reuse.
 
 The pinned HHEM 2.1 implementation tokenizes complete pairs without truncation.
 Its inherited tokenizer metadata says 512 tokens, although HHEM 2.1 supports

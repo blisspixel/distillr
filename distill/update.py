@@ -134,6 +134,11 @@ def optional_extra_install_hint(extra: str) -> str:
 
     method = detect_install_method()
     if method == METHOD_UV:
+        if extra == "entailment" and sys.platform != "darwin":
+            return (
+                "uv tool install --torch-backend cpu --with 'torch==2.14.1+cpu' "
+                "'distillr[entailment]' --force"
+            )
         return f"uv tool install 'distillr[{extra}]' --force"
     if method == METHOD_PIPX:
         return f"pipx install 'distillr[{extra}]'"

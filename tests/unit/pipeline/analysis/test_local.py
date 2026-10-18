@@ -107,7 +107,8 @@ def test_unchanged_analysis_reuses_exact_pair_without_inference(tmp_path, monkey
 
 
 @pytest.mark.parametrize(
-    "change", ["force", "source", "prompt", "route", "receipt", "insight", "threshold"]
+    "change",
+    ["force", "source", "prompt", "route", "receipt", "insight", "threshold", "prose-revision"],
 )
 def test_changed_analysis_reruns_and_preserves_history(tmp_path, monkeypatch, change):
     from distill.library.insights import discover_insights
@@ -135,6 +136,10 @@ def test_changed_analysis_reruns_and_preserves_history(tmp_path, monkeypatch, ch
         )
     elif change == "threshold":
         monkeypatch.setenv("DISTILL_ENTAILMENT_THRESHOLD", "0.9")
+    elif change == "prose-revision":
+        monkeypatch.setattr(
+            "distill.pipeline.analysis.local.HHEMChecker.model_revision", "next-revision"
+        )
     old_insight = first.insights_path.read_bytes()
     with patch("distill.pipeline.analysis.local.llm_call", _fake_llm("SECOND INSIGHT")):
         second = ingest_local_file(doc, topic="t", config=cfg, force=change == "force")

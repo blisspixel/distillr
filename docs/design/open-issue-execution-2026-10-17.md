@@ -132,3 +132,16 @@ individually reviewable. GitHub issue updates happen after concrete fixes exist.
   separately required.
 - No cloud inference or metered API call has been made. Local on-device
   inference is recorded separately from deterministic offline tests.
+- The first pull-request CI passed all six platform/runtime test jobs but found
+  a wheel-resource failure: uv hardlinks trusted packaged palettes. A focused
+  regression and an installed Linux hardlink smoke now cover that boundary;
+  mutable user palettes retain their stricter confinement.
+- Follow-up optional dependency review raised patched torch, fsspec and
+  setuptools floors, pinned nested HHEM metadata, and proved actual CPU scoring
+  on Windows Python 3.15. Remaining Transformers version alerts retain their
+  [path-specific assessment](../research/optional-dependency-review-2026-10-17.md)
+  rather than a blanket dismissal.
+- The frozen follow-up tree passed 7,680 offline tests with 95.40% combined
+  coverage and branch measurement enabled. Full Pyright reported zero
+  diagnostics. The refreshed container passed real Chromium rendering, and the
+  installed CPU verification probes exercised warn and strict publication.

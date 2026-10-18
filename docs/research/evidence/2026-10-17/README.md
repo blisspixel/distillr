@@ -17,7 +17,11 @@ inventory and private machine paths remain in ignored scratch storage.
 | [First rendered frames](appearance-first-frames.json) | Installed candidate, stored Dark and Light, a 200 ms delayed blocking theme script: all first eight rendered body frames use the requested theme and stable background |
 | [Retained native evaluation](native-plugin-retained.json) | Six unchanged skill/eval cases and retained native report hashes, three runs per arm; no new native call or claim of a new evaluation baseline |
 | [Core install](install-core.json) and [CPU extra](install-cpu-extra.json) | Exact candidate wheel, installed package versions and logical file sizes; the CPU environment has a CPU-only torch build and no NVIDIA distributions |
-| [Final local gate](quality-gate.json) | 7,672 tests passed with 95.40% combined coverage and branch measurement; lint, type, import, audit, contract, distribution and build checks; checkout runtime files byte-matched to the installed candidate wheel |
+| [First complete local gate](quality-gate.json) | 7,672 tests passed with 95.40% combined coverage and branch measurement; lint, type, import, audit, contract, distribution and build checks; checkout runtime files byte-matched to that candidate wheel |
+| [Python 3.15 CPU tail follow-up](cpu-tail-followup-315.json) | torch 2.14.1+cpu, immutable foundation metadata, the same 1,542-token tail scores and no CUDA |
+| [Follow-up numeric](verification-followup-numeric.json) and [prose](verification-followup-prose.json) | Installed follow-up wheel; explicit numeric-only coverage, actual CPU prose flagging and strict refusal with source retention |
+| [Linux wheel hardlinks](linux-wheel-hardlinks.json) | Real uv installation loads twelve packaged palettes with at least two hardlinks per file; user palettes retain stricter confinement |
+| [Follow-up local gate](quality-followup.json) | 7,680 tests passed, 95.40% combined coverage with branch measurement, exact wheel/runtime file comparison and refreshed frozen-lock Linux container with real Chromium |
 
 The successful paper replay projected 8m10s and took 7m17s including command
 startup. Its ledger records 22,682 input and 4,419 output tokens, two local
@@ -29,7 +33,7 @@ from the synthetic note. Its grouped citations retained both exact paths and
 source/derived origins. This one-case inspection does not establish general
 citation faithfulness. The calibrated research-desk baseline remains 0.20.8.
 
-The wheel is 1,246,788 bytes. The installed core environment accounts for
+The earlier measured candidate wheel is 1,246,788 bytes. Its core environment accounts for
 227,432,854 logical bytes; the extra-enabled CPU environment accounts for
 888,115,929. These measurements exclude the shared interpreter, model cache and
 external browser cache, and do not claim unique physical disk allocation.
@@ -41,6 +45,6 @@ process tree; the isolated validation daemon and retained model workers were
 then stopped, preserving the pre-existing shared daemon.
 
 Browser checks do not replace screen-reader review. CPU tail evidence does not
-calibrate all prose judgments. The optional extra remains unavailable on Python
-3.15 until PyTorch supplies wheels. The broad 1.0 cross-platform, semantic and
+calibrate all prose judgments. A follow-up Python 3.15 CPU receipt below uses
+the separately published official CPU wheels. The broad 1.0 cross-platform, semantic and
 freeze-time gates remain separate from these maintenance receipts.

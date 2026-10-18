@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import stat
 import zipfile
 from io import BytesIO
@@ -48,6 +49,24 @@ def test_every_shipped_theme_meets_contrast_and_distinct_status_contract():
                 assert contrast(values[role], values[background]) >= 3
         assert distinct_statuses(values["success"], values["error"])
         assert palette.slug in theme.theme_css(collection)
+
+
+def test_installer_hardlinked_builtins_load_but_user_hardlinks_remain_refused(
+    tmp_path, monkeypatch
+):
+    original = tmp_path / "original.toml"
+    original.write_text(_custom("packaged"), encoding="utf-8")
+    package = tmp_path / "package"
+    package.mkdir()
+    os.link(original, package / "packaged.toml")
+    monkeypatch.setattr(theme, "BUILTIN_THEMES", package)
+    user = theme.user_themes_dir()
+    user.mkdir(parents=True)
+    os.link(original, user / "packaged.toml")
+    result = theme.load_themes()
+    assert [palette.slug for palette in result.themes] == ["packaged"]
+    assert len(result.notices) == 1
+    assert "unsafe, unreadable, or oversized" in result.notices[0]
 
 
 @pytest.mark.parametrize("value", ["red", "#fff", "#ffffff;url(x)", 1, None, "#gggggg"])

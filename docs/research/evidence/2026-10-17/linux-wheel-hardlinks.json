@@ -1,0 +1,9 @@
+{
+  "platform": "Linux",
+  "themes": 12,
+  "notices": [],
+  "minimum_links": 2,
+  "cost_usd": 0,
+  "wheel_sha256": "733a9975d7929fefb09c7be9edb8c0767d6c0fbda4609dfeec20bba6f33e21c8",
+  "method": "Real uv installed wheel in the locked Linux container; all twelve packaged palettes have at least two hardlinks and load without notices. Mutable user hardlinks remain refused by separate regression tests."
+}

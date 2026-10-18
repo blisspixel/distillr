@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Make local setup and failure hints route-aware; keep diagnostic paths copyable,
   support `-h`, shorten root help and home, align diagnostic rows, and remove
   routine animation and screen clearing. Keep color-independent state words.
+- Load trusted packaged theme resources installed as hardlinks while retaining
+  single-link confinement for mutable user palettes.
+- Pin HHEM's foundation configuration and tokenizer as well as its outer code;
+  invalidate local reuse when either revision changes. Raise patched optional
+  torch, fsspec and setuptools floors and retain explicit advisory limitations.
 
 ### Added
 
@@ -48,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A CPU-only optional entailment recipe and measured tail-evidence probe beyond
   512 tokens. Scope two known pinned-model metadata diagnostics to debug while
   preserving other warnings and failures.
+  Validate the separately published torch CPU wheel on Windows Python 3.15.
 - Numbered first-run instructions and local installed-wheel, CPU and browser
   validation records. These remain distinct from the later 1.0 semantic gates.
 

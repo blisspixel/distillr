@@ -14,6 +14,7 @@ import importlib
 import importlib.metadata as importlib_metadata
 import importlib.util as importlib_util
 import os
+import sys
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -257,8 +258,6 @@ def doctor(  # noqa: C901 - legacy, will refactor
         result = check_links(library_dir)
 
         if json_output or json_mode:
-            import sys
-
             envelope = JsonEnvelope.success(result.to_dict())
             sys.stdout.write(envelope.to_json() + "\n")
         else:
@@ -518,8 +517,6 @@ def doctor(  # noqa: C901 - legacy, will refactor
                 "local_inference": local_inference,
             }
         )
-        import sys
-
         sys.stdout.write(envelope.to_json() + "\n")
         return
 
@@ -809,14 +806,19 @@ def doctor(  # noqa: C901 - legacy, will refactor
             "[dim]transformers installed; HHEM loads on first verified write[/dim]",
         )
     else:
-        from distill.update import optional_extra_install_hint
+        from distill.update import METHOD_UV, detect_install_method, optional_extra_install_hint
 
         entailment_hint = escape(optional_extra_install_hint("entailment"))
         print_diagnostic(
             console,
             "  [dim]--  entailment tier   not installed; prose not checked[/dim]",
         )
-        console.print(f"Next: {entailment_hint}", soft_wrap=True)
+        if sys.version_info >= (3, 15) and (
+            sys.platform == "darwin" or detect_install_method() != METHOD_UV
+        ):
+            console.print("Next: follow the CPU-only installation guide below.", soft_wrap=True)
+        else:
+            console.print(f"Next: {entailment_hint}", soft_wrap=True)
         console.print(
             "  CPU-only wheels and Python compatibility: docs/install.md#cpu-only-prose-verification",
             soft_wrap=True,

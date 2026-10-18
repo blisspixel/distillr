@@ -82,7 +82,12 @@ entailment = [
     # Transformers 5 removes that compatibility surface and the checker cannot
     # load, so keep this optional tier on the supported major line.
     "transformers>=4.44,<5",
-    "torch>=2.3",
+    "torch>=2.14.1,<3",
+    "huggingface-hub>=0.34,<1",
+    "fsspec>=2026.6.0",
+    "setuptools>=83.0.0",
+    "numpy>=2.5.4; python_version >= '3.15'",
+    "regex>=2026.9.29; python_version >= '3.15'",
 ]
 
 [project.scripts]

@@ -158,13 +158,26 @@ class ThemeCollection:
         return {"themes": [theme.to_row() for theme in self.themes], "notices": list(self.notices)}
 
 
+def _theme_text(path: Path, directory: Path, *, builtin: bool) -> str | None:
+    if not builtin:
+        return read_confined_text(path, directory, max_bytes=THEME_MAX_BYTES)
+    # Installed package assets may share an inode with the installer's cache.
+    # Mutable user palettes retain the confined single-link read above.
+    try:
+        with path.open("rb") as stream:
+            content = stream.read(THEME_MAX_BYTES + 1)
+        return content.decode("utf-8") if len(content) <= THEME_MAX_BYTES else None
+    except (OSError, UnicodeError):
+        return None
+
+
 def load_themes() -> ThemeCollection:
     themes: dict[str, Theme] = {}
     notices: list[str] = []
     for directory, builtin in ((BUILTIN_THEMES, True), (user_themes_dir(), False)):
         for path in sorted(directory.glob("*.toml")):
             try:
-                content = read_confined_text(path, directory, max_bytes=THEME_MAX_BYTES)
+                content = _theme_text(path, directory, builtin=builtin)
                 if content is None:
                     raise ValueError("unsafe, unreadable, or oversized theme file")
                 theme = parse_theme(content)

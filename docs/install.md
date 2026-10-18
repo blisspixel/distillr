@@ -21,8 +21,9 @@ one-time Chromium install, so `uv tool install` is the path for real runs.
 
 **Platforms:** Windows, macOS, and Linux. CPython 3.12 through 3.15 are the
 blocking core runtime matrix; 3.15 is the development and container default.
-The optional entailment extra currently needs Python 3.12 through 3.14 because
-PyTorch has no 3.15 wheel. PyYAML currently builds from source on 3.15, so some
+The optional entailment extra supports 3.15 on Windows and Linux with the
+explicit CPU recipe below; generic PyPI PyTorch wheels currently stop at 3.14.
+PyYAML currently builds from source on 3.15, so some
 fresh installations may need build tools. The 3.12 floor preserves the existing
 syntax and filesystem junction defenses. Local models run on CPU or consumer
 GPUs via Ollama or LM Studio.
@@ -286,22 +287,27 @@ scores still need human interpretation. Its first use downloads model weights.
 For Linux x86_64 or Windows CPU use, select the official CPU wheel explicitly:
 
 ```bash
-uv tool install --python 3.14 --index https://download.pytorch.org/whl/cpu --with 'torch==2.12.0+cpu' 'distillr[entailment]'
+uv tool install --python 3.15 --torch-backend cpu --with 'torch==2.14.1+cpu' 'distillr[entailment]'
 ```
 
 For a project environment, install the CPU wheel first, then the extra:
 
 ```bash
-uv venv --python 3.14 .venv
-uv pip install --python .venv torch==2.12.0 --index-url https://download.pytorch.org/whl/cpu
+uv venv --python 3.15 .venv
+uv pip install --python .venv --torch-backend cpu 'torch==2.14.1+cpu'
 uv pip install --python .venv 'distillr[entailment]'
 ```
 
 Use the native PyTorch wheel on macOS; the CPU index above is not a macOS
-installation recipe. Python 3.15 is the core default, while the current optional
-PyTorch wheel support ends at 3.14. Keep an extra-enabled tool on 3.12 through
-3.14 until its wheels are available. Distill does not silently skip the extra.
+installation recipe. Keep a native macOS extra-enabled tool on Python 3.12
+through 3.14 until its wheels are available. The official CPU index supplies
+3.15 wheels separately from PyPI. A Windows 3.15 CPU installation and real HHEM
+scoring passed locally; Linux 3.15 CPU wheels were checked for availability.
+Distill does not silently skip the extra.
 The generic extra can pull large CUDA dependencies on Linux even without a GPU.
+The backend selector directs only PyTorch packages to the official CPU index;
+other dependencies retain their normal index. This avoids an older package on
+the CPU index masking a patched dependency on PyPI.
 See [PyTorch's platform selector](https://pytorch.org/get-started/locally/) and
 the [measured CPU validation](research/maintenance-2026-10-17.md).
 

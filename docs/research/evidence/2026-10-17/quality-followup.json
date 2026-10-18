@@ -1,0 +1,48 @@
+{
+  "schema_version": "local-release-gate.v1",
+  "candidate_base": "4a2bbf3d9d34e8754553666cd0ba6c10dc9ece74",
+  "candidate": "follow-up working tree; CI on its committed form remains separately required",
+  "wheel_sha256": "733a9975d7929fefb09c7be9edb8c0767d6c0fbda4609dfeec20bba6f33e21c8",
+  "checkout_and_wheel_runtime_files_byte_matched": 432,
+  "container_image": "sha256:2cb67f050d5b674b7e55dada7817d507e5a3df6488e4ce1a39200e2683a8f7f0",
+  "container_browser": {
+    "python": "3.15.0",
+    "platform": "Linux",
+    "browser": "148.0.7778.96",
+    "headless_render": true,
+    "network_requests": 0,
+    "cost_usd": 0
+  },
+  "test_result": "7680 passed, 4 skipped, 9 deselected, 2 warnings in 563.49s (0:09:23)",
+  "coverage": {
+    "covered_lines": 45547,
+    "num_statements": 47155,
+    "percent_covered": 95.39607855732018,
+    "percent_covered_display": "95",
+    "missing_lines": 1608,
+    "excluded_lines": 254,
+    "percent_statements_covered": 96.58996925034461,
+    "percent_statements_covered_display": "97",
+    "num_branches": 15118,
+    "num_partial_branches": 1185,
+    "covered_branches": 13859,
+    "missing_branches": 1259,
+    "percent_branches_covered": 91.67217885963751,
+    "percent_branches_covered_display": "92"
+  },
+  "gates_passed": [
+    "frozen lock/sync",
+    "Ruff lint/format",
+    "full Pyright zero diagnostics",
+    "four import contracts",
+    "Bandit medium/high",
+    "frozen core pip-audit",
+    "public contracts",
+    "canonical distributions and archives",
+    "sdist/wheel build",
+    "installed Linux hardlink smoke",
+    "installed numeric and real CPU prose warn/strict probes"
+  ],
+  "optional_dependency_audit": "Five Transformers version alerts remain; see the separate static reachable-path assessment. Not a clean optional dependency audit.",
+  "cost_usd": 0
+}

@@ -38,9 +38,11 @@ is not yet proven on every platform.
 ## CPU entailment findings
 
 The [PyTorch installer](https://pytorch.org/get-started/locally/) provides a
-CPU wheel index and currently documents Python support through 3.14. Keep the
-optional entailment tool on Python 3.12 through 3.14. The core 3.15 default does
-not imply that this optional wheel exists for 3.15. The
+CPU wheel index. A follow-up check found torch 2.14.1+cpu wheels for Windows
+and Linux Python 3.15 on that index, although generic PyPI torch wheels still
+stop at 3.14. A Windows 3.15 installation and real HHEM scoring passed with
+NumPy 2.5.4 and regex 2026.9.29 wheels. Native macOS extra installations still
+need Python 3.12 through 3.14. The
 [CPU installation recipe](../install.md#cpu-only-prose-verification) selects
 that index explicitly rather than pulling Linux CUDA dependencies.
 
@@ -57,6 +59,18 @@ proves the tested tail was available; it does not calibrate a general semantic
 quality threshold. The two exact, verified metadata diagnostics move to debug
 logging only while the pinned checker loads or scores. Other warnings and
 failures retain their normal treatment.
+
+The follow-up torch 2.14.1+cpu probe on Python 3.15 reproduced both scores
+exactly, with no CUDA build. HHEM's approved outer code revision now also binds
+the foundation configuration and tokenizer to
+`google/flan-t5-base@7bcac572ce56db69c1ea7c8af255c5d7c9672fc2`.
+Only its named data files are downloaded; cached complete snapshots avoid a
+repeat download. Both revisions participate in the local reuse fingerprint.
+Optional fsspec, setuptools and torch dependency floors were raised after
+reviewing upstream advisories. The retained Transformers 4.x advisories require
+paths such as training, custom generation, LightGlue dispatch or tokenizer
+saving that Distill does not expose. They remain visible version alerts rather
+than being dismissed or described as a clean optional dependency audit.
 
 ## Native evidence boundaries
 
