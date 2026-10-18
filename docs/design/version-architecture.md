@@ -31,9 +31,11 @@ Claim-generation currentness and derived-origin preservation are part of this
 trust refinement: removed assertions must not survive refresh, and a promoted
 answer must not become apparent independent evidence when claims are
 re-extracted from it.
-The branch-coverage floor has reached 95%. A published performance baseline,
-compatibility and migration evidence, and representative onboarding and
-presentation work remain readiness conditions for a future stability decision.
+The combined-coverage floor is 95% with branch measurement enabled. The
+0.20.7 local receipt measures 95.40% combined and 91.67% branch-only; the
+95% branch-only target remains open. An expert-reviewed research-quality
+baseline, broader performance and operator evidence, strict boundary work,
+and freeze-time security review remain readiness conditions.
 
 Harden passes stay interleaved until 1.0. They cover security, robustness,
 dependency, CI/CD supply chain, and parse-don't-crash sweeps without expanding
