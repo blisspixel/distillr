@@ -110,8 +110,8 @@ and a scope; they are not schedule promises.
 | 6 | `0.20.4` | Shipped | Make site capture account for every URL it visits, and clear a critical dependency vulnerability | Typed per-URL capture receipts reaching the manifest, run summary, and status line; whole-seed budget and worker failures recorded rather than returned as an empty crawl; observed network quiescence in place of a fixed post-load wait; receipt URLs redacted at the persistence boundary; `anyio` security floor with clean `pip-audit`; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
 | 7 | `0.20.5` | Shipped | Close current API, billing, and dependency security defects | Dated primary-source pricing and model audit; compatible SDK requests; routed price and ledger regressions; unchanged budget refusal, retries, and local transport boundaries; clean dependency audit; full CI, exact-wheel smoke, aligned skill archives, and matching GitHub/PyPI artifacts |
 | 8 | `0.20.6` | Shipped | Repair first-run setup, exact preview replay, and bounded capture fallbacks | No-metered setup and bench refusal; shortlist replay; closed-deadline socket regression; bounded system-browser and static-HTTP fallbacks; full CI and published [maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6) |
-| 9 | `0.20.7` | Active | Correct evidence currency and origin, then resolve the requested provider, toolchain, and interface defects in issues #40 through #57 | Generation and zero-claim retirement; honest discovery/revision/freshness and verification coverage; exact citation origin; current provider billing and toolchain checks; accessible terminal and web behavior; local zero-dollar journey receipts; full CI and release artifacts; [execution plan](docs/design/open-issue-execution-2026-10-17.md) |
-| 10 | `0.20.8` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
+| 9 | `0.20.7` | Shipped | Correct evidence currency and origin, then resolve the requested provider, toolchain, and interface defects in issues #40 through #57 | Generation and zero-claim retirement; honest discovery/revision/freshness and verification coverage; exact citation origin; current provider billing and toolchain checks; accessible terminal and web behavior; local zero-dollar journey receipts; full CI and release artifacts; [execution plan](docs/design/open-issue-execution-2026-10-17.md) |
+| 10 | `0.20.8` | Next | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
 | 11 | `0.20.9` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
 | 12 | `0.20.10` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
 | 13 | `1.0.0rc1` | Gated | Exercise the exact compatibility promise without adding product surface | Frozen covered contracts; migration note; regenerated snapshots and distributions; supported-platform install and workflow evidence; final adversarial review; only release-blocking fixes admitted |
@@ -129,9 +129,13 @@ record that scope. The remaining rows move down one place again, preserving
 their outcomes and exit evidence. Model candidates are current;
 default routes remain pinned until the `0.20.8` research-quality evaluation gate.
 
-Next is `0.20.7` because removed assertions can remain active after an artifact
-is reanalyzed, and derived answers can lose their origin. Correct that evidence
-state before `0.20.8` measures research quality or changes discovery defaults.
+Published `0.20.7` corrects active-generation, discovery, revision, freshness
+and derived-origin evidence, and closes issues #40 through #57. See the
+[release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7) and
+[publication receipt](docs/research/evidence/2026-10-17/publication.json).
+Next is `0.20.8`: measure research quality with expert-reviewed fixtures before
+changing discovery or synthesis defaults. Honest evidence state is the basis
+for that measurement.
 
 The October 17 operator request expands `0.20.7` before implementation to
 resolve all 18 open issues, followed by another bug hunt, local zero-dollar

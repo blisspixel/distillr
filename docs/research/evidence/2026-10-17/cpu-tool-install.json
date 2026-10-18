@@ -1,0 +1,28 @@
+{
+  "python": "3.15.0",
+  "torch": "2.14.1+cpu",
+  "transformers": "4.57.6",
+  "cuda": null,
+  "device": "cpu",
+  "supported_tail_score": 0.9876852035522461,
+  "unsupported_score": 0.0941677987575531,
+  "evidence_sha256": "ca17206c994a68624a6c09e9ddbe910c463a1a4a101b152acbec68bf7d6b0a8c",
+  "duration_seconds": 30.410589499981143,
+  "cost_usd": 0,
+  "installation": {
+    "distributions": 90,
+    "nvidia_distributions": [],
+    "logical_bytes": 897292574,
+    "versions": {
+      "torch": "2.14.1+cpu",
+      "transformers": "4.57.6",
+      "fsspec": "2026.9.0",
+      "setuptools": "84.0.0",
+      "numpy": "2.5.4",
+      "regex": "2026.9.29"
+    }
+  },
+  "uv_version": "0.11.17",
+  "method": "Documented uv tool CPU backend command in isolated tool/bin directories, using the local candidate wheel; fresh dependency resolution; actual HHEM scoring. Model/interpreter caches excluded from logical size.",
+  "wheel_sha256": "733a9975d7929fefb09c7be9edb8c0767d6c0fbda4609dfeec20bba6f33e21c8"
+}

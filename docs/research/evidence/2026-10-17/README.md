@@ -48,3 +48,8 @@ Browser checks do not replace screen-reader review. CPU tail evidence does not
 calibrate all prose judgments. A follow-up Python 3.15 CPU receipt below uses
 the separately published official CPU wheels. The broad 1.0 cross-platform, semantic and
 freeze-time gates remain separate from these maintenance receipts.
+
+[Publication](publication.json) binds the exact release commit, hosted CI,
+GitHub/PyPI digests, runtime files, archive hashes, SBOM and cryptographic
+attestation checks. [Isolated uv CPU installation](cpu-tool-install.json)
+records the actual documented command, zero NVIDIA packages and real scoring.

@@ -4,7 +4,7 @@ Status: operational plan. Anchored to [`version-architecture.md`](version-archit
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
 for the `0.20.7` research-trust maintenance boundary. Releases `0.20.1`
 through `0.20.6` shipped billing, routing, typing, and capture fixes;
-`0.20.7` addresses claim generations, derived origin, and issues #40 through #57.
+`0.20.7` shipped claim generations, derived origin, and issues #40 through #57.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -18,7 +18,7 @@ fetch failure, yt-dlp failure, and malformed structured JSON shipped in 0.19.64.
 already true: goal-aware discovery, eight source types, verify-gated writes,
 synthesis, audit next-actions, OKF, profiles, no-metered routing, MCP dual-era
 2026-07-28, Agent Skills, optional metered OpenRouter routing, and a 95 percent
-branch-coverage CI bar on Linux, macOS, and Windows.
+combined-coverage CI bar with branch measurement on Linux, macOS, and Windows.
 
 **1.0 is a stability commitment:** external systems can depend on Distill
 without expecting churn. That is a *promise with evidence*, not a version
@@ -85,12 +85,13 @@ remain blocking.
 
 | Gate | Status |
 |------|--------|
-| Branch coverage >=95% | Met; the blocking full-suite floor remains 95 percent and current evidence is retained in CI |
-| Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
-| Python 3.12-3.15 + OS smoke | Required on the release commit |
+| Combined coverage >=95%, branch measurement enabled | Met: 95.40% on the frozen follow-up tree; the blocking mechanism is unchanged |
+| Branch-only coverage >=95% | Remaining 1.0 target: the same receipt records 91.67%; do not describe combined coverage as branch-only coverage |
+| Ruff / bandit / pip-audit / import-linter | Met, CI-blocking; dependency audit covers the frozen core environment, with optional advisory limits recorded separately |
+| Python 3.12-3.15 + OS smoke | Met on the exact 0.20.7 release commit; [CI](https://github.com/blisspixel/distillr/actions/runs/39102971516) |
 | Golden structural offline gate | Met; do not extend to live model scoring |
 | Mutation testing / deal contracts | Partial (core packages); cadence not PR-blocking |
-| Pyright full package | Blocking basic diagnostics; **central strict only `distill/llm`** (file-level strict is widespread but not complete) |
+| Pyright full package | Zero diagnostics with warnings blocking; eight centrally strict packages plus file-level strictness. Remaining package promotion stays open |
 | Parse-don't-validate at every boundary | Partial; write paths now refuse empty analysis bodies; more surfaces remain |
 
 ### D. Operator and presentation readiness (evidence, not code volume)
@@ -176,10 +177,10 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.20.2` | shipped | frontier model registration, OpenRouter DeepSeek routing and defaults, global workflow budget fallbacks, tests and release evidence |
 | `0.20.3` | shipped | strict Pyright expansion, modular boundaries, coverage, and agent instructions |
 | `0.20.4` | shipped | typed site-capture receipts, bounded visits, readiness, and dependency security |
-| `0.20.5` | current | current model and pricing audit, SDK compatibility, routed billing regressions, dependency security, full release gates |
+| `0.20.5` | shipped | current model and pricing audit, SDK compatibility, routed billing regressions, dependency security, full release gates |
 | `0.20.6` | shipped | no-metered setup, pinned previews and capture repairs |
-| `0.20.7` | active | generation retirement, zero-claim behavior, derived origin, discovery and freshness uncertainty, and issues #40 through #57 |
-| `0.20.8` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.7` | shipped | generation retirement, zero-claim behavior, derived origin, discovery and freshness uncertainty, and issues #40 through #57 |
+| `0.20.8` | next | expert-authored research-desk fixtures and published baseline results |
 | `0.20.9` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
 | `0.20.10` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
