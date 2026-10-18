@@ -37,8 +37,9 @@ does not independently schedule releases.
   fallbacks. See the [published maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6).
   This inserts another maintenance boundary; the remaining rows move down one
   place with their outcomes and exit evidence unchanged.
-- `0.20.7` is next and owns claim-generation retirement and derived-origin
-  preservation.
+- `0.20.7` shipped claim-generation retirement, derived-origin preservation
+  and all 18 requested maintenance issues. See the
+  [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7).
 - `0.20.8` owns the research-desk evaluation baseline.
 - `0.20.9` owns operator, accessibility, and performance evidence.
 - `0.20.10` owns remaining strict-boundary and freeze-time security evidence.
@@ -80,15 +81,13 @@ The shipped `0.20.1` maintenance release closed the billing and compatibility
 blockers discovered during the current-source review. The remaining product
 sequence is:
 
-1. Correct active claim generations and preserve source-versus-derived origin
-   in `0.20.7`.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.8`
+1. Establish expert-authored research-desk evaluation fixtures in `0.20.8`
    before changing discovery or synthesis behavior.
-3. Publish operator, accessibility, install, cold-start, export, and live
+2. Publish operator, accessibility, install, cold-start, export, and live
    journey evidence in `0.20.9`.
-4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
+3. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
    verification, and the freeze-time security receipt in `0.20.10`.
-5. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
+4. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
 Website workflow, the YouTube stay-current path, goal-aware discovery, MCP

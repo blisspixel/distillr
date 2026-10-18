@@ -145,3 +145,22 @@ individually reviewable. GitHub issue updates happen after concrete fixes exist.
   coverage and branch measurement enabled. Full Pyright reported zero
   diagnostics. The refreshed container passed real Chromium rendering, and the
   installed CPU verification probes exercised warn and strict publication.
+
+## Completion record
+
+- All 18 issues closed through
+  [PR #58](https://github.com/blisspixel/distillr/pull/58).
+- [Exact release-commit CI](https://github.com/blisspixel/distillr/actions/runs/39102971516)
+  and the [publish workflow](https://github.com/blisspixel/distillr/actions/runs/39103703194)
+  passed.
+- GitHub and PyPI wheel/sdist digests agree. All 432 runtime files match the
+  tagged Git objects; eight skill archive hashes, the CycloneDX SBOM and both
+  cryptographic publish attestations were checked.
+- The published wheel also passes an isolated installed smoke; local operator
+  and CPU verification journeys used $0.
+- [Publication receipt](../research/evidence/2026-10-17/publication.json) records
+  the immutable release boundary. Documentation completion is a later commit;
+  final main CI is verified separately.
+- The next outcome is the 0.20.8 research-quality baseline. Broader platform
+  journeys, assistive-technology review, branch-only coverage and freeze-time
+  security remain explicit 1.0 gates.

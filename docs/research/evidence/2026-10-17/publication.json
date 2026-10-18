@@ -1,0 +1,118 @@
+{
+  "schema_version": "published-release-verification.v1",
+  "version": "0.20.7",
+  "release_commit": "abaa61ba4997b873609f22a1a1cf29e80edc189b",
+  "github_release": "https://github.com/blisspixel/distillr/releases/tag/v0.20.7",
+  "pypi": "https://pypi.org/project/distillr/0.20.7/",
+  "pypi_and_github_files": [
+    {
+      "filename": "distillr-0.20.7-py3-none-any.whl",
+      "sha256": "5a1784a545929dcb17e302fde72d9cf4592e21bd201bf962e2a78d02c3407ffc",
+      "url": "https://files.pythonhosted.org/packages/22/c3/2904f14b141ca3977852c27ac9196aeb0d98aa578950bd12d3b92b8adb69/distillr-0.20.7-py3-none-any.whl"
+    },
+    {
+      "filename": "distillr-0.20.7.tar.gz",
+      "sha256": "7c62acd9e9b74b3a802a2a7eb77eccd3a29a26029a2399a6fb1deb413d81fdb2",
+      "url": "https://files.pythonhosted.org/packages/c5/77/11727f2866654a7b734b463f7901c85b6e8617a47a952faa86dd9621218b/distillr-0.20.7.tar.gz"
+    }
+  ],
+  "runtime_files_exactly_match_tagged_git_objects": 432,
+  "verified_skill_archive_hashes": 8,
+  "skill_archive_contents_match_canonical_local_builds": 8,
+  "sbom": {
+    "format": "CycloneDX",
+    "spec_version": "1.6",
+    "components": 72
+  },
+  "cost_usd": 0,
+  "main_ci": {
+    "conclusion": "success",
+    "headSha": "abaa61ba4997b873609f22a1a1cf29e80edc189b",
+    "status": "completed",
+    "url": "https://github.com/blisspixel/distillr/actions/runs/39102971516"
+  },
+  "pull_request_ci": {
+    "conclusion": "success",
+    "headSha": "51eabfb7167df43b66ee7e3082e55249514c6f94",
+    "status": "completed",
+    "url": "https://github.com/blisspixel/distillr/actions/runs/39102251381"
+  },
+  "publish_workflow": {
+    "conclusion": "success",
+    "headSha": "abaa61ba4997b873609f22a1a1cf29e80edc189b",
+    "status": "completed",
+    "url": "https://github.com/blisspixel/distillr/actions/runs/39103703194"
+  },
+  "github_assets": 13,
+  "attestation_verification": {
+    "tool": "pypi-attestations",
+    "tool_version": "0.0.30",
+    "repository": "https://github.com/blisspixel/distillr",
+    "files": [
+      {
+        "filename": "distillr-0.20.7-py3-none-any.whl",
+        "sha256": "5a1784a545929dcb17e302fde72d9cf4592e21bd201bf962e2a78d02c3407ffc",
+        "exit_code": 0
+      },
+      {
+        "filename": "distillr-0.20.7.tar.gz",
+        "sha256": "7c62acd9e9b74b3a802a2a7eb77eccd3a29a26029a2399a6fb1deb413d81fdb2",
+        "exit_code": 0
+      }
+    ]
+  },
+  "installed_public_wheel_smoke": {
+    "schema_version": "published-installed-wheel.v1",
+    "version": "0.20.7",
+    "wheel_sha256": "5a1784a545929dcb17e302fde72d9cf4592e21bd201bf962e2a78d02c3407ffc",
+    "isolated_import": true,
+    "installed_runtime_files_byte_match": 432,
+    "themes": 12,
+    "bundled_skill_version": "0.20.7",
+    "cli": [
+      {
+        "flag": "--version",
+        "exit_code": 0
+      },
+      {
+        "flag": "-h",
+        "exit_code": 0
+      }
+    ],
+    "cost_usd": 0
+  },
+  "open_issues": 0,
+  "optional_security_alerts": "Five retained Transformers version alerts have a separate static reachable-path assessment; no blanket dismissal.",
+  "github_open_dependency_alerts_at_recording": [
+    {
+      "number": 7,
+      "package": "transformers",
+      "advisory": "GHSA-x9r9-c232-4q39"
+    },
+    {
+      "number": 6,
+      "package": "transformers",
+      "advisory": "GHSA-xrqw-3rrv-vx5w"
+    },
+    {
+      "number": 3,
+      "package": "transformers",
+      "advisory": "GHSA-fgcw-684q-jj6r"
+    },
+    {
+      "number": 2,
+      "package": "transformers",
+      "advisory": "GHSA-29pf-2h5f-8g72"
+    },
+    {
+      "number": 1,
+      "package": "transformers",
+      "advisory": "GHSA-69w3-r845-3855"
+    }
+  ],
+  "patched_optional_floors": {
+    "fsspec": "2026.6.0",
+    "setuptools": "83.0.0",
+    "torch": "2.14.1"
+  }
+}

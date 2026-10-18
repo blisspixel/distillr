@@ -305,8 +305,9 @@ through 3.14 until its wheels are available. The official CPU index supplies
 scoring passed locally; Linux 3.15 CPU wheels were checked for availability.
 Distill does not silently skip the extra.
 The generic extra can pull large CUDA dependencies on Linux even without a GPU.
-The backend selector directs only PyTorch packages to the official CPU index;
-other dependencies retain their normal index. This avoids an older package on
+uv currently labels the backend selector experimental. It directs only PyTorch
+packages to the official CPU index; other dependencies retain their normal
+index. This avoids an older package on
 the CPU index masking a patched dependency on PyPI.
 See [PyTorch's platform selector](https://pytorch.org/get-started/locally/) and
 the [measured CPU validation](research/maintenance-2026-10-17.md).
