@@ -1005,6 +1005,9 @@ def test_crawl_site_rejects_unsafe_seed_before_browser_launch(url, monkeypatch):
     monkeypatch.setattr("builtins.__import__", fail_import)
 
     assert crawl_site(SiteSeed(url=url, topic="web")) == []
+    receipt = crawl_site_with_receipts(SiteSeed(url=url, topic="web"))
+    assert len(receipt.failures) == 1
+    assert "rejected before capture" in receipt.failures[0].detail
 
 
 def test_crawl_site_revalidates_mutated_limits_before_browser_launch(monkeypatch):

@@ -19,15 +19,36 @@
 
 ## Install and first run
 
-```bash
-uv tool install distillr
-distill --cost-mode no-metered init
-distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --limit 5 --preview
-```
+0. Install [Ollama](https://ollama.com/download), set `OLLAMA_NO_CLOUD=1` in
+   the daemon's environment, restart it, and pull a local model. For example,
+   `ollama pull gemma4:e2b`. Setting the variable only in the client shell
+   does not reconfigure an already running daemon. See the
+   [platform-specific setup](docs/install.md#local-models-ollama--lm-studio).
+1. Install the CLI: `uv tool install distillr`.
+2. Run `distill --cost-mode no-metered init`, then
+   `distill --cost-mode no-metered doctor`. Select the installed local model.
+3. Measure this machine: `distill --cost-mode no-metered bench`.
+4. Preview a bounded source set:
+
+   ```bash
+   distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --limit 5 --preview
+   ```
+
+What to expect:
+
+- Proven on-device inference has $0 direct API spend; time is the budget.
+- Preview fetches current arXiv results and saves a shortlist. It does not ingest.
+- Failed searches remain visible. A successful bounded search is not exhaustive discovery.
+- Default verification checks numbers only. Prose needs the optional
+  [local checker and CPU installation](docs/install.md#cpu-only-prose-verification).
+- Revised papers are shown as updates to existing work, with automatic revision
+  publication held for review. Unknown freshness remains unknown.
+
+### Next
 
 `no-metered` refuses API-billed or unproved routes. Preview builds a current
 arXiv shortlist without ingesting, and prints a shortlist id. Ollama requires
-a cloud-disabled daemon and an installed local model; localhost alone is
+a daemon started with `OLLAMA_NO_CLOUD=1` and an installed local model; localhost alone is
 insufficient. `distill --cost-mode no-metered init` selects a local provider
 and does not validate a cloud key. Follow the
 [local setup and upgrade steps](docs/install.md#local-models-ollama--lm-studio)
@@ -71,6 +92,10 @@ Alternate installers, keys, local models, and updates:
 [`docs/install.md`](docs/install.md). Full command reference:
 [`docs/usage.md`](docs/usage.md).
 
+The web desk starts in Dark and supports Light, System and validated user
+palettes. The exported dashboard uses the same colors and styles. See
+[appearance and theme installation](docs/themes.md).
+
 OpenRouter is available as an optional metered route when direct-provider quota
 or local inference is not suitable. It requires an explicit concrete
 `author/model` slug, requests Zero Data Retention routing by default, records
@@ -80,7 +105,8 @@ can use explicitly configured OpenRouter routes when local inference is
 unavailable. See the [provider setup](docs/install.md#openrouter-optional-metered-route).
 
 Current API candidates, prices, context limits, and SDK compatibility are
-recorded in the [October 6 model audit](docs/research/api-models-2026-10-06.md).
+recorded in the [October 6 model audit](docs/research/api-models-2026-10-06.md),
+with the [October 17 Gemini and runtime update](docs/research/maintenance-2026-10-17.md).
 Default routes stay pinned until research-quality evaluations justify a change.
 
 ## Write from a private perspective

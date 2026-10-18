@@ -29,6 +29,7 @@ __all__ = [
     "InsightRef",
     "derive_source_id",
     "discover_insights",
+    "insight_candidate_paths",
     "insight_content_sha256",
     "insight_has_body",
     "insight_verification_binding_is_valid",
@@ -122,6 +123,14 @@ def _matches_current_receipt(
     *,
     root: Path,
 ) -> bool:
+    if frontmatter.get("source") == "local" and frontmatter.get("source_receipt"):
+        receipt_name = frontmatter["source_receipt"]
+        if Path(receipt_name).name != receipt_name:
+            return False
+        receipt = _read_artifact_text(insight_path.parent / receipt_name, root)
+        return receipt is not None and insight_content_sha256(receipt) == frontmatter.get(
+            "source_receipt_sha256"
+        )
     if frontmatter.get("source") != "github":
         return True
     receipt_name = frontmatter.get("source_receipt")
@@ -247,6 +256,19 @@ def read_discovered_insight(ref: InsightRef, confinement_root: Path) -> str | No
     return content
 
 
+def insight_candidate_paths(topic_dir: Path) -> list[Path]:
+    """Enumerate source insight candidates while excluding every hidden ancestor."""
+    if not topic_dir.exists():
+        return []
+    candidates: list[Path] = []
+    for path in sorted(topic_dir.rglob("*_Insights.md")):
+        parts = path.relative_to(topic_dir).parts
+        if parts[0] in _SKIP_TOP_DIRS or any(part.startswith(".") for part in parts):
+            continue
+        candidates.append(path)
+    return candidates
+
+
 def discover_insights(
     topic_dir: Path,
     *,
@@ -269,11 +291,9 @@ def discover_insights(
     if validate_confined_path(topic_dir, trusted_root, expect_directory=True) is None:
         return []
     refs: list[InsightRef] = []
-    for path in sorted(topic_dir.rglob("*_Insights.md")):
+    for path in insight_candidate_paths(topic_dir):
         rel = path.relative_to(topic_dir)
         top = rel.parts[0]
-        if top in _SKIP_TOP_DIRS or top.startswith("."):
-            continue
         content = _read_artifact_text(path, trusted_root)
         if content is None:
             continue

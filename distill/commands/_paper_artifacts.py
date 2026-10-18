@@ -23,6 +23,10 @@ from distill.pipeline.verify import resolve_verify_mode, run_verify_hook, write_
 __all__ = ["write_paper_artifacts"]
 
 
+class PaperPublicationRefusedError(ValueError):
+    """The receipt was retained but the candidate insight was not accepted."""
+
+
 def write_paper_artifacts(
     topic: str,
     paper: PaperRecord,
@@ -59,7 +63,7 @@ def write_paper_artifacts(
     has_existing_insights = existing_insights.exists() and existing_insights.stat().st_size > 0
     if not insight_has_body(insights):
         console.print("    [red]empty analysis[/red]")
-        return paper_dir
+        raise PaperPublicationRefusedError("Paper analysis produced no usable insight")
     # Write-time verify hook: ground insight numeric claims against the paper
     # text receipt before committing it. Strict mode refuses the write. When
     # an earlier insight already exists, defer the sidecar so a refusal cannot
@@ -73,11 +77,11 @@ def write_paper_artifacts(
         source_name=artifact_filename(paper_dir.name, "paper"),
         publish_sidecar=not has_existing_insights,
     )
-    if outcome is not None and outcome.has_flags:
+    if outcome is not None:
         style = "red" if outcome.refused else "yellow"
         console.print(f"    [{style}]{outcome.summary_line}[/{style}]")
     if outcome is not None and outcome.refused:
-        return paper_dir
+        raise PaperPublicationRefusedError(outcome.summary_line)
 
     insights_path = write_markdown_artifact(
         paper_dir,

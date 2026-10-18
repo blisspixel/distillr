@@ -21,10 +21,18 @@ runner = CliRunner()
 
 
 def test_install_hints_follow_uv_pipx_and_pip(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("distill.update.sys.platform", "win32")
     monkeypatch.setattr("distill.update.detect_install_method", lambda: "uv")
     assert optional_package_install_hint("faster-whisper") == (
         "uv tool install distillr --with faster-whisper"
     )
+    assert (
+        optional_extra_install_hint("entailment")
+        == "uv tool install --torch-backend cpu --with 'torch==2.14.1+cpu' "
+        "'distillr[entailment]' --force"
+    )
+    assert optional_extra_install_hint("other") == "uv tool install 'distillr[other]' --force"
+    monkeypatch.setattr("distill.update.sys.platform", "darwin")
     assert (
         optional_extra_install_hint("entailment")
         == "uv tool install 'distillr[entailment]' --force"

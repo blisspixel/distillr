@@ -1,0 +1,17 @@
+name = "Green Screen"
+slug = "green-screen"
+variant = "dark"
+source = ""
+
+[colors]
+bg = "#0e1511"
+surface = "#151f19"
+text = "#b4dcb9"
+muted = "#82ab89"
+accent = "#8fd19e"
+success = "#8fd19e"
+warning = "#d9b86a"
+error = "#e08a7a"
+info = "#86bfc4"
+selection = "#233e2c"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

@@ -1,0 +1,17 @@
+{
+  "python": "3.15.0",
+  "torch": "2.14.1+cpu",
+  "transformers": "4.57.6",
+  "cuda": null,
+  "device": "cpu",
+  "supported_tail_score": 0.9876852035522461,
+  "unsupported_score": 0.0941677987575531,
+  "evidence_sha256": "ca17206c994a68624a6c09e9ddbe910c463a1a4a101b152acbec68bf7d6b0a8c",
+  "duration_seconds": 29.266993600002024,
+  "cost_usd": 0,
+  "tested_wheel_sha256": "facdde54b8dc743f1464c5814af25e77c6049356f2d1e49d724448cca02dde81",
+  "evidence_pair_tokens": 1542,
+  "outer_revision": "8e4a2e6e96c708cc76c2344f7e4757df2515292c",
+  "foundation_revision": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+  "remaining_warning": "The user TRANSFORMERS_CACHE setting still produces an unrelated visible deprecation warning."
+}

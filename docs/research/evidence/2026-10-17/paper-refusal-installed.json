@@ -1,0 +1,21 @@
+{
+  "method": "Installed wheel; synthetic metadata and analysis at external boundaries; real CLI, verification, refusal and receipt writes",
+  "cost_usd": 0,
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8",
+  "rows": [
+    {
+      "command": "paper",
+      "exit_code": 1,
+      "receipt_retained": true,
+      "insight_published": false,
+      "output_sha256": "931c0b5012014d7cb4e0a6f22dacd14646af86777dab65a171e090578b1ff5f1"
+    },
+    {
+      "command": "papers",
+      "exit_code": 1,
+      "receipt_retained": true,
+      "insight_published": false,
+      "output_sha256": "196ba32c55d532d31b9e3985c222a7ad8b7b871f503f1d1a40bbe35863abc5e2"
+    }
+  ]
+}

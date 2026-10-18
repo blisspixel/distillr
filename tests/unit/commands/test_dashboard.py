@@ -18,7 +18,7 @@ def _console_buffer(monkeypatch) -> StringIO:
     monkeypatch.setattr(
         _dashboard,
         "console",
-        Console(file=stream, force_terminal=False, width=140, color_system=None),
+        Console(file=stream, force_terminal=True, width=140, color_system=None),
     )
     return stream
 
@@ -167,19 +167,16 @@ def test_show_dashboard_falls_back_to_first_run_when_config_fails(monkeypatch) -
     _dashboard._show_dashboard()
 
     output = stream.getvalue()
-    assert "Distill Start" in output
+    assert "distill " in output
     assert "First-Time Setup" in output
     assert "distill --cost-mode no-metered init" in output
     assert "distill --cost-mode no-metered doctor" in output
     assert "distill --cost-mode no-metered papers" in output
-    assert "--cost-mode paid-ok" in output
     assert "--preview" in output
-    assert "distill video" in output
-    assert 'distill --cost-mode no-metered topic preview "AI news"' in output
-    assert "Spend control" in output
     assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
     assert "Preview before spend" not in output
-    assert "model-backed preview cost is logged" in output
+    assert "Default verification checks numbers" in output
+    assert len(output.splitlines()) <= 24
 
 
 def test_first_run_commands_remain_copyable_at_80_columns(monkeypatch) -> None:
@@ -196,10 +193,11 @@ def test_first_run_commands_remain_copyable_at_80_columns(monkeypatch) -> None:
     assert "distill --cost-mode no-metered init" in output
     assert "distill --cost-mode no-metered doctor" in output
     assert 'distill --cost-mode no-metered papers "topic" -n 5 --preview' in output
-    assert 'distill --cost-mode no-metered topic preview "AI news"' in output
+    assert "distill provider list" in output
 
 
 def test_show_dashboard_renders_overflow_attention_and_next_actions(monkeypatch) -> None:
+    monkeypatch.setenv("TERM", "xterm")
     stream = _console_buffer(monkeypatch)
     monkeypatch.setattr(_dashboard, "get_config", lambda: SimpleNamespace())
     monkeypatch.setattr(_dashboard, "_dashboard_snapshot", lambda _config: _snapshot())

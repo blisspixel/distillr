@@ -63,7 +63,7 @@ from distill.commands._site_batch import (
 )
 from distill.commands._site_ingest import process_site_seed as _process_site_seed
 from distill.commands.monitor import monitor
-from distill.ingestors.papers.arxiv import PaperRecord, search_arxiv_multi
+from distill.ingestors.papers.arxiv import PaperRecord, PaperSearchResults, search_arxiv_multi
 from distill.ingestors.sites.discovery import (
     discover_trusted_site_seeds as _discover_trusted_site_seeds,
 )
@@ -394,6 +394,8 @@ def site_cmd(
             )
 
     display_summary(summary, cost_tracker=tracker, console=console, log_dir=config.library_dir)
+    if any(issue.severity == "error" for issue in summary.issues):
+        raise typer.Exit(1)
     if report:
         _run_scope_report(topic, config, tracker, scope="topic", test=test, summary=summary)
 
@@ -756,6 +758,11 @@ def discover(  # noqa: C901 — legacy, will refactor
     if paper_queries:
         per_query_cap = max(paper_limit, 8)
         papers = search_arxiv_multi(paper_queries, limit_per_query=per_query_cap, sort="relevance")
+        from distill.commands._paper_search import report_search_coverage
+
+        report_search_coverage(
+            papers.receipts if isinstance(papers, PaperSearchResults) else (), summary
+        )
         console.print(
             f"[dim]Found {len(papers)} unique papers across {len(paper_queries)} search(es)[/dim]"
         )
@@ -772,6 +779,10 @@ def discover(  # noqa: C901 — legacy, will refactor
     papers, videos, excluded_ingested = filter_ingested_candidates(
         papers, videos, ingested=ingested_source_ids(config.topic_dir(topic_name))
     )
+    from distill.commands._paper_search import report_revision_candidates
+
+    if report_revision_candidates(papers, topic_dir=config.topic_dir(topic_name)):
+        papers = [p for p in papers if p.revision_status == "new"]
     if excluded_ingested:
         console.print(
             f"[dim]Excluded {excluded_ingested} candidate(s) already in '{topic_name}'.[/dim]"
@@ -782,8 +793,8 @@ def discover(  # noqa: C901 — legacy, will refactor
             # A converged corpus is a clean no-op, not an error: every candidate
             # the search surfaced is already ingested.
             console.print(
-                f"[green]Corpus is current: every candidate found is already in "
-                f"'{topic_name}'.[/green]"
+                f"[dim]Every returned candidate is already in '{topic_name}'; "
+                "this does not certify corpus currency.[/dim]"
             )
             display_summary(
                 summary, cost_tracker=tracker, console=console, log_dir=config.library_dir

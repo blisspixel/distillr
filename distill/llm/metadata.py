@@ -24,6 +24,7 @@ __all__ = [
 
 # Known cloud context windows (documented values, in tokens)
 CLOUD_CONTEXT_WINDOWS: dict[str, int] = {
+    "gemini-4-argon": 1_048_576,
     "grok-4.7": 500_000,
     "grok-4.6": 500_000,
     "grok-4.5": 500_000,

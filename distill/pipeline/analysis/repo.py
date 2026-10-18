@@ -150,7 +150,7 @@ def ingest_repo(
                 insight_name=artifact_path(repo_dir, "insights", identity=slug).name,
                 source_name=repo_name,
             )
-        if outcome is not None and outcome.has_flags:
+        if outcome is not None:
             style = "red" if outcome.refused else "yellow"
             console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:

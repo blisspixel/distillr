@@ -1,4 +1,6 @@
 .agent/
+.release-evidence/
+agent-dist/
 .claude/
 .git/
 .github/

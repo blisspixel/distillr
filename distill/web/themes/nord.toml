@@ -1,0 +1,16 @@
+name = "Nord"
+slug = "nord"
+variant = "dark"
+source = "https://github.com/nordtheme/nord"
+
+[colors]
+bg = "#2e3440"
+surface = "#3b4252"
+text = "#eceff4"
+muted = "#d8dee9"
+accent = "#88c0d0"
+success = "#a3be8c"
+warning = "#ebcb8b"
+error = "#f6929a"
+info = "#90b1d1"
+selection = "#434c5e"

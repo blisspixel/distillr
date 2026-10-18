@@ -1,11 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="house-dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="distill-themes" content="{{ theme_collection|tojson|forceescape }}">
   <title>{% block title %}Distill{% endblock %}</title>
   <meta name="htmx-config" content='{"allowEval": false, "allowScriptTags": false}'>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/themes.css">
+  <script src="/static/theme-init.js"></script>
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/app.js?v={{ script_version }}" defer></script>
 </head>
@@ -21,6 +25,7 @@
         <a href="/costs" class="{% if active_nav == 'costs' %}active{% endif %}"{% if active_nav == 'costs' %} aria-current="page"{% endif %}>Costs</a>
         <a href="/watchlist" class="{% if active_nav == 'watchlist' %}active{% endif %}"{% if active_nav == 'watchlist' %} aria-current="page"{% endif %}>Watchlist</a>
       </nav>
+      {{ theme_controls|safe }}
     </aside>
     <main class="main" id="main-content" tabindex="-1">
       {% block content %}{% endblock %}

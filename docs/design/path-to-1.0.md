@@ -2,9 +2,9 @@
 
 Status: operational plan. Anchored to [`version-architecture.md`](version-architecture.md)
 and the 1.0 section of [`../../ROADMAP.md`](../../ROADMAP.md). Revalidated
-for the `0.20.5` API and billing maintenance boundary. Releases `0.20.1`
-through `0.20.4` shipped billing, routing, typing, and capture fixes;
-`0.20.6` is next for claim generations and derived-origin preservation.
+for the `0.20.7` research-trust maintenance boundary. Releases `0.20.1`
+through `0.20.6` shipped billing, routing, typing, and capture fixes;
+`0.20.7` addresses claim generations, derived origin, and issues #40 through #57.
 Published performance evidence now includes five paired
 Linux/macOS runs with preserved receipts and an active advisory policy, the
 0.19.60 Windows 100 / 500 / 1_000 / 10_000 matrix, and Windows frozen workflow
@@ -87,7 +87,7 @@ remain blocking.
 |------|--------|
 | Branch coverage >=95% | Met; the blocking full-suite floor remains 95 percent and current evidence is retained in CI |
 | Ruff / bandit / pip-audit / import-linter | Met, CI-blocking |
-| Python 3.12-3.14 + OS smoke | Met |
+| Python 3.12-3.15 + OS smoke | Required on the release commit |
 | Golden structural offline gate | Met; do not extend to live model scoring |
 | Mutation testing / deal contracts | Partial (core packages); cadence not PR-blocking |
 | Pyright full package | Blocking basic diagnostics; **central strict only `distill/llm`** (file-level strict is widespread but not complete) |
@@ -118,13 +118,14 @@ date or duration estimate.
 5. `0.20.3`: shipped strict typing expansion, modular boundaries, and coverage.
 6. `0.20.4`: shipped site-capture receipts and dependency security maintenance.
 7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
-8. `0.20.6`: correct active claim generations and preserve derived origin.
-9. `0.20.7`: publish the research-desk evaluation baseline before changing defaults.
-10. `0.20.8`: publish operator, accessibility, install, export, cold-start, and live
+8. `0.20.6`: shipped no-metered setup, pinned previews and capture repairs.
+9. `0.20.7`: correct active claim generations, derived origin and open maintenance issues.
+10. `0.20.8`: publish the research-desk evaluation baseline before changing defaults.
+11. `0.20.9`: publish operator, accessibility, install, export, cold-start, and live
     reference-journey evidence.
-11. `0.20.9`: close strict-boundary, deterministic-core, and security evidence gaps.
-12. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
-13. `1.0.0`: publish only while every gate remains true on the final commit.
+12. `0.20.10`: close strict-boundary, deterministic-core, and security evidence gaps.
+13. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
+14. `1.0.0`: publish only while every gate remains true on the final commit.
 
 ## Success criteria for 1.0.0
 
@@ -133,7 +134,7 @@ All must be true and linked from the release notes:
 1. Covered public contracts marked freeze-ready with SemVer policy.
 2. `docs/contracts/COMPATIBILITY.md` (or successor) documents library migration.
 3. `docs/performance/baseline-*.md` publishes offline scale matrix + cold start.
-4. CI quality bar green on Linux 3.12-3.14, macOS smoke, Windows smoke.
+4. CI quality bar green on Linux 3.12-3.15, macOS smoke, Windows smoke.
 5. Freeze-time security scan receipt (bandit + pip-audit + adversarial notes).
 6. Onboarding + presentation assets land in docs/README as evidence, not as a
    new product surface.
@@ -176,9 +177,10 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.20.3` | shipped | strict Pyright expansion, modular boundaries, coverage, and agent instructions |
 | `0.20.4` | shipped | typed site-capture receipts, bounded visits, readiness, and dependency security |
 | `0.20.5` | current | current model and pricing audit, SDK compatibility, routed billing regressions, dependency security, full release gates |
-| `0.20.6` | next | generation retirement, zero-claim behavior, derived-origin preservation, migration coverage |
-| `0.20.7` | queued | expert-authored research-desk fixtures and published baseline results |
-| `0.20.8` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
-| `0.20.9` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `0.20.6` | shipped | no-metered setup, pinned previews and capture repairs |
+| `0.20.7` | active | generation retirement, zero-claim behavior, derived origin, discovery and freshness uncertainty, and issues #40 through #57 |
+| `0.20.8` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.9` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.20.10` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
 | `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

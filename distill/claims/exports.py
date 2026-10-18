@@ -9,6 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
+from distill.claims.generations import ClaimGeneration, active_generation_claims
 from distill.claims.records import Claim
 from distill.jsonl import (
     JsonlIntegrityError,
@@ -73,7 +74,9 @@ def ensure_extracted_sources_capacity(topic_dir: Path, source_ids: Iterable[str]
     )
 
 
-def append_claims(topic_dir: Path, claims: list[Claim]) -> Path:
+def append_claims(
+    topic_dir: Path, claims: list[Claim], *, generation: ClaimGeneration | None = None
+) -> Path:
     """Durably append one complete claim batch before publishing completion."""
 
     path = claims_jsonl_path(topic_dir)
@@ -88,6 +91,12 @@ def append_claims(topic_dir: Path, claims: list[Claim]) -> Path:
                 path, f"row {index} violates the Claim schema: {exc}"
             ) from exc
         rows.append(row)
+    if generation is not None:
+        if generation.claims != tuple(claims):
+            raise JsonlIntegrityError(path, "Generation payload does not match its claim batch")
+        generation_row = generation.to_row()
+        ClaimGeneration.from_row(generation_row)
+        rows = [generation_row]
     lines = [
         json.dumps(
             row,
@@ -109,7 +118,10 @@ def append_claims(topic_dir: Path, claims: list[Claim]) -> Path:
             topic_dir,
             max_bytes=_MAX_CLAIMS_HISTORY_BYTES,
         )
-        if len(existing) + len(rows) > _MAX_CLAIMS_HISTORY_ROWS:
+        if (
+            len(_read_claim_rows(topic_dir)) + len(rows) > _MAX_CLAIMS_HISTORY_ROWS
+            or len(existing) + len(claims) > _MAX_CLAIMS_HISTORY_ROWS
+        ):
             raise JsonlIntegrityError(
                 path,
                 f"append would exceed the {_MAX_CLAIMS_HISTORY_ROWS:,}-row limit",
@@ -135,7 +147,7 @@ def _claim_from_row(path: Path, index: int, row: dict[str, object]) -> Claim:
         raise JsonlIntegrityError(path, f"row {index} violates the Claim schema: {exc}") from exc
 
 
-def _read_claim_history(topic_dir: Path) -> list[Claim]:
+def _read_claim_rows(topic_dir: Path) -> list[dict[str, object]]:
     path = claims_jsonl_path(topic_dir)
     rows = read_jsonl_objects_strict(
         path,
@@ -144,7 +156,49 @@ def _read_claim_history(topic_dir: Path) -> list[Claim]:
         max_rows=_MAX_CLAIMS_HISTORY_ROWS,
         confinement_root=topic_dir,
     )
-    return [_claim_from_row(path, index, row) for index, row in enumerate(rows, start=1)]
+    return rows
+
+
+def _read_claim_history(topic_dir: Path) -> list[Claim]:
+    return _claims_from_history_rows(topic_dir, _read_claim_rows(topic_dir))
+
+
+def _claims_from_history_rows(topic_dir: Path, rows: list[dict[str, object]]) -> list[Claim]:
+    path = claims_jsonl_path(topic_dir)
+    claims: list[Claim] = []
+    for index, row in enumerate(rows, 1):
+        if "event" in row:
+            try:
+                if row.get("event") != "claim-generation.v1":
+                    raise ValueError("Unsupported claim history event")
+                claims.extend(ClaimGeneration.from_row(row).claims)
+            except ValueError as exc:
+                raise JsonlIntegrityError(path, f"row {index}: {exc}") from exc
+        else:
+            claims.append(_claim_from_row(path, index, row))
+        if len(claims) > _MAX_CLAIMS_HISTORY_ROWS:
+            raise JsonlIntegrityError(path, "Flattened claim history exceeds its row limit")
+    return claims
+
+
+def read_active_claims(topic_dir: Path) -> list[Claim]:
+    rows = _read_claim_rows(topic_dir)
+    _claims_from_history_rows(topic_dir, rows)
+    try:
+        return active_generation_claims(rows)
+    except ValueError as exc:
+        raise JsonlIntegrityError(claims_jsonl_path(topic_dir), str(exc)) from exc
+
+
+def completed_generations(topic_dir: Path) -> dict[tuple[str, str], str]:
+    result: dict[tuple[str, str], str] = {}
+    rows = _read_claim_rows(topic_dir)
+    _claims_from_history_rows(topic_dir, rows)
+    for row in rows:
+        if row.get("event") == "claim-generation.v1":
+            generation = ClaimGeneration.from_row(row)
+            result[(generation.source_id, generation.artifact_path)] = generation.content_sha256
+    return result
 
 
 def read_claims(topic_dir: Path) -> list[Claim]:
@@ -180,7 +234,10 @@ def ensure_claim_store_append_capacity(topic_dir: Path) -> None:
         topic_dir,
         max_bytes=_MAX_CLAIMS_HISTORY_BYTES,
     )
-    if len(claims) >= _MAX_CLAIMS_HISTORY_ROWS:
+    if (
+        len(claims) >= _MAX_CLAIMS_HISTORY_ROWS
+        or len(_read_claim_rows(topic_dir)) >= _MAX_CLAIMS_HISTORY_ROWS
+    ):
         raise JsonlIntegrityError(
             path, f"history reached the {_MAX_CLAIMS_HISTORY_ROWS:,}-row limit"
         )
@@ -194,4 +251,6 @@ def ensure_claim_store_append_capacity(topic_dir: Path) -> None:
 def already_extracted_source_ids(topic_dir: Path) -> set[str]:
     """Return source IDs in the fully validated canonical claim history."""
 
-    return {claim.source_id for claim in read_claims(topic_dir)}
+    return {claim.source_id for claim in read_claims(topic_dir)} | {
+        source for source, _artifact in completed_generations(topic_dir)
+    }

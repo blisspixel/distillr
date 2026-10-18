@@ -1,0 +1,17 @@
+name = "Everforest Dark"
+slug = "everforest-dark"
+variant = "dark"
+source = "https://github.com/sainnhe/everforest"
+
+[colors]
+bg = "#2d353b"
+surface = "#343f44"
+text = "#d3c6aa"
+muted = "#9faba2"
+accent = "#7fbbb3"
+success = "#a7c080"
+warning = "#dbbc7f"
+error = "#f48a8c"
+info = "#83c092"
+selection = "#363f45"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

@@ -26,8 +26,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Protocol, TypedDict
+from pathlib import Path
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 from distill.library.paths import strip_frontmatter
 
@@ -52,6 +55,88 @@ _TOP_K_CHUNKS = 3  # per-claim evidence candidates by lexical overlap
 
 _HHEM_MODEL_ID = "vectara/hallucination_evaluation_model"
 _HHEM_REVISION = "8e4a2e6e96c708cc76c2344f7e4757df2515292c"  # pinned for safety (bandit B615) and reproducibility
+_FOUNDATION_MODEL = "google/flan-t5-base"
+_FOUNDATION_REVISION = "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2"
+_FOUNDATION_FILES = (
+    "config.json",
+    "tokenizer_config.json",
+    "tokenizer.json",
+    "spiece.model",
+    "special_tokens_map.json",
+)
+
+
+@runtime_checkable
+class _FoundationConfig(Protocol):
+    foundation: str
+
+
+def _foundation_snapshot(*, local_files_only: bool) -> str:
+    # The optional SDK has no stubs in the core type-check environment.
+    from huggingface_hub import snapshot_download  # pyright: ignore[reportUnknownVariableType]
+
+    snapshot: object = snapshot_download(  # pyright: ignore[reportUnknownVariableType]
+        repo_id=_FOUNDATION_MODEL,
+        revision=_FOUNDATION_REVISION,
+        allow_patterns=[*_FOUNDATION_FILES, "added_tokens.json"],
+        local_files_only=local_files_only,
+    )
+    if not isinstance(snapshot, str):
+        raise ValueError("Foundation snapshot did not resolve to a local directory")
+    return snapshot
+
+
+def _pinned_foundation_config(config: _FoundationConfig) -> _FoundationConfig:
+    """Bind the pinned model's nested metadata loads to reviewed immutable data."""
+    if config.foundation != _FOUNDATION_MODEL:
+        raise ValueError("Pinned HHEM has an unexpected foundation model")
+    try:
+        snapshot = _foundation_snapshot(local_files_only=True)
+    except FileNotFoundError:
+        snapshot = ""
+    if not snapshot or not all((Path(snapshot) / name).is_file() for name in _FOUNDATION_FILES):
+        snapshot = _foundation_snapshot(local_files_only=False)
+    config.foundation = snapshot
+    return config
+
+
+class _PinnedHHEMDiagnostics(logging.Filter):
+    """Retain two verified upstream metadata warnings in debug evidence."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        known = (
+            message
+            == (
+                "You are using a model of type HHEMv2Config to instantiate a model of type HHEMv2. "
+                "This is not supported for all configurations of models and can yield errors."
+            )
+            or re.fullmatch(
+                r"Token indices sequence length is longer than the specified maximum sequence length for this model \(\d+ > 512\)\. Running this sequence through the model will result in indexing errors",
+                message,
+            )
+            is not None
+        )
+        if known:
+            logger.debug("Pinned HHEM metadata diagnostic (input is not truncated): %s", message)
+        return not known
+
+
+@contextmanager
+def _pinned_hhem_diagnostics() -> Generator[None]:
+    selected = [
+        logging.getLogger(name)
+        for name in ("transformers.configuration_utils", "transformers.tokenization_utils_base")
+    ]
+    diagnostic_filter = _PinnedHHEMDiagnostics()
+    for selected_logger in selected:
+        selected_logger.addFilter(diagnostic_filter)
+    try:
+        yield
+    finally:
+        for selected_logger in selected:
+            selected_logger.removeFilter(diagnostic_filter)
+
 
 _FENCE_RE = re.compile(r"^\s*(```|~~~)")
 _URL_RE = re.compile(r"https?://\S+|\]\([^)]*\)")
@@ -248,6 +333,7 @@ class HHEMChecker:
     """
 
     model_name = _HHEM_MODEL_ID
+    model_revision = f"{_HHEM_REVISION}:{_FOUNDATION_REVISION}"
     # transformers ships no type stubs, so the model handle is Unknown by nature.
     # It is held as Any and exercised only through the narrow score() contract.
     _model: Any
@@ -256,15 +342,29 @@ class HHEMChecker:
         # transformers ships no type stubs, so the imported class and the model
         # handle are Unknown; both are ignored here and held as Any (see _model).
         from transformers import (
+            AutoConfig,  # pyright: ignore[reportUnknownVariableType]
             AutoModelForSequenceClassification,  # pyright: ignore[reportUnknownVariableType]
         )
 
-        self._model = AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
-            _HHEM_MODEL_ID, revision=_HHEM_REVISION, trust_remote_code=True
-        )
+        with _pinned_hhem_diagnostics():
+            raw_config: object = AutoConfig.from_pretrained(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+                _HHEM_MODEL_ID,
+                revision=_HHEM_REVISION,
+                trust_remote_code=True,
+            )
+            if not isinstance(raw_config, _FoundationConfig):
+                raise ValueError("Pinned HHEM config has no foundation identity")
+            config = _pinned_foundation_config(raw_config)
+            self._model = AutoModelForSequenceClassification.from_pretrained(  # pyright: ignore[reportUnknownMemberType]
+                _HHEM_MODEL_ID,
+                revision=_HHEM_REVISION,
+                trust_remote_code=True,
+                config=config,
+            )
 
     def score(self, evidence: str, claim: str) -> float:
-        result: Any = self._model.predict([(evidence, claim)])
+        with _pinned_hhem_diagnostics():
+            result: Any = self._model.predict([(evidence, claim)])
         return float(result[0])
 
 
@@ -287,5 +387,8 @@ def load_default_checker() -> EntailmentChecker | None:
     try:
         return HHEMChecker()
     except Exception as exc:
+        logger.warning(
+            "Local prose checker could not load (%s); prose not checked.", type(exc).__name__
+        )
         logger.debug("entailment checker unavailable: %s", exc)
         return None

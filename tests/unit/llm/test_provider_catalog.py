@@ -29,7 +29,7 @@ def test_normalize_provider_rejects_unknown() -> None:
 
 def test_default_models() -> None:
     assert default_model_for_provider("xai") == "grok-4.6"
-    assert default_model_for_provider("gemini") == "gemini-3.7-flash"
+    assert default_model_for_provider("gemini") == "gemini-3.8-flash"
     assert default_model_for_provider("anthropic") == "claude-sonnet-5"
     assert default_model_for_provider("ollama") == ""
     assert default_model_for_provider("openrouter") == "deepseek/deepseek-v4.1-flash"
@@ -62,14 +62,7 @@ def test_openrouter_catalog_includes_deepseek_models() -> None:
 
 def test_gemini_catalog_includes_new_flash_models() -> None:
     models = known_models_for_provider("gemini")
-    assert models[0] == "gemini-3.7-flash"
-    assert "gemini-3.8-flash" in models
-    assert "gemini-3.6-flash" in models
-    assert "gemini-3.5-flash-lite" in models
-    assert "gemini-3.5-flash" in models
-    assert "gemini-3.1-pro-preview" in models
-    assert "gemini-3.1-pro" not in models
-    assert "deep-research" not in models
+    assert models == ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-4-argon"]
 
 
 def test_current_xai_and_anthropic_models_are_catalogued() -> None:
@@ -143,7 +136,7 @@ def test_price_summary_for_catalog_models() -> None:
 @pytest.mark.parametrize("provider", ["xai", "gemini", "anthropic", "openrouter"])
 def test_routable_cloud_catalogs_have_auditable_pricing_sources(provider: str) -> None:
     audit = pricing_audit_for_provider(provider)
-    assert audit["verified_on"] == "2026-10-06"
+    assert audit["verified_on"] == ("2026-10-17" if provider == "gemini" else "2026-10-06")
     assert audit["source"].startswith("https://")
 
 

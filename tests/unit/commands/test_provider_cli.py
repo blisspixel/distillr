@@ -60,11 +60,11 @@ def test_provider_list_gemini_json(isolated_cwd: Path) -> None:
     assert payload["status"] == "ok"
     assert payload["data"]["provider"] == "gemini"
     model_ids = [row["id"] for row in payload["data"]["models"]]
-    assert model_ids[0] == "gemini-3.7-flash"
+    assert model_ids[0] == "gemini-3.8-flash"
     assert "gemini-3.8-flash" in model_ids
-    assert "gemini-3.6-flash" in model_ids
+    assert "gemini-4-argon" in model_ids
     assert "gemini-3.5-flash-lite" in model_ids
-    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-10-06"
+    assert payload["data"]["pricing_audit"]["verified_on"] == "2026-10-17"
     assert payload["data"]["pricing_audit"]["source"].startswith("https://ai.google.dev/")
 
 
@@ -92,7 +92,7 @@ def test_provider_set_default_model_with_yes(
     result = runner.invoke(cli.app, ["--json", "provider", "set", "gemini", "--yes"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
-    assert payload["data"]["model"] == "gemini-3.7-flash"
+    assert payload["data"]["model"] == "gemini-3.8-flash"
 
 
 def test_provider_set_openrouter_default_model_with_yes(
@@ -257,7 +257,7 @@ def test_provider_list_unknown_provider_human(isolated_cwd: Path) -> None:
 def test_provider_list_gemini_human_table(isolated_cwd: Path) -> None:
     result = runner.invoke(cli.app, ["provider", "list", "gemini"])
     assert result.exit_code == 0, result.output
-    assert "gemini-3.7-flash" in result.output
+    assert "gemini-3.8-flash" in result.output
     assert "recommended" in result.output
 
 
@@ -357,7 +357,7 @@ def test_resolve_set_selection_prompts_provider_and_model(
         provider=None, model=None, yes=False
     )
     assert provider == "gemini"
-    assert model == "gemini-3.7-flash"
+    assert model == "gemini-3.8-flash"
 
 
 def test_resolve_set_selection_empty_model_after_prompt_raises(
@@ -397,8 +397,8 @@ def test_prompt_provider_empty_raises(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_prompt_model_digit_selects_from_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_provider, "tty_prompt", _scripted_prompt(["1"]))
     assert (
-        _provider._prompt_model("gemini", default="gemini-3.7-flash")  # pyright: ignore[reportPrivateUsage]
-        == "gemini-3.7-flash"
+        _provider._prompt_model("gemini", default="gemini-3.8-flash")  # pyright: ignore[reportPrivateUsage]
+        == "gemini-3.8-flash"
     )
 
 

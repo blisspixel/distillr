@@ -1,0 +1,19 @@
+name = "House Light"
+slug = "house-light"
+variant = "light"
+source = ""
+
+[colors]
+bg = "#f6f2e9"
+surface = "#fffdf8"
+text = "#1c1f26"
+muted = "#5f6673"
+accent = "#0f766e"
+success = "#2f6f3a"
+warning = "#8a5a00"
+error = "#b3261e"
+info = "#2b5f9e"
+selection = "#ede8de"
+
+[colors.optional]
+focus = "#b45309"

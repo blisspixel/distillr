@@ -7,8 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## 0.20.7 - 2026-10-17
+
+### Fixed
+
+- Preserve per-query arXiv discovery failures in previews, shortlists and run
+  summaries. Distinguish successful empty searches from API errors and malformed
+  feeds. Surface paper revisions with captured and discovered dates; recheck
+  saved previews against the current library and keep revision updates preview-only.
+- Treat missing, invalid and mixed-timezone freshness evidence as unknown.
+  Compare explicit offsets in UTC without the filesystem timestamp tolerance.
+- Replace complete active claim generations, including successful zero-claim
+  retirement, while retaining append-only history. Refuse incomplete synthesis
+  and changed-during-generation evidence. Keep exact citation paths and derived
+  origin; exclude answers, audits, reports and hidden history from retrieval.
+- State numeric-only versus prose verification coverage. Propagate strict
+  refusals to nonzero CLI exits and retain refusal receipts without replacing
+  previously accepted artifacts. Add `ingest --verify` consistently.
+- Treat rejected site seeds as failed captures with a reason, rather than empty
+  success. Refused paper publication fails its CLI/MCP item, and an all-failed
+  paper batch stops before synthesis.
+- Reuse unchanged local captures only when source, analysis settings and bound
+  verification evidence match. Preserve history for explicit reruns and recover
+  interrupted publication. Record zero-cost no-ops in the run ledger.
+  Prose model revision and threshold changes invalidate reuse. Checker failures
+  remain visible and strict mode fails closed when an installed checker fails.
+- Use the direct Gemini 3.8 Flash default, curated current candidates, UTC price
+  steps, and a scheduled refusal for the retiring Deep Research preview.
+  Preserve historical model and pricing records.
+- Make local setup and failure hints route-aware; keep diagnostic paths copyable,
+  support `-h`, shorten root help and home, align diagnostic rows, and remove
+  routine animation and screen clearing. Keep color-independent state words.
+- Load trusted packaged theme resources installed as hardlinks while retaining
+  single-link confinement for mutable user palettes.
+- Pin HHEM's foundation configuration and tokenizer as well as its outer code;
+  invalidate local reuse when either revision changes. Raise patched optional
+  torch, fsspec and setuptools floors and retain explicit advisory limitations.
+
+### Added
+
+- Twelve validated web and export palettes, Dark/Light/System appearance,
+  persisted choices, safe TOML and bounded GitHub archive installation, CLI theme
+  lifecycle commands, accessible preview cards and copy announcements. Server
+  and export share tokens and component styles.
+- A CPU-only optional entailment recipe and measured tail-evidence probe beyond
+  512 tokens. Scope two known pinned-model metadata diagnostics to debug while
+  preserving other warnings and failures.
+  Validate the separately published torch CPU wheel on Windows Python 3.15.
+- Numbered first-run instructions and local installed-wheel, CPU and browser
+  validation records. These remain distinct from the later 1.0 semantic gates.
+
+### Changed
+
+- Default to Python 3.15 with blocking Linux 3.12 through 3.15, Windows and macOS
+  coverage. Retain the 3.12 floor. Refresh compatibility wheels, dependency audit
+  tooling and immutable Actions pins; build the container from the frozen lock.
+- Retain the hash-matched native plugin evaluation for unchanged canonical
+  skills and eval cases; regenerate distribution version metadata.
+
 ### Documentation
 
+- Record the authorized dependency-ordered execution plan for issues #40
+  through #57, including another bug hunt, local zero-dollar journeys, and
+  exact-commit CI before publication.
 - Record 0.20.6 as the published maintenance release and move unfinished
   evidence-state correction, evaluation, operator, and freeze-time security
   work to 0.20.7 through 0.20.10 without changing their acceptance gates.

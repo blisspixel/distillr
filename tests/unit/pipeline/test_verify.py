@@ -270,9 +270,11 @@ def test_paper_write_strict_refuses_insight_but_keeps_receipt(tmp_path):
     )
     record = PaperRecord(paper_id="2601.00003v1", title="T3", abstract="a")
 
-    paper_dir = write_paper_artifacts(
-        "tkg", record, config, insights="- Reaches 99.9 MRR.", document="reaches 72.6 MRR."
-    )
+    with pytest.raises(ValueError, match="verify strict: refused"):
+        write_paper_artifacts(
+            "tkg", record, config, insights="- Reaches 99.9 MRR.", document="reaches 72.6 MRR."
+        )
+    paper_dir = config.paper_dir("tkg", record.title, record.paper_id)
 
     assert list(paper_dir.glob("*_Insights.md")) == []
     assert list(paper_dir.glob("*_Paper.md"))  # receipt kept
@@ -319,13 +321,14 @@ def test_paper_write_strict_refuse_does_not_rebind_existing_sidecar(tmp_path):
     old_sidecar = sidecar.read_bytes()
     old_insight = insight.read_text(encoding="utf-8")
 
-    write_paper_artifacts(
-        "tkg",
-        record,
-        config,
-        insights="- Reaches 99.9 MRR.",
-        document="reaches 80.1 MRR now.",
-    )
+    with pytest.raises(ValueError, match="verify strict: refused"):
+        write_paper_artifacts(
+            "tkg",
+            record,
+            config,
+            insights="- Reaches 99.9 MRR.",
+            document="reaches 80.1 MRR now.",
+        )
 
     assert insight.read_text(encoding="utf-8") == old_insight
     assert sidecar.read_bytes() == old_sidecar
@@ -358,7 +361,9 @@ def test_local_ingest_strict_refuses_insight(tmp_path, monkeypatch):
     assert result.insights_path is None
     local_dirs = list((config.library_dir / "topics" / "tkg" / "local").iterdir())
     assert len(local_dirs) == 1
-    assert list(local_dirs[0].glob("*_Verify.json"))
+    refusal_receipts = list((local_dirs[0] / ".history" / "refusals").rglob("*_Verify.json"))
+    assert len(refusal_receipts) == 1
+    assert json.loads(refusal_receipts[0].read_text(encoding="utf-8"))["unsupported"]
     assert list(local_dirs[0].glob("*_Content.md"))  # receipt kept
 
 
@@ -400,7 +405,7 @@ def test_local_ingest_reports_prose_only_refusal(tmp_path, monkeypatch, capsys):
     assert result.insights_path is None
     output = capsys.readouterr().out
     assert "verify strict: refused" in output
-    assert "1 prose claim(s)" in output
+    assert "1 prose claims unsupported" in output
 
 
 def test_apply_verify_override_sets_env_and_rejects_typos(monkeypatch):

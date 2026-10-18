@@ -11,8 +11,8 @@ permissions:
 # Scoped diagnostic for the 1.0 verification-depth milestone. Mutation scores
 # are review evidence, not required checks, so this workflow remains non-blocking.
 env:
-  UV_VERSION: "0.11.11"
-  UV_PYTHON: "3.12"
+  UV_VERSION: "0.13.1"
+  UV_PYTHON: "3.15"
   MUTMUT_VERSION: "3.6.0"
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
     timeout-minutes: 60
     continue-on-error: true
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true

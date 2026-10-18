@@ -336,6 +336,41 @@ class TestHookIntegration:
         assert data["entailment"]["status"] == "error"
         assert data["entailment"]["reason"] == "checker evaluation failed"
 
+    @pytest.mark.parametrize("mode", ["warn", "strict"])
+    def test_optional_checker_failure_is_visible_and_strict_fails_closed(
+        self, tmp_path, monkeypatch, mode
+    ):
+        import distill.pipeline.verify as verify_mod
+
+        class ExplodingChecker:
+            model_name = "boom"
+
+            def score(self, evidence, claim):
+                raise RuntimeError("checker failed")
+
+        monkeypatch.setattr(verify_mod, "_checker", ExplodingChecker())
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+        outcome = run_verify_hook(tmp_path, _INSIGHT, _SOURCE, mode=mode)
+        assert outcome is not None
+        assert outcome.entailment_status == "error"
+        assert outcome.refused == (mode == "strict")
+        assert (
+            "semantic checker failed" if mode == "strict" else "prose status: error"
+        ) in outcome.summary_line
+        assert json.loads(outcome.sidecar.read_text())["entailment"]["status"] == "error"
+
+    def test_installed_but_unloadable_checker_is_not_numeric_only_success(
+        self, tmp_path, monkeypatch
+    ):
+        import distill.pipeline.verify as verify_mod
+
+        monkeypatch.setattr(verify_mod, "_checker", None)
+        monkeypatch.setattr(verify_mod, "_checker_loaded", True)
+        monkeypatch.setattr(verify_mod, "entailment_available", lambda: True)
+        outcome = run_verify_hook(tmp_path, _INSIGHT, _SOURCE, mode="strict")
+        assert outcome is not None and outcome.refused
+        assert outcome.entailment_status == "unavailable"
+
     def test_required_entailment_refuses_zero_claim_coverage(self, tmp_path, monkeypatch):
         import distill.pipeline.verify as verify_mod
 

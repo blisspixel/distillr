@@ -1,0 +1,118 @@
+{
+  "schema_version": "controlled-verification.v1",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.7",
+  "distillr": "0.20.7",
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8",
+  "method": "Controlled synthetic analysis at the LLM boundary; real capture, verification, publication and audit. No model-generation call.",
+  "entailment_extra": true,
+  "cost_usd": 0,
+  "rows": [
+    {
+      "mode": "warn",
+      "published": true,
+      "wall_seconds": 6.192,
+      "verification_scope": "numeric + prose; 1 recorded unsupported claim(s)",
+      "refusal": "",
+      "sidecars": [
+        {
+          "schema_version": 3,
+          "verification_scope": "numeric+prose",
+          "mode": "warn",
+          "checked": 1,
+          "supported": 1,
+          "unsupported": [],
+          "insight": "planted_note_planted_Insights.md",
+          "source": "planted_note_planted_Content.md",
+          "generated_at": "2026-10-18T04:47:51Z",
+          "insight_sha256": "fc1b4cb4a3defebd85da45592a9909350f823439bf5a31c4421d5c84a2cac9df",
+          "entailment": {
+            "status": "flagged",
+            "checked": 1,
+            "supported": 0,
+            "flagged": [
+              {
+                "claim": "The study proves timestamp validation prevents all temporal logic attacks worldwide.",
+                "score": 0.0037,
+                "best_chunk_preview": "# Field note The dataset contains 7,128 entities. Gardeners watered roses in Iceland. This observation measured no security outcomes."
+              }
+            ],
+            "model": "vectara/hallucination_evaluation_model",
+            "threshold": 0.5
+          }
+        }
+      ],
+      "audit": {
+        "insights_total": 1,
+        "checked": 1,
+        "clean": 0,
+        "flagged": [
+          {
+            "insight": "local/planted-note_planted/planted_note_planted_Insights.md",
+            "token": "The study proves timestamp validation prevents all temporal logic attacks worldw",
+            "kind": "entailment",
+            "context": "# Field note The dataset contains 7,128 entities. Gardeners watered roses in Iceland. This observation measured no security outcomes."
+          }
+        ],
+        "synthesis_total": 0,
+        "synthesis_checked": 0,
+        "synthesis_clean": 0,
+        "numeric_only": 0
+      },
+      "files": {
+        "topics/planted/local/planted-note_planted/planted_note_planted_Content.md": "d84a6f0deae55b56cae538b86b81f63475de9faa132582155886035c0c45ddca",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Insights.md": "fc1b4cb4a3defebd85da45592a9909350f823439bf5a31c4421d5c84a2cac9df",
+        "topics/planted/local/planted-note_planted/planted_note_planted_Verify.json": "812974aaa243974d992dc4df3560502e27328ae53fc48af0be6011dc5e139a54"
+      }
+    },
+    {
+      "mode": "strict",
+      "published": false,
+      "wall_seconds": 0.084,
+      "verification_scope": "unknown; verification receipt unavailable",
+      "refusal": "verify strict: refused planted_note_planted_Insights.md -- 0 of 1 numeric claims unsupported; 1 prose claims unsupported; semantic verification flagged unsupported prose; previous artifact and verification sidecar retained",
+      "sidecars": [
+        {
+          "schema_version": 3,
+          "verification_scope": "numeric+prose",
+          "mode": "strict",
+          "checked": 1,
+          "supported": 1,
+          "unsupported": [],
+          "insight": "planted_note_planted_Insights.md",
+          "source": "planted_note_planted_Content.md",
+          "generated_at": "2026-10-18T04:47:52Z",
+          "insight_sha256": "03f1145129887bfb2dfc77f5d345826792bbd1d1427365e0a5b3561bb874216c",
+          "entailment": {
+            "status": "flagged",
+            "checked": 1,
+            "supported": 0,
+            "flagged": [
+              {
+                "claim": "The study proves timestamp validation prevents all temporal logic attacks worldwide.",
+                "score": 0.0037,
+                "best_chunk_preview": "# Field note The dataset contains 7,128 entities. Gardeners watered roses in Iceland. This observation measured no security outcomes."
+              }
+            ],
+            "model": "vectara/hallucination_evaluation_model",
+            "threshold": 0.5
+          }
+        }
+      ],
+      "audit": {
+        "insights_total": 0,
+        "checked": 0,
+        "clean": 0,
+        "flagged": [],
+        "synthesis_total": 0,
+        "synthesis_checked": 0,
+        "synthesis_clean": 0,
+        "numeric_only": 0
+      },
+      "files": {
+        "topics/planted/local/planted-note_planted/planted_note_planted_Content.md": "d84a6f0deae55b56cae538b86b81f63475de9faa132582155886035c0c45ddca",
+        "topics/planted/local/planted-note_planted/.history/refusals/54b57a2dc6004ab6a2e05123d7217f9e/planted_note_planted_Verify.json": "9de54df360790c2825a55b452e5fb20e801e7455b17deabe5ad99ac93a6aa584"
+      }
+    }
+  ]
+}

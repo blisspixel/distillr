@@ -25,6 +25,7 @@ from distill.llm.model_policy import (
     RETIRED_MODELS,
     RETIREMENT_DATE,
     is_xai_media_generation_model,
+    scheduled_model_refusal,
     xai_media_generation_refusal,
 )
 from distill.llm.provider_cache import build_openrouter, provider_cache_key
@@ -192,13 +193,11 @@ class RouterConfig(BaseSettings):
 
         env_dir = os.environ.get("DISTILL_OUTPUT_DIR", "").strip()
         library_dir = resolve_library_dir(env_dir or None)
-        # ``model_copy`` would re-trigger validators; mutate the field directly
-        # because BaseSettings instances are not frozen.
         object.__setattr__(self, "ops_dir", str(library_dir / ".distill"))
         return self
 
     def resolve(self, workload_tag: str) -> tuple[str, str]:
-        """Resolve ``(provider_name, model_id)`` for a workload tag."""
+        """Resolve the provider and model for a workload tag."""
         per_workload_provider: str = getattr(self, f"{workload_tag}_provider", "")
         provider_name: str = per_workload_provider or self.provider
 
@@ -213,6 +212,8 @@ class RouterConfig(BaseSettings):
             else:
                 model_id = self.fast_model
 
+        if refusal := scheduled_model_refusal(model_id):
+            raise ConfigurationError(refusal)
         if model_id in RETIRED_MODELS:
             replacement = RETIRED_MODELS[model_id]
             logger.warning(

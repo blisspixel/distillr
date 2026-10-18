@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import date
+from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +32,16 @@ _DEEP_RESEARCH_MAX_PRICING: dict[str, float] = {"per_query": DEEP_RESEARCH_MAX_C
 _GEMINI_FLASH_INTRO_PRICING_END = date(2026, 12, 31)
 _GEMINI_FLASH_INTRO_PRICING: dict[str, float] = {"input": 0.75, "output": 3.75}
 _GEMINI_FLASH_STANDARD_PRICING: dict[str, float] = {"input": 1.50, "output": 7.50}
+_GEMINI_ARGON_INTRO_END = date(2026, 11, 30)
+_GEMINI_ARGON_INTRO: dict[str, float] = {"input": 2.00, "output": 10.00}
+_GEMINI_ARGON_STANDARD: dict[str, float] = {"input": 4.00, "output": 20.00}
 
 # Registry review metadata is deliberately code-visible so operators and tests
 # can distinguish a recently verified price from an old hard-coded guess. CI
 # never scrapes vendor pages or contacts a paid API.
 # The dated audit scopes current routes; retained legacy rates are historical.
 PRICING_VERIFIED_ON: str = "2026-10-06"
+PROVIDER_PRICING_VERIFIED_ON: dict[str, str] = {"gemini": "2026-10-17"}
 PRICING_SOURCE_URLS: dict[str, str] = {
     "xai": "https://docs.x.ai/developers/models",
     "gemini": "https://ai.google.dev/gemini-api/docs/pricing",
@@ -65,6 +69,7 @@ MAX_TRANSCRIPTION_DURATION_SECONDS = 10 * 365 * 24 * 60 * 60
 # ---------------------------------------------------------------------------
 
 PRICING: dict[str, dict[str, float]] = {
+    "gemini-4-argon": _GEMINI_ARGON_STANDARD,
     # Current named routes are reviewed in docs/research/api-models-2026-10-06.md.
     "grok-4.7": {
         "input": 2.00,
@@ -419,15 +424,21 @@ def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     route_id = model.strip().lower()
     # A routed endpoint can charge differently from the original supplier.
     # Keep exact provider identity before resolving compatibility aliases.
-    if route_id in PRICING and not _is_intro_priced_gemini_flash_model(route_id):
+    if (
+        route_id in PRICING
+        and not _is_intro_priced_gemini_flash_model(route_id)
+        and not route_id.startswith("gemini-4-argon")
+    ):
         return PRICING[route_id]
     if "/" in route_id:
-        for key in sorted(PRICING, key=len, reverse=True):
-            if "/" in key and route_id.startswith(key):
-                return PRICING[key]
+        routed = _prefix_pricing(route_id, routed_only=True)
+        if routed is not None:
+            return routed
     normalized = underlying_model_id(model)
     if not normalized:
         return None
+    if normalized.startswith("gemini-4-argon"):
+        return _gemini_argon_pricing()
     if _is_intro_priced_gemini_flash_model(normalized):
         return _gemini_flash_pricing()
     if normalized in PRICING:
@@ -436,8 +447,12 @@ def _resolve_known_pricing(model: str) -> dict[str, float] | None:
     # specific prefix wins -- otherwise a broad alias like "deep-research" would
     # shadow "deep-research-max-..." ($5) and silently price it at the standard
     # $2.50 rate.
+    return _prefix_pricing(normalized)
+
+
+def _prefix_pricing(model: str, *, routed_only: bool = False) -> dict[str, float] | None:
     for key in sorted(PRICING, key=len, reverse=True):
-        if normalized.startswith(key):
+        if (not routed_only or "/" in key) and model.startswith(key):
             return PRICING[key]
     return None
 
@@ -472,5 +487,11 @@ def _gemini_flash_pricing() -> dict[str, float]:
     return _GEMINI_FLASH_STANDARD_PRICING
 
 
+def _gemini_argon_pricing() -> dict[str, float]:
+    if _pricing_reference_date() <= _GEMINI_ARGON_INTRO_END:
+        return _GEMINI_ARGON_INTRO
+    return _GEMINI_ARGON_STANDARD
+
+
 def _pricing_reference_date() -> date:
-    return date.today()
+    return datetime.now(UTC).date()

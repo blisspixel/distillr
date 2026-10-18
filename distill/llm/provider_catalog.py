@@ -11,6 +11,7 @@ from distill.llm.cost import (
     PRICING,
     PRICING_SOURCE_URLS,
     PRICING_VERIFIED_ON,
+    PROVIDER_PRICING_VERIFIED_ON,
     get_pricing,
 )
 from distill.llm.model_policy import RETIRED_MODELS, is_xai_media_generation_model
@@ -72,7 +73,7 @@ PROVIDER_KEY_REQUIREMENTS: dict[str, tuple[str | None, str | None]] = {
 
 DEFAULT_MODEL_FOR_PROVIDER: dict[str, str] = {
     "xai": "grok-4.6",
-    "gemini": "gemini-3.7-flash",
+    "gemini": "gemini-3.8-flash",
     "anthropic": "claude-sonnet-5",
     "openrouter": "deepseek/deepseek-v4.1-flash",
 }
@@ -172,6 +173,9 @@ def known_models_for_provider(provider: str) -> list[str]:
         models.sort(key=lambda item: (0 if item == preferred else 1, item))
         return models
 
+    if name == "gemini":
+        return ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-4-argon"]
+
     prefixes = _PROVIDER_MODEL_PREFIXES.get(name)
     if not prefixes:
         return []
@@ -218,7 +222,10 @@ def pricing_audit_for_provider(provider: str) -> dict[str, str]:
     source = PRICING_SOURCE_URLS.get(name, "")
     if not source:
         return {}
-    return {"verified_on": PRICING_VERIFIED_ON, "source": source}
+    return {
+        "verified_on": PROVIDER_PRICING_VERIFIED_ON.get(name, PRICING_VERIFIED_ON),
+        "source": source,
+    }
 
 
 def validate_provider_route(provider: str, model: str) -> tuple[str, str]:

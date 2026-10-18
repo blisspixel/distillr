@@ -404,7 +404,7 @@ def _validate_gemini_key(
         return ("not_set", "")
     if skipped := _cost_policy_skip("gemini", config):
         return skipped
-    model = model or "gemini-3.7-flash"
+    model = model or "gemini-3.8-flash"
     max_tokens = 5
     if refused := _authorize_probe(
         tracker,
@@ -644,7 +644,8 @@ def _check_ollama_status() -> tuple[str, list[str]]:  # pyright: ignore[reportUn
     except Exception:
         # The server answered but the response was unusable. Log the cause and
         # say so distinctly: "not running" would point at the wrong problem.
-        logger.warning("Ollama responded but its model list was unreadable", exc_info=True)
+        logger.warning("Ollama responded but its model list was unreadable")
+        logger.debug("Ollama model-list failure", exc_info=True)
         return ("unreadable", [])
 
 

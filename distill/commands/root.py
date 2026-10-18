@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import sys
 
 import typer
 from rich.markup import escape
@@ -123,11 +122,6 @@ def default_callback(
 
             show_dashboard()
             return
-        # Only clear the screen for an interactive terminal. Clearing captured
-        # output emits escape codes into agent and loop logs.
-        if sys.stdout.isatty():
-            console.clear()
-        show_banner(console)
         # Lazy import keeps dashboard ownership separate from root wiring.
         from distill.commands.dashboard import show_dashboard
 

@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "distill",
+    "site",
+    "https://distillr-validation.invalid/research",
+    "--topic",
+    "network",
+    "--scrape-only",
+    "--seed-only",
+    "--max-pages",
+    "1"
+  ],
+  "exit_code": 1,
+  "wall_seconds": 1.174,
+  "output_sha256": "56cdb00389acc276318008143f1d4c725c068d8e4f3bd4f2d0a72609d213006f",
+  "output": "\r\nSite: distillr-validation.invalid\r\nSeed: https://distillr-validation.invalid | max_pages=1 depth=0 \r\nmode=scrape-only | attachments=inventory-only\r\n  1 page(s) not captured: 1 did not load\r\n\r\n  --------------------------------------------------\r\n\r\n  2 issues\r\n  0.1s  \u00b7  ~$0.0000 (0 in / 0 out)\r\n\r\n  2 run issues\r\n    ! site-capture (https://distillr-validation.invalid)  Page did not load. \r\nSeed rejected before capture: HTTPS, public DNS resolution, or supported page \r\nURL validation failed. Check DNS and URL safety.\r\n    ! site-crawl (https://distillr-validation.invalid)  No pages were extracted\r\nfrom the site: 1 did not load.\r\n\r\n  Evidence: <validation-root>\\library\\latest_run_errors.md\r\n\r\n",
+  "cost_usd": 0,
+  "method": "Reserved .invalid DNS name; capture-only; stripped paid credentials; no-metered mode",
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8"
+}

@@ -90,6 +90,10 @@ def _do_upgrade(current: str, latest: str | None, method: str) -> None:
         console.print(f"  [green]Already at the latest release ({detail}).[/green]")
     else:
         console.print(f"  [green]Updated to {detail}.[/green] Restart any running distill session.")
+        from distill.banner import show_signature
+        from distill.commands._helpers import get_config
+
+        show_signature(console, get_config().library_dir, detail)
 
 
 def update_cmd(

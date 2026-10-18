@@ -143,10 +143,11 @@ def render_quality_trend(current: QualitySnapshot, previous: QualitySnapshot | N
     if previous is None:
         lines.extend(
             [
-                f"- Verified-clean rate: {rate} of {current.verify_eligible} "
+                f"- Recorded-check pass rate: {rate} of {current.verify_eligible} "
                 "verify-eligible artifact(s).",
                 f"- Flagged {current.flagged}, unchecked {current.unchecked}, "
                 f"stale {current.stale}, contested {current.contested}, gaps {current.gaps}.",
+                "- Check scope may be numeric-only; this rate does not establish prose support.",
                 "- Baseline recorded; no prior snapshot to compare against yet.",
                 "",
             ]
@@ -160,15 +161,15 @@ def render_quality_trend(current: QualitySnapshot, previous: QualitySnapshot | N
     since = previous.generated_at[:10]
     lines.extend(
         [
-            f"- Verified-clean rate: {rate} ({rate_delta} since {since}).",
+            f"- Recorded-check pass rate: {rate} ({rate_delta} since {since}).",
+            "- Check scope may be numeric-only; this rate does not establish prose support.",
             f"- Flagged {current.flagged} ({_count_delta(current.flagged, previous.flagged)}), "
             f"stale {current.stale} ({_count_delta(current.stale, previous.stale)}), "
             f"gaps {current.gaps} ({_count_delta(current.gaps, previous.gaps)}), "
             f"contested {current.contested} "
             f"({_count_delta(current.contested, previous.contested)}).",
-            "- Compounding reading: a rising verified-clean rate with falling "
-            "flagged, stale, and gap counts means the corpus is getting more "
-            "trustworthy over refreshes, not just larger.",
+            "- Compare like verification tiers. Passing numeric checks does not prove "
+            "semantic fidelity or complete research coverage.",
             "",
         ]
     )

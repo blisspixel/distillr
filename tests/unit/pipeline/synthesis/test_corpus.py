@@ -37,6 +37,18 @@ def _claim(claim_id: str, source_id: str, text: str) -> Claim:
     )
 
 
+def _seed_claim_history(topic_dir, claims):
+    from distill.claims.exports import append_claims
+
+    for claim in claims:
+        path = topic_dir / claim.artifact_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f'---\nsource_id: "{claim.source_id}"\n---\n\nSource insight.', encoding="utf-8"
+        )
+    append_claims(topic_dir, claims)
+
+
 def test_synthesize_corpus_writes_output(tmp_path):
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     topic_dir = config.topic_dir("mixed")
@@ -244,9 +256,8 @@ def test_two_pass_writes_when_claim_handles_exist(tmp_path):
         _claim("c2", "source-two", "The second source independently supports it."),
     ]
 
+    _seed_claim_history(topic_dir, claims)
     with (
-        patch("distill.claims.pipeline.run_claims"),
-        patch("distill.claims.exports.read_claims", return_value=claims),
         patch(
             "distill.pipeline.synthesis.corpus.llm_call",
             _fake_llm_call("The result is independently supported (C1, C2)."),
@@ -287,9 +298,8 @@ def test_two_pass_refuses_unknown_claim_handle(tmp_path):
     topic_dir.mkdir(parents=True, exist_ok=True)
     claims = [_claim("c1", "source-one", "The source reports a repeatable result.")]
 
+    _seed_claim_history(topic_dir, claims)
     with (
-        patch("distill.claims.pipeline.run_claims"),
-        patch("distill.claims.exports.read_claims", return_value=claims),
         patch(
             "distill.pipeline.synthesis.corpus.llm_call",
             _fake_llm_call("The result is triangulated with another source (C1, C2)."),
@@ -308,9 +318,8 @@ def test_two_pass_ignores_bare_dataset_tokens_that_look_like_handles(tmp_path):
     topic_dir.mkdir(parents=True, exist_ok=True)
     claims = [_claim("c1", "source-one", "The source reports a repeatable result.")]
 
+    _seed_claim_history(topic_dir, claims)
     with (
-        patch("distill.claims.pipeline.run_claims"),
-        patch("distill.claims.exports.read_claims", return_value=claims),
         patch(
             "distill.pipeline.synthesis.corpus.llm_call",
             _fake_llm_call("The C4 corpus and Appendix C2 are discussed [C1]."),
@@ -348,9 +357,8 @@ def test_two_pass_uses_latest_claim_per_id(tmp_path):
             model="grok-4.3",
         )
 
+    _seed_claim_history(topic_dir, [first, refreshed])
     with (
-        patch("distill.claims.pipeline.run_claims"),
-        patch("distill.claims.exports.read_claims", return_value=[first, refreshed]),
         patch("distill.pipeline.synthesis.corpus.llm_call", _capture_prompt),
     ):
         result = synthesize_corpus_from_claims(topic, config)

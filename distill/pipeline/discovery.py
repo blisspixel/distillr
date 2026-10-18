@@ -363,13 +363,20 @@ def filter_ingested_candidates(
     """
     if not ingested:
         return papers, videos, 0
-    from distill.library.ingested import normalize_arxiv_id
+    from dataclasses import replace
 
-    kept_papers = [
-        p
-        for p in papers
-        if p.paper_id not in ingested and normalize_arxiv_id(p.paper_id) not in ingested
-    ]
+    from distill.library.paper_revisions import classify_paper_revision
+
+    kept_papers: list[PaperRecord] = []
+    for paper in papers:
+        revision = classify_paper_revision(paper.paper_id, ingested)
+        if revision.status in ("captured", "older"):
+            continue
+        kept_papers.append(
+            replace(
+                paper, revision_status=revision.status, captured_revisions=revision.captured_ids
+            )
+        )
     kept_videos = [v for v in videos if v.video_id not in ingested]
     excluded = (len(papers) - len(kept_papers)) + (len(videos) - len(kept_videos))
     return kept_papers, kept_videos, excluded

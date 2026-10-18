@@ -172,7 +172,7 @@ def count_topic_sources(topic_dir: Path) -> dict[str, int]:
         for insight in topic_dir.rglob(pattern):
             rel_parts = insight.relative_to(topic_dir).parts
             top = rel_parts[0] if len(rel_parts) > 1 else ""
-            if top in _SKIP_TOP_DIRS or top.startswith("."):
+            if top in _SKIP_TOP_DIRS or any(part.startswith(".") for part in rel_parts):
                 continue
             if insight.parent in seen_dirs:
                 continue
@@ -343,6 +343,11 @@ def render_topic_claude_md(topic_dir: Path, topic: str, *, now_iso: str) -> str:
             "directory contains cross-source claims, comparisons, and named disagreements."
         )
     freshness = collect_synthesis_freshness(topic_dir, topic)
+    for name in freshness.unknown:
+        lines.append(
+            f"- **Warning -- freshness unknown:** `{name}` has unassessed evidence "
+            "timestamps or changed claim generations; do not assume it includes current evidence."
+        )
     for item in freshness.stale:
         lines.append(
             "- **Warning -- stale synthesis:** the topic synthesis predates "

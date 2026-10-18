@@ -1,0 +1,82 @@
+{
+  "method": "Installed release candidate; first eight body animation frames with a delayed blocking theme script",
+  "rows": [
+    {
+      "mode": "dark",
+      "script_delay_ms": 200,
+      "first_rendered_frames": [
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        },
+        {
+          "theme": "house-dark",
+          "bg": "rgb(22, 24, 29)"
+        }
+      ]
+    },
+    {
+      "mode": "light",
+      "script_delay_ms": 200,
+      "first_rendered_frames": [
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        },
+        {
+          "theme": "house-light",
+          "bg": "rgb(246, 242, 233)"
+        }
+      ]
+    }
+  ],
+  "wheel_sha256": "4a7a72bceab52739b5657980549be52b976cd5f7827fe724794d8075a58f8ce8"
+}

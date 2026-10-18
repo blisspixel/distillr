@@ -1,0 +1,19 @@
+name = "House Dark"
+slug = "house-dark"
+variant = "dark"
+source = ""
+
+[colors]
+bg = "#16181d"
+surface = "#1d2027"
+text = "#ece6da"
+muted = "#a1a7b3"
+accent = "#2dd4bf"
+success = "#8cc58a"
+warning = "#e0b45c"
+error = "#ee8a7f"
+info = "#8fb8e0"
+selection = "#252a32"
+
+[colors.optional]
+focus = "#f59e0b"

@@ -151,6 +151,11 @@ def _results_path(library_dir: Path) -> Path:
     return library_dir / ".distill" / "bench" / "results.jsonl"
 
 
+def _require_usable_measurement(rows: list[_Row]) -> None:
+    if not any(row.speed.usable for row in rows):
+        raise typer.Exit(1)
+
+
 def bench_cmd(
     models: str = typer.Option(
         "installed",
@@ -225,8 +230,12 @@ def bench_cmd(
                 "machine": machine,
                 "models": [_row_payload(row.speed, machine) for row in rows],
                 "results_path": str(path),
-            }
+            },
+            error="No usable model speed measurement"
+            if not any(row.speed.usable for row in rows)
+            else None,
         )
+        _require_usable_measurement(rows)
         return
 
     console.print()
@@ -249,6 +258,7 @@ def bench_cmd(
     console.print()
     console.print(f"  [dim]Stored: {path}[/dim]")
     console.print("  [dim]Speed only. To judge quality, run distill eval.[/dim]")
+    _require_usable_measurement(rows)
 
 
 def _ollama_cloud_gate() -> str:

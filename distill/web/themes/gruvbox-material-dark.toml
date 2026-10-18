@@ -1,0 +1,17 @@
+name = "Gruvbox Material Dark"
+slug = "gruvbox-material-dark"
+variant = "dark"
+source = "https://github.com/sainnhe/gruvbox-material"
+
+[colors]
+bg = "#282828"
+surface = "#32302f"
+text = "#d4be98"
+muted = "#a89984"
+accent = "#7daea3"
+success = "#a9b665"
+warning = "#d8a657"
+error = "#f16f68"
+info = "#89b482"
+selection = "#363332"
+# Selection adjusted toward the canvas to preserve 4.5:1 text contrast.

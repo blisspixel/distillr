@@ -958,12 +958,11 @@ def test_corpus_failure_and_dashboard_modes(tmp_path, monkeypatch):
     assert summaries == ["corpus"]
 
     calls: list[str] = []
-    monkeypatch.setattr(_maintain, "show_banner", lambda *_args, **_kwargs: calls.append("banner"))
     monkeypatch.setattr(_maintain, "show_dashboard", lambda: calls.append("dashboard"))
 
     _maintain.dashboard(web=False)
 
-    assert calls == ["banner", "dashboard"]
+    assert calls == ["dashboard"]
 
 
 def test_serve_help_documents_loopback_default():

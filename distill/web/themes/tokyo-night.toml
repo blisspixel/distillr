@@ -1,0 +1,16 @@
+name = "Tokyo Night"
+slug = "tokyo-night"
+variant = "dark"
+source = "https://github.com/folke/tokyonight.nvim"
+
+[colors]
+bg = "#1a1b26"
+surface = "#24283b"
+text = "#c0caf5"
+muted = "#a9b1d6"
+accent = "#7aa2f7"
+success = "#9ece6a"
+warning = "#e0af68"
+error = "#f7768e"
+info = "#7dcfff"
+selection = "#292e42"

@@ -170,7 +170,7 @@ def ingest_newsletter(
             insight_name=artifact_path(post_dir, "insights", identity=post_slug).name,
             source_name=content_path.name,
         )
-        if outcome is not None and outcome.has_flags:
+        if outcome is not None:
             style = "red" if outcome.refused else "yellow"
             console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
         if outcome is not None and outcome.refused:

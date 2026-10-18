@@ -1,0 +1,11 @@
+/* Standalone export layout. Color and common components use the shared sheet. */
+.wrap { max-width: 1400px; margin: 0 auto; padding: 28px; }
+.sub, .footer { color: var(--muted); margin-top: 8px; }
+.grid { display: grid; gap: 16px; }
+.metrics { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); margin: 24px 0; }
+.cols3 { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); }
+.metric .label { font-size: 0.85rem; color: var(--muted); }
+.metric .value { font-size: 2rem; margin-top: 8px; }
+.accent { color: var(--accent); }
+.warn { color: var(--warning); }
+.wrap > .appearance { max-width: 520px; margin: 16px 0; }

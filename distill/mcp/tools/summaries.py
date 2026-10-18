@@ -235,7 +235,9 @@ def list_topic_summary(topic: str) -> str:  # noqa: C901 - bounded candidate fal
         )
 
     candidates = _synthesis_candidates(topic_dir, config.library_dir)
-    insight_count = sum(1 for _ in topic_dir.rglob("*_Insights.md"))
+    from distill.library.insights import discover_insights
+
+    insight_count = len(discover_insights(topic_dir))
     if not candidates:
         return json.dumps(
             {

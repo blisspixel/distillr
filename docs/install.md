@@ -19,12 +19,14 @@ distill --cost-mode no-metered papers "temporal knowledge graph" --topic tkg --l
 Try before installing: `uvx --from distillr distill --help`. Ingestion needs a
 one-time Chromium install, so `uv tool install` is the path for real runs.
 
-**Platforms:** Windows, macOS, and Linux. CPython 3.12 through 3.14 are the
-supported runtime matrix. Python 3.15 is still a release candidate and has an
-advisory Linux CI lane that always compiles the source and runs the full suite
-when the locked dependency set installs. Windows installation currently waits
-on an upstream `pywin32` CPython 3.15 wheel. Local models run on consumer GPUs
-via Ollama or LM Studio.
+**Platforms:** Windows, macOS, and Linux. CPython 3.12 through 3.15 are the
+blocking core runtime matrix; 3.15 is the development and container default.
+The optional entailment extra supports 3.15 on Windows and Linux with the
+explicit CPU recipe below; generic PyPI PyTorch wheels currently stop at 3.14.
+PyYAML currently builds from source on 3.15, so some
+fresh installations may need build tools. The 3.12 floor preserves the existing
+syntax and filesystem junction defenses. Local models run on CPU or consumer
+GPUs via Ollama or LM Studio.
 
 ## Guided setup (`distill init`)
 
@@ -275,6 +277,39 @@ Local mode still uses fresh sources. `DISTILL_PROVIDER=ollama` or
 it does not answer from model pretraining alone. Discovery and ingest still
 fetch current public sources such as arXiv, YouTube, feeds, sites, repos, and
 local files.
+
+## CPU-only prose verification
+
+The ordinary install checks numeric tokens. It cannot certify prose support.
+The optional HHEM checker runs on this machine and adds prose scores; those
+scores still need human interpretation. Its first use downloads model weights.
+
+For Linux x86_64 or Windows CPU use, select the official CPU wheel explicitly:
+
+```bash
+uv tool install --python 3.15 --torch-backend cpu --with 'torch==2.14.1+cpu' 'distillr[entailment]'
+```
+
+For a project environment, install the CPU wheel first, then the extra:
+
+```bash
+uv venv --python 3.15 .venv
+uv pip install --python .venv --torch-backend cpu 'torch==2.14.1+cpu'
+uv pip install --python .venv 'distillr[entailment]'
+```
+
+Use the native PyTorch wheel on macOS; the CPU index above is not a macOS
+installation recipe. Keep a native macOS extra-enabled tool on Python 3.12
+through 3.14 until its wheels are available. The official CPU index supplies
+3.15 wheels separately from PyPI. A Windows 3.15 CPU installation and real HHEM
+scoring passed locally; Linux 3.15 CPU wheels were checked for availability.
+Distill does not silently skip the extra.
+The generic extra can pull large CUDA dependencies on Linux even without a GPU.
+The backend selector directs only PyTorch packages to the official CPU index;
+other dependencies retain their normal index. This avoids an older package on
+the CPU index masking a patched dependency on PyPI.
+See [PyTorch's platform selector](https://pytorch.org/get-started/locally/) and
+the [measured CPU validation](research/maintenance-2026-10-17.md).
 
 ## Updates
 

@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+FROM python:3.15-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
 
 # Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,9 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install distillr
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY distill/ ./distill/
-RUN pip install --no-cache-dir -e .
+ENV UV_PYTHON_DOWNLOADS=never
+RUN uv sync --frozen --no-dev
+ENV PATH="/app/.venv/bin:${PATH}"
 
 # Install Playwright browsers
 RUN playwright install chromium

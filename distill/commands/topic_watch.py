@@ -59,7 +59,7 @@ from distill.pipeline.dashboard_data import (
 )
 from distill.pipeline.summary import log_preview_cost
 
-_ACCENT = "rgb(100,149,237)"
+_ACCENT = "cyan"
 
 _preflight = run_preflight
 _preview_learning_selection = preview_learning_selection

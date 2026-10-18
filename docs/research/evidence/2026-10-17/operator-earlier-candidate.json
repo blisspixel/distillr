@@ -1,0 +1,586 @@
+{
+  "schema_version": "operator-journey.v1",
+  "generated_at": "2026-10-18T04:01:05.867087+00:00",
+  "platform": "Windows",
+  "release": "11",
+  "architecture": "AMD64",
+  "cpu": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+  "logical_cpus": 32,
+  "ram_bytes": 68630257664,
+  "python": "3.15.0",
+  "version": "0.20.7",
+  "wheel_sha256": "2ac6fb0de8aa7763937d336b24d4903a60579f2ee174fd97535b04834a24d189",
+  "provider": "ollama",
+  "model": "gemma4:e2b",
+  "quantization": "Q4_K_M",
+  "cost_mode": "no-metered",
+  "ollama_no_cloud": true,
+  "requested_device": "cpu",
+  "commands": [
+    {
+      "label": "init-no-daemon",
+      "argv": [
+        "distill",
+        "init",
+        "--provider",
+        "local",
+        "--yes",
+        "--no-browser"
+      ],
+      "exit_code": 1,
+      "wall_seconds": 3.81,
+      "stdout_sha256": "4fc40922b98a478a203ccf2a11e5769f49c726d0bdac7c3ff9b200d1453569b6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "cf78534a9c9e5b1870d1ed3cdccbe569489a3f17e28ba45409b8da5fb2d9c0ea"
+      }
+    },
+    {
+      "label": "bench-no-daemon",
+      "argv": [
+        "distill",
+        "bench"
+      ],
+      "exit_code": 1,
+      "wall_seconds": 3.169,
+      "stdout_sha256": "dacab9e1d901de8b9b5f3fb3b0cc76224cc2f6889d35f4e669e189cbadcbf254",
+      "stderr_sha256": "61a04c67992ea04cf7422d05755ec3636f7551cf960503b232686d4c58f9e82c",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "6c0c592a8d9db6944c1a528adf10c34c18039e9e4e83c989c4e9a3dbdacd1366"
+      }
+    },
+    {
+      "label": "init-ready",
+      "argv": [
+        "distill",
+        "init",
+        "--provider",
+        "local",
+        "--yes",
+        "--no-browser"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.94,
+      "stdout_sha256": "a01de71ec692b90f148f7622a0eee622008b01fe76f95dbfa7f366e3d2829da2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "5778f2ee10d3ceb13c0bfc14511feccb6fe22c7dac4565a126515cc439163389"
+      }
+    },
+    {
+      "label": "doctor-ready",
+      "argv": [
+        "distill",
+        "--json",
+        "doctor"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 6.847,
+      "stdout_sha256": "4612a75e5d53366283a9d625ffc6f431caf21dde2e735cf8e999a65badfed220",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "15e1c27313d4a72b1d574d7f217ecf543aa174ca1329c3d2b91dc0dcba3ba37e"
+      }
+    },
+    {
+      "label": "bench-cpu",
+      "argv": [
+        "distill",
+        "bench",
+        "--models",
+        "gemma4:e2b",
+        "--json"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 16.857,
+      "stdout_sha256": "07f9b359c89740f4e7d383460608a7f102d1df6744bfbf97bb4cfeeaa4bf7b55",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "4793071549eded74ab29dca45978f669e1d2b27a0a18d190e91b38f2628925d1",
+        ".distill/bench/results.jsonl": "96bba10024426d9b064e2fe69404ca6ad2841fbe7588651bd1e555ec227cf577"
+      }
+    },
+    {
+      "label": "bench-missing-model",
+      "argv": [
+        "distill",
+        "bench",
+        "--models",
+        "distillr-validation-missing:0"
+      ],
+      "exit_code": 1,
+      "wall_seconds": 1.456,
+      "stdout_sha256": "e90e7631aa4d501c892a7285344c473ab0cc5be30c296231e5faf562b64e9d8e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "ec761fd83bcf427743a90b7114f2bcd4f19a67e345843ec462995b1ac7bdcb08",
+        ".distill/bench/results.jsonl": "71c2c40385d39f260af6c97fd35aa951ddeee75c8a88da45440ee5e1b927f6ea"
+      }
+    },
+    {
+      "label": "preview",
+      "argv": [
+        "distill",
+        "papers",
+        "temporal knowledge graph",
+        "--topic",
+        "papers",
+        "--limit",
+        "1",
+        "--preview",
+        "--no-expand",
+        "--no-rerank"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.835,
+      "stdout_sha256": "2741387d98ac574e5c92144cc3daaf5680cb747f8d5dd6ae60c4e6508fc24808",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/cost_log.jsonl": "60888e138e06359e78acf2baa13a28766e18bd2ec617d7dcadf903363a5a2f8f",
+        ".distill/last-paper-shortlist.json": "59da46d724e82cbfc07abfa5bc7630b4a2d3fc22b6487dd20b79fc61672197ec",
+        ".distill/phase_telemetry.jsonl": "dc9005d1404a0203a4f694e11195101062d8d9993bbccad3bc80946eafe1bd75",
+        "topics/papers/.distill/shortlists/4bdd3b07d0ac.json": "97c82a0b68a634a2d5b1e838b94fa8323bb336de6af2292067829ca1b4446456"
+      }
+    },
+    {
+      "label": "interrupted-ingest",
+      "argv": [
+        "distill",
+        "ingest",
+        "research-note.md",
+        "--topic",
+        "local"
+      ],
+      "exit_code": 1,
+      "wall_seconds": 0.967,
+      "files_written": {
+        "topics/local/local/research-note_research/research_note_research_Content.md": "cc484896ab0a095b7f4e16f29aa089d4f1e006372861d7b1c03fc52c7a760d8d"
+      }
+    },
+    {
+      "label": "ingest-recovery",
+      "argv": [
+        "distill",
+        "ingest",
+        "research-note.md",
+        "--topic",
+        "local"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 45.963,
+      "stdout_sha256": "a7455d425795c94753edef7b5bf7859d2fdf15b977ec72abdcd40b04c89fc06c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/cost_log.jsonl": "480259ad567c7478503e8b03e2874c0d163bef05e5a50aecee0e8eeb83d0615f",
+        ".distill/phase_telemetry.jsonl": "ab98ae2320a1f9aadb6eaf1a87b174f0d724c6458448e9d5c1da919d8e592206",
+        ".distill/telemetry.jsonl": "1399b65a35d392ff012a386cf7d63e1ee816cad32d1b44009219c5cc4d2eeff9",
+        "topics/local/local/research-note_research/research_note_research_Insights.md": "f0e6b865b4f0d63c1746fb0feac9c4568da58e7a12cebb86a7d3e5d47bda0faa",
+        "topics/local/local/research-note_research/research_note_research_Verify.json": "2c0c771a2da2387425284e48cd1aa04ee78be0d704ede09080f800cf02c18f15",
+        "topics/local/local/research-note_research/.history/b4929ecc701aa446892f654b0f7d1daadd92616f18f75f417de98aee270a5a7d/manifest.json": "b4929ecc701aa446892f654b0f7d1daadd92616f18f75f417de98aee270a5a7d",
+        "topics/local/local/research-note_research/.history/b4929ecc701aa446892f654b0f7d1daadd92616f18f75f417de98aee270a5a7d/research_note_research_Content.md": "cc484896ab0a095b7f4e16f29aa089d4f1e006372861d7b1c03fc52c7a760d8d"
+      }
+    },
+    {
+      "label": "ingest-no-op",
+      "argv": [
+        "distill",
+        "ingest",
+        "research-note.md",
+        "--topic",
+        "local"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.11,
+      "stdout_sha256": "8a6cc9ae67d463a076d31306737a642b59328466ae931447491989fde8413797",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/cost_log.jsonl": "50ed78125e0073ff468cf7e6f60c5e516882a909e7265d295bb092ab85edd6ae",
+        ".distill/phase_telemetry.jsonl": "905721372bd4c3bd90ca196b02fac0c64d5d7b7210608ead654348f52ef02b95"
+      }
+    },
+    {
+      "label": "ask",
+      "argv": [
+        "distill",
+        "ask",
+        "How many entities does ICEWS14 contain, and what security claims does this note support?",
+        "--topic",
+        "local"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 32.892,
+      "stdout_sha256": "800a6ced55dec881d27a1b847cc1ea1a9e59effe23df1cc59010b15fe2dbd12a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/cost_log.jsonl": "b45c3f58cb0e2c45d63697ad2da8a7da53eede6ff85460df3d548c2894cdfc93",
+        ".distill/phase_telemetry.jsonl": "c6d95f7919c5953ddf248ccfd42764d09aced1172df7ea938a9c02a3c3aceb51",
+        ".distill/telemetry.jsonl": "ee1153adbfb45e92f3f1b76182e89f7f3d77db08ea2200c16721978b9ccc5453"
+      },
+      "publication": "refused; candidate incorrectly returned exit 0, fixed afterward"
+    },
+    {
+      "label": "audit",
+      "argv": [
+        "distill",
+        "audit",
+        "local",
+        "--report-only"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.186,
+      "stdout_sha256": "5f17f0da557380aa4766f4e125fc4ac4cd4cf755613cf28491c2ce8a15d011f8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/phase_telemetry.jsonl": "555814bae3790a1ab0ecd0c227150bfaf90f2fb807df639b408aa415074e5365",
+        "topics/local/local_Audit.md": "646025792a79db913b993af4555c8038156a35afc416a0c040e1592ff5190a95",
+        "topics/local/.distill/quality-history.jsonl": "0420a4e81254bd6e8ebdb104f51467fa53677d6d4eb4e3e09bd260b25a1ba8db"
+      }
+    },
+    {
+      "label": "ingest-force",
+      "argv": [
+        "distill",
+        "ingest",
+        "research-note.md",
+        "--topic",
+        "local",
+        "--force"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 46.459,
+      "stdout_sha256": "6772854445bf009d2554739f8806cae1aeaa7f6d270fd19f0f7c0e91e2290ffe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "files_written": {
+        ".distill/cost_log.jsonl": "fecde2212f7f3b9b0de3c308dc7db2048f0ff54c82199b71184324f64d21cc48",
+        ".distill/phase_telemetry.jsonl": "808de92315a4f7fa0a747f493ba112a6f482298712b0a554b591e3f4b9f147bf",
+        ".distill/telemetry.jsonl": "ad70601595e537494c690a1d9a054a94dd885a4c44591669abdb88167fb16805",
+        "topics/local/local/research-note_research/research_note_research_Insights.md": "e727c9c5d73c634cda9d864829fbfc64c62a63f215247fa968d3e9fb5d05d8cf",
+        "topics/local/local/research-note_research/research_note_research_Verify.json": "ecf36749877cac76541642db7854ce2471765e33e0d077a4378a9e3fda34f553",
+        "topics/local/local/research-note_research/.history/0e08360af0f8ba6d29537ff49d9d74847f7daede32365c5d1dde7961aba375ef/manifest.json": "0e08360af0f8ba6d29537ff49d9d74847f7daede32365c5d1dde7961aba375ef",
+        "topics/local/local/research-note_research/.history/0e08360af0f8ba6d29537ff49d9d74847f7daede32365c5d1dde7961aba375ef/research_note_research_Content.md": "cc484896ab0a095b7f4e16f29aa089d4f1e006372861d7b1c03fc52c7a760d8d",
+        "topics/local/local/research-note_research/.history/0e08360af0f8ba6d29537ff49d9d74847f7daede32365c5d1dde7961aba375ef/research_note_research_Insights.md": "f0e6b865b4f0d63c1746fb0feac9c4568da58e7a12cebb86a7d3e5d47bda0faa",
+        "topics/local/local/research-note_research/.history/0e08360af0f8ba6d29537ff49d9d74847f7daede32365c5d1dde7961aba375ef/research_note_research_Verify.json": "2c0c771a2da2387425284e48cd1aa04ee78be0d704ede09080f800cf02c18f15"
+      }
+    },
+    {
+      "label": "paper-from-preview",
+      "argv": [
+        "distill",
+        "papers",
+        "--run-last-preview",
+        "--limit",
+        "1",
+        "--verify",
+        "warn"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 422.688,
+      "stdout_sha256": "ec16ce2f42439628686ca7a52ad36eddee8ad3ed2dc722ffeb899bf6a2da4eb8",
+      "stderr_sha256": "56f2fd7659c6bc2bf6d7f901ff2ee31951de2bb8bf9fdc860358bbea5ff69480",
+      "files_written": {
+        "AGENTS.md": "ae2143cbf8aea23de34ba87e8b2ce79a25b109a03c5b9a7470d4850b2d24b2d7",
+        "CLAUDE.md": "ae2143cbf8aea23de34ba87e8b2ce79a25b109a03c5b9a7470d4850b2d24b2d7",
+        "latest_run.json": "ce8535f4dd3f65caa2d0526ac06b8a384a2ff193948c70ced1a46b3961eb16e9",
+        "latest_run_errors.md": "112e173ae5294e895be45ee750244daeabdba07222a9dc4f925d22472abd31a6",
+        "run_log.jsonl": "e82ab7175146972c87d942d12ec60f7f968885405f39be674abff18ab24ed003",
+        ".distill/cost_log.jsonl": "56c717f1c2dd09a1d1fea04ea42ff6339c11a491d2c7174fa92aa7beeae94ab6",
+        ".distill/phase_telemetry.jsonl": "53b182b40dc9d8dcd8c7abf9338e210fdee5ef1985caece0b1b1daaea07f44dd",
+        ".distill/telemetry.jsonl": "8348ebbae6849c1115973ac47520c0775335dc39f2a394fefa77693fe5cf583b",
+        "topics/papers/AGENTS.md": "d4541fc15e9670c57b271872b67fcd8cb35afb43ea1928ebbd164a0e7fc1372e",
+        "topics/papers/CLAUDE.md": "d4541fc15e9670c57b271872b67fcd8cb35afb43ea1928ebbd164a0e7fc1372e",
+        "topics/papers/papers_Paper_Synthesis.md": "11d89576d056773560093d028611e2dec9d4128478e3047d97c07f1a5f145a83",
+        "topics/papers/papers_paper_synthesis_Verify.json": "a99eddfffbc84a50caf7de8157cfc8ee3d716e900296702b17df9c766bd13f3c",
+        "topics/papers/papers/a-temporal-knowledge-graph-for-music-festival-lineup-forecasting_2609244/a_temporal_knowledge_graph_for_music_festival_lineup_forecasting_2609244_Insights.md": "49b2d108c5153161fdde81bdfd6e74b660e0f8a8e06c3632128258b68ebc6880",
+        "topics/papers/papers/a-temporal-knowledge-graph-for-music-festival-lineup-forecasting_2609244/a_temporal_knowledge_graph_for_music_festival_lineup_forecasting_2609244_Paper.md": "1c5f3433886faaeb9ef41a07e59f6aa56929691a2b9bdf60d94de5f45d28bbe0",
+        "topics/papers/papers/a-temporal-knowledge-graph-for-music-festival-lineup-forecasting_2609244/a_temporal_knowledge_graph_for_music_festival_lineup_forecasting_2609244_Verify.json": "603bd0b74e352acd451e6f8955d8da392bde8d9d5d2493de4a94b07c3669a034",
+        "topics/papers/papers/a-temporal-knowledge-graph-for-music-festival-lineup-forecasting_2609244/metadata.json": "fe8c7c93c901c280bce83730834ebcd19b48221c4809ea6e209a5b309382a759"
+      }
+    }
+  ],
+  "daemon_cloud_proof": {
+    "cloud": {
+      "disabled": true,
+      "source": "both"
+    }
+  },
+  "model_runtime": [
+    {
+      "name": "gemma4:e2b",
+      "size": 6870039263,
+      "size_vram": 0,
+      "context_length": 13773,
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "gemma4",
+        "families": [
+          "gemma4"
+        ],
+        "parameter_size": "5.1B",
+        "quantization_level": "Q4_K_M"
+      }
+    }
+  ],
+  "cost_rows": [
+    {
+      "command": "papers_preview",
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 0.8,
+      "metadata": {
+        "topic": "papers",
+        "workflow": "papers",
+        "source_type": "paper",
+        "search_receipts": "[{\"query\": \"temporal knowledge graph\", \"captured_at\": \"2026-10-18T04:01:43.097330+00:00\", \"status\": \"successful\", \"result_count\": 10, \"reason\": \"\"}]"
+      },
+      "by_call_type": {},
+      "by_provider": {},
+      "usage_ledger": {
+        "llm_calls": 0,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 0,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    },
+    {
+      "command": "ingest",
+      "total_input_tokens": 352,
+      "total_output_tokens": 774,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 44.9,
+      "metadata": {
+        "topic": "local",
+        "source_type": "local",
+        "no_op": "false",
+        "verification_scope": "numeric-only; prose not checked; 0 recorded unsupported claim(s)",
+        "terminal": "success",
+        "workflow": "ingest"
+      },
+      "by_call_type": {
+        "local": {
+          "calls": 1,
+          "input_tokens": 352,
+          "output_tokens": 774
+        }
+      },
+      "by_provider": {
+        "ollama": {
+          "calls": 1,
+          "input_tokens": 352,
+          "output_tokens": 774,
+          "provider_name": "ollama",
+          "provider_type": "local",
+          "no_metered_cost": true
+        }
+      },
+      "usage_ledger": {
+        "llm_calls": 1,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 1,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    },
+    {
+      "command": "ingest",
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 0.1,
+      "metadata": {
+        "topic": "local",
+        "source_type": "local",
+        "no_op": "true",
+        "verification_scope": "numeric-only; prose not checked; 0 recorded unsupported claim(s)",
+        "terminal": "success",
+        "workflow": "ingest"
+      },
+      "by_call_type": {},
+      "by_provider": {},
+      "usage_ledger": {
+        "llm_calls": 0,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 0,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    },
+    {
+      "command": "ask",
+      "total_input_tokens": 877,
+      "total_output_tokens": 441,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 31.9,
+      "metadata": {
+        "topic": "local",
+        "workflow": "ask",
+        "source_type": "answer"
+      },
+      "by_call_type": {
+        "ask": {
+          "calls": 1,
+          "input_tokens": 877,
+          "output_tokens": 441
+        }
+      },
+      "by_provider": {
+        "ollama": {
+          "calls": 1,
+          "input_tokens": 877,
+          "output_tokens": 441,
+          "provider_name": "ollama",
+          "provider_type": "local",
+          "no_metered_cost": true
+        }
+      },
+      "usage_ledger": {
+        "llm_calls": 1,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 1,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    },
+    {
+      "command": "ingest",
+      "total_input_tokens": 352,
+      "total_output_tokens": 788,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 45.4,
+      "metadata": {
+        "topic": "local",
+        "source_type": "local",
+        "no_op": "false",
+        "verification_scope": "numeric-only; prose not checked; 0 recorded unsupported claim(s)",
+        "terminal": "success",
+        "workflow": "ingest"
+      },
+      "by_call_type": {
+        "local": {
+          "calls": 1,
+          "input_tokens": 352,
+          "output_tokens": 788
+        }
+      },
+      "by_provider": {
+        "ollama": {
+          "calls": 1,
+          "input_tokens": 352,
+          "output_tokens": 788,
+          "provider_name": "ollama",
+          "provider_type": "local",
+          "no_metered_cost": true
+        }
+      },
+      "usage_ledger": {
+        "llm_calls": 1,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 1,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    },
+    {
+      "command": "papers",
+      "total_input_tokens": 22648,
+      "total_output_tokens": 4526,
+      "actual_cost": 0.0,
+      "elapsed_seconds": 421.5,
+      "metadata": {
+        "topic": "papers",
+        "workflow": "papers",
+        "source_type": "paper",
+        "search_receipts": "[{\"query\": \"temporal knowledge graph\", \"captured_at\": \"2026-10-18T04:01:43.097330+00:00\", \"status\": \"successful\", \"result_count\": 10, \"reason\": \"\"}]"
+      },
+      "by_call_type": {
+        "paper": {
+          "calls": 1,
+          "input_tokens": 19115,
+          "output_tokens": 2555
+        },
+        "paper_synthesis": {
+          "calls": 1,
+          "input_tokens": 3533,
+          "output_tokens": 1971
+        }
+      },
+      "by_provider": {
+        "ollama": {
+          "calls": 2,
+          "input_tokens": 22648,
+          "output_tokens": 4526,
+          "provider_name": "ollama",
+          "provider_type": "local",
+          "no_metered_cost": true
+        }
+      },
+      "usage_ledger": {
+        "llm_calls": 2,
+        "metered_llm_calls": 0,
+        "no_metered_llm_calls": 2,
+        "host_managed_llm_calls": 0,
+        "unknown_external_cost_llm_calls": 0,
+        "unknown_external_cost_calls": 0,
+        "conservative_usage_calls": 0,
+        "gemini_queries": 0,
+        "gemini_query_outcomes": {},
+        "transcription_calls": 0,
+        "metered_transcription_calls": 0,
+        "no_metered_transcription_calls": 0,
+        "unknown_external_cost_transcription_calls": 0
+      }
+    }
+  ],
+  "cost_usd": 0,
+  "coordination_locks_retained": 34,
+  "unexpected_temporary_files": [],
+  "evidence_status": "earlier candidate; ask refusal exposed grouped-citation bug, fixed afterward",
+  "earlier_attempt": "A first attempt failed because its environment omitted the custom model store; retained privately.",
+  "limitations": [
+    "This candidate predates the final grouped-citation, checker-failure and reuse-threshold repairs.",
+    "The paper run flagged one numeric claim and is not a semantic quality pass.",
+    "Persistent coordination locks are expected; removing their identity can split mutual exclusion."
+  ]
+}

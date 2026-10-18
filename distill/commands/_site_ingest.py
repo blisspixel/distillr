@@ -153,7 +153,7 @@ def _report_capture_failures(
         # that stopped the whole crawl genuinely did leave work undone.
         summary.add_issue(
             "site-capture",
-            f"Page {capture_failure_label(failure.outcome)}.",
+            f"Page {capture_failure_label(failure.outcome)}. {failure.redacted().detail}".rstrip(),
             context=url_for_diagnostic(failure.url),
             severity="error" if failure.stopped_the_crawl else "warning",
             details={
@@ -496,7 +496,7 @@ def process_site_seed(  # noqa: C901 - legacy site ingest helper
                 insight_name=insights_path.name,
                 source_name=content_path.name,
             )
-            if outcome is not None and outcome.has_flags:
+            if outcome is not None:
                 style = "red" if outcome.refused else "yellow"
                 console.print(f"  [{style}]{outcome.summary_line}[/{style}]")
             if outcome is not None and outcome.refused:

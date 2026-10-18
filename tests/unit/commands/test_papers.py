@@ -121,6 +121,35 @@ def _invoke_papers(*extra: str):
     )
 
 
+@pytest.mark.parametrize("command", ["paper", "papers"])
+def test_strict_paper_publication_refusal_is_nonzero_and_does_not_synthesize(
+    paper_config, monkeypatch, command
+):
+    record = _paper()
+    paper_config.distill_verify = "strict"
+    monkeypatch.setattr(papers_cmd, "fetch_arxiv_paper", lambda target: record)
+    monkeypatch.setattr(papers_cmd, "search_arxiv_papers", lambda *a, **k: [record])
+    monkeypatch.setattr(papers_cmd, "rerank_papers", lambda *a, **k: [_ranked(record)])
+    monkeypatch.setattr(
+        papers_cmd,
+        "analyze_paper",
+        lambda *a, **k: ("The score reached 99.9 MRR.", "The score was 72.6 MRR."),
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "synthesize_papers",
+        lambda *a, **k: pytest.fail("Refused paper must not trigger synthesis"),
+    )
+    args = [command, record.paper_id if command == "paper" else "query", "--topic", "strict"]
+    if command == "papers":
+        args += ["--no-expand", "--no-rerank"]
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 1, result.output
+    assert "verify strict: refused" in result.output
+    assert list(paper_config.topic_dir("strict").rglob("*_Paper.md"))
+    assert not list(paper_config.topic_dir("strict").rglob("*_Insights.md"))
+
+
 def test_paper_batch_workers_bound_analysis_and_serialize_writes(
     paper_config,
     monkeypatch,
@@ -711,7 +740,8 @@ def test_papers_converged_corpus_is_a_clean_no_op(paper_config, monkeypatch):
     assert result.exit_code == 0, result.output
     assert rerank_calls == []
     assert "Excluded 1 paper(s) already in 'research'" in result.output
-    assert "Corpus is current" in result.output
+    assert "Every returned paper is already" in result.output
+    assert "Corpus is current" not in result.output
 
 
 def test_papers_isolates_item_failure_and_runs_requested_concepts(
@@ -1243,3 +1273,40 @@ def test_saved_shortlist_can_be_refused_as_stale(paper_config, monkeypatch) -> N
     stale = runner.invoke(cli.app, ["papers", "--run-last-preview", "--topic", "tkg"])
     assert stale.exit_code == 1
     assert "DISTILL_SHORTLIST_MAX_AGE_HOURS" in stale.output
+
+
+@pytest.mark.parametrize("captured", ["2607.00001v1", "2607.00001v3"])
+def test_saved_preview_rechecks_library_without_substituting_latest(
+    paper_config, monkeypatch, captured
+):
+    from distill.pipeline.paper_shortlist import save_paper_shortlist
+
+    reviewed = _paper("2607.00001v2")
+    save_paper_shortlist(
+        paper_config,
+        topic="tkg",
+        query="temporal",
+        expansion_queries=["temporal"],
+        model="local",
+        ranked=[_ranked(reviewed)],
+    )
+    observed = []
+    monkeypatch.setattr(
+        "distill.library.ingested.ingested_source_ids", lambda topic: frozenset({captured})
+    )
+    monkeypatch.setattr(
+        papers_cmd, "_run_paper_ingest", lambda **kwargs: observed.extend(kwargs["ranked"])
+    )
+    monkeypatch.setattr(
+        papers_cmd,
+        "search_arxiv_papers",
+        lambda *a, **k: pytest.fail("Replay must not search for a newer revision"),
+    )
+    result = runner.invoke(cli.app, ["papers", "--run-last-preview", "--topic", "tkg"])
+    assert result.exit_code == 1, result.output
+    assert observed == []
+    if captured.endswith("v1"):
+        assert "2607.00001v2" in result.output
+        assert "Revision publication requires" in result.output
+    else:
+        assert "Saved shortlist is empty" in result.output

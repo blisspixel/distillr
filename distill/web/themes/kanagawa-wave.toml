@@ -1,0 +1,16 @@
+name = "Kanagawa Wave"
+slug = "kanagawa-wave"
+variant = "dark"
+source = "https://github.com/rebelot/kanagawa.nvim"
+
+[colors]
+bg = "#1f1f28"
+surface = "#2a2a37"
+text = "#dcd7ba"
+muted = "#c8c093"
+accent = "#7e9cd8"
+success = "#98bb6c"
+warning = "#e6c384"
+error = "#ff5d62"
+info = "#7fb4ca"
+selection = "#223249"

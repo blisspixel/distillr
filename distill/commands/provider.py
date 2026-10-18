@@ -160,7 +160,7 @@ def provider_list_cmd(
     console.print(table)
     console.print()
     console.print("[dim]Models for one provider:[/dim]  distill provider list gemini")
-    console.print("[dim]Set default route:[/dim]     distill provider set gemini gemini-3.7-flash")
+    console.print("[dim]Set default route:[/dim]     distill provider set gemini gemini-3.8-flash")
 
 
 @provider_app.command("set")
@@ -186,7 +186,7 @@ def provider_set_cmd(
     pass an explicit provider (and a model for local or agent routes).
 
     Examples:
-      distill provider set gemini gemini-3.7-flash
+      distill provider set gemini gemini-3.8-flash
       distill provider set gemini
       distill provider set ollama qwen3.5:27b
       distill provider set
@@ -317,7 +317,7 @@ def _resolve_set_selection(
         if not interactive:
             raise ValueError(
                 "Provider is required without a TTY. "
-                "Example: distill provider set gemini gemini-3.7-flash"
+                "Example: distill provider set gemini gemini-3.8-flash"
             )
         chosen_provider = _prompt_provider()
 
