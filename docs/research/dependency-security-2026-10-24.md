@@ -77,7 +77,18 @@ older uv, or kept an old virtual environment. Application upgrade steps are in
 [install.md](../install.md#updates). No exploit was run.
 
 `find_insights` and `read_insight` now carry snapshot identity. Issue #62 is
-addressed by that handoff. Issues #61 and #63 stay open: local reasoning
-evidence and the research-recipe comparison still need expert-reviewed quality
-evidence and belong to the `0.20.9` baseline. Defaults are unchanged. The
-freeze-time medium-or-higher gate remains `0.20.11`.
+addressed by that handoff. Issue #61 has an opt-in Ollama boolean think
+control and an inconclusive on-device receipt. Issue #63 has the offline
+recipe identity check. Expert review and semantic trials have not been run.
+Those quality questions belong to the `0.20.9` baseline. Defaults are
+unchanged. The freeze-time medium-or-higher gate remains `0.20.11`.
+
+On 2026-10-24 Dependabot alerts 1, 2, 3, 6, and 7 were still open. Each
+recorded `version_requirement` `= 4.57.6` from 2026-10-12. `uv.lock` resolves
+`transformers` `5.20.2`, and the GitHub dependency graph package versionInfo
+for `transformers` is `5.20.2`. That version is outside each alert's GitHub
+vulnerable range (`< 5.0.0rc3`, `< 5.3.0`, `< 5.5.0`, `< 5.10.0`, and
+`>= 4.49.0, <= 5.8.1`). The alerts were dismissed as inaccurate. The
+dismissal does not say that `4.57.6` was unaffected, and it does not treat
+an unused loader as a substitute for the version floor. GitHub had not
+auto-closed the alerts after the lock update.

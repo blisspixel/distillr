@@ -22,6 +22,7 @@ from distill.llm.cost_policy import (
     classify_provider,
     local_provider_endpoint_is_valid,
 )
+from distill.llm.local_reasoning import confirm_effective, plan_ollama_think
 
 # Re-exported for callers/tests that import it from this module; the redundant
 # alias marks the intentional re-export (the transport code does not use it).
@@ -30,20 +31,18 @@ from distill.llm.providers._ollama_metadata import (
 )
 from distill.llm.providers._ollama_metadata import (  # pyright: ignore[reportPrivateUsage]  -- private helpers shared with the transport module
     _describe_ollama_error,
+    _is_thinking_model,
     build_chat_payload,
-    parse_chat_frame,
     parse_context_window,
-)
-from distill.llm.providers._ollama_metadata import (
-    frame_seconds as _frame_seconds,
 )
 from distill.llm.providers._ollama_registry import (
     TagRegistryLimits,
     parse_running_model_names,
     parse_tags_response,
 )
-from distill.llm.providers._ollama_show import ShowProbe, require_no_remote_metadata
+from distill.llm.providers._ollama_show import ShowProbe
 from distill.llm.providers._ollama_slot import wait_for_model_slot
+from distill.llm.providers._ollama_stream import stream_chat
 from distill.llm.providers._usage import conservative_usage
 from distill.llm.retry import is_permanent_error
 from distill.llm.types import LLM_Response
@@ -126,8 +125,9 @@ class OllamaProvider:
         retries: int = 2,
         temperature: float | None = None,
         call_type: str = "",
-        reasoning_effort: str | None = None,  # Ignored for local models
+        reasoning_effort: str | None = None,
         usage_sink: UsageAttemptSink | None = None,
+        local_think: bool | None = None,
     ) -> LLM_Response:
         """Send a prompt to Ollama and return an LLM_Response.
 
@@ -149,6 +149,13 @@ class OllamaProvider:
         thinking_degraded = False
         bonus_attempts = 0
         attempt = -1
+        think_plan = plan_ollama_think(
+            explicit_think=None,
+            reasoning_effort=None,
+            supports_thinking=False,
+            name_suggests_thinking=False,
+            structured_json=False,
+        )
         while attempt < retries + bonus_attempts:
             attempt += 1
             prompt_sent = False
@@ -157,6 +164,15 @@ class OllamaProvider:
                 # Size the context to prompt + output + headroom so a model's huge
                 # default window does not allocate a KV cache that spills VRAM.
                 num_ctx = await self._adaptive_num_ctx(model, prompt, max_tokens)
+                supports_thinking = await self._show.supports_thinking(model)
+                think_plan = plan_ollama_think(
+                    explicit_think=None if thinking_degraded else local_think,
+                    reasoning_effort=reasoning_effort,
+                    supports_thinking=supports_thinking,
+                    name_suggests_thinking=_is_thinking_model(model),
+                    structured_json=call_type in _STRUCTURED_JSON_CALL_TYPES,
+                    degraded=thinking_degraded,
+                )
                 payload = self._build_chat_payload(
                     model,
                     prompt,
@@ -164,11 +180,24 @@ class OllamaProvider:
                     num_ctx=num_ctx,
                     temperature=temperature,
                     call_type=call_type,
-                    supports_thinking=await self._show.supports_thinking(model),
+                    supports_thinking=supports_thinking,
+                    local_think=None if thinking_degraded else local_think,
+                    reasoning_effort=reasoning_effort,
+                    degraded=thinking_degraded,
                 )
                 prompt_sent = True
-                response = await self._stream_chat(model, payload, timeout)
-                response = replace(response, num_ctx=num_ctx)
+                response, trace_present = await self._stream_chat(model, payload, timeout)
+                response = replace(
+                    response,
+                    num_ctx=num_ctx,
+                    reasoning_requested=think_plan.requested,
+                    reasoning_sent=think_plan.sent,
+                    reasoning_support=think_plan.support,
+                    reasoning_effective=confirm_effective(
+                        think_plan,
+                        trace_present=trace_present,
+                    ),
+                )
             except CostPolicyError as exc:
                 counts = (
                     conservative_usage(prompt=prompt, max_tokens=max_tokens)
@@ -233,6 +262,10 @@ class OllamaProvider:
                         usage_source="conservative",
                         outcome="error",
                         error_type=type(exc).__name__,
+                        reasoning_requested=think_plan.requested,
+                        reasoning_sent=think_plan.sent,
+                        reasoning_support=think_plan.support,
+                        reasoning_effective="unknown",
                     ),
                     usage_sink,
                 )
@@ -279,6 +312,10 @@ class OllamaProvider:
                         provider_type=self._provider_type,
                         usage_source=response.usage_source,
                         outcome="success",
+                        reasoning_requested=response.reasoning_requested,
+                        reasoning_sent=response.reasoning_sent,
+                        reasoning_support=response.reasoning_support,
+                        reasoning_effective=response.reasoning_effective,
                     ),
                     usage_sink,
                 )
@@ -324,71 +361,20 @@ class OllamaProvider:
     # Bound from ``_ollama_metadata`` so these stay callable as class methods.
     _build_chat_payload = staticmethod(build_chat_payload)
 
-    async def _stream_chat(self, model: str, payload: dict[str, Any], timeout: int) -> LLM_Response:
-        """POST /api/chat and assemble the streamed NDJSON frames into a response.
+    async def _stream_chat(
+        self,
+        model: str,
+        payload: dict[str, Any],
+        timeout: int,
+    ) -> tuple[LLM_Response, bool]:
+        """POST /api/chat. The boolean reports a thinking trace without storing it."""
 
-        ``timeout`` is the per-read (idle) timeout, not a total-time cap: a
-        long-but-progressing generation streams to completion, while a genuinely
-        stalled call fails after one idle window. The terminal (done) frame
-        carries cumulative token counts; ``content`` is the answer and
-        ``thinking`` the reasoning trace, used only when content is empty.
-        """
-        content_parts: list[str] = []
-        thinking_parts: list[str] = []
-        finish_reason = "incomplete"
-        input_tokens = 0
-        output_tokens = 0
-        load_seconds = 0.0
-        prefill_seconds = 0.0
-        decode_seconds = 0.0
-        async with (
-            httpx.AsyncClient(
-                timeout=httpx.Timeout(timeout, connect=10.0),
-                trust_env=self._trust_env,
-            ) as client,
-            client.stream("POST", f"{self._base_url}/api/chat", json=payload) as response,
-        ):
-            if response.status_code >= 400:
-                # Load the body so the raised error carries Ollama's message
-                # (e.g. an out-of-memory explanation) rather than an empty stream.
-                await response.aread()
-                response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line.strip():
-                    continue
-                # Provider-controlled input: skip frames we cannot read rather
-                # than raising past the retry loop and usage accounting.
-                parsed_frame = parse_chat_frame(line)
-                if parsed_frame is None:
-                    logger.debug("Skipping malformed Ollama chat frame")
-                    continue
-                frame, content_value, thinking_value = parsed_frame
-                require_no_remote_metadata(frame)
-                if content_value:
-                    content_parts.append(content_value)
-                if thinking_value:
-                    thinking_parts.append(thinking_value)
-                if frame.get("done"):
-                    finish_reason = str(frame.get("done_reason") or "stop")
-                    input_tokens = frame.get("prompt_eval_count", 0) or 0
-                    output_tokens = frame.get("eval_count", 0) or 0
-                    # Ollama reports each phase separately, in nanoseconds. They
-                    # are the only honest basis for a rate: wall-clock elapsed
-                    # includes a model load that can be 40s on a 17GB model.
-                    load_seconds = _frame_seconds(frame, "load_duration")
-                    prefill_seconds = _frame_seconds(frame, "prompt_eval_duration")
-                    decode_seconds = _frame_seconds(frame, "eval_duration")
-        content = "".join(content_parts)
-        thinking = "".join(thinking_parts)
-        return LLM_Response(
-            text=content if content else thinking,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+        return await stream_chat(
+            base_url=self._base_url,
+            trust_env=self._trust_env,
             model=model,
-            load_seconds=load_seconds,
-            finish_reason=finish_reason,
-            prefill_seconds=prefill_seconds,
-            decode_seconds=decode_seconds,
+            payload=payload,
+            timeout=timeout,
         )
 
     _MIN_NUM_CTX: int = 4096

@@ -17,6 +17,7 @@ from typing import Any, cast
 
 import httpx
 
+from distill.llm.local_reasoning import plan_ollama_think
 from distill.llm.providers._ollama_registry import bounded_context_window
 
 # Names re-imported by ``ollama.py`` (and, through it, its tests). Listing them
@@ -111,6 +112,9 @@ def build_chat_payload(
     temperature: float | None,
     call_type: str = "",
     supports_thinking: bool | None = None,
+    local_think: bool | None = None,
+    reasoning_effort: str | None = None,
+    degraded: bool = False,
 ) -> dict[str, Any]:
     """Assemble the /api/chat request body.
 
@@ -129,12 +133,18 @@ def build_chat_payload(
         "stream": True,
         "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
     }
-    thinking = _is_thinking_model(model) if supports_thinking is None else supports_thinking
     if _uses_structured_json(call_type):
         payload["format"] = "json"
-        payload["think"] = False
-    elif thinking:
-        payload["think"] = True
+    plan = plan_ollama_think(
+        explicit_think=local_think,
+        reasoning_effort=reasoning_effort,
+        supports_thinking=supports_thinking,
+        name_suggests_thinking=_is_thinking_model(model),
+        structured_json=_uses_structured_json(call_type),
+        degraded=degraded,
+    )
+    if plan.think is not None:
+        payload["think"] = plan.think
     if temperature is not None:
         payload["options"]["temperature"] = temperature
     return payload

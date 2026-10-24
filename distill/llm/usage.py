@@ -28,6 +28,10 @@ class LLMUsageAttempt:
     attempt_id: str = ""
     billed_cost_usd: float | None = None
     upstream_provider: str = ""
+    reasoning_requested: str = ""
+    reasoning_sent: str = ""
+    reasoning_support: str = ""
+    reasoning_effective: str = ""
 
     def with_identity(self) -> LLMUsageAttempt:
         """Return this attempt with a collision-resistant ledger identity."""
@@ -46,6 +50,10 @@ class LLMUsageAttempt:
             attempt_id=uuid4().hex,
             billed_cost_usd=self.billed_cost_usd,
             upstream_provider=self.upstream_provider,
+            reasoning_requested=self.reasoning_requested,
+            reasoning_sent=self.reasoning_sent,
+            reasoning_support=self.reasoning_support,
+            reasoning_effective=self.reasoning_effective,
         )
 
 

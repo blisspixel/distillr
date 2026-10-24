@@ -534,3 +534,6 @@ Claude Sonnet 5 uses Anthropic adaptive thinking by default. Distill omits
 explicit sampling parameters such as `temperature` for Sonnet 5 compatibility,
 while still forwarding `DISTILL_<WORKLOAD>_REASONING_EFFORT` as
 `output_config.effort` when explicitly set.
+Ollama accepts an explicit boolean `DISTILL_<WORKLOAD>_LOCAL_THINK`.
+Effort labels are not sent to Ollama or LM Studio. An unsupported explicit
+think setting fails before the call. The local default is unchanged.

@@ -27,6 +27,7 @@ from distill.eval.judge import (
     judge_faithfulness,
     judge_pairwise,
 )
+from distill.eval.recipe_contrast import ResearchRecipe, recipe_digest, runner_identity
 from distill.eval.scoring import QualityScore, score_output
 from distill.library.paths import atomic_write_json
 from distill.llm import call as llm_call
@@ -231,31 +232,39 @@ def _analyze(
     runner: Callable[[Fixture, RouterConfig, CostTracker], str],
     run_tracker: CostTracker,
     cache_dir: Path | None,
+    recipe_id: str,
 ) -> _Analysis:
     provider = provider_for_model(model)
     endpoint = local_provider_endpoint(provider) if provider in LOCAL_PROVIDERS else ""
     key = _hash(
-        "analysis-v2",
+        "analysis-v3",
         model,
         fixture.id,
         _src_hash(fixture),
         provider,
         _eval_provider_type(provider),
         endpoint,
+        recipe_id,
+        runner_identity(runner),
     )
     cached = _load_json(cache_dir, key)
     if cached is not None:
         try:
+            if cached.get("recipe_digest") != recipe_id:
+                raise ValueError("recipe digest does not match")
+            output = cached["output"]
+            if not isinstance(output, str):
+                raise TypeError("cached output must be text")
             return _Analysis(
-                output=cached["output"],
+                output=output,
                 cost=float(cached.get("cost", 0.0)),
                 input_tokens=int(cached.get("input_tokens", 0)),
                 output_tokens=int(cached.get("output_tokens", 0)),
                 cached=True,
             )
         except (KeyError, TypeError, ValueError):
-            # Malformed cache entry (missing/ill-typed fields): ignore it and
-            # recompute rather than crashing the sweep on a poisoned/corrupt row.
+            # A missing manifest, a mismatched recipe, or a corrupt row is not
+            # reusable. Recompute rather than crashing the sweep.
             logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
     row_tracker = run_tracker.concurrent_child()
     rc = RouterConfig(provider=provider, model=model)
@@ -317,6 +326,7 @@ def _analyze(
             "cost": analysis.cost,
             "input_tokens": analysis.input_tokens,
             "output_tokens": analysis.output_tokens,
+            "recipe_digest": recipe_id,
         },
     )
     return analysis
@@ -490,6 +500,7 @@ def run_model_eval(
     tracker: CostTracker | None = None,
     cache_dir: Path | None = None,
     analyze: Callable[[Fixture, RouterConfig, CostTracker], str] | None = None,
+    recipe: ResearchRecipe | None = None,
 ) -> list[EvalRow]:
     """Sweep ``models`` over the workload's fixtures; return scored rows.
 
@@ -500,6 +511,7 @@ def run_model_eval(
     run_tracker = tracker if tracker is not None else CostTracker()
     runner = analyze or _run_analysis
     fixtures = load_fixtures(workload)
+    digest = recipe_digest(recipe)
 
     # Phase 1: analysis for every (model, fixture). Model-outer on purpose — a
     # local model then stays loaded in VRAM across its fixtures instead of being
@@ -507,7 +519,14 @@ def run_model_eval(
     analyses: dict[tuple[str, str], _Analysis] = {}
     for model in models:
         for fixture in fixtures:
-            analyses[(model, fixture.id)] = _analyze(model, fixture, runner, run_tracker, cache_dir)
+            analyses[(model, fixture.id)] = _analyze(
+                model,
+                fixture,
+                runner,
+                run_tracker,
+                cache_dir,
+                digest,
+            )
 
     # Phase 2: pairwise judge each candidate vs the anchor's output, then score.
     rows: list[EvalRow] = []

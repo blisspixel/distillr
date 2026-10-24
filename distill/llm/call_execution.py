@@ -9,6 +9,14 @@ from dataclasses import dataclass, replace
 from time import monotonic as _monotonic
 from typing import Any, NoReturn, Protocol
 
+from distill.llm._call_telemetry import (
+    apply_ollama_call_kwargs as _apply_ollama_call_kwargs,
+)
+from distill.llm._call_telemetry import emit_telemetry as _emit_telemetry
+from distill.llm._call_telemetry import reasoning_text as _reasoning_text
+from distill.llm._call_telemetry import (
+    record_lmstudio_effort as _record_lmstudio_effort,
+)
 from distill.llm._usage_accounting import (
     capture_unreported_failure as _capture_unreported_failure,
 )
@@ -27,6 +35,7 @@ from distill.llm.fallback import (
     fallback_target,
     require_fallback_route_allowed,
 )
+from distill.llm.local_reasoning import local_think_override
 from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
 from distill.llm.providers._usage import projected_usage_attempt
 from distill.llm.reasoning import configured_anthropic_effort, resolve_xai_reasoning_effort
@@ -225,6 +234,7 @@ def _run_admitted_provider_call(
     *,
     strict_budget: bool,
 ) -> LLM_Response:
+    explicit_think = local_think_override(provider_name, options.workload_tag)
     provider = options.provider_getter(provider_name)
     provider_type = _provider_type(provider_name, provider)
     effective_timeout = (
@@ -246,11 +256,18 @@ def _run_admitted_provider_call(
     }
     if provider_type != "local":
         call_kwargs["usage_sink"] = options.usage_sink
+    _apply_ollama_call_kwargs(
+        call_kwargs,
+        provider_name=provider_name,
+        workload_tag=options.workload_tag,
+        explicit_think=explicit_think,
+    )
     if provider_name == "openrouter" and options.run_id:
         call_kwargs["session_id"] = options.run_id
     coroutine = provider.call(model, options.prompt, **call_kwargs)
     try:
         response = run_coroutine_sync(coroutine)
+        response = _record_lmstudio_effort(response, provider_name, options.workload_tag)
     except Exception as exc:
         attempts = tuple(
             normalize_attempt_identity(provider_name, provider_type, row).with_identity()
@@ -273,6 +290,10 @@ def _run_admitted_provider_call(
                 usage_attempts=attempts,
                 billed_cost_usd=successful_attempt.billed_cost_usd,
                 upstream_provider=successful_attempt.upstream_provider,
+                reasoning_requested=successful_attempt.reasoning_requested,
+                reasoning_sent=successful_attempt.reasoning_sent,
+                reasoning_support=successful_attempt.reasoning_support,
+                reasoning_effective=successful_attempt.reasoning_effective,
             )
             raise _PostResponseAccountingError(exc, response) from exc
         if not attempts:
@@ -449,49 +470,8 @@ def _record_route(
         usage_source=usage_source,
         billed_cost_usd=billed_cost_usd,
         upstream_provider=upstream_provider,
-    )
-
-
-def _emit_telemetry(
-    *,
-    ops_dir: str,
-    model: str,
-    workload_tag: str,
-    input_tokens: int,
-    output_tokens: int,
-    elapsed_seconds: float,
-    outcome: str,
-    error_type: str,
-    call_type: str,
-    run_id: str,
-    provider_type: str,
-    provider_name: str,
-    tokens_per_second: float,
-    usage_source: str,
-    billed_cost_usd: float | None = None,
-    upstream_provider: str = "",
-) -> None:
-    if not ops_dir:
-        return
-    from distill.llm.telemetry import Telemetry_Record, write_record
-
-    write_record(
-        ops_dir,
-        Telemetry_Record(
-            model=model,
-            workload_tag=workload_tag,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            elapsed_seconds=elapsed_seconds,
-            outcome=outcome,
-            error_type=error_type,
-            call_type=call_type,
-            run_id=run_id,
-            provider_type=provider_type,
-            provider_name=provider_name,
-            tokens_per_second=tokens_per_second,
-            usage_source=usage_source,
-            billed_cost_usd=billed_cost_usd,
-            upstream_provider=upstream_provider,
-        ),
+        reasoning_requested=_reasoning_text(attempts, response, "reasoning_requested"),
+        reasoning_sent=_reasoning_text(attempts, response, "reasoning_sent"),
+        reasoning_support=_reasoning_text(attempts, response, "reasoning_support"),
+        reasoning_effective=_reasoning_text(attempts, response, "reasoning_effective"),
     )

@@ -30,6 +30,10 @@ class TokenUsage:
     attempt_id: str = ""
     billed_cost_usd: float | None = None
     upstream_provider: str = ""
+    reasoning_requested: str = ""
+    reasoning_sent: str = ""
+    reasoning_support: str = ""
+    reasoning_effective: str = ""
     attempts: tuple[LLMUsageAttempt, ...] = ()
 
     def __post_init__(self) -> None:
@@ -80,6 +84,10 @@ class TokenUsage:
                 attempt_id=attempt.attempt_id,
                 billed_cost_usd=attempt.billed_cost_usd,
                 upstream_provider=attempt.upstream_provider,
+                reasoning_requested=attempt.reasoning_requested,
+                reasoning_sent=attempt.reasoning_sent,
+                reasoning_support=attempt.reasoning_support,
+                reasoning_effective=attempt.reasoning_effective,
             )
             for attempt in self.attempts
         )

@@ -58,6 +58,10 @@ class Telemetry_Record:
     usage_source: str = "unknown"  # reported, conservative, unavailable, or legacy unknown
     billed_cost_usd: float | None = None
     upstream_provider: str = ""
+    reasoning_requested: str = ""
+    reasoning_sent: str = ""
+    reasoning_support: str = ""
+    reasoning_effective: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +116,10 @@ _TEXT_FIELDS = (
     "provider_name",
     "usage_source",
     "upstream_provider",
+    "reasoning_requested",
+    "reasoning_sent",
+    "reasoning_support",
+    "reasoning_effective",
 )
 
 

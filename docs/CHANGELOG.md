@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `DISTILL_<WORKLOAD>_LOCAL_THINK` for Ollama. The value is `true` or
+  `false`. `low`, `medium`, and `high` are rejected and are not translated
+  into `think`. LM Studio has no verified thinking control, so an explicit
+  value fails before the call. A local effort setting is recorded as not
+  sent. Defaults are unchanged.
+- Analysis responses, usage attempts, and telemetry record the requested
+  reasoning setting, the sent control, the support basis, and whether the
+  runtime confirmed a thinking trace or the effect remains unknown. Thinking
+  text is not stored.
+- Offline recipe-contrast identity for a later research-quality comparison.
+  The analysis cache key binds the recipe digest and the analyzer. The
+  decision policy can keep the baseline, reject every failed variant, or stay
+  inconclusive. It does not adopt a candidate. See
+  [recipe-contrast-2026-10-24.md](design/recipe-contrast-2026-10-24.md).
+- An on-device Ollama 0.40.4 / `gemma4:e2b` comparison is recorded at
+  [local-think-gemma4-e2b.json](research/evidence/2026-10-24/local-think-gemma4-e2b.json).
+  Substring checks passed for both think settings. The result is inconclusive.
+  Defaults stay.
+
 ## 0.20.8 - 2026-10-24
 
 ### Fixed

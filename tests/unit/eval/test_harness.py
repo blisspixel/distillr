@@ -412,6 +412,7 @@ def test_analysis_keeps_remote_local_usage_and_fails_closed_on_unknown_cost(monk
         analyze,
         run_tracker,
         None,
+        "baseline",
     )
 
     assert analysis.error == "external cost unavailable for eval route"
@@ -446,6 +447,7 @@ def test_analysis_uses_run_tracker_budget_for_pre_call_authorization() -> None:
         analyze,
         run_tracker,
         None,
+        "baseline",
     )
 
     assert "BudgetExceeded" in analysis.error

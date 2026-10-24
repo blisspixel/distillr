@@ -37,6 +37,11 @@ class LLM_Response:
     num_ctx: int = 0
     # Empty when a provider does not report a terminal completion reason.
     finish_reason: str = ""
+    # Local reasoning receipt. These are control names, never prompt or trace text.
+    reasoning_requested: str = ""
+    reasoning_sent: str = ""
+    reasoning_support: str = ""
+    reasoning_effective: str = ""
 
 
 class UsageTracker(Protocol):

@@ -1023,6 +1023,95 @@ def test_local_telemetry_records_tokens_per_second() -> None:
         assert records[0].tokens_per_second == 12.5
 
 
+def test_explicit_local_think_reaches_the_ollama_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_LOCAL_THINK", "false")
+    config = RouterConfig(provider="ollama", model="gemma4:e2b")
+    mock_prov = Mock()
+    mock_prov.call.return_value = object()
+    response = LLM_Response(text="ok", input_tokens=1, output_tokens=1, model="gemma4:e2b")
+
+    with (
+        patch("distill.llm.router._get_provider", return_value=mock_prov),
+        patch("distill.llm.call_execution.run_coroutine_sync", return_value=response),
+    ):
+        call(config, "analysis", "test prompt")
+
+    assert mock_prov.call.call_args.kwargs["local_think"] is False
+
+
+def test_invalid_local_think_fails_before_the_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from distill.llm.local_reasoning import LocalReasoningConfigError
+
+    monkeypatch.setenv("DISTILL_ANALYSIS_LOCAL_THINK", "high")
+    config = RouterConfig(provider="ollama", model="gemma4:e2b")
+
+    with (
+        patch("distill.llm.router._get_provider") as get_provider,
+        pytest.raises(LocalReasoningConfigError, match="true or false"),
+    ):
+        call(config, "analysis", "test prompt")
+
+    get_provider.assert_not_called()
+
+
+def test_local_effort_reaches_ollama_without_becoming_a_think_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "high")
+    monkeypatch.delenv("DISTILL_ANALYSIS_LOCAL_THINK", raising=False)
+    config = RouterConfig(provider="ollama", model="gemma4:e2b")
+    mock_prov = Mock()
+    mock_prov.call.return_value = object()
+    response = LLM_Response(text="ok", input_tokens=1, output_tokens=1, model="gemma4:e2b")
+
+    with (
+        patch("distill.llm.router._get_provider", return_value=mock_prov),
+        patch("distill.llm.call_execution.run_coroutine_sync", return_value=response),
+    ):
+        call(config, "analysis", "test prompt")
+
+    kwargs = mock_prov.call.call_args.kwargs
+    assert kwargs["reasoning_effort"] == "high"
+    assert "local_think" not in kwargs
+
+
+def test_lmstudio_records_an_unsent_effort_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DISTILL_ANALYSIS_REASONING_EFFORT", "high")
+    monkeypatch.delenv("DISTILL_ANALYSIS_LOCAL_THINK", raising=False)
+    config = RouterConfig(provider="lmstudio", model="local-model")
+    mock_prov = Mock()
+    mock_prov.call.return_value = object()
+    response = LLM_Response(text="ok", input_tokens=1, output_tokens=1, model="local-model")
+
+    with (
+        patch("distill.llm.router._get_provider", return_value=mock_prov),
+        patch("distill.llm.call_execution.run_coroutine_sync", return_value=response),
+    ):
+        result = call(config, "analysis", "test prompt")
+
+    assert result.reasoning_requested == "think=unset;effort=high"
+    assert result.reasoning_sent == "think=omitted"
+    assert "not an LM Studio control" in result.reasoning_support
+    assert result.reasoning_effective == "unknown"
+
+
+def test_lmstudio_rejects_an_explicit_think_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    from distill.llm.local_reasoning import LocalReasoningConfigError
+
+    monkeypatch.setenv("DISTILL_ANALYSIS_LOCAL_THINK", "true")
+    config = RouterConfig(provider="lmstudio", model="local-model")
+
+    with (
+        patch("distill.llm.router._get_provider") as get_provider,
+        pytest.raises(LocalReasoningConfigError, match="LM Studio"),
+    ):
+        call(config, "analysis", "test prompt")
+
+    get_provider.assert_not_called()
+
+
 def test_telemetry_emitted_on_error() -> None:
     """Telemetry record is emitted with outcome='error' when provider fails."""
     with tempfile.TemporaryDirectory() as tmp:

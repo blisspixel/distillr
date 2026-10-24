@@ -139,8 +139,11 @@ and exposes snapshot-bound MCP evidence identity. See the
 [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8) and
 [publication receipt](docs/research/evidence/2026-10-24/publication.json).
 Next is `0.20.9`: the research-quality baseline, with its acceptance gate
-unchanged. Issues #61 and #63 stay open until that expert-reviewed evidence
-exists. Honest evidence state is the basis for that measurement.
+unchanged. Issue #61 now has an opt-in Ollama boolean think control and an
+inconclusive on-device receipt. Issue #63 now has the offline recipe
+identity check. Expert review and semantic trials have not been run. #61
+stays open until that evidence exists. Defaults are unchanged. Honest
+evidence state is the basis for that measurement.
 
 The October 17 operator request expands `0.20.7` before implementation to
 resolve all 18 open issues, followed by another bug hunt, local zero-dollar

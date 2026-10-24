@@ -1396,12 +1396,18 @@ class TestThinkingCapability:
         rejection = httpx.HTTPStatusError("400", request=request, response=response)
         success = LLM_Response(text="ok", input_tokens=1, output_tokens=1, model="qwen3-coder:30b")
         calls = {"n": 0}
+        payloads: list[dict[str, Any]] = []
 
-        async def _stream(_model: str, _payload: dict[str, Any], _timeout: int) -> LLM_Response:
+        async def _stream(
+            _model: str,
+            payload: dict[str, Any],
+            _timeout: int,
+        ) -> tuple[LLM_Response, bool]:
             calls["n"] += 1
+            payloads.append(payload)
             if calls["n"] == 1:
                 raise rejection
-            return success
+            return success, False
 
         with (
             patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
@@ -1409,10 +1415,18 @@ class TestThinkingCapability:
             patch.object(provider._show, "require_local", AsyncMock()),
             patch.object(provider._show, "supports_thinking", AsyncMock(return_value=True)),
         ):
-            result = asyncio.run(provider.call("qwen3-coder:30b", "hello", retries=0))
+            result = asyncio.run(
+                provider.call("qwen3-coder:30b", "hello", retries=0, local_think=True)
+            )
 
         assert result.text == "ok"
         assert calls["n"] == 2
+        assert payloads[0]["think"] is True
+        assert "think" not in payloads[1]
+        assert result.reasoning_effective == "rejected_retried_without_think"
+        assert result.reasoning_sent == "think=omitted"
+        assert result.usage_attempts[0].reasoning_effective == "unknown"
+        assert result.usage_attempts[1].reasoning_effective == "rejected_retried_without_think"
 
     def test_thinking_rejection_is_recognized(self) -> None:
         request = httpx.Request("POST", "http://localhost:11434/api/chat")
@@ -1663,10 +1677,13 @@ def test_malformed_chat_frames_are_skipped_not_crashed() -> None:
     client = _RawLineStreamClient(hostile)
 
     provider = OllamaProvider(base_url="http://localhost:11434")
-    with patch("distill.llm.providers.ollama.httpx.AsyncClient", client):
-        response = asyncio.run(provider._stream_chat("m", {}, 5))  # pyright: ignore[reportPrivateUsage]
+    with patch("distill.llm.providers._ollama_stream.httpx.AsyncClient", client):
+        response, trace_present = asyncio.run(
+            provider._stream_chat("m", {}, 5)  # pyright: ignore[reportPrivateUsage]
+        )
 
     assert response.text == "hello"
+    assert trace_present is False
 
 
 class TestShowProbeDegradation:
