@@ -26,7 +26,7 @@ def test_only_verified_pinned_diagnostics_move_to_debug_and_input_is_complete(mo
     class Loader:
         @staticmethod
         def from_pretrained(model, **kwargs):
-            assert kwargs["revision"] == "8e4a2e6e96c708cc76c2344f7e4757df2515292c"
+            assert kwargs["revision"] == "de9a5e6ba9ba49531a022dba17e35ffeb2a6fad8"
             configuration.warning(CONFIG_MESSAGE)
             return Model()
 

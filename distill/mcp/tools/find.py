@@ -9,6 +9,7 @@ from typing import Annotated
 from pydantic import Field
 
 from distill.library.confined import read_confined_text
+from distill.library.insights import insight_content_sha256
 from distill.library.paths import strip_frontmatter
 from distill.mcp.server import (
     READ_TOOL_ANNOTATIONS,
@@ -16,6 +17,11 @@ from distill.mcp.server import (
     load_config,
     mcp,
     resolve_within_library,
+)
+from distill.mcp.tools.evidence import (
+    LOGICAL_DIGEST_MEANING,
+    evidence_for_snapshot,
+    expected_digest_is_valid,
 )
 from distill.pipeline.search import (
     MAX_SEARCH_QUERY_CHARS,
@@ -84,6 +90,7 @@ def find_insights(
                 "count": 0,
                 "topic": topic,
                 "message": f"No results found for '{query}' in topic '{topic}'.",
+                "content_sha256_meaning": LOGICAL_DIGEST_MEANING,
             },
             indent=2,
         )
@@ -91,10 +98,19 @@ def find_insights(
     return json.dumps(
         {
             "results": [
-                {"path": r.path, "preview": r.preview, "score": round(r.score, 3)} for r in results
+                {
+                    "path": r.path,
+                    "preview": r.preview,
+                    "score": round(r.score, 3),
+                    "artifact_type": r.artifact_type,
+                    "origin": r.origin,
+                    "content_sha256": r.content_sha256,
+                }
+                for r in results
             ],
             "count": len(results),
             "topic": topic,
+            "content_sha256_meaning": LOGICAL_DIGEST_MEANING,
         },
         indent=2,
     )
@@ -107,12 +123,17 @@ def read_insight(
         str | None,
         Field(min_length=1, max_length=_MAX_READ_INSIGHT_SECTION_CHARS),
     ] = None,
+    expected_content_sha256: Annotated[
+        str | None,
+        Field(pattern=r"^[0-9a-f]{64}$", min_length=64, max_length=64),
+    ] = None,
 ) -> str:
     """Read artifact content by path, optionally filtered to a section.
 
     Args:
         path: Relative path from library root
         section: Optional section heading to extract
+        expected_content_sha256: Optional logical Markdown digest from find_insights
     """
     config = load_config()
     if not path or len(path) > _MAX_READ_INSIGHT_PATH_CHARS:
@@ -125,6 +146,16 @@ def read_insight(
     ):
         return json.dumps(
             {"status": "error", "error": "Section name is empty or too long."},
+            indent=2,
+        )
+    if expected_content_sha256 is not None and not expected_digest_is_valid(
+        expected_content_sha256
+    ):
+        return json.dumps(
+            {
+                "status": "error",
+                "error": "Expected digest must be 64 lowercase hexadecimal characters.",
+            },
             indent=2,
         )
     full_path = resolve_within_library(config.library_dir, path)
@@ -152,6 +183,24 @@ def read_insight(
             indent=2,
         )
 
+    evidence = evidence_for_snapshot(config, path, full_path, raw)
+    digest = insight_content_sha256(raw)
+    if expected_content_sha256 is not None and expected_content_sha256 != digest:
+        return json.dumps(
+            {
+                "status": "conflict",
+                "error": (
+                    "The artifact no longer matches the expected logical digest. "
+                    "The earlier snapshot was not delivered."
+                ),
+                "path": path,
+                "expected_content_sha256": expected_content_sha256,
+                "content_sha256": digest,
+                "evidence": evidence,
+            },
+            indent=2,
+        )
+
     body = strip_frontmatter(raw)
 
     if section:
@@ -164,6 +213,7 @@ def read_insight(
                     "path": path,
                     "section": section,
                     "section_found": False,
+                    "evidence": evidence,
                 },
                 indent=2,
             )
@@ -174,11 +224,37 @@ def read_insight(
             "section": section,
             "section_found": True,
             "truncated": truncated,
+            "evidence": evidence,
+            "delivered": _delivered("section", section, truncated, digest),
         }
         return json.dumps(result, indent=2)
 
     content, truncated = _bounded_content(body)
     return json.dumps(
-        {"path": path, "content": content, "truncated": truncated},
+        {
+            "path": path,
+            "content": content,
+            "truncated": truncated,
+            "evidence": evidence,
+            "delivered": _delivered("body", None, truncated, digest),
+        },
         indent=2,
     )
+
+
+def _delivered(
+    delivered_range: str,
+    section: str | None,
+    truncated: bool,
+    digest: str,
+) -> dict[str, object]:
+    return {
+        "range": delivered_range,
+        "section": section,
+        "truncated": truncated,
+        "whole_artifact_sha256": digest,
+        "meaning": (
+            "Evidence describes the whole artifact snapshot. "
+            "This object describes only the returned range."
+        ),
+    }

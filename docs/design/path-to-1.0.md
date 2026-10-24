@@ -113,10 +113,13 @@ remain blocking.
 2. Accessibility: CLI no-color / 40-column / exit taxonomy; web landmarks and
    keyboard (partial cycles already shipped; AT review incomplete).
 3. Security: continuous adversarial passes; no open validated MEDIUM+ findings
-   at freeze. The frozen core audit passed; five optional Transformers version
-   alerts retain a [scoped path assessment](../research/optional-dependency-review-2026-10-17.md).
-   Recheck the exact frozen tree and explicitly remediate or justify retained
-   advisories; the optional audit is not clean.
+   at freeze. The frozen core audit passed. `0.20.8` moves the optional
+   entailment extra to `transformers>=5.17,<6`, records that Distillr does not
+   call the unpatched loaders, and audits that extra from its locked export.
+   The 2026-10-24 default and export audits are clean. The freeze-time review
+   remains `0.20.11`. The October 17
+   [path assessment](../research/optional-dependency-review-2026-10-17.md)
+   stays the historical record.
 4. README house-theme screenshots and real-browser keyboard/automated
    accessibility receipts shipped in 0.20.7. Complete representative onboarding
    and assistive-technology evidence; automated checks do not establish screen
@@ -124,7 +127,7 @@ remain blocking.
 
 ### E. Research-quality baseline (next)
 
-`0.20.8` is the next outcome because the unit suite and one successful local
+`0.20.9` is the next product outcome because the unit suite and one successful local
 paper journey cannot establish dependable research quality. Follow the
 [doctrine's evaluation design](research-desk-doctrine.md#evaluation-like-a-research-desk)
 through the existing evaluation and pipeline seams:
@@ -160,11 +163,12 @@ Do not change discovery or synthesis defaults before this baseline exists.
 
 | Order | Release | Work and exit evidence |
 |---|---|---|
-| 1 | `0.20.8` | Publish the reviewed retrieval/synthesis baseline above and classify failures against the covered compatibility promise |
-| 2 | `0.20.9` | Fill missing native-platform install, size, startup, export, onboarding, recovery, assistive-technology, and representative batch receipts; reuse existing Windows and container evidence with its stated limits |
-| 3 | `0.20.10` | Inventory remaining strict-package and parse-boundary gaps, close them with focused checks, raise branch-only coverage to >=95%, add its explicit assertion, and publish deterministic-core fault-injection/verification and freeze-time security evidence |
-| 4 | `1.0.0rc1` | Rehearse supported installs, upgrades, migrations, CLI/MCP contracts, corpus recovery, and built-artifact behavior on the frozen candidate; accept only release-blocking fixes |
-| 5 | `1.0.0` | Revalidate every required receipt against the final commit and publish matching artifacts, provenance, SBOM, compatibility statement, and release notes |
+| 1 | `0.20.8` | Refresh emSign trust material and optional Transformers advisories, and ship snapshot-bound MCP evidence identity. The research baseline stays the next product row |
+| 2 | `0.20.9` | Publish the reviewed retrieval/synthesis baseline above and classify failures against the covered compatibility promise |
+| 3 | `0.20.10` | Fill missing native-platform install, size, startup, export, onboarding, recovery, assistive-technology, and representative batch receipts; reuse existing Windows and container evidence with its stated limits |
+| 4 | `0.20.11` | Inventory remaining strict-package and parse-boundary gaps, close them with focused checks, raise branch-only coverage to >=95%, add its explicit assertion, and publish deterministic-core fault-injection/verification and freeze-time security evidence |
+| 5 | `1.0.0rc1` | Rehearse supported installs, upgrades, migrations, CLI/MCP contracts, corpus recovery, and built-artifact behavior on the frozen candidate; accept only release-blocking fixes |
+| 6 | `1.0.0` | Revalidate every required receipt against the final commit and publish matching artifacts, provenance, SBOM, compatibility statement, and release notes |
 
 Keep the scope in these rows. New adapters, external worker routes, ensembles,
 and the broader field-model/selective-refresh system retain their existing
@@ -187,12 +191,14 @@ date or duration estimate.
 7. `0.20.5`: shipped current API, routed billing, SDK, and dependency security fixes.
 8. `0.20.6`: shipped no-metered setup, pinned previews and capture repairs.
 9. `0.20.7`: shipped active claim generations, derived origin and maintenance fixes.
-10. `0.20.8`: publish the research-desk evaluation baseline before changing defaults.
-11. `0.20.9`: publish operator, accessibility, install, export, cold-start, and live
+10. `0.20.8`: refresh trust material and optional Transformers advisories, and
+    ship snapshot-bound MCP evidence identity.
+11. `0.20.9`: publish the research-desk evaluation baseline before changing defaults.
+12. `0.20.10`: publish operator, accessibility, install, export, cold-start, and live
     reference-journey evidence.
-12. `0.20.10`: close strict-boundary, deterministic-core, and security evidence gaps.
-13. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
-14. `1.0.0`: publish only while every gate remains true on the final commit.
+13. `0.20.11`: close strict-boundary, deterministic-core, and security evidence gaps.
+14. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
+15. `1.0.0`: publish only while every gate remains true on the final commit.
 
 ## Success criteria for 1.0.0
 
@@ -250,8 +256,9 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.20.5` | shipped | current model and pricing audit, SDK compatibility, routed billing regressions, dependency security, full release gates |
 | `0.20.6` | shipped | no-metered setup, pinned previews and capture repairs |
 | `0.20.7` | shipped | generation retirement, zero-claim behavior, derived origin, discovery and freshness uncertainty, and issues #40 through #57 |
-| `0.20.8` | next | expert-authored research-desk fixtures and published baseline results |
-| `0.20.9` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
-| `0.20.10` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
+| `0.20.8` | next | emSign and optional Transformers floors, clean default and entailment-export audits, and snapshot-bound MCP evidence identity |
+| `0.20.9` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.10` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
+| `0.20.11` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |
 | `1.0.0` | gated | every readiness gate closed and release-candidate evidence valid on the final commit |

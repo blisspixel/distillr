@@ -1,6 +1,6 @@
 FROM python:3.15-slim
 
-COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /usr/local/bin/uv
 
 # Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \

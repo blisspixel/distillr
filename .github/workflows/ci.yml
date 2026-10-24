@@ -11,7 +11,7 @@ on:
 # resolution; pinning uv guarantees the resolver/installer itself is identical
 # across runs. Bumped manually when a new uv release is adopted.
 env:
-  UV_VERSION: "0.13.1"
+  UV_VERSION: "0.13.5"
 
 jobs:
   test:
@@ -126,6 +126,12 @@ jobs:
         # Audits the synced environment; skips the editable distillr install
         # itself (not the dependency tree under audit).
         run: uv run --frozen pip-audit --skip-editable
+      - name: pip-audit (optional entailment extra)
+        # Default sync does not install the checker. Audit the locked extra
+        # from an export so a vulnerable transformers pin cannot hide there.
+        run: |
+          uv export --frozen --extra entailment --no-dev --no-emit-project --output-file "${RUNNER_TEMP}/entailment-requirements.txt"
+          uv run --frozen pip-audit --requirement "${RUNNER_TEMP}/entailment-requirements.txt" --disable-pip
 
   types:
     name: Type check (pyright)
@@ -187,6 +193,40 @@ jobs:
               exit 1
             fi
           done
+          python3 - <<'PY'
+          import glob
+          import zipfile
+
+          wheels = glob.glob("dist/*.whl")
+          if len(wheels) != 1:
+              raise SystemExit(f"expected one wheel, found {wheels}")
+          with zipfile.ZipFile(wheels[0]) as archive:
+              metadata_name = next(
+                  name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+              )
+              requires = [
+                  line
+                  for line in archive.read(metadata_name).decode("utf-8").splitlines()
+                  if line.startswith("Requires-Dist:")
+              ]
+          if not any(line.startswith("Requires-Dist: certifi>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the certifi floor")
+          if not any(line.startswith("Requires-Dist: pypdf>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the pypdf floor")
+          if not any(line.startswith("Requires-Dist: opentelemetry-api>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the opentelemetry-api floor")
+          pip_runtime = [
+              line
+              for line in requires
+              if line == "Requires-Dist: pip"
+              or line.startswith("Requires-Dist: pip>")
+              or line.startswith("Requires-Dist: pip=")
+              or line.startswith("Requires-Dist: pip<")
+              or line.startswith("Requires-Dist: pip;")
+          ]
+          if pip_runtime:
+              raise SystemExit(f"wheel metadata must not require pip: {pip_runtime}")
+          PY
           echo "Runtime assets present in ${whl}."
 
       - name: Smoke installed wheel Agent Skill bundle

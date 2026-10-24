@@ -54,7 +54,9 @@ _CHUNK_CHARS = 1_500  # HHEM input budget, with headroom for the claim text
 _TOP_K_CHUNKS = 3  # per-claim evidence candidates by lexical overlap
 
 _HHEM_MODEL_ID = "vectara/hallucination_evaluation_model"
-_HHEM_REVISION = "8e4a2e6e96c708cc76c2344f7e4757df2515292c"  # pinned for safety (bandit B615) and reproducibility
+# Reviewed remote code. de9a5e6 differs from 8e4a2e6 only by post_init(), which
+# Transformers 5 requires. The configuration module is unchanged.
+_HHEM_REVISION = "de9a5e6ba9ba49531a022dba17e35ffeb2a6fad8"  # pinned for safety (bandit B615) and reproducibility
 _FOUNDATION_MODEL = "google/flan-t5-base"
 _FOUNDATION_REVISION = "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2"
 _FOUNDATION_FILES = (

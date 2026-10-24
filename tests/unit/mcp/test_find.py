@@ -96,6 +96,16 @@ class TestFindInsights:
         assert properties["query"]["maxLength"] == 4096
         assert properties["limit"]["minimum"] == 1
         assert properties["limit"]["maximum"] == 50
+        read_schema = tools["read_insight"].input_schema
+        expected = read_schema["properties"]["expected_content_sha256"]
+        string_schema = expected["anyOf"][0]
+        assert string_schema["type"] == "string"
+        assert string_schema["minLength"] == 64
+        assert string_schema["maxLength"] == 64
+        assert string_schema["pattern"] == "^[0-9a-f]{64}$"
+        assert expected["anyOf"][1] == {"type": "null"}
+        assert expected["default"] is None
+        assert "expected_content_sha256" not in read_schema["required"]
 
     @pytest.mark.parametrize(
         ("query", "limit", "message"),

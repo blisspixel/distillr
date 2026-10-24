@@ -174,13 +174,15 @@ Dependency-ordered and versioned, never calendar-estimated:
 7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
 8. `0.20.6`: shipped no-metered setup, pinned previews and capture repairs.
 9. `0.20.7`: correct active claim generations, derived origin and open maintenance issues.
-10. `0.20.8`: publish the research-desk evaluation baseline before changing defaults.
-11. `0.20.9`: publish operator, accessibility, install, export, cold-start, and live
+10. `0.20.8`: refresh trust material and optional Transformers advisories, and
+    ship snapshot-bound MCP evidence identity.
+11. `0.20.9`: publish the research-desk evaluation baseline before changing defaults.
+12. `0.20.10`: publish operator, accessibility, install, export, cold-start, and live
     reference-journey evidence.
-12. `0.20.10`: close strict-boundary, deterministic-core, and security evidence gaps.
-13. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
-14. `1.0.0`: publish only while every gate remains true on the final commit.
-15. Post-1.0: evidence anchors and unified contribution handoff, research
+13. `0.20.11`: close strict-boundary, deterministic-core, and security evidence gaps.
+14. `1.0.0rc1`: freeze and exercise covered contracts without new product surface.
+15. `1.0.0`: publish only while every gate remains true on the final commit.
+16. Post-1.0: evidence anchors and unified contribution handoff, research
    program and portfolio selection, field model, meaningful refresh, reading
    paths, bounded stewardship loops, qualified provider breadth, recipes,
    merge, and plugins.

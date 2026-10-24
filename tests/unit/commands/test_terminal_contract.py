@@ -28,7 +28,15 @@ def test_short_help_works_recursively_without_executing_commands():
 @pytest.mark.parametrize("width", [40, 60, 80, 120])
 def test_diagnostic_labels_align_and_keep_state_without_color(width):
     output = StringIO()
-    console = Console(file=output, width=width, color_system=None, highlight=False)
+    # Rich ignores an explicit width on a dumb terminal unless height is set too.
+    console = Console(
+        file=output,
+        width=width,
+        height=20,
+        color_system=None,
+        highlight=False,
+        legacy_windows=False,
+    )
     for label in ("API key", "Verification", "Local inference"):
         print_diagnostic(console, f"  OK {label}  Ready with numeric-only coverage")
     lines = output.getvalue().splitlines()

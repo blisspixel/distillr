@@ -172,8 +172,8 @@ the tool response bounded; see
 | `find_insights_summary` | Token-bounded, query-focused brief over a topic's matching insights (cached by corpus revision -- repeats are free; spend-gated in read-only mode) |
 | `list_topic_summary` | Free bounded topic orientation with explicit synthesis evidence status for sub-agents choosing where to query |
 | `ask` | Answer a question grounded only in a topic's corpus, with cited sources (promotion via --save is CLI-only; citation failures return `status: refused`) |
-| `find_insights` | Ranked `(path, preview, score)` matches for a topic + query - paths, not payloads |
-| `read_insight` | Read a specific insight artifact (drill-down after `find_insights`) |
+| `find_insights` | Ranked matches for a topic + query. Each row has path, preview, score, artifact type, origin, and the logical Markdown digest |
+| `read_insight` | Read one Markdown artifact. An optional expected digest returns a conflict instead of a changed body |
 | `find_concepts` | Find concept/entity notes in a topic's playbook layer |
 | `read_concept` | Read a specific concept/entity note |
 | `research_gaps` | Inspect a topic corpus for thin coverage, stale recency, and missing artifacts |
@@ -183,7 +183,13 @@ the tool response bounded; see
 `read_insight` accepts only Markdown artifacts under `library/topics/`, refuses
 hidden and operational namespaces plus answer artifacts, reads at most 1 MiB,
 and returns at most 200,000 content characters. A missing section is an error
-and never falls back to returning the full artifact. `ask` limits question and
+and never falls back to returning the full artifact. The logical digest is a
+SHA-256 of the normalized Markdown file, not of the original PDF or media
+bytes. Evidence reports source versus derived origin, producer and date fields
+when the artifact records them, and receipt, verification, freshness, and
+paper-revision state. Missing values stay unknown. Whole-snapshot evidence is
+separate from the delivered section or truncated range. The envelope does not
+mark text verified or current. `ask` limits question and
 answer size before an oversized prompt or response can cross the MCP boundary.
 
 `list_topic_summary` reads only bounded prefixes from confined synthesis

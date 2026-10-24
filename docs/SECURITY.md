@@ -27,6 +27,7 @@ In scope for security reports:
 Supply-chain posture:
 
 - Runtime and development dependencies are pinned through the committed `uv.lock`; CI installs the locked environment with `uv sync --frozen`.
+- Runtime HTTPS trust uses `certifi>=2026.10.19`. The optional entailment extra is audited from its locked export because the default environment does not install it.
 - `bandit`, `pip-audit`, import-linter, ruff, Pyright, build, and the coverage gate run in CI.
 - GitHub Actions are pinned to full commit SHAs, including the PyPI publish action. Action and dependency bumps are reviewed manually.
 - PyPI publishing uses OIDC trusted publishing with no stored package token.

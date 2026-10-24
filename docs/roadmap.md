@@ -40,9 +40,11 @@ does not independently schedule releases.
 - `0.20.7` shipped claim-generation retirement, derived-origin preservation
   and all 18 requested maintenance issues. See the
   [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7).
-- `0.20.8` owns the research-desk evaluation baseline.
-- `0.20.9` owns operator, accessibility, and performance evidence.
-- `0.20.10` owns remaining strict-boundary and freeze-time security evidence.
+- `0.20.8` is the security maintenance release for the emSign trust bundle,
+  the optional Transformers floors, and snapshot-bound MCP evidence identity.
+- `0.20.9` owns the research-desk evaluation baseline.
+- `0.20.10` owns operator, accessibility, and performance evidence.
+- `0.20.11` owns remaining strict-boundary and freeze-time security evidence.
 - The explicitly requested editorial consumer also has a standalone
   `perspective-editorial` skill at version `0.1.0`, with optional Distillr and
   Retonr adapters. Packages ship with `0.20.0`; account-specific host installation
@@ -81,12 +83,14 @@ The shipped `0.20.1` maintenance release closed the billing and compatibility
 blockers discovered during the current-source review. The remaining product
 sequence is:
 
-1. Establish expert-authored research-desk evaluation fixtures in `0.20.8`
+1. Publish the `0.20.8` security maintenance release. Issues #61 and #63 stay
+   open until expert-reviewed quality evidence exists.
+2. Establish expert-authored research-desk evaluation fixtures in `0.20.9`
    before changing discovery or synthesis behavior.
-2. Publish operator, accessibility, install, cold-start, export, and live
-   journey evidence in `0.20.9`.
-3. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
-   verification, and the freeze-time security receipt in `0.20.10`.
+3. Publish operator, accessibility, install, cold-start, export, and live
+   journey evidence in `0.20.10`.
+4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
+   verification, and the freeze-time security receipt in `0.20.11`.
 4. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.
 
@@ -306,7 +310,7 @@ score merely to expose these capabilities.
   change, reading order, honest gaps, and stopping. Record the current system's
   performance before changing prompts or orchestration. Include the
   [correction and disagreement episode](design/research-desk-doctrine.md#correction-and-disagreement-episode)
-  in the `0.20.8` baseline: two conflicting sources and a synthesis, followed
+  in the `0.20.9` baseline: two conflicting sources and a synthesis, followed
   by a correction to one source. Report history retention, affected conclusions,
   preserved qualifications, unresolved disagreement, and collection limits
   separately; record failures without claiming planned behavior is implemented.

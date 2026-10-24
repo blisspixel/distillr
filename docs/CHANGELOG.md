@@ -7,12 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## 0.20.8 - 2026-10-24
+
+### Fixed
+
+- Require `certifi>=2026.10.19` at runtime so Requests and HTTPX do not keep
+  the emSign-affected 2026.5.20 bundle. Development audits pin `pip>=26.2.2`.
+  Pip stays out of the runtime dependency set.
+- Move uv to 0.13.5 in CI, container, publish, and the installers, with the
+  published installer hashes. Pin PyPI publish to
+  `pypa/gh-action-pypi-publish` commit `7245906` (v1.14.3).
+- Raise the optional entailment extra to `transformers>=5.17,<6`,
+  `huggingface-hub>=1.31,<3`, `filelock>=4.2.1,<5`, and `setuptools>=84.1.0`.
+  The reviewed HHEM class is `de9a5e6ba9ba49531a022dba17e35ffeb2a6fad8`.
+  Distillr does not call `load_custom_generate`, `save_pretrained`, or
+  LightGlue. The custom-generation fix is in 5.17.0 and later. GitHub's
+  advisory range ends at 5.8.1 with no patched-version field. NVD prose names
+  5.16.1. The floor stays above both descriptions.
+- Raise `pypdf>=6.21.2`, `opentelemetry-api>=1.45.1`, and development
+  `virtualenv>=21.14.9`. Audit the locked entailment extra from its hashed
+  export. On 2026-10-24 the default audit and that export audit both reported
+  no known vulnerabilities.
+- Built wheel metadata must require the certifi, pypdf, and
+  opentelemetry-api floors and must not require pip.
+- Keep mistyped-command suggestions working with Click 8.5, which marks
+  usage-error messages final.
+
+### Added
+
+- `find_insights` now returns artifact type, source/derived/unknown origin,
+  and the logical Markdown SHA-256 with each ranked path. `read_insight`
+  accepts an optional expected digest. A mismatch is a conflict and does not
+  deliver either snapshot's body. The response separates whole-snapshot
+  evidence from the delivered section or truncated range. Missing receipt,
+  verification, freshness, and paper-revision fields stay unknown. The digest
+  is not a hash of the original PDF or media bytes, and the envelope does not
+  add a verified or current badge.
+
 ### Documentation
 
 - Reconcile 1.0 readiness claims with measured combined and branch-only
   coverage. Make the research-quality baseline an explicit release gate and
   record its acceptance steps, remaining platform and operator evidence,
   hardening work, and release-candidate exit criteria.
+- Insert this security maintenance release and move the research-quality
+  baseline to 0.20.9. Operator evidence moves to 0.20.10 and the
+  strict-boundary and freeze-time security work moves to 0.20.11. Issues #61
+  and #63 stay open because they still need expert-reviewed quality evidence.
+  Record the dependency review in
+  [dependency-security-2026-10-24.md](research/dependency-security-2026-10-24.md).
+- Require a session-start check for leftover worktrees, branches, and pull
+  requests, and require evidence before removing any of them.
+
+### Limits
+
+- Existing virtual environments, custom CA overrides, and older uv installs
+  are unchanged until the operator upgrades them. This review did not run an
+  exploit. It did not inspect deployed machines.
 
 ## 0.20.7 - 2026-10-17
 

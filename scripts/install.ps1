@@ -6,8 +6,8 @@ $ErrorActionPreference = "Stop"
 
 $Package = "distillr"
 $Cli = "distill"
-$UvVersion = "0.11.11"
-$UvInstallerSha256 = "8034382058eae34a765c6b439d2e1a4987bab519cb444afd117c4bf139d89839"
+$UvVersion = "0.13.5"
+$UvInstallerSha256 = "84b66aa3018e9d800886543380d967bb3fb9652cfb251cfa5f3c73f4e62f59f2"
 
 Write-Host "==> Installing $Package ..." -ForegroundColor Cyan
 Write-Host ""

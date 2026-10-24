@@ -38,6 +38,37 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
 
 - Keep `main` clean and releasable. Do not create long-lived branches unless the
   human explicitly asks for one.
+
+### Start tidy, stop tidy
+
+Work in this repository may come from several agent tools, and sessions can end
+partway through a task.
+
+- Check first. Before starting new work, run `git fetch --prune` and check
+  `git worktree list`, local and remote branches, and open PRs. Finish, merge,
+  or park leftover work instead of starting a parallel attempt. Squash merges
+  hide merged work from ancestry, so check PR state, not only
+  `git branch --merged`.
+- Checkpoint and hand off. Commit and push at meaningful checkpoints. Before
+  stopping, leave a short handoff note (in the PR or commit message) saying
+  what is done and what is next.
+- Keep the tree clean. Test fixtures, scratch scripts, logs, and generated
+  output go only in the designated test or temp locations or the gitignored
+  `.agent/` directory. Never leave throwaway test files elsewhere in the tree,
+  and remove scratch artifacts before finishing.
+- Keep branches short-lived. Merge promptly and delete branches after merge.
+  Keep GitHub current: push finished work, update or close PRs, and close
+  finished issues.
+- Goal state. One `main` with CI passing. Never leave `main` red or work
+  stranded on side branches.
+- Remove only with evidence. Remove a worktree or branch only once its work is
+  merged, contained in `main`, or pushed to the remote. Never use `--force` to
+  remove one; report anything uncertain instead of deleting it. Run
+  `git worktree prune` for entries whose directories are gone.
+- Ask when unclear. If it is unclear whether leftover work should be finished,
+  kept, or removed, or what the intended state is, stop and ask instead of
+  guessing.
+
 - Follow the core operating loop: orient in the working tree and tests, research
   current external reality, bound the task, implement through canonical seams,
   verify mechanically, inspect failures honestly, fix root causes, adversarially
@@ -81,6 +112,23 @@ files are authoritative; MCP, agent packages, exports, and indexes are views.
   applicable authority. Instruction maintenance alone does not authorize
   commits, pushes, or releases. Markdown instructions cannot enforce a spend
   cap or substitute for runtime authorization gates.
+
+## Issue closure
+
+Before closing an issue by hand, or merging a change whose closing keywords
+will close it, comment on that issue. State what changed, the code, commit, or
+pull request that did it, the checks that actually ran and their results, and
+the user-visible outcome against the issue's acceptance criteria. Link a longer
+receipt instead of pasting logs. Name skipped checks and material limits. A
+merge does not by itself prove release, deployment, or live acceptance.
+
+If acceptance criteria remain unmet, leave the issue open, or record the agreed
+scope change and link the durable follow-up. Duplicate and not-planned closures
+need a short reason and the canonical issue or decision.
+
+Keep the roadmap sequence. Keep combined coverage distinct from the branch-only
+target, offline checks distinct from research-quality evaluation, and shipped
+behavior distinct from live validation.
 
 ## Responsibility to the evidence
 

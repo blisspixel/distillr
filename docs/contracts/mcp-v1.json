@@ -847,6 +847,20 @@
       },
       "inputSchema": {
         "properties": {
+          "expected_content_sha256": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "path": {
             "maxLength": 4096,
             "minLength": 1,

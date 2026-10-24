@@ -80,8 +80,10 @@ The implementation lives in `distill/pipeline/verify_entailment.py`, isolated fr
 ## Packaging
 
 Optional extra: `pip install distillr[entailment]` pulls
-`transformers` + `torch` (CPU build is sufficient; local accelerator hardware
-can speed it up). The extra is required only for `distill ask --save`, not for
+`transformers>=5.17,<6` and `torch` (CPU build is sufficient; local accelerator
+hardware can speed it up), plus `huggingface-hub>=1.31,<3`,
+`filelock>=4.2.1,<5`, and `setuptools>=84.1.0`. The reviewed HHEM revision is
+`de9a5e6ba9ba49531a022dba17e35ffeb2a6fad8`. The extra is required only for `distill ask --save`, not for
 ordinary ingest or unsaved question answering. CI does not install the extra -- unit tests mock the
 `EntailmentChecker` protocol; the model-loading path is covered by marked
 opt-in integration tests and live validation.

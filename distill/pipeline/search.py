@@ -28,6 +28,7 @@ __all__ = [
     "MAX_SEARCH_QUERY_TERMS",
     "MAX_SEARCH_RESULTS",
     "SearchResult",
+    "classify_artifact",
     "extract_section",
     "is_corpus_artifact_path",
     "read_search_result",
@@ -78,6 +79,16 @@ class SearchResult:
     artifact_type: str  # insights | synthesis | diff | trends | corpus | paper
     content_sha256: str = ""  # Digest of the exact content snapshot that was ranked
     origin: Literal["source", "derived", "unknown"] = "unknown"
+
+
+def classify_artifact(
+    path: Path,
+    relative_path: Path,
+    frontmatter: dict[str, str],
+) -> tuple[str, Literal["source", "derived", "unknown"]]:
+    """Return the search type and source-versus-derived origin for one artifact."""
+
+    return _detect_artifact_type(path, relative_path), _artifact_origin(path, frontmatter)
 
 
 def is_corpus_artifact_path(config: DistillConfig, path: Path) -> bool:

@@ -23,7 +23,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: "0.13.1"
+          version: "0.13.5"
           enable-cache: true
 
       - name: Resolve tagged commit
@@ -107,6 +107,40 @@ jobs:
               exit 1
             fi
           done
+          python3 - <<'PY'
+          import glob
+          import zipfile
+
+          wheels = glob.glob("dist/*.whl")
+          if len(wheels) != 1:
+              raise SystemExit(f"expected one wheel, found {wheels}")
+          with zipfile.ZipFile(wheels[0]) as archive:
+              metadata_name = next(
+                  name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+              )
+              requires = [
+                  line
+                  for line in archive.read(metadata_name).decode("utf-8").splitlines()
+                  if line.startswith("Requires-Dist:")
+              ]
+          if not any(line.startswith("Requires-Dist: certifi>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the certifi floor")
+          if not any(line.startswith("Requires-Dist: pypdf>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the pypdf floor")
+          if not any(line.startswith("Requires-Dist: opentelemetry-api>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the opentelemetry-api floor")
+          pip_runtime = [
+              line
+              for line in requires
+              if line == "Requires-Dist: pip"
+              or line.startswith("Requires-Dist: pip>")
+              or line.startswith("Requires-Dist: pip=")
+              or line.startswith("Requires-Dist: pip<")
+              or line.startswith("Requires-Dist: pip;")
+          ]
+          if pip_runtime:
+              raise SystemExit(f"wheel metadata must not require pip: {pip_runtime}")
+          PY
           echo "Runtime assets present in ${whl}."
 
       - name: Smoke installed wheel Agent Skill bundle
@@ -202,9 +236,9 @@ jobs:
           path: dist/
 
       - name: Publish to PyPI
-        # Pinned to the current release/v1 commit. The matching ghcr image tag
-        # exists for this commit, so the generated Docker action remains usable.
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        # v1.14.3 (7245906) repairs the action runtime to certifi 2026.10.19
+        # and sigstore 4.5.1. The matching ghcr image tag exists for this commit.
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           # PEP 740 provenance attestations, signed via the OIDC identity (no
           # stored credentials). Makes the source-to-wheel chain verifiable.

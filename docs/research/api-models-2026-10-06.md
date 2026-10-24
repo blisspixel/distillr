@@ -2,7 +2,7 @@
 
 Historical audit. The [October 17 review](maintenance-2026-10-17.md)
 updates Gemini metadata and toolchain compatibility. The current roadmap moves
-the research-quality evaluation gate discussed here to 0.20.8; its evidence
+the research-quality evaluation gate discussed here to 0.20.9; its evidence
 requirements remain unchanged.
 
 ## Decision and scope

@@ -110,7 +110,11 @@ class DistillGroup(TyperGroup):
             matches = difflib.get_close_matches(typed, self.list_commands(ctx), n=3, cutoff=0.5)
             if matches and exc.message:
                 hint = matches[0] if len(matches) == 1 else ", ".join(matches)
-                exc.message = f"{exc.message}\n\nDid you mean: {hint}?"
+                # Click 8.5 marks UsageError.message Final, so the hint is a new error.
+                raise click.UsageError(
+                    f"{exc.message}\n\nDid you mean: {hint}?",
+                    ctx=exc.ctx,
+                ) from exc
             raise
 
 

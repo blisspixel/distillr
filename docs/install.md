@@ -323,6 +323,14 @@ Distill also prints a one-line nudge when a new release is published (cached
 daily; silence with `DISTILL_NO_UPDATE_CHECK=1`). Details:
 [usage.md](usage.md#updating-distill).
 
+`0.20.8` requires `certifi>=2026.10.19`. `distill update` or
+`uv tool upgrade distillr` replaces the emSign-affected 2026.5.20 bundle in
+that tool environment. It does not replace a separate uv binary, a custom trust
+store, or another virtual environment. Upgrade uv to 0.13.5 or later, then run
+`uv python upgrade` when uv manages the interpreter. Existing environments
+pinned to an older Python patch stay on that interpreter until upgraded. Do
+not disable TLS verification or remove unrelated certificate authorities.
+
 ## Shell completions
 
 ```bash
