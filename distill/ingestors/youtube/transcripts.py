@@ -35,6 +35,13 @@ from distill.ingestors.youtube._yt_dlp_boundary import (
     info_mapping,
     int_field,
 )
+from distill.ingestors.youtube.caption_timing import (
+    CaptionEvidence,
+    evidence_failed,
+    evidence_for_asr,
+    evidence_from_vtt,
+    write_caption_evidence,
+)
 from distill.library.confined import list_confined_files, read_confined_text
 from distill.library.locking import exclusive_file_lock, open_lock_file
 from distill.library.paths import atomic_write_text
@@ -205,19 +212,54 @@ def get_transcript(
         )
         return False
 
-    transcript = _try_youtube_captions(canonical_url, canonical_id)
-    if transcript:
+    bundle = _try_youtube_caption_bundle(canonical_url, canonical_id)
+    if bundle is not None:
+        transcript, evidence = bundle
         atomic_write_text(output_path, transcript)
+        write_caption_evidence(output_path, evidence)
         return True
 
     console.print("    [yellow]No captions; transcribing audio (local-first ladder)...[/yellow]")
     if _try_whisper_ladder(canonical_url, canonical_id, output_path, config, tracker=tracker):
+        write_caption_evidence(output_path, _asr_evidence(output_path))
         return True
 
     if config.scribe_path:
         console.print("    [yellow]Whisper ladder unavailable, falling back to scribe...[/yellow]")
-        return _try_scribe(canonical_url, output_path, config)
+        if _try_scribe(canonical_url, output_path, config):
+            write_caption_evidence(output_path, _asr_evidence(output_path))
+            return True
+    write_caption_evidence(output_path, evidence_failed("none"))
     return False
+
+
+def _asr_evidence(output_path: Path) -> CaptionEvidence:
+    """Timing stays unknown. ASR text is not given invented cue times."""
+    text = _read_bounded_utf8(output_path, byte_limit=MAX_TRANSCRIPT_BYTES)
+    if text is None:
+        return evidence_failed("asr")
+    return evidence_for_asr(text)
+
+
+def _try_youtube_caption_bundle(
+    video_url: str, video_id: str
+) -> tuple[str, CaptionEvidence] | None:
+    """Caption text plus timing. ``None`` means no usable captions."""
+    for attempt, delay in enumerate((*_RETRY_DELAYS, None)):
+        result = _fetch_caption_bundle(video_url, video_id)
+        if result is not None:
+            text, evidence = result
+            if not text:
+                return None
+            return text, evidence
+        if delay is None:
+            break
+        console.print(
+            f"    [dim]caption fetch failed (attempt {attempt + 1}); "
+            f"retrying in {delay:.0f}s...[/dim]"
+        )
+        _sleep(delay)
+    return None
 
 
 def _try_youtube_captions(video_url: str, video_id: str) -> str | None:
@@ -244,6 +286,14 @@ def _try_youtube_captions(video_url: str, video_id: str) -> str | None:
 
 def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
     """One caption attempt: text on success, ``""`` if captionless, ``None`` on error."""
+    bundle = _fetch_caption_bundle(video_url, video_id)
+    if bundle is None:
+        return None
+    return bundle[0]
+
+
+def _fetch_caption_bundle(video_url: str, video_id: str) -> tuple[str, CaptionEvidence] | None:
+    """One caption attempt with timing. ``None`` is a retryable error."""
     _bind_safe_ytdlp()
     with tempfile.TemporaryDirectory() as tmpdir:
         output_template = str(Path(tmpdir) / video_id)
@@ -280,10 +330,12 @@ def _fetch_captions_once(video_url: str, video_id: str) -> str | None:
                 break
 
         if not sub_file:
-            return ""
+            return "", evidence_from_vtt("")
 
         content = _read_bounded_utf8(sub_file, byte_limit=_MAX_CAPTION_BYTES)
-        return _vtt_to_text(content) if content is not None else None
+        if content is None:
+            return None
+        return _vtt_to_text(content), evidence_from_vtt(content)
 
 
 def _read_bounded_utf8(path: Path, *, byte_limit: int) -> str | None:

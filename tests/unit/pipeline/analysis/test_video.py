@@ -1,10 +1,13 @@
 """Tests for distill.analysis."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 from distill.config import DistillConfig
+from distill.ingestors.youtube.caption_timing import evidence_from_vtt
 from distill.library.intent import CorpusIntent
 from distill.llm.router import LLM_Response
+from distill.pipeline.analysis import video
 from distill.pipeline.analysis.video import (
     analyze_scan,
     analyze_short,
@@ -44,6 +47,40 @@ def _fake_llm_call_sequence(texts: list[str], model: str = "grok-4.3"):
         )
 
     return _call
+
+
+def test_analyze_video_records_caption_coverage_without_changing_the_prompt(tmp_path):
+    config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
+    prompts: list[str] = []
+
+    def _call(config, workload_tag, prompt, **kwargs):
+        prompts.append(prompt)
+        return LLM_Response(text="pass body", input_tokens=10, output_tokens=20, model="grok-4.3")
+
+    evidence = evidence_from_vtt("WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nSLIDE-ONLY-TOKEN\n")
+    with patch("distill.pipeline.analysis.video.llm_call", _call):
+        result = analyze_video(
+            "Title",
+            "20260312",
+            "Creator",
+            "spoken transcript",
+            config,
+            caption_evidence=evidence,
+        )
+
+    assert "spoken transcript" in prompts[0]
+    assert "SLIDE-ONLY-TOKEN" not in prompts[0]
+    assert "SLIDE-ONLY-TOKEN" not in prompts[1]
+    assert "caption_timing: caption" in result
+    assert "caption_text_coverage: complete" in result
+    assert "caption_cue_count: 1" in result
+    assert "SLIDE-ONLY-TOKEN" not in result
+    assert "frame_manifest" not in Path(video.__file__).read_text(encoding="utf-8")
+
+
+def test_caption_evidence_without_frontmatter_stays_out_of_the_body():
+    evidence = evidence_from_vtt("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n")
+    assert video._with_caption_evidence("plain body", evidence) == "plain body"
 
 
 def test_analyze_video_builds_frontmatter(tmp_path):

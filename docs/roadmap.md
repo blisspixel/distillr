@@ -85,10 +85,13 @@ blockers discovered during the current-source review. The remaining product
 sequence is:
 
 1. Establish expert-authored research-desk evaluation fixtures in `0.20.9`
-   before changing discovery or synthesis behavior. Issue #61 has an opt-in
-   Ollama boolean think control and an inconclusive on-device receipt. Issue
-   #63 has the offline recipe identity check. Expert review and semantic
-   trials have not been run, so #61 stays open and defaults stay unchanged.
+   before changing discovery or synthesis behavior. Structural fixtures,
+   separate retrieval and synthesis checks, and an offline receipt are
+   recorded. Expert review and semantic trials have not been run, so the row
+   stays queued, #61 stays open, and defaults stay unchanged. Issue #67's
+   caption-timing slice and synthetic frame manifest are recorded beside this
+   sequence. They are not a release row, and they do not change the analysis
+   prompt.
 2. Publish operator, accessibility, install, cold-start, export, and live
    journey evidence in `0.20.10`.
 3. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
@@ -316,6 +319,10 @@ score merely to expose these capabilities.
   by a correction to one source. Report history retention, affected conclusions,
   preserved qualifications, unresolved disagreement, and collection limits
   separately; record failures without claiming planned behavior is implemented.
+  A structural checker, frozen cases, and an offline receipt are recorded in
+  [research-desk-baseline-2026-10-24.md](design/research-desk-baseline-2026-10-24.md).
+  Expert review has not been performed, so this item stays open and discovery
+  and synthesis defaults stay unchanged.
 - [ ] **Source correction and withdrawal handling.** Use existing capture,
   verification, claim history, audit, and refresh mechanisms before adding
   infrastructure. Preserve appropriate earlier receipts and interpretation,

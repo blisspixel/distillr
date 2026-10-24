@@ -11,6 +11,11 @@ import pytest
 
 import distill.ingestors.youtube.transcripts as transcripts
 from distill.config import DistillConfig
+from distill.ingestors.youtube.caption_timing import (
+    evidence_from_vtt,
+    load_caption_evidence,
+    timing_sidecar_path,
+)
 from distill.ingestors.youtube.transcripts import (
     _try_scribe,
     _try_youtube_captions,
@@ -168,24 +173,35 @@ Second line
         assert result == "First line Second line"
 
 
+def _caption_bundle(text: str) -> tuple[str, object]:
+    evidence = evidence_from_vtt(f"WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n{text}\n")
+    return text, evidence
+
+
 class TestGetTranscript:
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_uses_youtube_captions_first(self, mock_captions, tmp_path):
-        """Tries YouTube captions first."""
-        mock_captions.return_value = "Hello world transcript"
+        """Tries YouTube captions first and keeps cue timing beside the text."""
+        mock_captions.return_value = _caption_bundle("Hello world transcript")
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
         output = tmp_path / "transcript.txt"
 
         result = get_transcript("https://youtube.com/watch?v=abc", "abc", output, config)
         assert result is True
         assert output.read_text(encoding="utf-8") == "Hello world transcript"
+        saved = load_caption_evidence(timing_sidecar_path(output))
+        assert saved is not None
+        assert saved.timing == "caption"
+        assert saved.text_coverage == "complete"
+        assert saved.cues[0].start_ms == 1000
+        assert saved.cues[0].text == "Hello world transcript"
         mock_captions.assert_called_once_with("https://www.youtube.com/watch?v=abc", "abc")
 
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_atomic_caption_failure_preserves_prior_transcript(
         self, mock_captions, tmp_path, monkeypatch
     ):
-        mock_captions.return_value = "replacement transcript"
+        mock_captions.return_value = _caption_bundle("replacement transcript")
         output = tmp_path / "transcript.txt"
         output.write_text("verified prior transcript", encoding="utf-8")
 
@@ -205,7 +221,7 @@ class TestGetTranscript:
         assert output.read_text(encoding="utf-8") == "verified prior transcript"
         assert list(tmp_path.glob(".transcript.txt.*.tmp")) == []
 
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_rejects_noncanonical_or_mismatched_video_identity(self, mock_captions, tmp_path):
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
         output = tmp_path / "transcript.txt"
@@ -221,22 +237,26 @@ class TestGetTranscript:
         mock_captions.assert_not_called()
 
     @patch("distill.ingestors.youtube.transcripts._try_whisper_ladder")
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_falls_back_to_whisper_ladder(self, mock_captions, mock_ladder, tmp_path):
         """Captionless videos route through the local-first Whisper ladder."""
         mock_captions.return_value = None
         mock_ladder.return_value = True
         config = DistillConfig(distill_output_dir=tmp_path / "lib")
 
-        result = get_transcript(
-            "https://youtube.com/watch?v=abc", "abc", tmp_path / "t.txt", config
-        )
+        output = tmp_path / "t.txt"
+        result = get_transcript("https://youtube.com/watch?v=abc", "abc", output, config)
         assert result is True
         assert mock_ladder.called
+        saved = load_caption_evidence(timing_sidecar_path(output))
+        assert saved is not None
+        assert saved.source == "asr"
+        assert saved.text_coverage == "failed"
+        assert saved.timing == "unavailable"
 
     @patch("distill.ingestors.youtube.transcripts._try_scribe")
     @patch("distill.ingestors.youtube.transcripts._try_whisper_ladder")
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_scribe_is_last_resort_only_when_configured(
         self, mock_captions, mock_ladder, mock_scribe, tmp_path
     ):
@@ -256,17 +276,77 @@ class TestGetTranscript:
         assert mock_scribe.called
 
     @patch("distill.ingestors.youtube.transcripts._try_whisper_ladder")
-    @patch("distill.ingestors.youtube.transcripts._try_youtube_captions")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
     def test_all_paths_fail(self, mock_captions, mock_ladder, tmp_path):
         """Returns False when every method fails."""
         mock_captions.return_value = None
         mock_ladder.return_value = False
         config = DistillConfig(distill_output_dir=tmp_path / "lib", scribe_path="")
+        output = tmp_path / "t.txt"
 
-        result = get_transcript(
-            "https://youtube.com/watch?v=abc", "abc", tmp_path / "t.txt", config
-        )
+        result = get_transcript("https://youtube.com/watch?v=abc", "abc", output, config)
         assert result is False
+        saved = load_caption_evidence(timing_sidecar_path(output))
+        assert saved is not None
+        assert saved.text_coverage == "failed"
+        assert saved.cues == ()
+
+    @patch("distill.ingestors.youtube.transcripts._try_scribe")
+    @patch("distill.ingestors.youtube.transcripts._try_whisper_ladder")
+    @patch("distill.ingestors.youtube.transcripts._try_youtube_caption_bundle")
+    def test_configured_scribe_failure_records_failed_evidence(
+        self, mock_captions, mock_ladder, mock_scribe, tmp_path
+    ):
+        mock_captions.return_value = None
+        mock_ladder.return_value = False
+        mock_scribe.return_value = False
+        output = tmp_path / "t.txt"
+        config = DistillConfig(distill_output_dir=tmp_path / "lib", scribe_path=str(tmp_path))
+        assert get_transcript("https://youtube.com/watch?v=abc", "abc", output, config) is False
+        saved = load_caption_evidence(timing_sidecar_path(output))
+        assert saved is not None
+        assert saved.text_coverage == "failed"
+
+
+class TestCaptionBundle:
+    def test_retries_then_returns_timing(self, monkeypatch):
+        calls = {"n": 0}
+
+        def fetch(_url: str, _video_id: str):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return ("Hello", evidence_from_vtt("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n"))
+
+        monkeypatch.setattr(transcripts, "_fetch_caption_bundle", fetch)
+        monkeypatch.setattr(transcripts, "_sleep", lambda _delay: None)
+        result = transcripts._try_youtube_caption_bundle("https://youtube.com/watch?v=abc", "abc")
+        assert result is not None
+        assert result[0] == "Hello"
+        assert result[1].timing == "caption"
+        assert calls["n"] == 2
+
+    def test_empty_text_is_permanent(self, monkeypatch):
+        calls = {"n": 0}
+
+        def fetch(_url: str, _video_id: str):
+            calls["n"] += 1
+            return ("", evidence_from_vtt(""))
+
+        monkeypatch.setattr(transcripts, "_fetch_caption_bundle", fetch)
+        assert (
+            transcripts._try_youtube_caption_bundle("https://youtube.com/watch?v=abc", "abc")
+            is None
+        )
+        assert calls["n"] == 1
+
+    def test_gives_up_after_the_retry_budget(self, monkeypatch):
+        monkeypatch.setattr(transcripts, "_fetch_caption_bundle", lambda _url, _video_id: None)
+        monkeypatch.setattr(transcripts, "_sleep", lambda _delay: None)
+        assert (
+            transcripts._try_youtube_caption_bundle("https://youtube.com/watch?v=abc", "abc")
+            is None
+        )
 
 
 class TestYoutubeCaptionsFallback:

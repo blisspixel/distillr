@@ -139,11 +139,22 @@ and exposes snapshot-bound MCP evidence identity. See the
 [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8) and
 [publication receipt](docs/research/evidence/2026-10-24/publication.json).
 Next is `0.20.9`: the research-quality baseline, with its acceptance gate
-unchanged. Issue #61 now has an opt-in Ollama boolean think control and an
-inconclusive on-device receipt. Issue #63 now has the offline recipe
-identity check. Expert review and semantic trials have not been run. #61
-stays open until that evidence exists. Defaults are unchanged. Honest
-evidence state is the basis for that measurement.
+unchanged. A structural checker, frozen cases, and an offline receipt now
+exist. Retrieval and synthesis are scored separately. The Faros headline and
+body are frozen anchors, with a contrasting source that really reports
+probability. Correction, withdrawal, zero-claim, refused-extraction, and
+no-meaningful-change variants are included. Semantic criteria are unreviewed.
+Expert review was not performed, so the row stays queued and defaults stay
+unchanged. Issue #61 stays open. Issue #63 remains the offline recipe
+identity check only.
+
+Issue #67's first slice is recorded here and is not a release row. Caption
+cues keep their times in a sidecar and the insight records coverage. The
+analysis prompt stays the plain transcript. A separate local frame manifest
+can qualify one synthetic visual answer, including a missing frame, an
+unreadable frame, a blind interval, a repeated slide, disagreement, and
+cancellation. Real-source qualification and a video-model route stay
+separately authorized.
 
 The October 17 operator request expands `0.20.7` before implementation to
 resolve all 18 open issues, followed by another bug hunt, local zero-dollar

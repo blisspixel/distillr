@@ -79,6 +79,10 @@ from distill.commands._command_cost import (
 from distill.library.state import ChannelState
 from distill.pipeline.summary import ETATracker, RunSummary, VideoResult
 from distill.ingestors.youtube._yt_dlp_boundary import first_text, info_mapping
+from distill.ingestors.youtube.caption_timing import (
+    load_caption_evidence,
+    timing_sidecar_path,
+)
 from distill.ingestors.youtube.transcripts import get_transcript
 from distill.youtube_urls import (
     normalize_youtube_channel_url,
@@ -696,6 +700,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
         _print_video_progress(eta, tracker)
         return False
 
+    caption_evidence = load_caption_evidence(timing_sidecar_path(transcript_file))
     labels = {
         "short": "quick insight",
         "scan": "scanning",
@@ -719,6 +724,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     config,
                     tracker=tracker,
                     intent=_intent,
+                    caption_evidence=caption_evidence,
                 )
             elif effective_mode == "scan":
                 insights = analyze_scan(
@@ -730,6 +736,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     tracker=tracker,
                     custom_instructions=custom_instructions,
                     intent=_intent,
+                    caption_evidence=caption_evidence,
                 )
             else:
                 insights = analyze_video(
@@ -741,6 +748,7 @@ def process_video(  # noqa: C901 — legacy, will refactor
                     tracker=tracker,
                     custom_instructions=custom_instructions,
                     intent=_intent,
+                    caption_evidence=caption_evidence,
                 )
         if not insight_has_body(insights):
             console.print("    [red]empty analysis[/red]")

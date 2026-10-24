@@ -1,0 +1,4716 @@
+{
+  "schema": "research-desk-baseline.v1",
+  "date": "2026-10-24",
+  "expert_review": "not_performed",
+  "judge_model": null,
+  "live_model_trial": false,
+  "cost_usd": 0,
+  "cloud_calls": 0,
+  "defaults_changed": false,
+  "gate_passed": false,
+  "gate_reason": "Structural controls are recorded. Expert review and judge calibration were not performed. Discovery and synthesis defaults are unchanged. This receipt does not ship 0.20.9.",
+  "controls_match_expectations": true,
+  "limitations": [
+    {
+      "id": "expert-review",
+      "disposition": "unreviewed",
+      "owner": "0.20.9",
+      "detail": "No human expert reviewed these fixtures. No model judge ran. The roadmap row stays queued."
+    },
+    {
+      "id": "selective-revision",
+      "disposition": "planned_capability",
+      "owner": "post-1.0 research desk",
+      "detail": "The correction controls score authored briefs. They do not run production refresh, and they do not show that an existing corpus revises only affected conclusions."
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "faros-headline-body",
+      "field": "contested",
+      "variant": "headline_body",
+      "question": "What does the Faros takeaway page report about production incidents as AI adoption changes?",
+      "limits": "Quotations are frozen from the takeaway page accessed 24 October 2026. The live page is not a test dependency. The sentence that names a randomized effect is fixture-authored because the page describes a within-organization period comparison and does not use the word randomized. The talk sentence is fixture-authored and is not independent corroboration. The full report file was not captured.",
+      "sources": [
+        {
+          "source_id": "faros-takeaways",
+          "title": "AI acceleration whiplash takeaways",
+          "locator": "https://www.faros.ai/blog/ai-acceleration-whiplash-takeaways",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Public takeaway page. Section heading and body are separate anchors.",
+          "anchors": [
+            {
+              "anchor_id": "faros-headline",
+              "role": "headline",
+              "metric_kind": "incident_probability",
+              "denominator": "code change",
+              "relative_change": "more than tripled",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "For every code change merged, the probability of a production incident has more than tripled."
+            },
+            {
+              "anchor_id": "faros-ratio",
+              "role": "measurement",
+              "metric_kind": "incidents_to_pr_ratio",
+              "denominator": "PR",
+              "relative_change": "up 242.7%",
+              "population": "low to high AI adoption",
+              "comparison": "low to high AI adoption",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption."
+            },
+            {
+              "anchor_id": "faros-not-probability",
+              "role": "qualification",
+              "metric_kind": "incidents_to_pr_ratio",
+              "denominator": "PR",
+              "relative_change": "unavailable",
+              "population": "low to high AI adoption",
+              "comparison": "low to high AI adoption",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge."
+            },
+            {
+              "anchor_id": "faros-method",
+              "role": "qualification",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "within each organization",
+              "comparison": "within each organization",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization."
+            },
+            {
+              "anchor_id": "faros-observational",
+              "role": "qualification",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "low to high AI adoption",
+              "comparison": "observational",
+              "causal": "not_claimed",
+              "authored": true,
+              "text": "The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change."
+            },
+            {
+              "anchor_id": "faros-population",
+              "role": "qualification",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "22,000 developers and more than 4,000 teams",
+              "comparison": "within each organization",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption."
+            },
+            {
+              "anchor_id": "faros-no-randomized-effect",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The frozen takeaway page does not report a randomized effect."
+            },
+            {
+              "anchor_id": "faros-monthly",
+              "role": "measurement",
+              "metric_kind": "monthly_incident_count",
+              "denominator": "month",
+              "relative_change": "up 57.9%",
+              "population": "low to high AI adoption",
+              "comparison": "low to high AI adoption",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Monthly incidents are up 57.9%."
+            }
+          ]
+        },
+        {
+          "source_id": "faros-talk-stand-in",
+          "title": "Authored stand-in for a talk summary",
+          "locator": "fixture:talk-summary-stand-in",
+          "accessed": "2026-10-24",
+          "pool_role": "derivative",
+          "origin": "derivative_of:faros-takeaways",
+          "active": true,
+          "note": "Not a transcript of a talk. Not independent evidence for the telemetry.",
+          "anchors": [
+            {
+              "anchor_id": "faros-talk-headline",
+              "role": "headline",
+              "metric_kind": "incident_probability",
+              "denominator": "unavailable",
+              "relative_change": "tripled",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "claimed",
+              "authored": true,
+              "text": "The talk summary says AI tripled the probability of a production incident."
+            }
+          ]
+        },
+        {
+          "source_id": "faros-full-report",
+          "title": "The AI Engineering Report 2026",
+          "locator": "https://www.faros.ai/research/ai-acceleration-whiplash",
+          "accessed": "2026-10-24",
+          "pool_role": "inaccessible",
+          "origin": "primary",
+          "active": false,
+          "note": "The full report file was not captured for this fixture.",
+          "anchors": []
+        }
+      ]
+    },
+    {
+      "case_id": "synthetic-probability",
+      "field": "mature",
+      "variant": "true_probability",
+      "question": "What incident probability does the synthetic randomized trial report?",
+      "limits": "Entirely fixture-authored so the checker cannot treat probability as a forbidden word.",
+      "sources": [
+        {
+          "source_id": "synthetic-trial",
+          "title": "Synthetic randomized incident trial",
+          "locator": "fixture:synthetic-probability-trial",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Authored contrast. This is not a Faros result and not a real trial.",
+          "anchors": [
+            {
+              "anchor_id": "trial-probability",
+              "role": "measurement",
+              "metric_kind": "incident_probability",
+              "denominator": "participants",
+              "relative_change": "0.12 versus 0.04",
+              "population": "randomized participants",
+              "comparison": "randomized",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants."
+            },
+            {
+              "anchor_id": "trial-no-pr-denominator",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The trial does not report an incidents-to-PR ratio."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "mature-adult-review",
+      "field": "mature",
+      "variant": "baseline",
+      "question": "What did the 2019 adult review report, and does that result apply to children?",
+      "limits": "Synthetic mature-field episode. No live paper was fetched.",
+      "sources": [
+        {
+          "source_id": "review-2019",
+          "title": "Synthetic 2019 adult review",
+          "locator": "fixture:synthetic-2019-adult-review",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Authored stand-in for a stable primary review.",
+          "anchors": [
+            {
+              "anchor_id": "review-adults",
+              "role": "measurement",
+              "metric_kind": "relative_reduction",
+              "denominator": "adult trials",
+              "relative_change": "12%",
+              "population": "adults",
+              "comparison": "review of trials",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2019 review of adult trials estimated a 12% relative reduction in the primary outcome."
+            },
+            {
+              "anchor_id": "review-children",
+              "role": "qualification",
+              "metric_kind": "relative_reduction",
+              "denominator": "adult trials",
+              "relative_change": "12%",
+              "population": "adults",
+              "comparison": "review of trials",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The review did not enroll children."
+            },
+            {
+              "anchor_id": "review-enrolled",
+              "role": "unaffected",
+              "metric_kind": "enrollment",
+              "denominator": "adult trials",
+              "relative_change": "none",
+              "population": "adults",
+              "comparison": "review of trials",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The trials enrolled adults."
+            }
+          ]
+        },
+        {
+          "source_id": "textbook",
+          "title": "Synthetic textbook restatement",
+          "locator": "fixture:synthetic-textbook",
+          "accessed": "2026-10-24",
+          "pool_role": "redundant",
+          "origin": "derivative_of:review-2019",
+          "active": true,
+          "note": "Restates the review and adds no evidence.",
+          "anchors": [
+            {
+              "anchor_id": "textbook-repeat",
+              "role": "measurement",
+              "metric_kind": "relative_reduction",
+              "denominator": "adult trials",
+              "relative_change": "12%",
+              "population": "adults",
+              "comparison": "derivative",
+              "causal": "not_claimed",
+              "authored": true,
+              "text": "A textbook repeats the 2019 review's 12% figure."
+            }
+          ]
+        },
+        {
+          "source_id": "pediatric-cohort",
+          "title": "Uncaptured pediatric cohort",
+          "locator": "fixture:pediatric-cohort-not-captured",
+          "accessed": "2026-10-24",
+          "pool_role": "omitted",
+          "origin": "primary",
+          "active": false,
+          "note": "Known omission. Absence from the corpus is not evidence about children.",
+          "anchors": [
+            {
+              "anchor_id": "pediatric-outside",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "A pediatric cohort exists outside this captured set."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "fast-score-change",
+      "field": "fast_moving",
+      "variant": "meaningful_change",
+      "question": "What is the current benchmark score after the scorer fix?",
+      "limits": "Synthetic fast-moving episode. The website is not a score change.",
+      "sources": [
+        {
+          "source_id": "bench-2024",
+          "title": "Synthetic 2024 benchmark note",
+          "locator": "fixture:bench-2024",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Earlier score. It remains history.",
+          "anchors": [
+            {
+              "anchor_id": "score-2024",
+              "role": "history",
+              "metric_kind": "benchmark_score",
+              "denominator": "benchmark",
+              "relative_change": "70",
+              "population": "2024 scorer",
+              "comparison": "before the scorer fix",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2024 benchmark score was 70."
+            }
+          ]
+        },
+        {
+          "source_id": "bench-2026",
+          "title": "Synthetic 2026 scorer fix",
+          "locator": "fixture:bench-2026",
+          "accessed": "2026-10-24",
+          "pool_role": "later_material",
+          "origin": "primary",
+          "active": true,
+          "note": "Later source that changes the score.",
+          "anchors": [
+            {
+              "anchor_id": "score-2026",
+              "role": "measurement",
+              "metric_kind": "benchmark_score",
+              "denominator": "benchmark",
+              "relative_change": "81",
+              "population": "2026 scorer",
+              "comparison": "after the scorer fix",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 revised benchmark score was 81 after the scorer fix."
+            }
+          ]
+        },
+        {
+          "source_id": "lab-site",
+          "title": "Synthetic lab website",
+          "locator": "fixture:lab-website",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch that does not change the score.",
+          "anchors": [
+            {
+              "anchor_id": "lab-website",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The lab redesigned its website in 2026."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "fast-website-batch",
+      "field": "fast_moving",
+      "variant": "no_meaningful_change",
+      "question": "Did the website redesign change the recorded benchmark score?",
+      "limits": "No meaningful change. The website sentence is not a measurement.",
+      "sources": [
+        {
+          "source_id": "bench-2024-only",
+          "title": "Synthetic 2024 benchmark note",
+          "locator": "fixture:bench-2024",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The score is unchanged by this batch.",
+          "anchors": [
+            {
+              "anchor_id": "score-still-70",
+              "role": "measurement",
+              "metric_kind": "benchmark_score",
+              "denominator": "benchmark",
+              "relative_change": "70",
+              "population": "2024 scorer",
+              "comparison": "unchanged by the website batch",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2024 benchmark score was 70."
+            }
+          ]
+        },
+        {
+          "source_id": "lab-site-only",
+          "title": "Synthetic lab website",
+          "locator": "fixture:lab-website",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "A later batch with no score evidence.",
+          "anchors": [
+            {
+              "anchor_id": "lab-website",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The lab redesigned its website in 2026."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "correction-narrowing",
+      "field": "contested",
+      "variant": "correction",
+      "question": "After the 2026 note, what is method A's condition X result, and what remains unresolved?",
+      "limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work.",
+      "sources": [
+        {
+          "source_id": "method-a",
+          "title": "Synthetic method A",
+          "locator": "fixture:method-a",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-10",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "10",
+              "population": "unspecified",
+              "comparison": "method A",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method A reports 10 under condition X."
+            },
+            {
+              "anchor_id": "method-a-calibrated",
+              "role": "unaffected",
+              "metric_kind": "calibration",
+              "denominator": "instrument",
+              "relative_change": "none",
+              "population": "method A instrument",
+              "comparison": "calibration check",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The instrument used by method A was calibrated."
+            },
+            {
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The condition X result of 10 from method A is withdrawn."
+            }
+          ]
+        },
+        {
+          "source_id": "method-b",
+          "title": "Synthetic method B",
+          "locator": "fixture:method-b",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The other side of the unresolved conflict.",
+          "anchors": [
+            {
+              "anchor_id": "method-b-16",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "16",
+              "population": "unspecified",
+              "comparison": "method B",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method B reports 16 under condition X."
+            }
+          ]
+        },
+        {
+          "source_id": "note-2026",
+          "title": "Synthetic 2026 narrowing",
+          "locator": "fixture:method-a-2026-note",
+          "accessed": "2026-10-24",
+          "pool_role": "correction",
+          "origin": "primary",
+          "active": true,
+          "note": "Narrows method A and leaves method B untouched.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-11",
+              "role": "measurement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "11",
+              "population": "adults",
+              "comparison": "method A correction",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
+            }
+          ]
+        },
+        {
+          "source_id": "verifier",
+          "title": "Synthetic verifier refusal",
+          "locator": "fixture:verifier-refusal",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Used by the refused-extraction variant.",
+          "anchors": [
+            {
+              "anchor_id": "verification-refused",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Verification was refused. No correction was applied."
+            }
+          ]
+        },
+        {
+          "source_id": "journal-site",
+          "title": "Synthetic journal homepage",
+          "locator": "fixture:journal-homepage",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch with no bearing on condition X.",
+          "anchors": [
+            {
+              "anchor_id": "journal-homepage",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The journal redesigned its homepage."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "correction-withdrawal",
+      "field": "contested",
+      "variant": "withdrawal",
+      "question": "What current reliance remains after method A's condition X result is withdrawn?",
+      "limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work.",
+      "sources": [
+        {
+          "source_id": "method-a",
+          "title": "Synthetic method A",
+          "locator": "fixture:method-a",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-10",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "10",
+              "population": "unspecified",
+              "comparison": "method A",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method A reports 10 under condition X."
+            },
+            {
+              "anchor_id": "method-a-calibrated",
+              "role": "unaffected",
+              "metric_kind": "calibration",
+              "denominator": "instrument",
+              "relative_change": "none",
+              "population": "method A instrument",
+              "comparison": "calibration check",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The instrument used by method A was calibrated."
+            },
+            {
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The condition X result of 10 from method A is withdrawn."
+            }
+          ]
+        },
+        {
+          "source_id": "method-b",
+          "title": "Synthetic method B",
+          "locator": "fixture:method-b",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The other side of the unresolved conflict.",
+          "anchors": [
+            {
+              "anchor_id": "method-b-16",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "16",
+              "population": "unspecified",
+              "comparison": "method B",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method B reports 16 under condition X."
+            }
+          ]
+        },
+        {
+          "source_id": "note-2026",
+          "title": "Synthetic 2026 narrowing",
+          "locator": "fixture:method-a-2026-note",
+          "accessed": "2026-10-24",
+          "pool_role": "correction",
+          "origin": "primary",
+          "active": true,
+          "note": "Narrows method A and leaves method B untouched.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-11",
+              "role": "measurement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "11",
+              "population": "adults",
+              "comparison": "method A correction",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
+            }
+          ]
+        },
+        {
+          "source_id": "verifier",
+          "title": "Synthetic verifier refusal",
+          "locator": "fixture:verifier-refusal",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Used by the refused-extraction variant.",
+          "anchors": [
+            {
+              "anchor_id": "verification-refused",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Verification was refused. No correction was applied."
+            }
+          ]
+        },
+        {
+          "source_id": "journal-site",
+          "title": "Synthetic journal homepage",
+          "locator": "fixture:journal-homepage",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch with no bearing on condition X.",
+          "anchors": [
+            {
+              "anchor_id": "journal-homepage",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The journal redesigned its homepage."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "correction-zero-claim",
+      "field": "contested",
+      "variant": "zero_claim",
+      "question": "What should a zero-claim extraction change?",
+      "limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work.",
+      "sources": [
+        {
+          "source_id": "method-a",
+          "title": "Synthetic method A",
+          "locator": "fixture:method-a",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-10",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "10",
+              "population": "unspecified",
+              "comparison": "method A",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method A reports 10 under condition X."
+            },
+            {
+              "anchor_id": "method-a-calibrated",
+              "role": "unaffected",
+              "metric_kind": "calibration",
+              "denominator": "instrument",
+              "relative_change": "none",
+              "population": "method A instrument",
+              "comparison": "calibration check",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The instrument used by method A was calibrated."
+            },
+            {
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The condition X result of 10 from method A is withdrawn."
+            }
+          ]
+        },
+        {
+          "source_id": "method-b",
+          "title": "Synthetic method B",
+          "locator": "fixture:method-b",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The other side of the unresolved conflict.",
+          "anchors": [
+            {
+              "anchor_id": "method-b-16",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "16",
+              "population": "unspecified",
+              "comparison": "method B",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method B reports 16 under condition X."
+            }
+          ]
+        },
+        {
+          "source_id": "note-2026",
+          "title": "Synthetic 2026 narrowing",
+          "locator": "fixture:method-a-2026-note",
+          "accessed": "2026-10-24",
+          "pool_role": "correction",
+          "origin": "primary",
+          "active": true,
+          "note": "Narrows method A and leaves method B untouched.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-11",
+              "role": "measurement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "11",
+              "population": "adults",
+              "comparison": "method A correction",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
+            }
+          ]
+        },
+        {
+          "source_id": "verifier",
+          "title": "Synthetic verifier refusal",
+          "locator": "fixture:verifier-refusal",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Used by the refused-extraction variant.",
+          "anchors": [
+            {
+              "anchor_id": "verification-refused",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Verification was refused. No correction was applied."
+            }
+          ]
+        },
+        {
+          "source_id": "journal-site",
+          "title": "Synthetic journal homepage",
+          "locator": "fixture:journal-homepage",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch with no bearing on condition X.",
+          "anchors": [
+            {
+              "anchor_id": "journal-homepage",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The journal redesigned its homepage."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "correction-refused",
+      "field": "contested",
+      "variant": "invalid_extraction",
+      "question": "What should a refused verification change?",
+      "limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work.",
+      "sources": [
+        {
+          "source_id": "method-a",
+          "title": "Synthetic method A",
+          "locator": "fixture:method-a",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-10",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "10",
+              "population": "unspecified",
+              "comparison": "method A",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method A reports 10 under condition X."
+            },
+            {
+              "anchor_id": "method-a-calibrated",
+              "role": "unaffected",
+              "metric_kind": "calibration",
+              "denominator": "instrument",
+              "relative_change": "none",
+              "population": "method A instrument",
+              "comparison": "calibration check",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The instrument used by method A was calibrated."
+            },
+            {
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The condition X result of 10 from method A is withdrawn."
+            }
+          ]
+        },
+        {
+          "source_id": "method-b",
+          "title": "Synthetic method B",
+          "locator": "fixture:method-b",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The other side of the unresolved conflict.",
+          "anchors": [
+            {
+              "anchor_id": "method-b-16",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "16",
+              "population": "unspecified",
+              "comparison": "method B",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method B reports 16 under condition X."
+            }
+          ]
+        },
+        {
+          "source_id": "note-2026",
+          "title": "Synthetic 2026 narrowing",
+          "locator": "fixture:method-a-2026-note",
+          "accessed": "2026-10-24",
+          "pool_role": "correction",
+          "origin": "primary",
+          "active": true,
+          "note": "Narrows method A and leaves method B untouched.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-11",
+              "role": "measurement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "11",
+              "population": "adults",
+              "comparison": "method A correction",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
+            }
+          ]
+        },
+        {
+          "source_id": "verifier",
+          "title": "Synthetic verifier refusal",
+          "locator": "fixture:verifier-refusal",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Used by the refused-extraction variant.",
+          "anchors": [
+            {
+              "anchor_id": "verification-refused",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Verification was refused. No correction was applied."
+            }
+          ]
+        },
+        {
+          "source_id": "journal-site",
+          "title": "Synthetic journal homepage",
+          "locator": "fixture:journal-homepage",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch with no bearing on condition X.",
+          "anchors": [
+            {
+              "anchor_id": "journal-homepage",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The journal redesigned its homepage."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "correction-homepage",
+      "field": "contested",
+      "variant": "no_meaningful_change",
+      "question": "Did the homepage redesign change the condition X disagreement?",
+      "limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work.",
+      "sources": [
+        {
+          "source_id": "method-a",
+          "title": "Synthetic method A",
+          "locator": "fixture:method-a",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-10",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "10",
+              "population": "unspecified",
+              "comparison": "method A",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method A reports 10 under condition X."
+            },
+            {
+              "anchor_id": "method-a-calibrated",
+              "role": "unaffected",
+              "metric_kind": "calibration",
+              "denominator": "instrument",
+              "relative_change": "none",
+              "population": "method A instrument",
+              "comparison": "calibration check",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The instrument used by method A was calibrated."
+            },
+            {
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The condition X result of 10 from method A is withdrawn."
+            }
+          ]
+        },
+        {
+          "source_id": "method-b",
+          "title": "Synthetic method B",
+          "locator": "fixture:method-b",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "The other side of the unresolved conflict.",
+          "anchors": [
+            {
+              "anchor_id": "method-b-16",
+              "role": "disagreement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "16",
+              "population": "unspecified",
+              "comparison": "method B",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "Method B reports 16 under condition X."
+            }
+          ]
+        },
+        {
+          "source_id": "note-2026",
+          "title": "Synthetic 2026 narrowing",
+          "locator": "fixture:method-a-2026-note",
+          "accessed": "2026-10-24",
+          "pool_role": "correction",
+          "origin": "primary",
+          "active": true,
+          "note": "Narrows method A and leaves method B untouched.",
+          "anchors": [
+            {
+              "anchor_id": "method-a-11",
+              "role": "measurement",
+              "metric_kind": "condition_x_result",
+              "denominator": "condition X",
+              "relative_change": "11",
+              "population": "adults",
+              "comparison": "method A correction",
+              "causal": "not_claimed",
+              "authored": false,
+              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
+            }
+          ]
+        },
+        {
+          "source_id": "verifier",
+          "title": "Synthetic verifier refusal",
+          "locator": "fixture:verifier-refusal",
+          "accessed": "2026-10-24",
+          "pool_role": "essential",
+          "origin": "primary",
+          "active": true,
+          "note": "Used by the refused-extraction variant.",
+          "anchors": [
+            {
+              "anchor_id": "verification-refused",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Verification was refused. No correction was applied."
+            }
+          ]
+        },
+        {
+          "source_id": "journal-site",
+          "title": "Synthetic journal homepage",
+          "locator": "fixture:journal-homepage",
+          "accessed": "2026-10-24",
+          "pool_role": "later_immaterial",
+          "origin": "primary",
+          "active": true,
+          "note": "Later batch with no bearing on condition X.",
+          "anchors": [
+            {
+              "anchor_id": "journal-homepage",
+              "role": "immaterial",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The journal redesigned its homepage."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "control_id": "faros-full",
+      "case_id": "faros-headline-body",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Full verbatim brief. The headline is not used as the measurement.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-concise",
+      "case_id": "faros-headline-body",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Registered concise equivalents. Probability remains only in the corrective qualification.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-reordered",
+      "case_id": "faros-headline-body",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "The same full sentences in reverse order.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-headline-as-measurement",
+      "case_id": "faros-headline-body",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "Uses the heading's probability wording as the ratio measurement.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "faros-ratio text is not bound to that anchor"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-ratio"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-not-probability; missing faros-method; missing faros-observational; missing faros-population"
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-no-randomized-effect"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-claims-causation",
+      "case_id": "faros-headline-body",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "The causation sentence is not the ratio anchor.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "faros-ratio text is not bound to that anchor"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-ratio"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-not-probability; missing faros-method; missing faros-observational; missing faros-population"
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-no-randomized-effect"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-monthly-replaces-ratio",
+      "case_id": "faros-headline-body",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "Monthly incidents are a different measurement and do not cover the ratio.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-ratio"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-not-probability; missing faros-method; missing faros-observational; missing faros-population"
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-no-randomized-effect"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-derivative-as-essential",
+      "case_id": "faros-headline-body",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "fail",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Retrieval treats the talk stand-in as essential. Synthesis can still be faithful.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "fail",
+          "detail": "faros-talk-stand-in was selected as essential"
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "faros-body-stored-headline-used",
+      "case_id": "faros-headline-body",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "The body is in the selected source, and the brief still uses the headline as the result.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "faros-headline presented as measurement"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-ratio"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-not-probability; missing faros-method; missing faros-observational; missing faros-population"
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing faros-no-randomized-effect"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "probability-as-probability",
+      "case_id": "synthetic-probability",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "A source that reports probability may be briefed as probability.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "probability-rewritten-as-ratio",
+      "case_id": "synthetic-probability",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "Rewriting this trial into an incidents-to-PR ratio is not entailed.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "trial-probability text is not bound to that anchor"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing trial-probability"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing trial-no-pr-denominator"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "mature-selection",
+      "case_id": "mature-adult-review",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Essential review, redundant textbook rejected, pediatric omission recorded.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "mature-textbook-as-essential",
+      "case_id": "mature-adult-review",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "fail",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "A derivative restatement is not an essential source.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "fail",
+          "detail": "textbook was selected as essential"
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "fast-material-change",
+      "case_id": "fast-score-change",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "The new score is current and the old score stays visible.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "fast-website-as-change",
+      "case_id": "fast-score-change",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "The website batch does not become the score change.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "lab-website presented as measurement"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing score-2026"
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing score-2024"
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "fast-no-meaningful-change",
+      "case_id": "fast-website-batch",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "The score stays 70. The website is rejected rather than synthesized as a change.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-narrowing",
+      "case_id": "correction-narrowing",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "The narrowed result, both sides, and the unaffected calibration stay visible.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-drops-disagreement",
+      "case_id": "correction-narrowing",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "Method B disappears, so the unresolved conflict is gone.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-10; missing method-b-16"
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-10"
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-withdrawal",
+      "case_id": "correction-withdrawal",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Withdrawal stays visible and is not a current measurement. Method B remains.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-uses-withdrawn-as-current",
+      "case_id": "correction-withdrawal",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "A withdrawn result presented as the current measurement fails.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "method-a-withdrawn presented as measurement"
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-b-16"
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-10"
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-calibrated"
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-withdrawn"
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-zero-claim",
+      "case_id": "correction-zero-claim",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Zero claims. The unaffected calibration and the earlier result stay visible.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-zero-claim-drops-unaffected",
+      "case_id": "correction-zero-claim",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "Zero-claim extraction must not retire the unaffected conclusion.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-calibrated"
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-refused",
+      "case_id": "correction-refused",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "Refusal stays a refusal and keeps the earlier result visible.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-refusal-masquerades",
+      "case_id": "correction-refused",
+      "kind": "negative",
+      "expect": "fail",
+      "structural": "fail",
+      "retrieval": "pass",
+      "synthesis": "fail",
+      "matches_expectation": true,
+      "note": "A refused verification must not appear as a successful correction.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "status is answered, expected refused; a measurement sentence is present"
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing verification-refused"
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "fail",
+          "detail": "missing method-a-10"
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    },
+    {
+      "control_id": "correction-immaterial-batch",
+      "case_id": "correction-homepage",
+      "kind": "positive",
+      "expect": "pass",
+      "structural": "pass",
+      "retrieval": "pass",
+      "synthesis": "pass",
+      "matches_expectation": true,
+      "note": "The homepage is rejected and the disagreement is unchanged.",
+      "criteria": [
+        {
+          "criterion": "source_identity",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Every cited source id exists once."
+        },
+        {
+          "criterion": "pool_essential",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role essential follow that role."
+        },
+        {
+          "criterion": "pool_correction",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role correction follow that role."
+        },
+        {
+          "criterion": "pool_later_material",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role later_material follow that role."
+        },
+        {
+          "criterion": "pool_redundant",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role redundant follow that role."
+        },
+        {
+          "criterion": "pool_derivative",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role derivative follow that role."
+        },
+        {
+          "criterion": "pool_later_immaterial",
+          "track": "retrieval",
+          "status": "pass",
+          "detail": "Sources with pool role later_immaterial follow that role."
+        },
+        {
+          "criterion": "pool_omitted",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role omitted follow that role."
+        },
+        {
+          "criterion": "pool_inaccessible",
+          "track": "retrieval",
+          "status": "not_applicable",
+          "detail": "Sources with pool role inaccessible follow that role."
+        },
+        {
+          "criterion": "anchor_binding",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Each sentence matches its anchor text and role."
+        },
+        {
+          "criterion": "extraction_status",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Extraction status matches the variant."
+        },
+        {
+          "criterion": "measurement",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required measurement anchors are presented as themselves."
+        },
+        {
+          "criterion": "qualification",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required qualification anchors are presented as themselves."
+        },
+        {
+          "criterion": "disagreement",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required disagreement anchors are presented as themselves."
+        },
+        {
+          "criterion": "unavailable_evidence",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required unavailable_evidence anchors are presented as themselves."
+        },
+        {
+          "criterion": "history",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required history anchors are presented as themselves."
+        },
+        {
+          "criterion": "unaffected",
+          "track": "synthesis",
+          "status": "pass",
+          "detail": "Required unaffected anchors are presented as themselves."
+        },
+        {
+          "criterion": "withdrawal",
+          "track": "synthesis",
+          "status": "not_applicable",
+          "detail": "Required withdrawal anchors are presented as themselves."
+        },
+        {
+          "criterion": "faithful_qualification_prose",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so prose faithfulness is unreviewed."
+        },
+        {
+          "criterion": "fair_disagreement_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so disagreement fairness is unreviewed."
+        },
+        {
+          "criterion": "useful_change_explanation",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No model judge ran, so the change explanation is unreviewed."
+        },
+        {
+          "criterion": "judge_calibration",
+          "track": "semantic",
+          "status": "unreviewed",
+          "detail": "No recorded human review exists, so judge calibration is unreviewed."
+        }
+      ]
+    }
+  ]
+}

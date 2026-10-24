@@ -551,6 +551,8 @@ feature is enabling infrastructure until it can answer those questions.
 - Record current selection, synthesis, disagreement, change, and stopping
   failures.
 - Keep semantic results per case rather than reducing them to one threshold.
+- A structural draft and offline receipt are recorded. Expert review is
+  still required before this baseline can pass. Defaults stay unchanged.
 
 ### First product slice
 

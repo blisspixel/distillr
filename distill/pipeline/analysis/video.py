@@ -2,6 +2,7 @@
 """Per-video analysis via the LLM router."""
 
 from distill.config import DistillConfig
+from distill.ingestors.youtube.caption_timing import CaptionEvidence
 from distill.library.intent import CorpusIntent
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
@@ -33,6 +34,23 @@ def _intent_goal_lens(intent: CorpusIntent | None) -> tuple[str, str]:
     return intent.goal, intent.lens
 
 
+def _with_caption_evidence(markdown: str, evidence: CaptionEvidence | None) -> str:
+    """Record caption coverage on the insight. The prompt is already built."""
+    if evidence is None:
+        return markdown
+    block = (
+        f"caption_timing: {evidence.timing}\n"
+        f"caption_text_coverage: {evidence.text_coverage}\n"
+        f"caption_source: {evidence.source}\n"
+        f"caption_cue_count: {len(evidence.cues)}\n"
+        f"caption_gap_count: {len(evidence.gaps_ms)}"
+    )
+    closing = markdown.find("\n---\n")
+    if closing == -1:
+        return markdown
+    return f"{markdown[:closing]}\n{block}{markdown[closing:]}"
+
+
 def analyze_video(
     title: str,
     upload_date: str,
@@ -44,6 +62,7 @@ def analyze_video(
     router_config: RouterConfig | None = None,
     *,
     intent: CorpusIntent | None = None,
+    caption_evidence: CaptionEvidence | None = None,
 ) -> str:
     """Run 2-pass analysis on a video transcript. Returns insights markdown.
 
@@ -82,7 +101,7 @@ def analyze_video(
 
     model = response2.model
     safe_title = title.replace('"', '\\"')
-    return f"""---
+    markdown = f"""---
 video_title: \"{safe_title}\"
 channel: {channel_name}
 upload_date: {upload_date}
@@ -96,6 +115,7 @@ lens: {lens}
 
 {pass2}
 """
+    return _with_caption_evidence(markdown, caption_evidence)
 
 
 def analyze_short(
@@ -107,6 +127,7 @@ def analyze_short(
     tracker: CostTracker | None = None,
     *,
     intent: CorpusIntent | None = None,
+    caption_evidence: CaptionEvidence | None = None,
 ) -> str:
     """Single-pass analysis for YouTube Shorts. Returns insights markdown."""
     rc = RouterConfig()
@@ -126,7 +147,7 @@ def analyze_short(
         tracker.record(TokenUsage.from_response(response, call_type="short"))
 
     safe_title = title.replace('"', '\\"')
-    return f"""---
+    markdown = f"""---
 video_title: \"{safe_title}\"
 channel: {channel_name}
 upload_date: {upload_date}
@@ -140,6 +161,7 @@ prompt_id: "{PROMPT_IDS["analysis.short"]}"
 
 {result}
 """
+    return _with_caption_evidence(markdown, caption_evidence)
 
 
 def analyze_scan(
@@ -152,6 +174,7 @@ def analyze_scan(
     custom_instructions: str = "",
     *,
     intent: CorpusIntent | None = None,
+    caption_evidence: CaptionEvidence | None = None,
 ) -> str:
     """Single-pass scan analysis for any video. Lightweight triage."""
     rc = RouterConfig()
@@ -173,7 +196,7 @@ def analyze_scan(
         tracker.record(TokenUsage.from_response(response, call_type="scan"))
 
     safe_title = title.replace('"', '\\"')
-    return f"""---
+    markdown = f"""---
 video_title: \"{safe_title}\"
 channel: {channel_name}
 upload_date: {upload_date}
@@ -187,6 +210,7 @@ prompt_id: "{PROMPT_IDS["analysis.scan"]}"
 
 {result}
 """
+    return _with_caption_evidence(markdown, caption_evidence)
 
 
 def generate_channel_context(

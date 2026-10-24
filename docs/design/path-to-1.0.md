@@ -158,6 +158,9 @@ through the existing evaluation and pipeline seams:
    not implementation of the entire post-1.0 research desk.
 
 Do not change discovery or synthesis defaults before this baseline exists.
+On 2026-10-24 a structural checker, frozen cases, and an offline receipt
+were recorded. Expert review and judge calibration were not performed, so
+the row stays queued.
 
 ## Remaining work in release order
 
@@ -256,7 +259,7 @@ Do not reopen contracts casually. Next work is **2.0-shaped**:
 | `0.20.6` | shipped | no-metered setup, pinned previews and capture repairs |
 | `0.20.7` | shipped | generation retirement, zero-claim behavior, derived origin, discovery and freshness uncertainty, and issues #40 through #57 |
 | `0.20.8` | shipped | emSign and optional Transformers floors, clean default and entailment-export audits, snapshot-bound MCP evidence identity, and the [published release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8) |
-| `0.20.9` | queued | expert-authored research-desk fixtures and published baseline results |
+| `0.20.9` | queued | structural fixtures and offline receipt recorded; expert review and judge calibration still required |
 | `0.20.10` | queued | clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live-journey receipts |
 | `0.20.11` | queued | remaining strict typing, parse boundaries, deterministic-core evidence, and freeze-time security receipt |
 | `1.0.0rc1` | gated | all covered contracts frozen and exercised; only release blockers admitted |

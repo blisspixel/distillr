@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Structural research-desk baseline. Frozen mature, fast-moving, and
+  contested cases separate retrieval from synthesis and bind each brief
+  sentence to a source anchor. The Faros takeaway page is frozen, including
+  the incidents-to-PR ratio, the heading that says probability, and a
+  contrasting source that reports probability. Correction, withdrawal,
+  zero-claim, refused-extraction, and no-meaningful-change controls are
+  included. Semantic criteria stay unreviewed. Expert review was not
+  performed. Defaults are unchanged. See
+  [research-desk-baseline-2026-10-24.md](design/research-desk-baseline-2026-10-24.md)
+  and
+  [research-desk-baseline.json](research/evidence/2026-10-24/research-desk-baseline.json).
+- Caption timing for YouTube transcripts. Cue times and coverage are written
+  beside the plain transcript and copied into insight frontmatter. ASR timing
+  stays unknown. Default analysis prompts are unchanged. A local frame
+  manifest can qualify one synthetic visual answer. Real-source and
+  video-model qualification are not included. See
+  [video-evidence-2026-10-24.md](design/video-evidence-2026-10-24.md).
 - Opt-in `DISTILL_<WORKLOAD>_LOCAL_THINK` for Ollama. The value is `true` or
   `false`. `low`, `medium`, and `high` are rejected and are not translated
   into `think`. LM Studio has no verified thinking control, so an explicit
