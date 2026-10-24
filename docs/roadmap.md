@@ -40,8 +40,9 @@ does not independently schedule releases.
 - `0.20.7` shipped claim-generation retirement, derived-origin preservation
   and all 18 requested maintenance issues. See the
   [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7).
-- `0.20.8` is the security maintenance release for the emSign trust bundle,
-  the optional Transformers floors, and snapshot-bound MCP evidence identity.
+- `0.20.8` shipped the emSign trust-bundle refresh, the optional Transformers
+  floors, and snapshot-bound MCP evidence identity. See the
+  [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8).
 - `0.20.9` owns the research-desk evaluation baseline.
 - `0.20.10` owns operator, accessibility, and performance evidence.
 - `0.20.11` owns remaining strict-boundary and freeze-time security evidence.
@@ -83,13 +84,12 @@ The shipped `0.20.1` maintenance release closed the billing and compatibility
 blockers discovered during the current-source review. The remaining product
 sequence is:
 
-1. Publish the `0.20.8` security maintenance release. Issues #61 and #63 stay
-   open until expert-reviewed quality evidence exists.
-2. Establish expert-authored research-desk evaluation fixtures in `0.20.9`
-   before changing discovery or synthesis behavior.
-3. Publish operator, accessibility, install, cold-start, export, and live
+1. Establish expert-authored research-desk evaluation fixtures in `0.20.9`
+   before changing discovery or synthesis behavior. Issues #61 and #63 stay
+   open until that expert-reviewed quality evidence exists.
+2. Publish operator, accessibility, install, cold-start, export, and live
    journey evidence in `0.20.10`.
-4. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
+3. Finish Pyright strictness, parse-at-boundary coverage, deterministic-core
    verification, and the freeze-time security receipt in `0.20.11`.
 4. Exercise the covered CLI, MCP, artifact, configuration, state, and corpus
    promises in `1.0.0rc1`, then publish `1.0.0` only if they remain valid.

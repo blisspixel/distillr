@@ -1,7 +1,9 @@
 # Dependency security review, October 24, 2026
 
 Reviewed `main` at `7fd9d89f8ec0e7907536ce8478205544c5f64acb`, then moved the
-optional checker and the trust bundle forward. This is a version and call-path
+optional checker and the trust bundle forward. The published release is
+[0.20.8](https://github.com/blisspixel/distillr/releases/tag/v0.20.8)
+(`31f022b242920f4885e9bf88334b5873eadee908`). This is a version and call-path
 review. No exploit was run.
 
 ## Transformers

@@ -174,8 +174,8 @@ Dependency-ordered and versioned, never calendar-estimated:
 7. `0.20.5`: close current API, routed billing, SDK, and dependency security defects.
 8. `0.20.6`: shipped no-metered setup, pinned previews and capture repairs.
 9. `0.20.7`: correct active claim generations, derived origin and open maintenance issues.
-10. `0.20.8`: refresh trust material and optional Transformers advisories, and
-    ship snapshot-bound MCP evidence identity.
+10. `0.20.8`: shipped the trust-material refresh, optional Transformers
+    advisory floors, and snapshot-bound MCP evidence identity.
 11. `0.20.9`: publish the research-desk evaluation baseline before changing defaults.
 12. `0.20.10`: publish operator, accessibility, install, export, cold-start, and live
     reference-journey evidence.

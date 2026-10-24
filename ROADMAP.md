@@ -111,7 +111,7 @@ and a scope; they are not schedule promises.
 | 7 | `0.20.5` | Shipped | Close current API, billing, and dependency security defects | Dated primary-source pricing and model audit; compatible SDK requests; routed price and ledger regressions; unchanged budget refusal, retries, and local transport boundaries; clean dependency audit; full CI, exact-wheel smoke, aligned skill archives, and matching GitHub/PyPI artifacts |
 | 8 | `0.20.6` | Shipped | Repair first-run setup, exact preview replay, and bounded capture fallbacks | No-metered setup and bench refusal; shortlist replay; closed-deadline socket regression; bounded system-browser and static-HTTP fallbacks; full CI and published [maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6) |
 | 9 | `0.20.7` | Shipped | Correct evidence currency and origin, then resolve the requested provider, toolchain, and interface defects in issues #40 through #57 | Generation and zero-claim retirement; honest discovery/revision/freshness and verification coverage; exact citation origin; current provider billing and toolchain checks; accessible terminal and web behavior; local zero-dollar journey receipts; full CI and release artifacts; [execution plan](docs/design/open-issue-execution-2026-10-17.md) |
-| 10 | `0.20.8` | Next | Refresh emSign-affected trust material and the optional Transformers advisories, and return snapshot-bound MCP evidence identity | Runtime certifi floor, uv 0.13.5, development pip floor, and the repaired publish action; transformers >=5.17 with the custom-generation non-use check; clean default and entailment-export audits; additive find/read evidence and expected-digest conflicts; full CI and release artifacts |
+| 10 | `0.20.8` | Shipped | Refresh emSign-affected trust material and the optional Transformers advisories, and return snapshot-bound MCP evidence identity | Runtime certifi floor, uv 0.13.5, development pip floor, and the repaired publish action; transformers >=5.17 with the custom-generation non-use check; clean default and entailment-export audits; additive find/read evidence and expected-digest conflicts; full CI and published release artifacts |
 | 11 | `0.20.9` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
 | 12 | `0.20.10` | Queued | Close operator and performance evidence gaps | Clean-install, artifact-size, cold-start, export, onboarding, accessibility, recovery, and live paper/video/site journey receipts; hardware, model, token, cost, retry, resume, and no-op metadata where applicable |
 | 13 | `0.20.11` | Queued | Close strict-boundary and freeze-time security gaps | Remaining Pyright-strict package promotion; parse-once boundary coverage; fault-injection and deterministic-core verification evidence; no open validated medium-or-higher security finding |
@@ -134,10 +134,13 @@ Published `0.20.7` corrects active-generation, discovery, revision, freshness
 and derived-origin evidence, and closes issues #40 through #57. See the
 [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7) and
 [publication receipt](docs/research/evidence/2026-10-17/publication.json).
-Next is `0.20.8`: refresh the trust bundle and optional checker advisories,
-and expose snapshot-bound MCP evidence identity. The research-quality baseline
-moves to `0.20.9` with its acceptance gate unchanged. Honest evidence state is
-the basis for that measurement.
+Published `0.20.8` refreshes the trust bundle and optional checker advisories,
+and exposes snapshot-bound MCP evidence identity. See the
+[release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8) and
+[publication receipt](docs/research/evidence/2026-10-24/publication.json).
+Next is `0.20.9`: the research-quality baseline, with its acceptance gate
+unchanged. Issues #61 and #63 stay open until that expert-reviewed evidence
+exists. Honest evidence state is the basis for that measurement.
 
 The October 17 operator request expands `0.20.7` before implementation to
 resolve all 18 open issues, followed by another bug hunt, local zero-dollar

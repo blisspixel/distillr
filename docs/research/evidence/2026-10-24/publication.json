@@ -1,0 +1,159 @@
+{
+  "schema_version": "published-release-verification.v1",
+  "version": "0.20.8",
+  "release_commit": "31f022b242920f4885e9bf88334b5873eadee908",
+  "github_release": "https://github.com/blisspixel/distillr/releases/tag/v0.20.8",
+  "pypi": "https://pypi.org/project/distillr/0.20.8/",
+  "pypi_yanked": false,
+  "github_release_draft": false,
+  "pypi_and_github_files": [
+    {
+      "filename": "distillr-0.20.8-py3-none-any.whl",
+      "sha256": "d98e0bce88a4dfaff6d9043f50adbffb1789838545c76d8a1333b70e1a73030e",
+      "url": "https://files.pythonhosted.org/packages/89/ff/ba8515559d7ab4af5bb764cceabd310962b51ba08b51642f8a29e2d4efe0/distillr-0.20.8-py3-none-any.whl",
+      "github_asset_id": 672653677,
+      "size": 1250524
+    },
+    {
+      "filename": "distillr-0.20.8.tar.gz",
+      "sha256": "f050b408433938107b60b54f00533382acd7c087e3f2ce466bff46cf2e74ead9",
+      "url": "https://files.pythonhosted.org/packages/3e/f8/e0b61f13efcab2eea0272d0c575bdb192ad5dd1564516e45935621f1214b/distillr-0.20.8.tar.gz",
+      "github_asset_id": 672653675,
+      "size": 1047909
+    }
+  ],
+  "sbom": {
+    "format": "CycloneDX",
+    "spec_version": "1.6",
+    "filename": "distillr-0.20.8.cdx.json",
+    "github_asset_sha256": "0ae4a220abeeb07c6ad04770e0f99fa886839374e0d0dab85238b49ad925a9fb",
+    "size": 94426,
+    "component_name": "distillr",
+    "component_version": "0.20.8",
+    "components": 72
+  },
+  "cost_usd": 0,
+  "main_ci": {
+    "conclusion": "success",
+    "event": "push",
+    "headSha": "31f022b242920f4885e9bf88334b5873eadee908",
+    "status": "completed",
+    "url": "https://github.com/blisspixel/distillr/actions/runs/40107518591"
+  },
+  "publish_workflow": {
+    "conclusion": "success",
+    "event": "push",
+    "headSha": "31f022b242920f4885e9bf88334b5873eadee908",
+    "status": "completed",
+    "url": "https://github.com/blisspixel/distillr/actions/runs/40108530875"
+  },
+  "github_assets": 13,
+  "attestation_verification": {
+    "tool": "pypi-attestations",
+    "tool_version": "0.0.30",
+    "repository": "https://github.com/blisspixel/distillr",
+    "checked_on": "2026-10-24",
+    "files": [
+      {
+        "filename": "distillr-0.20.8-py3-none-any.whl",
+        "sha256": "d98e0bce88a4dfaff6d9043f50adbffb1789838545c76d8a1333b70e1a73030e",
+        "provenance_http_status": 200,
+        "exit_code": 0
+      },
+      {
+        "filename": "distillr-0.20.8.tar.gz",
+        "sha256": "f050b408433938107b60b54f00533382acd7c087e3f2ce466bff46cf2e74ead9",
+        "provenance_http_status": 200,
+        "exit_code": 0
+      }
+    ]
+  },
+  "installed_public_wheel_smoke": {
+    "schema_version": "published-installed-wheel.v1",
+    "version": "0.20.8",
+    "wheel_sha256": "d98e0bce88a4dfaff6d9043f50adbffb1789838545c76d8a1333b70e1a73030e",
+    "isolated_import": true,
+    "themes": 12,
+    "bundled_skill_version": "0.20.8",
+    "notices": [],
+    "metadata_requires_dist_prefixes": [
+      "certifi>=",
+      "pypdf>=",
+      "opentelemetry-api>="
+    ],
+    "runtime_pip_requirement": false,
+    "resolved": {
+      "certifi": "2026.10.23",
+      "pypdf": "6.21.2",
+      "opentelemetry-api": "1.45.1"
+    },
+    "cli": [
+      {
+        "flag": "--version",
+        "exit_code": 0,
+        "output": "0.20.8"
+      }
+    ],
+    "cost_usd": 0
+  },
+  "limits": [
+    "No pull request CI. The release commit was an admin push to main, and publish.yml required the whole ci.yml run on that commit.",
+    "Runtime files were not byte-compared with the tagged tree.",
+    "Skill archive hashes on the GitHub release were not re-hashed locally against canonical builds.",
+    "No exploit was run. Deployed machines, existing virtual environments, custom CA overrides, and already-installed uv or pip were not inspected.",
+    "The container CI job rebuilt and smoked the image. It did not publish a container image."
+  ],
+  "locked_transformers": {
+    "requirement": ">=5.17,<6",
+    "resolved": "5.20.2",
+    "source": "uv.lock at the release commit"
+  },
+  "github_open_issues_at_recording": [65, 63, 61],
+  "issues_remaining_after_security_closeout": [61, 63],
+  "github_open_dependency_alerts_at_recording": [
+    {
+      "number": 7,
+      "package": "transformers",
+      "advisory": "GHSA-x9r9-c232-4q39",
+      "state": "open",
+      "updated_at": "2026-10-12T07:50:32Z",
+      "manifest": "uv.lock",
+      "recorded_requirement": "= 4.57.6",
+      "vulnerable_range": ">= 4.49.0, <= 5.8.1",
+      "first_patched_version": null
+    },
+    {
+      "number": 6,
+      "package": "transformers",
+      "advisory": "GHSA-xrqw-3rrv-vx5w",
+      "state": "open",
+      "updated_at": "2026-10-12T07:50:31Z",
+      "vulnerable_range": "< 5.10.0"
+    },
+    {
+      "number": 3,
+      "package": "transformers",
+      "advisory": "GHSA-fgcw-684q-jj6r",
+      "state": "open",
+      "updated_at": "2026-10-12T07:50:31Z",
+      "vulnerable_range": "< 5.5.0"
+    },
+    {
+      "number": 2,
+      "package": "transformers",
+      "advisory": "GHSA-29pf-2h5f-8g72",
+      "state": "open",
+      "updated_at": "2026-10-12T07:50:30Z",
+      "vulnerable_range": "< 5.3.0"
+    },
+    {
+      "number": 1,
+      "package": "transformers",
+      "advisory": "GHSA-69w3-r845-3855",
+      "state": "open",
+      "updated_at": "2026-10-12T07:50:30Z",
+      "vulnerable_range": "< 5.0.0rc3"
+    }
+  ],
+  "dependency_alert_note": "Five Dependabot alerts were still open on 2026-10-24. Alert 7 still records uv.lock as transformers = 4.57.6 from 2026-10-12. The release lock and SBOM resolve transformers 5.20.2. Alerts were not dismissed."
+}
