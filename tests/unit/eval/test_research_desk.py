@@ -1,7 +1,10 @@
 """Structural research-desk baseline. No model and no network."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 from distill.eval.research_desk import (
     Anchor,
@@ -224,3 +227,88 @@ def test_pool_criteria_keep_a_stable_order():
         "pool_omitted",
         "pool_inaccessible",
     ]
+
+
+@pytest.mark.parametrize(
+    ("control_id", "anchor_id"),
+    [
+        ("faros-full", "faros-report-not-captured"),
+        ("faros-concise", "faros-report-not-captured"),
+        ("mature-selection", "pediatric-applicability-unknown"),
+        ("fast-no-meaningful-change", "website-no-score-change"),
+        ("correction-narrowing", "method-a-10-history"),
+        ("correction-withdrawal", "method-a-10-history"),
+        ("correction-zero-claim", "method-b-16"),
+        ("correction-zero-claim", "zero-claim-unchanged"),
+        ("correction-refused", "method-b-16"),
+        ("correction-refused", "method-a-calibrated"),
+    ],
+)
+def test_positive_briefs_cannot_drop_reviewed_material_context(control_id, anchor_id):
+    control = _control(control_id)
+    omitted = replace(
+        control.synthesis,
+        sentences=tuple(s for s in control.synthesis.sentences if s.anchor_id != anchor_id),
+    )
+    result = assess(CASES[control.case_id], control.selection, omitted)
+    assert result.synthesis_status == "fail"
+    assert any(f"missing {anchor_id}" in row.detail for row in result.synthesis)
+
+
+@pytest.mark.parametrize("control_id", ["correction-narrowing", "correction-withdrawal"])
+def test_history_cannot_be_presented_as_current_support(control_id):
+    control = _control(control_id)
+    historical = next(s for s in control.synthesis.sentences if s.presents_as == "history")
+    assert "earlier" in historical.text and "not current support" in historical.text
+    for bad_sentence in (
+        replace(historical, presents_as="measurement"),
+        replace(historical, text="Method A reports 10 under condition X."),
+    ):
+        changed = replace(
+            control.synthesis,
+            sentences=tuple(
+                bad_sentence if s.anchor_id == historical.anchor_id else s
+                for s in control.synthesis.sentences
+            ),
+        )
+        result = assess(CASES[control.case_id], control.selection, changed)
+        assert result.synthesis_status == "fail"
+        assert any(
+            row.criterion == "anchor_binding" and row.status == "fail" for row in result.synthesis
+        )
+
+
+@pytest.mark.parametrize(
+    ("case_id", "event_id"),
+    [
+        ("correction-narrowing", "note-2026"),
+        ("correction-withdrawal", "withdrawal-2026"),
+        ("correction-zero-claim", "zero-extraction"),
+        ("correction-refused", "verifier"),
+        ("correction-homepage", "journal-site"),
+    ],
+)
+def test_correction_episode_pools_exclude_other_events(case_id, event_id):
+    case = CASES[case_id]
+    assert {source.source_id for source in case.sources} == {"method-a", "method-b", event_id}
+    control = next(c for c in CONTROLS if c.case_id == case_id and c.kind == "positive")
+    events = {"note-2026", "withdrawal-2026", "zero-extraction", "verifier", "journal-site"}
+    for unavailable in events - {event_id}:
+        leaked = replace(
+            control.selection,
+            selected=(*control.selection.selected, (unavailable, "essential")),
+        )
+        result = assess(case, leaked, control.synthesis)
+        assert result.retrieval_status == "fail"
+        assert any(f"unknown source {unavailable}" in row.detail for row in result.retrieval)
+
+
+def test_refusal_and_zero_claim_keep_prior_current_findings():
+    for control_id in ("correction-refused", "correction-zero-claim"):
+        control = _control(control_id)
+        ids = {sentence.anchor_id for sentence in control.synthesis.sentences}
+        assert {"method-a-10", "method-b-16", "method-a-calibrated"} <= ids
+        assert "method-a-10-history" not in ids
+        assert not any(
+            sentence.presents_as == "measurement" for sentence in control.synthesis.sentences
+        )

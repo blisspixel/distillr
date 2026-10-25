@@ -1,0 +1,1134 @@
+[
+  {
+    "sample_id": "0839b8f3205a",
+    "question": "After the 2026 note, what is method A's condition X result, and what remains unresolved?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic earlier method A receipt",
+        "origin": "primary",
+        "available": true,
+        "note": "The earlier result is historical; calibration remains unaffected.",
+        "evidence": [
+          {
+            "text": "The earlier method A receipt reported 10 under condition X; this is retained history, not current support.",
+            "authored": true
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "note-2026",
+        "title": "Synthetic 2026 narrowing",
+        "origin": "primary",
+        "available": true,
+        "note": "Narrows method A and leaves method B untouched.",
+        "evidence": [
+          {
+            "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B.",
+            "authored": false
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "note-2026",
+        "correction"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B.\nThe instrument used by method A was calibrated.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  },
+  {
+    "sample_id": "0e6d166e018c",
+    "question": "What should a refused verification change?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic method A",
+        "origin": "primary",
+        "available": true,
+        "note": "Current result and unaffected calibration before a successful correction.",
+        "evidence": [
+          {
+            "text": "Method A reports 10 under condition X.",
+            "authored": false
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "verifier",
+        "title": "Synthetic verifier refusal",
+        "origin": "primary",
+        "available": true,
+        "note": "Used by the refused-extraction variant.",
+        "evidence": [
+          {
+            "text": "Verification was refused. No correction was applied.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "verifier",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  },
+  {
+    "sample_id": "397272b8b92c",
+    "question": "What is the current benchmark score after the scorer fix?",
+    "source_pool": [
+      {
+        "source_id": "bench-2024",
+        "title": "Synthetic 2024 benchmark note",
+        "origin": "primary",
+        "available": true,
+        "note": "Earlier score. It remains history.",
+        "evidence": [
+          {
+            "text": "The 2024 benchmark score was 70.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "bench-2026",
+        "title": "Synthetic 2026 scorer fix",
+        "origin": "primary",
+        "available": true,
+        "note": "Later source that changes the score.",
+        "evidence": [
+          {
+            "text": "The 2026 revised benchmark score was 81 after the scorer fix.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "lab-site",
+        "title": "Synthetic lab website",
+        "origin": "primary",
+        "available": true,
+        "note": "Later batch that does not change the score.",
+        "evidence": [
+          {
+            "text": "The lab redesigned its website in 2026.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "bench-2024",
+        "essential"
+      ],
+      [
+        "bench-2026",
+        "later_material"
+      ]
+    ],
+    "rejected": [
+      [
+        "lab-site",
+        "website redesign is not a score change"
+      ]
+    ],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The 2026 revised benchmark score was 81 after the scorer fix.\nThe 2024 benchmark score was 70.",
+    "collection_limits": "Synthetic fast-moving episode. The website is not a score change."
+  },
+  {
+    "sample_id": "4ad4e56f4578",
+    "question": "After the 2026 note, what is method A's condition X result, and what remains unresolved?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic earlier method A receipt",
+        "origin": "primary",
+        "available": true,
+        "note": "The earlier result is historical; calibration remains unaffected.",
+        "evidence": [
+          {
+            "text": "The earlier method A receipt reported 10 under condition X; this is retained history, not current support.",
+            "authored": true
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "note-2026",
+        "title": "Synthetic 2026 narrowing",
+        "origin": "primary",
+        "available": true,
+        "note": "Narrows method A and leaves method B untouched.",
+        "evidence": [
+          {
+            "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B.",
+            "authored": false
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "note-2026",
+        "correction"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B.\nThe earlier method A receipt reported 10 under condition X; this is retained history, not current support.\nMethod B reports 16 under condition X.\nThe instrument used by method A was calibrated.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  },
+  {
+    "sample_id": "4d58050ab64c",
+    "question": "What incident probability does the synthetic randomized trial report?",
+    "source_pool": [
+      {
+        "source_id": "synthetic-trial",
+        "title": "Synthetic randomized incident trial",
+        "origin": "primary",
+        "available": true,
+        "note": "Authored contrast. This is not a Faros result and not a real trial.",
+        "evidence": [
+          {
+            "text": "In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants.",
+            "authored": false
+          },
+          {
+            "text": "The trial does not report an incidents-to-PR ratio.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "synthetic-trial",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.",
+    "collection_limits": "Entirely fixture-authored so the checker cannot treat probability as a forbidden word."
+  },
+  {
+    "sample_id": "5921c2673d84",
+    "question": "What is the current benchmark score after the scorer fix?",
+    "source_pool": [
+      {
+        "source_id": "bench-2024",
+        "title": "Synthetic 2024 benchmark note",
+        "origin": "primary",
+        "available": true,
+        "note": "Earlier score. It remains history.",
+        "evidence": [
+          {
+            "text": "The 2024 benchmark score was 70.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "bench-2026",
+        "title": "Synthetic 2026 scorer fix",
+        "origin": "primary",
+        "available": true,
+        "note": "Later source that changes the score.",
+        "evidence": [
+          {
+            "text": "The 2026 revised benchmark score was 81 after the scorer fix.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "lab-site",
+        "title": "Synthetic lab website",
+        "origin": "primary",
+        "available": true,
+        "note": "Later batch that does not change the score.",
+        "evidence": [
+          {
+            "text": "The lab redesigned its website in 2026.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "bench-2024",
+        "essential"
+      ],
+      [
+        "bench-2026",
+        "later_material"
+      ]
+    ],
+    "rejected": [
+      [
+        "lab-site",
+        "website redesign is not a score change"
+      ]
+    ],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The lab redesigned its website in 2026.",
+    "collection_limits": "Synthetic fast-moving episode. The website is not a score change."
+  },
+  {
+    "sample_id": "6c1346696499",
+    "question": "What does the Faros takeaway page report about production incidents as AI adoption changes?",
+    "source_pool": [
+      {
+        "source_id": "faros-takeaways",
+        "title": "AI acceleration whiplash takeaways",
+        "origin": "primary",
+        "available": true,
+        "note": "Public takeaway page. Section heading and body are separate anchors.",
+        "evidence": [
+          {
+            "text": "For every code change merged, the probability of a production incident has more than tripled.",
+            "authored": false
+          },
+          {
+            "text": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.",
+            "authored": false
+          },
+          {
+            "text": "It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.",
+            "authored": false
+          },
+          {
+            "text": "The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.",
+            "authored": true
+          },
+          {
+            "text": "The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "The frozen takeaway page does not report a randomized effect.",
+            "authored": true
+          },
+          {
+            "text": "The full report was not captured; this brief is limited to the frozen takeaway page.",
+            "authored": true
+          },
+          {
+            "text": "Monthly incidents are up 57.9%.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "faros-talk-stand-in",
+        "title": "Authored stand-in for a talk summary",
+        "origin": "derivative_of:faros-takeaways",
+        "available": true,
+        "note": "Not a transcript of a talk. Not independent evidence for the telemetry.",
+        "evidence": [
+          {
+            "text": "The talk summary says AI tripled the probability of a production incident.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "faros-full-report",
+        "title": "The AI Engineering Report 2026",
+        "origin": "primary",
+        "available": false,
+        "note": "The full report file was not captured for this fixture.",
+        "evidence": []
+      }
+    ],
+    "selected": [
+      [
+        "faros-takeaways",
+        "essential"
+      ]
+    ],
+    "rejected": [
+      [
+        "faros-talk-stand-in",
+        "derivative is not independent corroboration"
+      ]
+    ],
+    "omissions": [
+      [
+        "faros-full-report",
+        "full report file was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "The incidents-to-PR ratio rose 242.7% between low and high AI adoption.\nOne pull request can be associated with more than one incident, so this figure is a ratio, not a probability.\nThe comparison is the change between each organization's low and high AI adoption periods.\nThe comparison is observational and does not show that AI caused the change.\nThe report draws on two years of telemetry from 22,000 developers and more than 4,000 teams.\nThe frozen takeaway page does not report a randomized effect.\nThe full report was not captured; this brief is limited to the frozen takeaway page.",
+    "collection_limits": "Quotations are frozen from the takeaway page accessed 24 October 2026. The live page is not a test dependency. The sentence that names a randomized effect is fixture-authored because the page describes a within-organization period comparison and does not use the word randomized. The talk sentence is fixture-authored and is not independent corroboration. The full report file was not captured."
+  },
+  {
+    "sample_id": "7d2bf43d9bcb",
+    "question": "What did the 2019 adult review report, and does that result apply to children?",
+    "source_pool": [
+      {
+        "source_id": "review-2019",
+        "title": "Synthetic 2019 adult review",
+        "origin": "primary",
+        "available": true,
+        "note": "Authored stand-in for a stable primary review.",
+        "evidence": [
+          {
+            "text": "The 2019 review of adult trials estimated a 12% relative reduction in the primary outcome.",
+            "authored": false
+          },
+          {
+            "text": "The review did not enroll children.",
+            "authored": false
+          },
+          {
+            "text": "The trials enrolled adults.",
+            "authored": false
+          },
+          {
+            "text": "Whether the adult result applies to children is unknown from this captured evidence.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "textbook",
+        "title": "Synthetic textbook restatement",
+        "origin": "derivative_of:review-2019",
+        "available": true,
+        "note": "Restates the review and adds no evidence.",
+        "evidence": [
+          {
+            "text": "A textbook repeats the 2019 review's 12% figure.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "pediatric-cohort",
+        "title": "Uncaptured pediatric cohort",
+        "origin": "primary",
+        "available": false,
+        "note": "Known omission. Absence from the corpus is not evidence about children.",
+        "evidence": [
+          {
+            "text": "A pediatric cohort exists outside this captured set.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "review-2019",
+        "essential"
+      ]
+    ],
+    "rejected": [
+      [
+        "textbook",
+        "textbook restates the review"
+      ]
+    ],
+    "omissions": [
+      [
+        "pediatric-cohort",
+        "pediatric cohort was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "The 2019 review of adult trials estimated a 12% relative reduction in the primary outcome.\nThe review did not enroll children.\nThe trials enrolled adults.\nA pediatric cohort exists outside this captured set.\nWhether the adult result applies to children is unknown from this captured evidence.",
+    "collection_limits": "Synthetic mature-field episode. No live paper was fetched."
+  },
+  {
+    "sample_id": "8f94f13ccc83",
+    "question": "What does the Faros takeaway page report about production incidents as AI adoption changes?",
+    "source_pool": [
+      {
+        "source_id": "faros-takeaways",
+        "title": "AI acceleration whiplash takeaways",
+        "origin": "primary",
+        "available": true,
+        "note": "Public takeaway page. Section heading and body are separate anchors.",
+        "evidence": [
+          {
+            "text": "For every code change merged, the probability of a production incident has more than tripled.",
+            "authored": false
+          },
+          {
+            "text": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.",
+            "authored": false
+          },
+          {
+            "text": "It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.",
+            "authored": false
+          },
+          {
+            "text": "The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.",
+            "authored": true
+          },
+          {
+            "text": "The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "The frozen takeaway page does not report a randomized effect.",
+            "authored": true
+          },
+          {
+            "text": "The full report was not captured; this brief is limited to the frozen takeaway page.",
+            "authored": true
+          },
+          {
+            "text": "Monthly incidents are up 57.9%.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "faros-talk-stand-in",
+        "title": "Authored stand-in for a talk summary",
+        "origin": "derivative_of:faros-takeaways",
+        "available": true,
+        "note": "Not a transcript of a talk. Not independent evidence for the telemetry.",
+        "evidence": [
+          {
+            "text": "The talk summary says AI tripled the probability of a production incident.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "faros-full-report",
+        "title": "The AI Engineering Report 2026",
+        "origin": "primary",
+        "available": false,
+        "note": "The full report file was not captured for this fixture.",
+        "evidence": []
+      }
+    ],
+    "selected": [
+      [
+        "faros-takeaways",
+        "essential"
+      ]
+    ],
+    "rejected": [
+      [
+        "faros-talk-stand-in",
+        "derivative is not independent corroboration"
+      ]
+    ],
+    "omissions": [
+      [
+        "faros-full-report",
+        "full report file was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "AI caused the incident increase.",
+    "collection_limits": "Quotations are frozen from the takeaway page accessed 24 October 2026. The live page is not a test dependency. The sentence that names a randomized effect is fixture-authored because the page describes a within-organization period comparison and does not use the word randomized. The talk sentence is fixture-authored and is not independent corroboration. The full report file was not captured."
+  },
+  {
+    "sample_id": "c2d33303a5b8",
+    "question": "What does the Faros takeaway page report about production incidents as AI adoption changes?",
+    "source_pool": [
+      {
+        "source_id": "faros-takeaways",
+        "title": "AI acceleration whiplash takeaways",
+        "origin": "primary",
+        "available": true,
+        "note": "Public takeaway page. Section heading and body are separate anchors.",
+        "evidence": [
+          {
+            "text": "For every code change merged, the probability of a production incident has more than tripled.",
+            "authored": false
+          },
+          {
+            "text": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.",
+            "authored": false
+          },
+          {
+            "text": "It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.",
+            "authored": false
+          },
+          {
+            "text": "The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.",
+            "authored": true
+          },
+          {
+            "text": "The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "The frozen takeaway page does not report a randomized effect.",
+            "authored": true
+          },
+          {
+            "text": "The full report was not captured; this brief is limited to the frozen takeaway page.",
+            "authored": true
+          },
+          {
+            "text": "Monthly incidents are up 57.9%.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "faros-talk-stand-in",
+        "title": "Authored stand-in for a talk summary",
+        "origin": "derivative_of:faros-takeaways",
+        "available": true,
+        "note": "Not a transcript of a talk. Not independent evidence for the telemetry.",
+        "evidence": [
+          {
+            "text": "The talk summary says AI tripled the probability of a production incident.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "faros-full-report",
+        "title": "The AI Engineering Report 2026",
+        "origin": "primary",
+        "available": false,
+        "note": "The full report file was not captured for this fixture.",
+        "evidence": []
+      }
+    ],
+    "selected": [
+      [
+        "faros-takeaways",
+        "essential"
+      ]
+    ],
+    "rejected": [
+      [
+        "faros-talk-stand-in",
+        "derivative is not independent corroboration"
+      ]
+    ],
+    "omissions": [
+      [
+        "faros-full-report",
+        "full report file was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "For every code change merged, the probability of a production incident has more than tripled.",
+    "collection_limits": "Quotations are frozen from the takeaway page accessed 24 October 2026. The live page is not a test dependency. The sentence that names a randomized effect is fixture-authored because the page describes a within-organization period comparison and does not use the word randomized. The talk sentence is fixture-authored and is not independent corroboration. The full report file was not captured."
+  },
+  {
+    "sample_id": "d94364a8aa67",
+    "question": "What should a refused verification change?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic method A",
+        "origin": "primary",
+        "available": true,
+        "note": "Current result and unaffected calibration before a successful correction.",
+        "evidence": [
+          {
+            "text": "Method A reports 10 under condition X.",
+            "authored": false
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "verifier",
+        "title": "Synthetic verifier refusal",
+        "origin": "primary",
+        "available": true,
+        "note": "Used by the refused-extraction variant.",
+        "evidence": [
+          {
+            "text": "Verification was refused. No correction was applied.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "verifier",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "refused",
+    "answer": "Verification was refused. No correction was applied.\nMethod A reports 10 under condition X.\nMethod B reports 16 under condition X.\nThe instrument used by method A was calibrated.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  },
+  {
+    "sample_id": "e203649e9088",
+    "question": "What incident probability does the synthetic randomized trial report?",
+    "source_pool": [
+      {
+        "source_id": "synthetic-trial",
+        "title": "Synthetic randomized incident trial",
+        "origin": "primary",
+        "available": true,
+        "note": "Authored contrast. This is not a Faros result and not a real trial.",
+        "evidence": [
+          {
+            "text": "In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants.",
+            "authored": false
+          },
+          {
+            "text": "The trial does not report an incidents-to-PR ratio.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "synthetic-trial",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants.\nThe trial does not report an incidents-to-PR ratio.",
+    "collection_limits": "Entirely fixture-authored so the checker cannot treat probability as a forbidden word."
+  },
+  {
+    "sample_id": "e220a6687923",
+    "question": "What current reliance remains after method A's condition X result is withdrawn?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic earlier method A receipt",
+        "origin": "primary",
+        "available": true,
+        "note": "The earlier result is historical; calibration remains unaffected.",
+        "evidence": [
+          {
+            "text": "The earlier method A receipt reported 10 under condition X; this is retained history, not current support.",
+            "authored": true
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "withdrawal-2026",
+        "title": "Synthetic method A withdrawal",
+        "origin": "primary",
+        "available": true,
+        "note": "Withdrawal is a separate later event, not part of the original receipt.",
+        "evidence": [
+          {
+            "text": "The condition X result of 10 from method A is withdrawn.",
+            "authored": false
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "withdrawal-2026",
+        "correction"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "answered",
+    "answer": "The condition X result of 10 from method A is withdrawn.\nMethod B reports 16 under condition X.\nThe instrument used by method A was calibrated.\nThe earlier method A receipt reported 10 under condition X; this is retained history, not current support.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  },
+  {
+    "sample_id": "ea0ff8766b30",
+    "question": "What did the 2019 adult review report, and does that result apply to children?",
+    "source_pool": [
+      {
+        "source_id": "review-2019",
+        "title": "Synthetic 2019 adult review",
+        "origin": "primary",
+        "available": true,
+        "note": "Authored stand-in for a stable primary review.",
+        "evidence": [
+          {
+            "text": "The 2019 review of adult trials estimated a 12% relative reduction in the primary outcome.",
+            "authored": false
+          },
+          {
+            "text": "The review did not enroll children.",
+            "authored": false
+          },
+          {
+            "text": "The trials enrolled adults.",
+            "authored": false
+          },
+          {
+            "text": "Whether the adult result applies to children is unknown from this captured evidence.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "textbook",
+        "title": "Synthetic textbook restatement",
+        "origin": "derivative_of:review-2019",
+        "available": true,
+        "note": "Restates the review and adds no evidence.",
+        "evidence": [
+          {
+            "text": "A textbook repeats the 2019 review's 12% figure.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "pediatric-cohort",
+        "title": "Uncaptured pediatric cohort",
+        "origin": "primary",
+        "available": false,
+        "note": "Known omission. Absence from the corpus is not evidence about children.",
+        "evidence": [
+          {
+            "text": "A pediatric cohort exists outside this captured set.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "review-2019",
+        "essential"
+      ],
+      [
+        "textbook",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [
+      [
+        "pediatric-cohort",
+        "pediatric cohort was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "The 2019 review of adult trials estimated a 12% relative reduction in the primary outcome.\nThe review did not enroll children.\nThe trials enrolled adults.\nA pediatric cohort exists outside this captured set.\nWhether the adult result applies to children is unknown from this captured evidence.",
+    "collection_limits": "Synthetic mature-field episode. No live paper was fetched."
+  },
+  {
+    "sample_id": "f3dd929bcdcf",
+    "question": "What does the Faros takeaway page report about production incidents as AI adoption changes?",
+    "source_pool": [
+      {
+        "source_id": "faros-takeaways",
+        "title": "AI acceleration whiplash takeaways",
+        "origin": "primary",
+        "available": true,
+        "note": "Public takeaway page. Section heading and body are separate anchors.",
+        "evidence": [
+          {
+            "text": "For every code change merged, the probability of a production incident has more than tripled.",
+            "authored": false
+          },
+          {
+            "text": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.",
+            "authored": false
+          },
+          {
+            "text": "It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.",
+            "authored": false
+          },
+          {
+            "text": "The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.",
+            "authored": true
+          },
+          {
+            "text": "The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.",
+            "authored": false
+          },
+          {
+            "text": "The frozen takeaway page does not report a randomized effect.",
+            "authored": true
+          },
+          {
+            "text": "The full report was not captured; this brief is limited to the frozen takeaway page.",
+            "authored": true
+          },
+          {
+            "text": "Monthly incidents are up 57.9%.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "faros-talk-stand-in",
+        "title": "Authored stand-in for a talk summary",
+        "origin": "derivative_of:faros-takeaways",
+        "available": true,
+        "note": "Not a transcript of a talk. Not independent evidence for the telemetry.",
+        "evidence": [
+          {
+            "text": "The talk summary says AI tripled the probability of a production incident.",
+            "authored": true
+          }
+        ]
+      },
+      {
+        "source_id": "faros-full-report",
+        "title": "The AI Engineering Report 2026",
+        "origin": "primary",
+        "available": false,
+        "note": "The full report file was not captured for this fixture.",
+        "evidence": []
+      }
+    ],
+    "selected": [
+      [
+        "faros-takeaways",
+        "essential"
+      ],
+      [
+        "faros-talk-stand-in",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [
+      [
+        "faros-full-report",
+        "full report file was not captured"
+      ]
+    ],
+    "answer_status": "answered",
+    "answer": "The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.\nThis is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.\nIt is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.\nThe period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.\nThe AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.\nThe frozen takeaway page does not report a randomized effect.\nThe full report was not captured; this brief is limited to the frozen takeaway page.",
+    "collection_limits": "Quotations are frozen from the takeaway page accessed 24 October 2026. The live page is not a test dependency. The sentence that names a randomized effect is fixture-authored because the page describes a within-organization period comparison and does not use the word randomized. The talk sentence is fixture-authored and is not independent corroboration. The full report file was not captured."
+  },
+  {
+    "sample_id": "f8acf0edf740",
+    "question": "What should a zero-claim extraction change?",
+    "source_pool": [
+      {
+        "source_id": "method-a",
+        "title": "Synthetic method A",
+        "origin": "primary",
+        "available": true,
+        "note": "Current result and unaffected calibration before a successful correction.",
+        "evidence": [
+          {
+            "text": "Method A reports 10 under condition X.",
+            "authored": false
+          },
+          {
+            "text": "The instrument used by method A was calibrated.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "method-b",
+        "title": "Synthetic method B",
+        "origin": "primary",
+        "available": true,
+        "note": "The other side of the unresolved conflict.",
+        "evidence": [
+          {
+            "text": "Method B reports 16 under condition X.",
+            "authored": false
+          }
+        ]
+      },
+      {
+        "source_id": "zero-extraction",
+        "title": "Synthetic successful zero-claim extraction",
+        "origin": "primary",
+        "available": true,
+        "note": "Successful extraction status, with no new evidence claims.",
+        "evidence": [
+          {
+            "text": "The successful extraction produced zero new claims; earlier current evidence remains unchanged.",
+            "authored": true
+          }
+        ]
+      }
+    ],
+    "selected": [
+      [
+        "method-a",
+        "essential"
+      ],
+      [
+        "method-b",
+        "essential"
+      ],
+      [
+        "zero-extraction",
+        "essential"
+      ]
+    ],
+    "rejected": [],
+    "omissions": [],
+    "answer_status": "zero_claim",
+    "answer": "The instrument used by method A was calibrated.\nMethod A reports 10 under condition X.\nMethod B reports 16 under condition X.\nThe successful extraction produced zero new claims; earlier current evidence remains unchanged.",
+    "collection_limits": "Synthetic correction episode. Authored briefs are scored here. Production selective revision is not run and remains post-1.0 work."
+  }
+]

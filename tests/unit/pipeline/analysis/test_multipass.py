@@ -8,8 +8,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from distill.llm.metadata import ProviderMetadata
 from distill.llm.router import LLM_Response, RouterConfig
+from distill.pipeline.analysis.chunk_selection import ChunkSelectionPlan
 from distill.pipeline.analysis.chunking import Chunk
 from distill.pipeline.analysis.multipass import (
     CATEGORY_DESCRIPTIONS,
@@ -23,6 +26,7 @@ from distill.pipeline.analysis.multipass import (
     merge_pass_results,
     multi_pass_analysis,
 )
+from distill.pipeline.analysis.reranker import ScoredChunk
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -450,3 +454,126 @@ class TestMultiPassTrackerBranches:
         multi_pass_analysis(chunks, config, metadata, tracker=tracker)
         # Record branch taken at least once
         assert len(tracker.entries) >= 0  # path executed (may be 0 if all skips)
+
+
+def _provenance_selection(legacy: bool):
+    chunks = [_make_chunk(f"evidence-{index}", index, 3) for index in range(3)]
+    categories = (
+        INSIGHT_CATEGORIES if legacy else [analysis.section for analysis in PAPER_ANALYSIS_PASSES]
+    )
+    selections = {
+        categories[0]: [
+            ScoredChunk(chunk=chunks[2], score=1.0, category=categories[0]),
+            ScoredChunk(chunk=chunks[0], score=1.0, category=categories[0]),
+        ],
+        categories[1]: [ScoredChunk(chunk=chunks[0], score=1.0, category=categories[1])],
+    }
+    return chunks, categories, selections
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_pass_provenance_records_actual_prompt_chunks_and_response_model(legacy):
+    chunks, categories, selections = _provenance_selection(legacy)
+    plan = ChunkSelectionPlan(
+        by_section=selections,
+        modes=dict.fromkeys(selections, "structural"),
+    )
+    with (
+        patch("distill.pipeline.analysis.multipass.build_chunk_selection_plan", return_value=plan),
+        patch(
+            "distill.pipeline.analysis.multipass.select_chunks_for_category",
+            side_effect=lambda chunks, category, *args, **kwargs: (
+                selections.get(category, []),
+                "structural",
+            ),
+        ),
+        patch("distill.pipeline.analysis.multipass.call") as transport,
+    ):
+        transport.side_effect = [
+            LLM_Response(text="first", input_tokens=1, output_tokens=1, model="effective-first"),
+            LLM_Response(text="second", input_tokens=1, output_tokens=1, model="effective-second"),
+        ]
+        result = multi_pass_analysis(
+            chunks,
+            _make_config(),
+            _make_metadata(),
+            passes=None if legacy else PAPER_ANALYSIS_PASSES,
+        )
+
+    assert [item.category for item in result.passes] == categories[:2]
+    assert [item.chunk_indices for item in result.passes] == [(2, 0), (0,)]
+    assert [item.chunks_used for item in result.passes] == [2, 1]
+    assert [item.model for item in result.passes] == ["effective-first", "effective-second"]
+    assert all(item.model != _make_config().resolve("analysis")[1] for item in result.passes)
+    assert transport.call_count == 2
+    first_prompt, second_prompt = [call.kwargs["prompt"] for call in transport.call_args_list]
+    assert first_prompt.index("evidence-2") < first_prompt.index("evidence-0")
+    assert "evidence-2" not in second_prompt
+    assert all("evidence-1" not in prompt for prompt in (first_prompt, second_prompt))
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_transport_failure_never_constructs_a_result_for_the_failed_pass(legacy):
+    chunks, _, selections = _provenance_selection(legacy)
+    plan = ChunkSelectionPlan(
+        by_section=selections,
+        modes=dict.fromkeys(selections, "structural"),
+    )
+    with (
+        patch("distill.pipeline.analysis.multipass.build_chunk_selection_plan", return_value=plan),
+        patch(
+            "distill.pipeline.analysis.multipass.select_chunks_for_category",
+            side_effect=lambda chunks, category, *args, **kwargs: (
+                selections.get(category, []),
+                "structural",
+            ),
+        ),
+        patch("distill.pipeline.analysis.multipass.call") as transport,
+        patch("distill.pipeline.analysis.multipass.PassResult", wraps=PassResult) as pass_result,
+    ):
+        transport.side_effect = [
+            LLM_Response(text="first", input_tokens=1, output_tokens=1, model="effective-first"),
+            RuntimeError("transport failed"),
+        ]
+        with pytest.raises(RuntimeError, match="transport failed"):
+            multi_pass_analysis(
+                chunks,
+                _make_config(),
+                _make_metadata(),
+                passes=None if legacy else PAPER_ANALYSIS_PASSES,
+            )
+
+    assert transport.call_count == 2
+    assert pass_result.call_count == 1
+    assert pass_result.call_args.kwargs["model"] == "effective-first"
+    assert pass_result.call_args.kwargs["chunk_indices"] == (2, 0)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_empty_selection_has_no_transport_or_fabricated_provenance(legacy):
+    with (
+        patch(
+            "distill.pipeline.analysis.multipass.build_chunk_selection_plan",
+            return_value=ChunkSelectionPlan(),
+        ),
+        patch(
+            "distill.pipeline.analysis.multipass.select_chunks_for_category",
+            return_value=([], "structural"),
+        ),
+        patch("distill.pipeline.analysis.multipass.call") as transport,
+    ):
+        result = multi_pass_analysis(
+            [_make_chunk("unselected")],
+            _make_config(),
+            _make_metadata(),
+            passes=None if legacy else PAPER_ANALYSIS_PASSES,
+        )
+    assert result.passes == []
+    assert result.selection_modes == ""
+    transport.assert_not_called()
+
+
+def test_legacy_pass_result_construction_keeps_unknown_provenance_defaults():
+    result = PassResult("Methods", "older caller", 1, "structural")
+    assert result.model == ""
+    assert result.chunk_indices == ()

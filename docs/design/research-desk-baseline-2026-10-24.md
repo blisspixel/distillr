@@ -4,6 +4,11 @@ Status: draft structural receipt. Expert review was not performed. No model
 judge ran. Discovery and synthesis defaults are unchanged. This note does
 not ship `0.20.9` and does not close issue #61.
 
+The [October 25 agent review](research-desk-review-2026-10-25.md) records
+subsequent authored-control repairs and production selection challenges.
+Independent agent review is distinct from human expert review and calibrated
+model judging; the original release gate remains closed.
+
 ## Question this step answers
 
 Can deterministic CI tell a faithful use of a frozen source from a brief

@@ -127,6 +127,18 @@
               "text": "The frozen takeaway page does not report a randomized effect."
             },
             {
+              "anchor_id": "faros-report-not-captured",
+              "role": "gap",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The full report was not captured; this brief is limited to the frozen takeaway page."
+            },
+            {
               "anchor_id": "faros-monthly",
               "role": "measurement",
               "metric_kind": "monthly_incident_count",
@@ -274,6 +286,18 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The trials enrolled adults."
+            },
+            {
+              "anchor_id": "pediatric-applicability-unknown",
+              "role": "qualification",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "Whether the adult result applies to children is unknown from this captured evidence."
             }
           ]
         },
@@ -436,6 +460,18 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The 2024 benchmark score was 70."
+            },
+            {
+              "anchor_id": "website-no-score-change",
+              "role": "qualification",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The website redesign supplies no evidence of a benchmark score change; the recorded score remains 70."
             }
           ]
         },
@@ -474,25 +510,25 @@
       "sources": [
         {
           "source_id": "method-a",
-          "title": "Synthetic method A",
+          "title": "Synthetic earlier method A receipt",
           "locator": "fixture:method-a",
           "accessed": "2026-10-24",
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "note": "The earlier result is historical; calibration remains unaffected.",
           "anchors": [
             {
-              "anchor_id": "method-a-10",
-              "role": "disagreement",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "10",
-              "population": "unspecified",
-              "comparison": "method A",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "Method A reports 10 under condition X."
+              "anchor_id": "method-a-10-history",
+              "role": "history",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The earlier method A receipt reported 10 under condition X; this is retained history, not current support."
             },
             {
               "anchor_id": "method-a-calibrated",
@@ -505,18 +541,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The instrument used by method A was calibrated."
-            },
-            {
-              "anchor_id": "method-a-withdrawn",
-              "role": "withdrawn",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "withdrawn",
-              "population": "method A",
-              "comparison": "withdrawal",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         },
@@ -565,54 +589,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
-            }
-          ]
-        },
-        {
-          "source_id": "verifier",
-          "title": "Synthetic verifier refusal",
-          "locator": "fixture:verifier-refusal",
-          "accessed": "2026-10-24",
-          "pool_role": "essential",
-          "origin": "primary",
-          "active": true,
-          "note": "Used by the refused-extraction variant.",
-          "anchors": [
-            {
-              "anchor_id": "verification-refused",
-              "role": "gap",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "Verification was refused. No correction was applied."
-            }
-          ]
-        },
-        {
-          "source_id": "journal-site",
-          "title": "Synthetic journal homepage",
-          "locator": "fixture:journal-homepage",
-          "accessed": "2026-10-24",
-          "pool_role": "later_immaterial",
-          "origin": "primary",
-          "active": true,
-          "note": "Later batch with no bearing on condition X.",
-          "anchors": [
-            {
-              "anchor_id": "journal-homepage",
-              "role": "immaterial",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "The journal redesigned its homepage."
             }
           ]
         }
@@ -627,25 +603,25 @@
       "sources": [
         {
           "source_id": "method-a",
-          "title": "Synthetic method A",
+          "title": "Synthetic earlier method A receipt",
           "locator": "fixture:method-a",
           "accessed": "2026-10-24",
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "note": "The earlier result is historical; calibration remains unaffected.",
           "anchors": [
             {
-              "anchor_id": "method-a-10",
-              "role": "disagreement",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "10",
-              "population": "unspecified",
-              "comparison": "method A",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "Method A reports 10 under condition X."
+              "anchor_id": "method-a-10-history",
+              "role": "history",
+              "metric_kind": "unavailable",
+              "denominator": "unavailable",
+              "relative_change": "unavailable",
+              "population": "unavailable",
+              "comparison": "unavailable",
+              "causal": "unavailable",
+              "authored": true,
+              "text": "The earlier method A receipt reported 10 under condition X; this is retained history, not current support."
             },
             {
               "anchor_id": "method-a-calibrated",
@@ -658,18 +634,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The instrument used by method A was calibrated."
-            },
-            {
-              "anchor_id": "method-a-withdrawn",
-              "role": "withdrawn",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "withdrawn",
-              "population": "method A",
-              "comparison": "withdrawal",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         },
@@ -698,74 +662,26 @@
           ]
         },
         {
-          "source_id": "note-2026",
-          "title": "Synthetic 2026 narrowing",
-          "locator": "fixture:method-a-2026-note",
+          "source_id": "withdrawal-2026",
+          "title": "Synthetic method A withdrawal",
+          "locator": "fixture:method-a-withdrawal",
           "accessed": "2026-10-24",
           "pool_role": "correction",
           "origin": "primary",
           "active": true,
-          "note": "Narrows method A and leaves method B untouched.",
+          "note": "Withdrawal is a separate later event, not part of the original receipt.",
           "anchors": [
             {
-              "anchor_id": "method-a-11",
-              "role": "measurement",
+              "anchor_id": "method-a-withdrawn",
+              "role": "withdrawn",
               "metric_kind": "condition_x_result",
               "denominator": "condition X",
-              "relative_change": "11",
-              "population": "adults",
-              "comparison": "method A correction",
+              "relative_change": "withdrawn",
+              "population": "method A",
+              "comparison": "withdrawal",
               "causal": "not_claimed",
               "authored": false,
-              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
-            }
-          ]
-        },
-        {
-          "source_id": "verifier",
-          "title": "Synthetic verifier refusal",
-          "locator": "fixture:verifier-refusal",
-          "accessed": "2026-10-24",
-          "pool_role": "essential",
-          "origin": "primary",
-          "active": true,
-          "note": "Used by the refused-extraction variant.",
-          "anchors": [
-            {
-              "anchor_id": "verification-refused",
-              "role": "gap",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "Verification was refused. No correction was applied."
-            }
-          ]
-        },
-        {
-          "source_id": "journal-site",
-          "title": "Synthetic journal homepage",
-          "locator": "fixture:journal-homepage",
-          "accessed": "2026-10-24",
-          "pool_role": "later_immaterial",
-          "origin": "primary",
-          "active": true,
-          "note": "Later batch with no bearing on condition X.",
-          "anchors": [
-            {
-              "anchor_id": "journal-homepage",
-              "role": "immaterial",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "The journal redesigned its homepage."
+              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         }
@@ -786,7 +702,7 @@
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "note": "Current result and unaffected calibration before a successful correction.",
           "anchors": [
             {
               "anchor_id": "method-a-10",
@@ -811,18 +727,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The instrument used by method A was calibrated."
-            },
-            {
-              "anchor_id": "method-a-withdrawn",
-              "role": "withdrawn",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "withdrawn",
-              "population": "method A",
-              "comparison": "withdrawal",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         },
@@ -851,41 +755,17 @@
           ]
         },
         {
-          "source_id": "note-2026",
-          "title": "Synthetic 2026 narrowing",
-          "locator": "fixture:method-a-2026-note",
-          "accessed": "2026-10-24",
-          "pool_role": "correction",
-          "origin": "primary",
-          "active": true,
-          "note": "Narrows method A and leaves method B untouched.",
-          "anchors": [
-            {
-              "anchor_id": "method-a-11",
-              "role": "measurement",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "11",
-              "population": "adults",
-              "comparison": "method A correction",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
-            }
-          ]
-        },
-        {
-          "source_id": "verifier",
-          "title": "Synthetic verifier refusal",
-          "locator": "fixture:verifier-refusal",
+          "source_id": "zero-extraction",
+          "title": "Synthetic successful zero-claim extraction",
+          "locator": "fixture:zero-extraction",
           "accessed": "2026-10-24",
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Used by the refused-extraction variant.",
+          "note": "Successful extraction status, with no new evidence claims.",
           "anchors": [
             {
-              "anchor_id": "verification-refused",
+              "anchor_id": "zero-claim-unchanged",
               "role": "gap",
               "metric_kind": "unavailable",
               "denominator": "unavailable",
@@ -894,31 +774,7 @@
               "comparison": "unavailable",
               "causal": "unavailable",
               "authored": true,
-              "text": "Verification was refused. No correction was applied."
-            }
-          ]
-        },
-        {
-          "source_id": "journal-site",
-          "title": "Synthetic journal homepage",
-          "locator": "fixture:journal-homepage",
-          "accessed": "2026-10-24",
-          "pool_role": "later_immaterial",
-          "origin": "primary",
-          "active": true,
-          "note": "Later batch with no bearing on condition X.",
-          "anchors": [
-            {
-              "anchor_id": "journal-homepage",
-              "role": "immaterial",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "The journal redesigned its homepage."
+              "text": "The successful extraction produced zero new claims; earlier current evidence remains unchanged."
             }
           ]
         }
@@ -939,7 +795,7 @@
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "note": "Current result and unaffected calibration before a successful correction.",
           "anchors": [
             {
               "anchor_id": "method-a-10",
@@ -964,18 +820,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The instrument used by method A was calibrated."
-            },
-            {
-              "anchor_id": "method-a-withdrawn",
-              "role": "withdrawn",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "withdrawn",
-              "population": "method A",
-              "comparison": "withdrawal",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         },
@@ -1004,30 +848,6 @@
           ]
         },
         {
-          "source_id": "note-2026",
-          "title": "Synthetic 2026 narrowing",
-          "locator": "fixture:method-a-2026-note",
-          "accessed": "2026-10-24",
-          "pool_role": "correction",
-          "origin": "primary",
-          "active": true,
-          "note": "Narrows method A and leaves method B untouched.",
-          "anchors": [
-            {
-              "anchor_id": "method-a-11",
-              "role": "measurement",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "11",
-              "population": "adults",
-              "comparison": "method A correction",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
-            }
-          ]
-        },
-        {
           "source_id": "verifier",
           "title": "Synthetic verifier refusal",
           "locator": "fixture:verifier-refusal",
@@ -1048,30 +868,6 @@
               "causal": "unavailable",
               "authored": true,
               "text": "Verification was refused. No correction was applied."
-            }
-          ]
-        },
-        {
-          "source_id": "journal-site",
-          "title": "Synthetic journal homepage",
-          "locator": "fixture:journal-homepage",
-          "accessed": "2026-10-24",
-          "pool_role": "later_immaterial",
-          "origin": "primary",
-          "active": true,
-          "note": "Later batch with no bearing on condition X.",
-          "anchors": [
-            {
-              "anchor_id": "journal-homepage",
-              "role": "immaterial",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "The journal redesigned its homepage."
             }
           ]
         }
@@ -1092,7 +888,7 @@
           "pool_role": "essential",
           "origin": "primary",
           "active": true,
-          "note": "Disagreement, unaffected calibration, and a later withdrawal sentence.",
+          "note": "Current result and unaffected calibration before a successful correction.",
           "anchors": [
             {
               "anchor_id": "method-a-10",
@@ -1117,18 +913,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "The instrument used by method A was calibrated."
-            },
-            {
-              "anchor_id": "method-a-withdrawn",
-              "role": "withdrawn",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "withdrawn",
-              "population": "method A",
-              "comparison": "withdrawal",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The condition X result of 10 from method A is withdrawn."
             }
           ]
         },
@@ -1153,54 +937,6 @@
               "causal": "not_claimed",
               "authored": false,
               "text": "Method B reports 16 under condition X."
-            }
-          ]
-        },
-        {
-          "source_id": "note-2026",
-          "title": "Synthetic 2026 narrowing",
-          "locator": "fixture:method-a-2026-note",
-          "accessed": "2026-10-24",
-          "pool_role": "correction",
-          "origin": "primary",
-          "active": true,
-          "note": "Narrows method A and leaves method B untouched.",
-          "anchors": [
-            {
-              "anchor_id": "method-a-11",
-              "role": "measurement",
-              "metric_kind": "condition_x_result",
-              "denominator": "condition X",
-              "relative_change": "11",
-              "population": "adults",
-              "comparison": "method A correction",
-              "causal": "not_claimed",
-              "authored": false,
-              "text": "The 2026 note replaces method A's condition X result with 11 and limits that result to adults. It does not address method B."
-            }
-          ]
-        },
-        {
-          "source_id": "verifier",
-          "title": "Synthetic verifier refusal",
-          "locator": "fixture:verifier-refusal",
-          "accessed": "2026-10-24",
-          "pool_role": "essential",
-          "origin": "primary",
-          "active": true,
-          "note": "Used by the refused-extraction variant.",
-          "anchors": [
-            {
-              "anchor_id": "verification-refused",
-              "role": "gap",
-              "metric_kind": "unavailable",
-              "denominator": "unavailable",
-              "relative_change": "unavailable",
-              "population": "unavailable",
-              "comparison": "unavailable",
-              "causal": "unavailable",
-              "authored": true,
-              "text": "Verification was refused. No correction was applied."
             }
           ]
         },
@@ -1766,7 +1502,7 @@
           "criterion": "unavailable_evidence",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing faros-no-randomized-effect"
+          "detail": "missing faros-no-randomized-effect; missing faros-report-not-captured"
         },
         {
           "criterion": "history",
@@ -1911,7 +1647,7 @@
           "criterion": "unavailable_evidence",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing faros-no-randomized-effect"
+          "detail": "missing faros-no-randomized-effect; missing faros-report-not-captured"
         },
         {
           "criterion": "history",
@@ -2056,7 +1792,7 @@
           "criterion": "unavailable_evidence",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing faros-no-randomized-effect"
+          "detail": "missing faros-no-randomized-effect; missing faros-report-not-captured"
         },
         {
           "criterion": "history",
@@ -2346,7 +2082,7 @@
           "criterion": "unavailable_evidence",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing faros-no-randomized-effect"
+          "detail": "missing faros-no-randomized-effect; missing faros-report-not-captured"
         },
         {
           "criterion": "history",
@@ -3348,7 +3084,7 @@
         {
           "criterion": "qualification",
           "track": "synthesis",
-          "status": "not_applicable",
+          "status": "pass",
           "detail": "Required qualification anchors are presented as themselves."
         },
         {
@@ -3457,7 +3193,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -3602,7 +3338,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -3645,7 +3381,7 @@
           "criterion": "disagreement",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing method-a-10; missing method-b-16"
+          "detail": "missing method-b-16"
         },
         {
           "criterion": "unavailable_evidence",
@@ -3657,7 +3393,7 @@
           "criterion": "history",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing method-a-10"
+          "detail": "missing method-a-10-history"
         },
         {
           "criterion": "unaffected",
@@ -3747,7 +3483,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -3892,7 +3628,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -3947,7 +3683,7 @@
           "criterion": "history",
           "track": "synthesis",
           "status": "fail",
-          "detail": "missing method-a-10"
+          "detail": "missing method-a-10-history"
         },
         {
           "criterion": "unaffected",
@@ -4013,7 +3749,7 @@
         {
           "criterion": "pool_correction",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role correction follow that role."
         },
         {
@@ -4037,7 +3773,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -4079,13 +3815,13 @@
         {
           "criterion": "disagreement",
           "track": "synthesis",
-          "status": "not_applicable",
+          "status": "pass",
           "detail": "Required disagreement anchors are presented as themselves."
         },
         {
           "criterion": "unavailable_evidence",
           "track": "synthesis",
-          "status": "not_applicable",
+          "status": "pass",
           "detail": "Required unavailable_evidence anchors are presented as themselves."
         },
         {
@@ -4158,7 +3894,7 @@
         {
           "criterion": "pool_correction",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role correction follow that role."
         },
         {
@@ -4182,7 +3918,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -4224,14 +3960,14 @@
         {
           "criterion": "disagreement",
           "track": "synthesis",
-          "status": "not_applicable",
-          "detail": "Required disagreement anchors are presented as themselves."
+          "status": "fail",
+          "detail": "missing method-b-16"
         },
         {
           "criterion": "unavailable_evidence",
           "track": "synthesis",
-          "status": "not_applicable",
-          "detail": "Required unavailable_evidence anchors are presented as themselves."
+          "status": "fail",
+          "detail": "missing zero-claim-unchanged"
         },
         {
           "criterion": "history",
@@ -4303,7 +4039,7 @@
         {
           "criterion": "pool_correction",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role correction follow that role."
         },
         {
@@ -4327,7 +4063,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -4369,7 +4105,7 @@
         {
           "criterion": "disagreement",
           "track": "synthesis",
-          "status": "not_applicable",
+          "status": "pass",
           "detail": "Required disagreement anchors are presented as themselves."
         },
         {
@@ -4387,7 +4123,7 @@
         {
           "criterion": "unaffected",
           "track": "synthesis",
-          "status": "not_applicable",
+          "status": "pass",
           "detail": "Required unaffected anchors are presented as themselves."
         },
         {
@@ -4448,7 +4184,7 @@
         {
           "criterion": "pool_correction",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role correction follow that role."
         },
         {
@@ -4472,7 +4208,7 @@
         {
           "criterion": "pool_later_immaterial",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role later_immaterial follow that role."
         },
         {
@@ -4490,14 +4226,14 @@
         {
           "criterion": "anchor_binding",
           "track": "synthesis",
-          "status": "pass",
-          "detail": "Each sentence matches its anchor text and role."
+          "status": "fail",
+          "detail": "unknown anchor method-a-11"
         },
         {
           "criterion": "extraction_status",
           "track": "synthesis",
           "status": "fail",
-          "detail": "status is answered, expected refused; a measurement sentence is present"
+          "detail": "status is answered, expected refused"
         },
         {
           "criterion": "measurement",
@@ -4514,8 +4250,8 @@
         {
           "criterion": "disagreement",
           "track": "synthesis",
-          "status": "not_applicable",
-          "detail": "Required disagreement anchors are presented as themselves."
+          "status": "fail",
+          "detail": "missing method-a-10; missing method-b-16"
         },
         {
           "criterion": "unavailable_evidence",
@@ -4532,8 +4268,8 @@
         {
           "criterion": "unaffected",
           "track": "synthesis",
-          "status": "not_applicable",
-          "detail": "Required unaffected anchors are presented as themselves."
+          "status": "fail",
+          "detail": "missing method-a-calibrated"
         },
         {
           "criterion": "withdrawal",
@@ -4593,7 +4329,7 @@
         {
           "criterion": "pool_correction",
           "track": "retrieval",
-          "status": "pass",
+          "status": "not_applicable",
           "detail": "Sources with pool role correction follow that role."
         },
         {

@@ -323,6 +323,12 @@ score merely to expose these capabilities.
   [research-desk-baseline-2026-10-24.md](design/research-desk-baseline-2026-10-24.md).
   Expert review has not been performed, so this item stays open and discovery
   and synthesis defaults stay unchanged.
+  The [October 25 agent review](design/research-desk-review-2026-10-25.md)
+  repairs authored controls and retains a separate exploratory blind check.
+  [Paper-input evidence](design/paper-input-evidence-2026-10-25.md) adds
+  unreleased route/window correctness, actual prompt-chunk receipts, preserved
+  capture history and current-generation reader gates. These are structural
+  evidence improvements, not a calibrated production research-quality result.
 - [ ] **Source correction and withdrawal handling.** Use existing capture,
   verification, claim history, audit, and refresh mechanisms before adding
   infrastructure. Preserve appropriate earlier receipts and interpretation,
@@ -628,6 +634,13 @@ Two of their central ideas are declined outright rather than reimplemented:
 - [ ] **PubMed / bioRxiv / medRxiv adapters** (same finding): arXiv-only excludes life-sciences labs entirely. Post-0.11 candidates on the adapter contract; OpenAlex metadata (above) is the shared discovery layer.
 - [x] **Chunk-and-rerank paper analysis (effective-context-aware).** Shipped: structural heading match first, at most one batched model rerank when gaps remain, honest positional order when no model is available, and tier-4 keyword fallback only for legacy insight category names. Three focused paper passes assemble `<paper-slug>_Insights.md`; `chunk_selection_modes` is recorded in frontmatter for auditability. Design follows [`design/agentic-balance.md`](design/agentic-balance.md).
 - [x] **Lift the 100K char cap once chunking is in place.** Shipped: arXiv PDF extraction no longer truncates at 100K chars; page limit raised to 200 with download-byte cap unchanged. Local PDF ingest matches. Multipass chunking owns prompt sizing when the provider window requires it.
+- [ ] **Original PDF completeness.** The remaining 200-page and two-million-
+  character extraction ceilings do not return truncation metadata. Unreleased
+  input evidence explicitly leaves original-source completeness unestablished,
+  even if all supplied extracted chunks reach analysis. A bounded extraction
+  receipt must distinguish a reached limit from a fully captured source before
+  claiming full-original coverage; this does not authorize a new live trial or
+  a larger download/extraction budget.
 
 ### 7. Strengthen corpus quality and reuse
 

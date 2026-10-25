@@ -24,13 +24,20 @@ copied into the insight body.
 
 Coverage is `unavailable`, `failed`, `empty`, `partial`, or `complete`.
 Timing is `unavailable`, `unknown`, or `caption`. Source is
-`youtube_captions`, `asr`, `none`, or `interrupted`. An interior gap longer
-than 60 seconds makes coverage partial. A tail gap is recorded only when a
+`youtube_captions`, `asr`, `none`, or `interrupted`. A leading or interior gap
+longer than 60 seconds makes coverage partial. Overlapping and nested cues
+use their union rather than creating false gaps. A tail gap is recorded only when a
 duration is supplied. Unknown duration does not invent a tail. Interrupted
 capture with cues is partial. Interrupted capture with no cues is failed.
 Empty captions are empty. ASR timing is `unknown`. Cue times are not
 invented for ASR. A missing sidecar leaves existing insight frontmatter
 unchanged. Malformed JSON is failed evidence with source `none`.
+
+The leading-gap and overlap rules were corrected during the
+[October 25 offline review](research-desk-review-2026-10-25.md). Existing
+sidecars retain their recorded values until caption evidence is regenerated.
+Production caption acquisition does not currently supply duration, so a tail
+gap remains unknown there. Structural completeness is not semantic coverage.
 
 `get_transcript` still refuses a non-YouTube identity before any write.
 Caption success writes the plain transcript, then the sidecar. Whisper or

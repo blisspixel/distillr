@@ -116,6 +116,8 @@ class PassResult:
     insights: str
     chunks_used: int
     selection_mode: ChunkSelectionMode = "structural"
+    model: str = ""
+    chunk_indices: tuple[int, ...] = ()
 
 
 @dataclass
@@ -240,6 +242,8 @@ def multi_pass_analysis(
                 insights=response.text.strip(),
                 chunks_used=len(scored_chunks),
                 selection_mode=selection_mode,
+                model=response.model,
+                chunk_indices=tuple(sc.chunk.index for sc in scored_chunks),
             )
         )
         logger.debug(
@@ -313,6 +317,8 @@ def _legacy_category_passes(
                 insights=response.text.strip(),
                 chunks_used=len(scored_chunks),
                 selection_mode=selection_mode,
+                model=response.model,
+                chunk_indices=tuple(sc.chunk.index for sc in scored_chunks),
             )
         )
     return results

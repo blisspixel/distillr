@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from itertools import pairwise
 from pathlib import Path
 from typing import Literal, cast
 
@@ -204,11 +203,14 @@ def _from_cues(
 def _gaps(cues: tuple[CaptionCue, ...], duration_ms: int | None) -> tuple[tuple[int, int], ...]:
     ordered = tuple(sorted(cues, key=lambda cue: (cue.start_ms, cue.end_ms)))
     found: list[tuple[int, int]] = []
-    for prev, nxt in pairwise(ordered):
-        if nxt.start_ms - prev.end_ms > CAPTION_GAP_MS:
-            found.append((prev.end_ms, nxt.start_ms))
-    if duration_ms is not None and ordered and duration_ms - ordered[-1].end_ms > CAPTION_GAP_MS:
-        found.append((ordered[-1].end_ms, duration_ms))
+    covered_until = 0
+    for cue in ordered:
+        if cue.start_ms - covered_until > CAPTION_GAP_MS:
+            found.append((covered_until, cue.start_ms))
+        # Nested and overlapping cues cannot shorten already captured coverage.
+        covered_until = max(covered_until, cue.end_ms)
+    if duration_ms is not None and ordered and duration_ms - covered_until > CAPTION_GAP_MS:
+        found.append((covered_until, duration_ms))
     return tuple(found)
 
 

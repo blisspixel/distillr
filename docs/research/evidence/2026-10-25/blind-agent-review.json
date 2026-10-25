@@ -1,0 +1,577 @@
+{
+  "schema": "research-desk-agent-review.v1",
+  "date": "2026-10-25",
+  "base_commit": "51d0c187fd71b03a387f8ecdee3d61ea2d09ed46",
+  "reviewer_type": "independent_agent",
+  "human_expert_review": "not_performed",
+  "judge_runtime_identity": "host_agent_not_independently_pinned",
+  "method": "Expected verdicts and control IDs withheld; frozen evidence and authored candidates supplied.",
+  "inputs": {
+    "path": "docs/research/evidence/2026-10-25/blind-agent-review-inputs.json",
+    "sha256": "bd1ec1d56ad274e908ccf75a9a2173ece7838e7be2cc75e9a7705e2b185bc57c",
+    "original_workspace_sha256": "54c15fad1c597e641b95838a87cbb4b77669ca04febd5e1dd68294d7a5ecda01",
+    "original_workspace_newlines": "CRLF",
+    "sha256_basis": "canonical_repository_LF_bytes"
+  },
+  "baseline": {
+    "path": "docs/research/evidence/2026-10-24/research-desk-baseline.json",
+    "sha256": "c51c5af71d11b63dc08301e9513c603633796a4dc25e005d4f7aa7db54571067",
+    "original_workspace_sha256": "13ee12edd053a51879d6a3acc651210b320eed1359617d285f4a53ddfe61924a",
+    "original_workspace_newlines": "CRLF",
+    "sha256_basis": "canonical_repository_LF_bytes"
+  },
+  "examples": 16,
+  "agreement_with_reviewed_authored_expectations": 16,
+  "reviewed_pass_judge_pass": 8,
+  "reviewed_fail_judge_fail": 8,
+  "disagreements": 0,
+  "inconclusive": 0,
+  "calibrated_release_gate": false,
+  "gate_passed": false,
+  "production_model_trial": false,
+  "defaults_changed": false,
+  "repository_provider_calls": 0,
+  "repository_inference_cost_usd": 0,
+  "host_agent_usage_cost_usd": null,
+  "total_elapsed_seconds": null,
+  "limitations": [
+    "Small authored set selected by the parent; no representative production outputs.",
+    "Expected labels withheld from judge, but supplied source notes explain provenance and event scope.",
+    "A prior unblinded agent reviewed and repaired the positive controls.",
+    "One judge, one attempt, no repeated-run variability or held-out calibration dataset.",
+    "Host agent identity, usage cost and complete session elapsed time were not independently measured.",
+    "No live source, production refresh, provider reasoning comparison or video understanding trial.",
+    "Agreement does not establish release readiness or broad judge calibration.",
+    "Evidence text was normalized from Windows CRLF to repository LF; original workspace byte digests are retained and reconstructable by restoring CRLF. Source JSON values and judgments are unchanged."
+  ],
+  "verdicts": [
+    {
+      "sample_id": "0839b8f3205a",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selected method-a, method-b, and note-2026 cover the original, opposing result, and correction."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "The answer accurately gives 11, adults, and unchanged calibration, matching note-2026 and method-a."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "The answer retains the adults limitation and says the note does not address method B."
+        },
+        "fair_disagreement": {
+          "verdict": "fail",
+          "evidence": "The question asks what remains unresolved, but the answer omits method-b's result of 16 and never explains the remaining disagreement."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "The answer explicitly says the note replaces the result; it does not reuse 10 as current evidence."
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "The current A result is answered, but the unresolved 11 versus 16 comparison is missing."
+        }
+      },
+      "rationale": "Correct narrowing but materially incomplete account of the unresolved conflict.",
+      "control_id": "correction-drops-disagreement",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "0e6d166e018c",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selection includes verifier and both current method receipts."
+        },
+        "claim_fidelity": {
+          "verdict": "fail",
+          "evidence": "The answer asserts a 2026 correction to 11 and adults absent from this source pool; verifier says no correction was applied."
+        },
+        "qualifications_unknowns": {
+          "verdict": "fail",
+          "evidence": "The answer suppresses the refusal and the unchanged current evidence."
+        },
+        "fair_disagreement": {
+          "verdict": "fail",
+          "evidence": "Method B's 16 and the still-current A result of 10 are omitted."
+        },
+        "history_status_refusal": {
+          "verdict": "fail",
+          "evidence": "An answered correction contradicts verifier: 'Verification was refused. No correction was applied.'"
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "It does not explain what refusal changes and instead invents a change."
+        }
+      },
+      "rationale": "Unsupported correction after a refused verification.",
+      "control_id": "correction-refusal-masquerades",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "397272b8b92c",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects both benchmark receipts and rejects lab-site as irrelevant to score."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "81 after the fix and historical 70 match bench-2026 and bench-2024."
+        },
+        "qualifications_unknowns": {
+          "verdict": "not_applicable",
+          "evidence": "No additional uncertainty or population qualification is supplied for this score question."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "The different dated scores are a revision, not a simultaneous disagreement."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "The answer distinguishes revised 2026 score from 2024 score."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "It directly supplies the requested current score of 81."
+        }
+      },
+      "rationale": "Accurate current score with dated history.",
+      "control_id": "fast-material-change",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "4ad4e56f4578",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the earlier receipt, method B, and corrective note."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "11 for adults, B's 16, historical 10, and calibration all match supplied anchors."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "The adults limitation and note's lack of coverage of B remain explicit."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Juxtaposes A's corrected 11 with B's 16 and states that the note does not address B."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "Explicitly marks earlier 10 as retained history, not current support."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Answers both the updated result and the remaining unresolved comparison."
+        }
+      },
+      "rationale": "Faithful selective correction with disagreement and unaffected evidence preserved.",
+      "control_id": "correction-narrowing",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "4d58050ab64c",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the relevant synthetic-trial primary source."
+        },
+        "claim_fidelity": {
+          "verdict": "fail",
+          "evidence": "The claimed 242.7% incidents-to-PR ratio is absent from this trial; the anchor reports probabilities 0.12 and 0.04."
+        },
+        "qualifications_unknowns": {
+          "verdict": "fail",
+          "evidence": "Omits the 7-day horizon, randomized-participant scope, and treatment/control distinction."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "No disagreement is supplied for the trial."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "Does not answer the trial probability question."
+        }
+      },
+      "rationale": "Substitutes an unrelated ratio for trial probabilities.",
+      "control_id": "probability-rewritten-as-ratio",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "5921c2673d84",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the two benchmark receipts and correctly rejects the website redesign as irrelevant."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "The website redesign sentence is supported by lab-site, although irrelevant to the question."
+        },
+        "qualifications_unknowns": {
+          "verdict": "not_applicable",
+          "evidence": "No additional uncertainty or population qualification is supplied."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "No simultaneous disagreement is supplied."
+        },
+        "history_status_refusal": {
+          "verdict": "fail",
+          "evidence": "Omits the score-changing 2026 revision to 81, replacing the requested current status with an unrelated update."
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "Never supplies the current benchmark score."
+        }
+      },
+      "rationale": "A true but irrelevant website update does not answer the score question.",
+      "control_id": "fast-website-as-change",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "6c1346696499",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Uses faros-takeaways, rejects the derivative talk as nonindependent, and records the uncaptured full report."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "Preserves 242.7% as an incidents-to-PR ratio and explicitly distinguishes it from probability."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "States within-organization periods, observational limits, telemetry scope, and uncaptured full report."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Resolves the page heading/body tension by retaining the body's explicit ratio qualification rather than repeating the misleading probability heading."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Gives the incident metric and interpretation relevant to adoption, with meaningful evidence limits."
+        }
+      },
+      "rationale": "Faithful bounded summary of the frozen takeaway evidence.",
+      "control_id": "faros-concise",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "7d2bf43d9bcb",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Uses review-2019 and rejects a derivative textbook; records the unavailable pediatric cohort."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "12% remains a relative reduction in the adult primary outcome."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Explicitly says children were not enrolled and applicability is unknown from captured evidence."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "No opposing pediatric result is available to compare."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "Attributes the result to the 2019 review without treating missing pediatric evidence as a current finding of no effect."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Answers both review result and pediatric uncertainty."
+        }
+      },
+      "rationale": "Adult result and the limits of pediatric inference are accurately represented.",
+      "control_id": "mature-selection",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "8f94f13ccc83",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the primary takeaway page and excludes the derivative talk."
+        },
+        "claim_fidelity": {
+          "verdict": "fail",
+          "evidence": "'AI caused the incident increase' contradicts the anchor that the period comparison does not show AI caused the change."
+        },
+        "qualifications_unknowns": {
+          "verdict": "fail",
+          "evidence": "Omits observational design, ratio denominator, scope, and the unavailable report limit."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "The answer makes no attempt to discuss competing interpretations or page wording."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "Provides a causal conclusion unsupported by the supplied evidence."
+        }
+      },
+      "rationale": "Material causal inflation.",
+      "control_id": "faros-claims-causation",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "c2d33303a5b8",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the primary takeaway page and excludes derivative corroboration."
+        },
+        "claim_fidelity": {
+          "verdict": "fail",
+          "evidence": "Repeats the probability heading while omitting the same source's explicit 'ratio, not a probability' correction."
+        },
+        "qualifications_unknowns": {
+          "verdict": "fail",
+          "evidence": "Drops the multiple-incidents-per-PR qualification, observational comparison, and capture limit."
+        },
+        "fair_disagreement": {
+          "verdict": "fail",
+          "evidence": "Ignores the material tension between heading and explanatory body instead of presenting the qualified metric."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "fail",
+          "evidence": "The sole answer presents an expressly disqualified metric interpretation."
+        }
+      },
+      "rationale": "Verbatim heading repetition is materially misleading against the fuller supplied source.",
+      "control_id": "faros-headline-as-measurement",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "d94364a8aa67",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects verifier plus both current method receipts."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "A's 10, B's 16, calibration, and no correction all match the anchors."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Explicitly retains refusal rather than treating absent verification as new support."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Retains both differing method results without resolving them artificially."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "Refused status and 'No correction was applied' agree with verifier."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Clearly states the refusal leaves the prior current evidence unchanged."
+        }
+      },
+      "rationale": "Correct refusal behavior with prior evidence preserved.",
+      "control_id": "correction-refused",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "e203649e9088",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects the relevant synthetic randomized trial."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "Reports 0.12 treated and 0.04 control as incident probabilities, exactly matching the trial anchor."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Preserves 7 days, randomized participants, and absence of an incidents-to-PR ratio."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "No disagreement is supplied."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Directly answers the requested probability question."
+        }
+      },
+      "rationale": "Correct probabilities with denominator, arms, and time horizon.",
+      "control_id": "probability-as-probability",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "e220a6687923",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects withdrawal, original receipt, and method B."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "Withdrawal of A's 10, B's 16, and calibration match their anchors."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Explicitly limits current reliance by calling earlier 10 history, not support."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Preserves B's separate result without claiming the withdrawal validates or refutes it."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "Clearly distinguishes withdrawal from retained historical provenance and unaffected calibration."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Identifies remaining current evidence and withdrawn reliance."
+        }
+      },
+      "rationale": "Withdrawal is applied selectively while preserving provenance.",
+      "control_id": "correction-withdrawal",
+      "reviewed_expectation": "pass"
+    },
+    {
+      "sample_id": "ea0ff8766b30",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "fail",
+          "evidence": "Marks textbook essential despite its derivative_of:review-2019 origin and note that it adds no evidence. It supplies no independent or necessary answer support."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "The answer accurately preserves 12% relative reduction in adult trials."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Retains unknown pediatric applicability and explicitly acknowledges an uncaptured pediatric cohort."
+        },
+        "fair_disagreement": {
+          "verdict": "not_applicable",
+          "evidence": "No pediatric result is captured to compare."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "Dates the review and does not infer pediatric efficacy or inefficacy from missing evidence."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "The prose answers both parts of the question with correct limits."
+        }
+      },
+      "rationale": "Answer content is sound, but essential source selection treats an evidence-free derivative as necessary support.",
+      "control_id": "mature-textbook-as-essential",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "f3dd929bcdcf",
+      "overall": "fail",
+      "criteria": {
+        "source_selection": {
+          "verdict": "fail",
+          "evidence": "Marks faros-talk-stand-in essential although its origin is derivative_of:faros-takeaways and its note says it is not independent evidence for telemetry."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "The answer preserves ratio versus probability, the 242.7% figure, and observational interpretation."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Includes organization-period comparison, telemetry scope, nonrandomized limit, and missing full report."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Uses the qualified ratio explanation rather than the page's misleading probability heading."
+        },
+        "history_status_refusal": {
+          "verdict": "not_applicable",
+          "evidence": "No revision or refusal episode is supplied."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "The prose usefully answers the question within the frozen page boundary."
+        }
+      },
+      "rationale": "Faithful answer, but the essential selection includes a derivative stand-in that adds no independent evidential support.",
+      "control_id": "faros-derivative-as-essential",
+      "reviewed_expectation": "fail"
+    },
+    {
+      "sample_id": "f8acf0edf740",
+      "overall": "pass",
+      "criteria": {
+        "source_selection": {
+          "verdict": "pass",
+          "evidence": "Selects both prior method receipts and the zero-extraction status evidence."
+        },
+        "claim_fidelity": {
+          "verdict": "pass",
+          "evidence": "A's 10, B's 16, calibration, and zero new claims all match the supplied anchors."
+        },
+        "qualifications_unknowns": {
+          "verdict": "pass",
+          "evidence": "Explicitly distinguishes zero new claims from a substantive change to earlier evidence."
+        },
+        "fair_disagreement": {
+          "verdict": "pass",
+          "evidence": "Retains both differing current method results without inventing agreement."
+        },
+        "history_status_refusal": {
+          "verdict": "pass",
+          "evidence": "zero_claim status and 'earlier current evidence remains unchanged' match zero-extraction."
+        },
+        "useful_completion": {
+          "verdict": "pass",
+          "evidence": "Directly explains that successful extraction with no claims changes no earlier evidence."
+        }
+      },
+      "rationale": "Correct nonmutation after a successful zero-claim extraction.",
+      "control_id": "correction-zero-claim",
+      "reviewed_expectation": "pass"
+    }
+  ]
+}

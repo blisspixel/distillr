@@ -28,6 +28,7 @@ _FAROS_METHOD = _MATERIAL.faros_method
 _FAROS_OBSERVATIONAL = _MATERIAL.faros_observational
 _FAROS_POPULATION = _MATERIAL.faros_population
 _FAROS_GAP = _MATERIAL.faros_gap
+_FAROS_REPORT_GAP = _MATERIAL.faros_report_gap
 _FAROS_HEADLINE = _MATERIAL.faros_headline
 _FAROS_MONTHLY = _MATERIAL.faros_monthly
 _PROBABILITY = _MATERIAL.probability
@@ -36,12 +37,16 @@ _ADULT = _MATERIAL.adult
 _CHILDREN = _MATERIAL.children
 _ENROLLED = _MATERIAL.enrolled
 _PEDIATRIC = _MATERIAL.pediatric
+_PEDIATRIC_UNKNOWN = _MATERIAL.pediatric_unknown
 _SCORE_NEW = _MATERIAL.score_new
 _SCORE_OLD = _MATERIAL.score_old
 _SCORE_STILL = _MATERIAL.score_still
+_SCORE_UNCHANGED = _MATERIAL.score_unchanged
 _WEBSITE = _MATERIAL.website
 _NARROWED = _MATERIAL.narrowed
 _A_DISAGREE = _MATERIAL.a_disagree
+_A_HISTORY = _MATERIAL.a_history
+_ZERO_UNCHANGED = _MATERIAL.zero_unchanged
 _B_DISAGREE = _MATERIAL.b_disagree
 _A_CALIBRATED = _MATERIAL.a_calibrated
 _WITHDRAWN = _MATERIAL.withdrawn
@@ -72,6 +77,7 @@ def _faros_sentences(use_equivalent: bool) -> tuple[Sentence, ...]:
         _FAROS_OBSERVATIONAL,
         _FAROS_POPULATION,
         _FAROS_GAP,
+        _FAROS_REPORT_GAP,
     )
     if not use_equivalent:
         return tuple(_sentence(anchor) for anchor in required)
@@ -81,16 +87,23 @@ def _faros_sentences(use_equivalent: bool) -> tuple[Sentence, ...]:
     )
 
 
-_CORRECTION_SELECTION = Selection(
-    selected=(
-        ("method-a", "essential"),
-        ("method-b", "essential"),
-        ("note-2026", "correction"),
-        ("verifier", "essential"),
-    ),
-    rejected=(("journal-site", "homepage redesign is not condition X evidence"),),
-    omissions=(),
-)
+def _correction_selection(case_id: str) -> Selection:
+    """Bind each episode to only its own available source events."""
+    return Selection(
+        selected=tuple(
+            (source.source_id, source.pool_role)
+            for source in CASES[case_id].sources
+            if source.pool_role != "later_immaterial"
+        ),
+        rejected=tuple(
+            (source.source_id, "homepage redesign is not condition X evidence")
+            for source in CASES[case_id].sources
+            if source.pool_role == "later_immaterial"
+        ),
+        omissions=(),
+    )
+
+
 _FAST_SELECTION = Selection(
     selected=(("bench-2024", "essential"), ("bench-2026", "later_material")),
     rejected=(("lab-site", "website redesign is not a score change"),),
@@ -215,7 +228,13 @@ CONTROLS: tuple[Control, ...] = (
         "positive",
         _MATURE_SELECTION,
         _answered(
-            (_sentence(_ADULT), _sentence(_CHILDREN), _sentence(_ENROLLED), _sentence(_PEDIATRIC))
+            (
+                _sentence(_ADULT),
+                _sentence(_CHILDREN),
+                _sentence(_ENROLLED),
+                _sentence(_PEDIATRIC),
+                _sentence(_PEDIATRIC_UNKNOWN),
+            )
         ),
         "Essential review, redundant textbook rejected, pediatric omission recorded.",
     ),
@@ -230,7 +249,13 @@ CONTROLS: tuple[Control, ...] = (
             omissions=(("pediatric-cohort", "pediatric cohort was not captured"),),
         ),
         _answered(
-            (_sentence(_ADULT), _sentence(_CHILDREN), _sentence(_ENROLLED), _sentence(_PEDIATRIC))
+            (
+                _sentence(_ADULT),
+                _sentence(_CHILDREN),
+                _sentence(_ENROLLED),
+                _sentence(_PEDIATRIC),
+                _sentence(_PEDIATRIC_UNKNOWN),
+            )
         ),
         "A derivative restatement is not an essential source.",
     ),
@@ -262,7 +287,7 @@ CONTROLS: tuple[Control, ...] = (
             rejected=(("lab-site-only", "website redesign is not a score change"),),
             omissions=(),
         ),
-        _answered((_sentence(_SCORE_STILL),)),
+        _answered((_sentence(_SCORE_STILL), _sentence(_SCORE_UNCHANGED))),
         "The score stays 70. The website is rejected rather than synthesized as a change.",
     ),
     Control(
@@ -270,11 +295,11 @@ CONTROLS: tuple[Control, ...] = (
         "correction-narrowing",
         "pass",
         "positive",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-narrowing"),
         _answered(
             (
                 _sentence(_NARROWED),
-                _sentence(_A_DISAGREE),
+                _sentence(_A_HISTORY),
                 _sentence(_B_DISAGREE),
                 _sentence(_A_CALIBRATED),
             )
@@ -286,7 +311,7 @@ CONTROLS: tuple[Control, ...] = (
         "correction-narrowing",
         "fail",
         "negative",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-narrowing"),
         _answered((_sentence(_NARROWED), _sentence(_A_CALIBRATED))),
         "Method B disappears, so the unresolved conflict is gone.",
     ),
@@ -295,13 +320,13 @@ CONTROLS: tuple[Control, ...] = (
         "correction-withdrawal",
         "pass",
         "positive",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-withdrawal"),
         _answered(
             (
                 _sentence(_WITHDRAWN),
                 _sentence(_B_DISAGREE),
                 _sentence(_A_CALIBRATED),
-                _sentence(_A_DISAGREE),
+                _sentence(_A_HISTORY),
             )
         ),
         "Withdrawal stays visible and is not a current measurement. Method B remains.",
@@ -311,7 +336,7 @@ CONTROLS: tuple[Control, ...] = (
         "correction-withdrawal",
         "fail",
         "negative",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-withdrawal"),
         _answered((Sentence(_WITHDRAWN.text, "method-a-withdrawn", "measurement"),)),
         "A withdrawn result presented as the current measurement fails.",
     ),
@@ -320,8 +345,16 @@ CONTROLS: tuple[Control, ...] = (
         "correction-zero-claim",
         "pass",
         "positive",
-        _CORRECTION_SELECTION,
-        _status("zero_claim", (_sentence(_A_CALIBRATED), _sentence(_A_DISAGREE))),
+        _correction_selection("correction-zero-claim"),
+        _status(
+            "zero_claim",
+            (
+                _sentence(_A_CALIBRATED),
+                _sentence(_A_DISAGREE),
+                _sentence(_B_DISAGREE),
+                _sentence(_ZERO_UNCHANGED),
+            ),
+        ),
         "Zero claims. The unaffected calibration and the earlier result stay visible.",
     ),
     Control(
@@ -329,7 +362,7 @@ CONTROLS: tuple[Control, ...] = (
         "correction-zero-claim",
         "fail",
         "negative",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-zero-claim"),
         _status("zero_claim", (_sentence(_A_DISAGREE),)),
         "Zero-claim extraction must not retire the unaffected conclusion.",
     ),
@@ -338,8 +371,16 @@ CONTROLS: tuple[Control, ...] = (
         "correction-refused",
         "pass",
         "positive",
-        _CORRECTION_SELECTION,
-        _status("refused", (_sentence(_REFUSAL), _sentence(_A_DISAGREE))),
+        _correction_selection("correction-refused"),
+        _status(
+            "refused",
+            (
+                _sentence(_REFUSAL),
+                _sentence(_A_DISAGREE),
+                _sentence(_B_DISAGREE),
+                _sentence(_A_CALIBRATED),
+            ),
+        ),
         "Refusal stays a refusal and keeps the earlier result visible.",
     ),
     Control(
@@ -347,7 +388,7 @@ CONTROLS: tuple[Control, ...] = (
         "correction-refused",
         "fail",
         "negative",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-refused"),
         Synthesis("answered", (_sentence(_NARROWED),)),
         "A refused verification must not appear as a successful correction.",
     ),
@@ -356,7 +397,7 @@ CONTROLS: tuple[Control, ...] = (
         "correction-homepage",
         "pass",
         "positive",
-        _CORRECTION_SELECTION,
+        _correction_selection("correction-homepage"),
         _answered((_sentence(_A_DISAGREE), _sentence(_B_DISAGREE), _sentence(_A_CALIBRATED))),
         "The homepage is rejected and the disagreement is unchanged.",
     ),

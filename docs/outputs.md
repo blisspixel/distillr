@@ -129,7 +129,40 @@ so distinct page identities do not require persisting bearer parameters.
 
 - **`metadata.json`**: arXiv ID, title, authors, categories, DOI when arXiv supplies one, abstract URL, PDF URL
 - **`<paper-slug>_Paper.md`**: Full paper document (abstract + extracted PDF text, up to 200 pages) with DOI frontmatter when available
-- **`<paper-slug>_Insights.md`**: Structured per-paper insight with `source_mode: full_pdf | abstract_only` frontmatter indicating whether full text was available
+- **`<paper-slug>_Insights.md`**: Structured per-paper insight with
+  `source_mode: full_pdf | abstract_only | chunked_multipass`. Newly generated
+  insights include compact paper-input evidence references and coverage fields.
+- **`paper-input-evidence.<sha256>.json`**: When analysis supplies input evidence,
+  a content-addressed sibling receipt records the analyzer-input and normalized
+  source-body hashes, actual per-pass chunk identities and models, transformed
+  chunk hashes, and selected/omitted chunk sets. Its SHA-256 is retained in
+  `paper_input_evidence_sha256`; `paper_input_evidence_file` is the sibling name.
+  `paper_input_coverage` describes supplied-chunk prompt coverage, while semantic
+  sufficiency remains unassessed. All captured abstract chunks can be supplied
+  without having captured the full PDF. The full manifest is kept outside the
+  insight so synthesis and claim extraction receive only compact references.
+
+`paper_original_source_completeness` stays `not_established`. The existing
+`full_pdf` label means PDF-derived text was available; extraction is bounded
+at 200 pages and two million characters, and does not currently report whether
+those limits truncated the original. Supplied-chunk coverage cannot establish
+original-source completeness.
+
+The receipt binds the normalized insight body without creating a digest cycle
+with its own reference. It is durable before the insight publishes. A later
+verification refusal can retain an unreferenced candidate receipt; it does not
+replace a previous insight's receipt. Existing insights without input evidence
+remain readable. See the
+[paper-input contract](design/paper-input-evidence-2026-10-25.md).
+
+Previous paper captures are retained in
+`.history/paper-receipts/<sha256>.md` before replacement. New source receipts and
+insights carry matching body digests. If new analysis is refused or fails to
+publish, an older insight stays on disk for inspection but current discovery
+and paper synthesis exclude it when its source binding no longer matches.
+Unbound legacy pairs remain compatible until a stamped capture establishes a
+new generation. Publication reuses the existing sidecar-first verification
+transaction; an insight-write failure restores its prior verification binding.
 
 Papers ingested via `distill papers` or `distill discover` pass through the same artifact shape. The discover command also produces an additional pre-ingest signal: the **goal-ranked shortlist** printed to the terminal. `--preview` saves the exact shortlist under `library/.preview_cache/<id>.json`; replay it with `distill discover --from-preview <id> --topic <topic>` to ingest precisely what was reviewed without repeating query generation or reranking.
 

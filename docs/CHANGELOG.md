@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Paper input receipts bind actual per-pass chunk identities and response
+  models to the analyzer input and normalized published source/insight bodies.
+  Content-addressed sibling JSON keeps the full manifest outside downstream
+  synthesis and claim prompts; insight frontmatter carries compact references.
+  Supplied-chunk prompt coverage is distinct from semantic sufficiency, which
+  remains unassessed. Existing selection policy and prompts are unchanged.
+  See [paper-input evidence](design/paper-input-evidence-2026-10-25.md).
+- Production paper-selection baseline challenges exercise the actual receipt,
+  chunking, selection and prompt paths around the 80% context boundary. They
+  expose omitted late qualifications and within-paper recap crowding, with
+  broad-context and sufficient multipass controls. Model transport is mocked;
+  these tests do not establish answer quality. Independent offline agent review
+  repairs authored correction controls and reader-facing evidence limitations.
+  No default, route or release-gate change. See the
+  [October 25 review](design/research-desk-review-2026-10-25.md).
 - Structural research-desk baseline. Frozen mature, fast-moving, and
   contested cases separate retrieval from synthesis and bind each brief
   sentence to a source anchor. The Faros takeaway page is frozen, including
@@ -44,6 +59,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   [local-think-gemma4-e2b.json](research/evidence/2026-10-24/local-think-gemma4-e2b.json).
   Substring checks passed for both think settings. The result is inconclusive.
   Defaults stay.
+
+### Fixed
+
+- Paper single-pass context decisions now use the existing `site` route's
+  metadata, while multipass chunking uses its existing `analysis` route's
+  metadata. Empty single-pass or multipass output fails explicitly; multipass
+  no longer silently completes from the lead chunk. Model provenance comes
+  from current contributing responses, including mixed or unknown identities,
+  rather than configured guesses or an earlier paper's accounting entries.
+- Paper refresh archives the previous capture and binds every new insight to
+  the current source body. Canonical discovery, rereads and paper synthesis
+  exclude superseded or unverifiable analysis after a failed replacement.
+  Whole-paper writes are serialized. Exact rendered candidates use the existing
+  sidecar-first verification transaction, preserving prior insight and binding
+  on publication faults. This does not implement semantic selective revision.
+- Caption coverage now reports leading gaps longer than 60 seconds and merges
+  overlapping cue coverage before identifying interior or known-duration tail
+  gaps. Unknown duration does not invent a tail. Existing sidecars retain their
+  recorded coverage until regenerated. This corrects structural reporting; it
+  does not qualify complete video understanding or a new video-model route.
 
 ## 0.20.8 - 2026-10-24
 

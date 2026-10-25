@@ -31,6 +31,7 @@ __all__ = [
     "discover_insights",
     "insight_candidate_paths",
     "insight_content_sha256",
+    "insight_current_receipt_is_valid",
     "insight_has_body",
     "insight_verification_binding_is_valid",
     "insight_verification_payload_is_valid",
@@ -117,12 +118,32 @@ def derive_source_id(insight_path: Path) -> str:
     return _source_id_from_frontmatter(insight_path, _frontmatter(insight_path))
 
 
+def _is_paper_insight(insight_path: Path, frontmatter: dict[str, str]) -> bool:
+    return (
+        "paper_receipt_body_sha256" in frontmatter
+        or "paper_id" in frontmatter
+        or insight_path.parent.parent.name.casefold() == "papers"
+        or any(
+            key in frontmatter
+            for key in (
+                "paper_input_evidence_schema",
+                "paper_input_evidence_file",
+                "paper_input_evidence_sha256",
+                "paper_input_coverage",
+                "paper_original_source_completeness",
+            )
+        )
+    )
+
+
 def _matches_current_receipt(
     insight_path: Path,
     frontmatter: dict[str, str],
     *,
     root: Path,
 ) -> bool:
+    if _is_paper_insight(insight_path, frontmatter):
+        return _paper_receipt_binding_is_valid(insight_path, frontmatter, root=root)
     if frontmatter.get("source") == "local" and frontmatter.get("source_receipt"):
         receipt_name = frontmatter["source_receipt"]
         if Path(receipt_name).name != receipt_name:
@@ -151,6 +172,61 @@ def _matches_current_receipt(
     for receipt_path in insight_path.parent.glob("*_Repo.md"):
         if _frontmatter(receipt_path, root=root).get("receipt_sha256"):
             return False
+    return True
+
+
+def _paper_receipt_binding_is_valid(
+    insight_path: Path,
+    frontmatter: dict[str, str],
+    *,
+    root: Path,
+) -> bool:
+    receipt_path = find_artifact(insight_path.parent, "paper")
+    receipt_content = _read_artifact_text(receipt_path, root)
+    expected_digest = frontmatter.get("paper_receipt_body_sha256")
+    if expected_digest is None:
+        # Legacy pairs remain readable until a newly stamped capture establishes
+        # an explicit current generation. An unreadable existing capture cannot
+        # establish that legacy compatibility applies.
+        if receipt_content is None:
+            return not receipt_path.exists()
+        return "receipt_sha256" not in extract_frontmatter(receipt_content)
+    if _SHA256_RE.fullmatch(expected_digest) is None or receipt_content is None:
+        return False
+    return (
+        extract_frontmatter(receipt_content).get("receipt_sha256") == expected_digest
+        and receipt_body_sha256(receipt_content) == expected_digest
+    )
+
+
+def insight_current_receipt_is_valid(
+    insight_path: Path,
+    *,
+    root: Path | None = None,
+    content: str | None = None,
+) -> bool:
+    """Check source currency for the exact insight snapshot a reader will use.
+
+    Bound paper and repository generations require the current capture to match.
+    Unbound legacy paper pairs remain compatible until a stamped capture exists.
+    """
+    confinement_root = insight_path.parent if root is None else root
+    if validate_confined_path(insight_path, confinement_root, expect_directory=False) is None:
+        return False
+    if content is None:
+        content = _read_artifact_text(insight_path, confinement_root)
+    if content is None:
+        return False
+    metadata = extract_frontmatter(content)
+    if not _matches_current_receipt(insight_path, metadata, root=confinement_root):
+        return False
+    if _is_paper_insight(insight_path, metadata):
+        # The sidecar owner also uses this module's digest functions. Import at
+        # the read boundary so shared insight discovery stays lightweight and
+        # the modules do not initialize through each other.
+        from distill.library.paper_inputs import paper_input_binding_is_valid
+
+        return paper_input_binding_is_valid(insight_path, content, root=confinement_root)
     return True
 
 
@@ -248,10 +324,12 @@ def _verification_binding_is_valid_for_content(
 
 
 def read_discovered_insight(ref: InsightRef, confinement_root: Path) -> str | None:
-    """Reread a discovered insight only while its verified content is unchanged."""
+    """Reread a discovered insight only while its content and capture are current."""
 
     content = _read_artifact_text(ref.path, confinement_root)
     if content is None or insight_content_sha256(content) != ref.content_sha256:
+        return None
+    if not insight_current_receipt_is_valid(ref.path, root=confinement_root, content=content):
         return None
     return content
 
@@ -298,7 +376,7 @@ def discover_insights(
         if content is None:
             continue
         frontmatter = extract_frontmatter(content)
-        if not _matches_current_receipt(path, frontmatter, root=trusted_root):
+        if not insight_current_receipt_is_valid(path, root=trusted_root, content=content):
             continue
         if validate_verification and not _verification_binding_is_valid_for_content(
             path,

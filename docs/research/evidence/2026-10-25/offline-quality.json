@@ -1,0 +1,127 @@
+{
+  "schema": "research-desk-offline-quality.v1",
+  "date": "2026-10-25",
+  "base_commit": "51d0c187fd71b03a387f8ecdee3d61ea2d09ed46",
+  "final_commit": "51d0c187fd71b03a387f8ecdee3d61ea2d09ed46",
+  "working_tree": "uncommitted implementation, tests, docs and evidence; no preexisting changes",
+  "remote_writes": false,
+  "new_remote_ci_run": false,
+  "pytest": {
+    "command": "uv run --frozen pytest -q --cov=distill --cov-fail-under=95 --cov-report=json:.agent/research-desk-final-coverage.json --cov-report=term",
+    "passed": 7786,
+    "skipped": 4,
+    "deselected": 9,
+    "warnings": 2,
+    "elapsed_seconds": 641.04,
+    "coverage_combined_percent": 95.47543246083151,
+    "coverage_statement_percent": 96.658597645501,
+    "coverage_branch_percent": 91.76928062216462,
+    "covered_branches": 14160,
+    "total_branches": 15430,
+    "combined_95_gate": "passed",
+    "branch_only_95_gate": "not_met",
+    "warning_limits": [
+      "Upstream Starlette AnyIO deprecation",
+      "Upstream google-genai Python typing deprecation"
+    ]
+  },
+  "other_checks_passed": [
+    "uv lock --check",
+    "uv sync --frozen (no package changes)",
+    "ruff check .",
+    "ruff format --check .",
+    "pyright --warnings distill/ (0 errors, 0 warnings)",
+    "lint-imports (4 contracts kept)",
+    "Bandit (0 medium/high)",
+    "pip-audit --skip-editable (no known vulnerabilities; ignored cache-deserialization warnings)",
+    "scripts/public_contracts.py --check",
+    "scripts/agent_skill_distributions.py --check",
+    "uv build --no-build-isolation",
+    "distill --help",
+    "wheel required members",
+    "retained blind inputs SHA-256 binding",
+    "git diff --check"
+  ],
+  "not_run": [
+    "New GitHub CI run (no push)",
+    "OS and Python matrices",
+    "Isolated installed-wheel smoke (no install authority inferred)",
+    "Optional entailment export audit (no dependency change)",
+    "Live source acquisition or inference",
+    "Whole-chain outbound-denied private-media trial",
+    "Production refresh semantic qualification"
+  ],
+  "earlier_attempts": [
+    "New boundary fixture initially failed because trailing whitespace was stripped by the real receipt builder; changed test padding to visible characters.",
+    "Initial recap stress input retained primary evidence in remaining budget; expanded authored primary protocol to exercise actual budget exhaustion.",
+    "One preliminary full-suite run interrupted and superseded after parallel implementation changes; it is not acceptance evidence."
+  ],
+  "trial_accounting": {
+    "repository_provider_calls": 0,
+    "repository_inference_cost_usd": 0,
+    "host_agent_cost_usd": null,
+    "complete_session_elapsed_seconds_including_failed_attempts": null,
+    "limitation": "Only final pytest elapsed time was measured; host usage and complete session timing were not independently instrumented.",
+    "reasoning_requested": "not_applicable_no_provider_trial",
+    "reasoning_sent": "not_applicable_no_provider_trial",
+    "reasoning_runtime_effect": "not_measured"
+  },
+  "defaults_changed": false,
+  "quality_release_gate_passed": false,
+  "rollback": "Revert this local patch selectively against the base commit. No corpus migration or provider configuration changed; existing caption sidecars were not rewritten.",
+  "hash_basis": "SHA-256 of workspace file bytes; ignored local artifacts are not release artifacts.",
+  "artifacts": [
+    {
+      "path": "distill/eval/research_desk_cases.py",
+      "sha256": "d01b4ef76f53746a4463b79b77831243e8b594c586e5d0f5787e06582364d25b"
+    },
+    {
+      "path": "distill/eval/research_desk_controls.py",
+      "sha256": "be40e6607b6c60ac726a4b2bf15c7182b488986733c66db6f1e23412c4a7333c"
+    },
+    {
+      "path": "distill/ingestors/youtube/caption_timing.py",
+      "sha256": "7648270eff2d0cf3c5982b03c5f0784569ad48fde923ad1ab55abafb19c576ba"
+    },
+    {
+      "path": "tests/unit/eval/test_research_desk.py",
+      "sha256": "84158e08f0eb6a267f059b62725b26afb269087cf80506133f9180c4d2c2f643"
+    },
+    {
+      "path": "tests/unit/eval/test_production_paper_selection.py",
+      "sha256": "87d5ee916ccf60922c5360da14cdd6d41b2725f5b5eae40486ff679b1f412bf6"
+    },
+    {
+      "path": "tests/unit/ingestors/youtube/test_caption_timing.py",
+      "sha256": "a1343607e96046f146a19040e316ab9c2c91905894747fe32fd6ed2e8b219bf2"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-24/research-desk-baseline.json",
+      "sha256": "13ee12edd053a51879d6a3acc651210b320eed1359617d285f4a53ddfe61924a"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-25/blind-agent-review-inputs.json",
+      "sha256": "54c15fad1c597e641b95838a87cbb4b77669ca04febd5e1dd68294d7a5ecda01"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-25/blind-agent-review.json",
+      "sha256": "6a2b942e108a874537650decc82c84c307b3eae428f6c5c9671b59dca2a172a0"
+    },
+    {
+      "path": ".agent/research-desk-final-coverage.json",
+      "sha256": "93521970bec5459e7bf420bda0204d4726343e986a51d9e9ada24207e878f3fe"
+    },
+    {
+      "path": ".agent/research-desk-final-pytest.log",
+      "sha256": "fefb60d18eaf21ce8720c3e11ac596ba632fd85cc308d6f7a69ddfdc2bac58a7"
+    },
+    {
+      "path": ".agent/research-desk-final-build/distillr-0.20.8-py3-none-any.whl",
+      "sha256": "fead32478bae81e86af1bae89303ebd5669f2bd5d2480d200ec461e8b6fe80be"
+    },
+    {
+      "path": ".agent/research-desk-final-build/distillr-0.20.8.tar.gz",
+      "sha256": "739faf2596d38f13191856bdd4cab94b069d117d76d263092b227aa669e79e2c"
+    }
+  ]
+}

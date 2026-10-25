@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 
 from distill.config import DistillConfig
@@ -11,6 +12,7 @@ from distill.ingestors.papers.arxiv import (
     build_paper_document,
     fetch_paper_pdf_text,
 )
+from distill.library.insights import insight_current_receipt_is_valid
 from distill.library.intent import CorpusIntent
 from distill.library.paths import (
     ProvenanceFields,
@@ -22,12 +24,14 @@ from distill.llm import call as llm_call
 from distill.llm.metadata import ProviderMetadata, resolve_metadata_for_router
 from distill.llm.router import RouterConfig
 from distill.parsing import read_local_utf8_text
-from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
+from distill.pipeline.analysis.chunking import Chunk, chunk_content, estimate_tokens
 from distill.pipeline.analysis.multipass import (
     PAPER_ANALYSIS_PASSES,
+    PassResult,
     merge_paper_pass_results,
     multi_pass_analysis,
 )
+from distill.pipeline.analysis.paper_evidence import paper_input_evidence
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.registry import PROMPT_IDS
 from distill.prompts.synthesis import paper_insight_prompt, paper_topic_synthesis_prompt
@@ -68,8 +72,9 @@ def analyze_paper(
     pdf_text = fetch_paper_pdf_text(paper.pdf_url)
     document = build_paper_document(paper, pdf_text=pdf_text)
     source_mode = "full_pdf" if pdf_text else "abstract_only"
+    source_capture = source_mode
 
-    metadata = resolve_metadata_for_router(rc, "analysis")
+    metadata = resolve_metadata_for_router(rc, "site")
     provider_name = metadata.provider_name
     content_tokens = estimate_tokens(document)
     threshold = int(metadata.context_window * _PASSTHROUGH_THRESHOLD_RATIO)
@@ -90,14 +95,31 @@ def analyze_paper(
             tracker=tracker,
         )
         selection_modes = ""
+        input_evidence = paper_input_evidence(
+            document,
+            [Chunk(text=document, heading_context="", index=0, total_chunks=1)],
+            [
+                PassResult(
+                    category="single pass",
+                    insights=body,
+                    chunks_used=1,
+                    model=model,
+                    chunk_indices=(0,),
+                )
+            ],
+            context_window=metadata.context_window,
+            source_capture=source_capture,
+            single_pass=True,
+        )
     else:
+        metadata = resolve_metadata_for_router(rc, "analysis")
         logger.debug(
             "Paper analysis multipass: tokens=%d window=%d chunks pending provider=%s",
             content_tokens,
             metadata.context_window,
-            provider_name,
+            metadata.provider_name,
         )
-        body, model, selection_modes = _multipass_analysis(
+        body, model, selection_modes, input_evidence = _multipass_analysis(
             paper,
             document,
             rc,
@@ -105,6 +127,7 @@ def analyze_paper(
             goal=goal,
             lens=lens,
             tracker=tracker,
+            source_capture=source_capture,
         )
         source_mode = "chunked_multipass"
 
@@ -115,6 +138,7 @@ def analyze_paper(
         source_mode=source_mode,
         lens=lens,
         chunk_selection_modes=selection_modes,
+        input_evidence=input_evidence,
     )
     return insights, document
 
@@ -138,7 +162,12 @@ def _single_pass_analysis(
     )
     if tracker is not None:
         tracker.record(TokenUsage.from_response(response, call_type="paper"))
-    return response.text.strip() + "\n", response.model
+    if not response.text.strip():
+        raise ValueError(
+            f"Paper analysis produced no nonempty output for {paper.paper_id}; "
+            "analysis is incomplete. Check the provider response before retrying."
+        )
+    return response.text.strip() + "\n", response.model.strip() or "unknown"
 
 
 def _multipass_analysis(
@@ -150,7 +179,8 @@ def _multipass_analysis(
     goal: str,
     lens: str,
     tracker: CostTracker | None,
-) -> tuple[str, str, str]:
+    source_capture: str,
+) -> tuple[str, str, str, dict[str, object]]:
     chunks = chunk_content(
         document,
         metadata.context_window,
@@ -165,35 +195,24 @@ def _multipass_analysis(
         goal=goal,
         lens=lens,
     )
-    results = multipass.passes
+    results = [result for result in multipass.passes if result.insights.strip()]
     if not results:
-        logger.warning(
-            "Multipass produced no sections for %s; falling back to single pass on lead chunk",
-            paper.paper_id,
+        raise ValueError(
+            f"Paper analysis produced no nonempty sections for {paper.paper_id}; "
+            "analysis is incomplete. Check the selected evidence and provider response "
+            "before retrying."
         )
-        lead = chunks[0].text if chunks else document
-        body, model = _single_pass_analysis(
-            paper,
-            lead,
-            rc,
-            goal=goal,
-            lens=lens,
-            tracker=tracker,
-        )
-        return body, model, multipass.selection_modes
 
-    model = _multipass_model_from_tracker(tracker) or rc.resolve("analysis")[1]
+    model = ", ".join(dict.fromkeys(result.model.strip() or "unknown" for result in results))
     body = merge_paper_pass_results(results, body="")
-    return body, model, multipass.selection_modes
-
-
-def _multipass_model_from_tracker(tracker: CostTracker | None) -> str:
-    if tracker is None or not tracker.entries:
-        return ""
-    for entry in reversed(tracker.entries):
-        if entry.call_type == "paper" and entry.model:
-            return entry.model
-    return tracker.entries[-1].model
+    input_evidence = paper_input_evidence(
+        document,
+        chunks,
+        multipass.passes,
+        context_window=metadata.context_window,
+        source_capture=source_capture,
+    )
+    return body, model, multipass.selection_modes, input_evidence
 
 
 def _build_paper_insights(
@@ -204,11 +223,19 @@ def _build_paper_insights(
     source_mode: str,
     lens: str,
     chunk_selection_modes: str = "",
+    input_evidence: dict[str, object] | None = None,
 ) -> str:
     safe_title = paper.title.replace('"', '\\"')
     prompt_id = PROMPT_IDS.get("analysis.paper", "analysis.paper.v2")
     selection_line = (
         f"chunk_selection_modes: {chunk_selection_modes}\n" if chunk_selection_modes else ""
+    )
+    # JSON inside a quoted YAML scalar survives the existing scalar-only
+    # frontmatter reader and publication normalizer without new dependencies.
+    evidence_line = (
+        f"paper_input_evidence: {json.dumps(json.dumps(input_evidence, separators=(',', ':')))}\n"
+        if input_evidence is not None
+        else ""
     )
     return (
         f"---\n"
@@ -219,6 +246,7 @@ def _build_paper_insights(
         f"analyzed_by: {model}\n"
         f"source_mode: {source_mode}\n"
         f"{selection_line}"
+        f"{evidence_line}"
         f"model: {model}\n"
         f"model_version: {model}\n"
         f"temperature: 0.0\n"
@@ -244,7 +272,9 @@ def synthesize_papers(
             continue
         insights_file = find_artifact(paper_dir, "insights")
         content = read_local_utf8_text(insights_file)
-        if content is not None:
+        if content is not None and insight_current_receipt_is_valid(
+            insights_file, root=config.library_dir, content=content
+        ):
             paper_summaries[paper_dir.name] = content
 
     if not paper_summaries:

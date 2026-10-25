@@ -1,0 +1,246 @@
+{
+  "schema": "research-desk-paper-input-quality.v1",
+  "date": "2026-10-25",
+  "base_commit": "51d0c187fd71b03a387f8ecdee3d61ea2d09ed46",
+  "starting_state": "Prior local baseline/caption slice was dirty and preserved; no open PR or other worktree; origin/main still matched base.",
+  "checkpoint": "Local commit follows successful gate; its exact SHA is in Git history and the session handoff. Per-file hashes bind the tested source without a self-referential commit hash.",
+  "scope": [
+    "Match site single-pass and analysis multipass planning windows to their existing workload routes.",
+    "Refuse empty paper outputs and derive model attribution only from current contributing response identities.",
+    "Persist actual supplied/omitted chunk evidence as content-addressed sibling receipts outside downstream prompts.",
+    "Archive prior source captures, serialize publication and validate current source/evidence at discovery, reread and paper synthesis.",
+    "Reuse exact-rendered verification and existing sidecar-first artifact publication/rollback."
+  ],
+  "sources": {
+    "new_trials": "Synthetic authored paper fixtures only; example.invalid locators never fetched.",
+    "frozen_faros": "Existing 2026-10-24 excerpt unchanged; no new source capture or corroboration.",
+    "original_pdf_completeness": "not_established; current extraction caps 200 pages and 2000000 characters without a truncation flag."
+  },
+  "differential_regressions": {
+    "original_paper_module": "15 failed in 0.53s",
+    "corrected_module": "15 passed in 0.49s; also included in final full suite",
+    "method_limit": "Original committed paper.py loaded in isolated process; shared dependencies/environment held current. Not a historical full checkout or live provider trial."
+  },
+  "pytest": {
+    "command": "uv run --frozen pytest -q --cov=distill --cov-fail-under=95 --cov-report=json:.agent/paper-input-final-coverage.json --cov-report=term -ra",
+    "passed": 7888,
+    "skipped": 4,
+    "deselected": 9,
+    "summary": "7888 passed, 4 skipped, 9 deselected, 2 warnings in 609.85s (0:10:09)",
+    "elapsed_seconds": 609.85,
+    "coverage_combined_percent": 95.50089794643554,
+    "coverage_statement_percent": 96.67868548470176,
+    "coverage_branch_percent": 91.81290322580645,
+    "covered_branches": 14231,
+    "total_branches": 15500,
+    "combined_95_gate": "passed",
+    "branch_only_95_gate": "not_met",
+    "skip_receipts": [
+      "SKIPPED [1] tests\\unit\\commands\\test_init.py:164: POSIX FIFO semantics",
+      "SKIPPED [1] tests\\unit\\commands\\test_init.py:201: POSIX permission bits",
+      "SKIPPED [1] tests\\unit\\commands\\test_init.py:438: POSIX no-follow descriptor semantics",
+      "SKIPPED [1] tests\\unit\\test_jsonl.py:321: FIFO fixture requires POSIX"
+    ]
+  },
+  "other_checks_passed": [
+    "uv lock --check",
+    "uv sync --frozen (no dependency changes)",
+    "Ruff check and format",
+    "Pyright --warnings distill/ (0 errors, 0 warnings)",
+    "Import contracts (4 kept)",
+    "Bandit (0 medium/high)",
+    "pip-audit --skip-editable (no known vulnerabilities)",
+    "Public contracts --check",
+    "Agent Skill distributions --check",
+    "Build without build isolation",
+    "CLI --help",
+    "Isolated wheel imports of both new evidence modules",
+    "Prior blind-review input/source hashes (canonical LF and reconstructable original CRLF identities)"
+  ],
+  "semantic_evidence": {
+    "new_provider_quality_trial": false,
+    "new_semantic_judge_calibration": false,
+    "human_review": "not_performed",
+    "prior_agent_review": "Separate retained exploratory blind check; not a calibrated release gate.",
+    "production_selection_policy_changed": false,
+    "counterexamples": "Erratum and recap omissions persist but exact omitted chunks are disclosed; broader/sufficient multipass controls retained.",
+    "gate_passed": false
+  },
+  "attempt_limits": [
+    "One preliminary full-suite run superseded after adversarial review found additional publication integrity defects.",
+    "Early fixture assumptions about whitespace/heading normalization were corrected using the canonical source-body digest helper.",
+    "An overly broad model-name exclusion assertion was narrowed to authored attribution while retaining empty-response model evidence in the input receipt.",
+    "Validation complexity was decomposed without disabling a lint rule.",
+    "Complete session wall time including every tool/agent/failed attempt was not independently instrumented; available run durations are recorded separately."
+  ],
+  "trial_accounting": {
+    "repository_provider_calls": 0,
+    "repository_inference_cost_usd": 0,
+    "host_agent_usage_cost_usd": null,
+    "complete_session_elapsed_seconds": null,
+    "requested_reasoning": "no provider trial",
+    "sent_reasoning": "no provider trial",
+    "runtime_effect": "not measured",
+    "model_identity_tests": "mocked response propagation, not live model qualification"
+  },
+  "not_run": [
+    "New GitHub CI (no push)",
+    "OS/Python matrix",
+    "Installed-wheel environment (no install authority inferred)",
+    "Live paper/video/site journey",
+    "Paired local reasoning trial",
+    "Whole-chain private-media non-egress trial",
+    "Production semantic selective revision"
+  ],
+  "remaining_acceptance": {
+    "61": "Reviewed production research quality and matched-quality reasoning comparisons remain open; defaults unchanged.",
+    "67": "Connected real-video/ASR/visual understanding, privacy and consumer-judgment qualification remain open.",
+    "1.0": "Branch-only target and remaining platform/operator/security/research release evidence remain open."
+  },
+  "rollback": "Selective source-patch reversion or local-checkpoint revert; no operator corpus or provider configuration was modified by these offline tests.",
+  "remote_writes": false,
+  "release_published": false,
+  "hash_basis": "SHA-256 of retained workspace bytes; local development builds are not published release artifacts.",
+  "artifacts": [
+    {
+      "path": ".agent/paper-input-after.log",
+      "sha256": "50fe1fd52c85f8a6cfe7bda7b8ba065ba21234bb94519232038a07daf80ceceb"
+    },
+    {
+      "path": ".agent/paper-input-before.log",
+      "sha256": "22efaa76e291849e7ff79964258a9ad437f3527489f968d438514a99a7255bab"
+    },
+    {
+      "path": ".agent/paper-input-final-build/distillr-0.20.8-py3-none-any.whl",
+      "sha256": "cd616ae5fea81db76fda302ead7ef8501f9c101e2c7e412d00a72bf6691a1169"
+    },
+    {
+      "path": ".agent/paper-input-final-build/distillr-0.20.8.tar.gz",
+      "sha256": "3440a6af74bcb9fb74cbf28616600131e454e453003ee41374d854553c2832aa"
+    },
+    {
+      "path": ".agent\\paper-input-final-coverage.json",
+      "sha256": "65a6860691bd9495bb28b5dcc1ed13768ff5bf5c8463c5ac0b0d07d8ee31914b"
+    },
+    {
+      "path": ".agent\\paper-input-final-pytest.log",
+      "sha256": "52b34a2634e0446177787d48ecc62534ac06a810d2047c4769383faefa4852f0"
+    },
+    {
+      "path": "ROADMAP.md",
+      "sha256": "46b040633934e24084d9c9023ee5ec67c81abb0cb17f907e0d0396c2ddc7a698"
+    },
+    {
+      "path": "distill/commands/_paper_artifacts.py",
+      "sha256": "e4d5f99a95a43db4a0a9c05da4f51b4244dccca9b86347e95bb42b86ffd8b791"
+    },
+    {
+      "path": "distill/eval/research_desk_cases.py",
+      "sha256": "d01b4ef76f53746a4463b79b77831243e8b594c586e5d0f5787e06582364d25b"
+    },
+    {
+      "path": "distill/eval/research_desk_controls.py",
+      "sha256": "be40e6607b6c60ac726a4b2bf15c7182b488986733c66db6f1e23412c4a7333c"
+    },
+    {
+      "path": "distill/ingestors/youtube/caption_timing.py",
+      "sha256": "7648270eff2d0cf3c5982b03c5f0784569ad48fde923ad1ab55abafb19c576ba"
+    },
+    {
+      "path": "distill/library/insights.py",
+      "sha256": "174053fbe58eae52598a6b7f0882702a9788e49e802c3fd081127df8735972c7"
+    },
+    {
+      "path": "distill/library/paper_inputs.py",
+      "sha256": "22f601773696240a588a465f725c6128021a4d87101bab332144e184b2fbe45e"
+    },
+    {
+      "path": "distill/pipeline/analysis/multipass.py",
+      "sha256": "65b4bc7cd558700b79ab38eb6e6025f47c6d4e31a86cd283c067901ada6c9e66"
+    },
+    {
+      "path": "distill/pipeline/analysis/paper.py",
+      "sha256": "f1523e265fc406ed48dc687fb70413cbd9b14b40b0ff686d61ef7e9e720b091f"
+    },
+    {
+      "path": "distill/pipeline/analysis/paper_evidence.py",
+      "sha256": "db014c624bf58e78ff526941a6ead16a100963f1702140cee5ebe42fd44e979c"
+    },
+    {
+      "path": "docs/CHANGELOG.md",
+      "sha256": "091d049992f4dbf1862ad186fd33c7043e352afcecf7e4f207da3202b4aa1f71"
+    },
+    {
+      "path": "docs/design/paper-input-evidence-2026-10-25.md",
+      "sha256": "7c2c322989b5dfe02d8b4a5bfbde767177ce0a6a4ce42b47377f4142f358d81b"
+    },
+    {
+      "path": "docs/design/research-desk-baseline-2026-10-24.md",
+      "sha256": "d6c048eb6695dca25d2c96a719c03a2a416bf485abc442eeade7788935aec16c"
+    },
+    {
+      "path": "docs/design/research-desk-review-2026-10-25.md",
+      "sha256": "40a316cd0e127e22872d25f8d46c86c4f444fd2eb5baa165a45dcb8029ecffda"
+    },
+    {
+      "path": "docs/design/video-evidence-2026-10-24.md",
+      "sha256": "ecfd1b3f4aa520b99590158fece3e42380159be062daa2071159068cbd2539d9"
+    },
+    {
+      "path": "docs/outputs.md",
+      "sha256": "2c5868db03e2b44cb411ad41f941009dd05eac65c6641c4884bb370aaf0b7eba"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-24/research-desk-baseline.json",
+      "sha256": "c51c5af71d11b63dc08301e9513c603633796a4dc25e005d4f7aa7db54571067"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-25/blind-agent-review-inputs.json",
+      "sha256": "bd1ec1d56ad274e908ccf75a9a2173ece7838e7be2cc75e9a7705e2b185bc57c"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-25/blind-agent-review.json",
+      "sha256": "93c093de4143e74f57fa87c5bf8b20a435a18849a68bafc5a9ffdfdba3dd8d64"
+    },
+    {
+      "path": "docs/research/evidence/2026-10-25/offline-quality.json",
+      "sha256": "38ef6c753fa27b532e62abe54f713380bf5dadf2168e29d1ab861a612bbd78da"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "sha256": "730f966a63c04ceb01d93d84aa990db87bc44a938f18a5ab7f3b84de69fd4a82"
+    },
+    {
+      "path": "tests/unit/eval/test_production_paper_selection.py",
+      "sha256": "5f718c88dcd5eead9e605158168914817b5d5b7aee6fed9939d239a85b81ca11"
+    },
+    {
+      "path": "tests/unit/eval/test_research_desk.py",
+      "sha256": "84158e08f0eb6a267f059b62725b26afb269087cf80506133f9180c4d2c2f643"
+    },
+    {
+      "path": "tests/unit/ingestors/youtube/test_caption_timing.py",
+      "sha256": "a1343607e96046f146a19040e316ab9c2c91905894747fe32fd6ed2e8b219bf2"
+    },
+    {
+      "path": "tests/unit/library/test_insights.py",
+      "sha256": "130b6403b25f957fff77bc8c80adef521a285c521dac267c0d791bdf1453d4ee"
+    },
+    {
+      "path": "tests/unit/library/test_paper_inputs.py",
+      "sha256": "de5a890749851eaed60ccf30cd3bf8e083545f0a21602781a8d8f6299b49a8e4"
+    },
+    {
+      "path": "tests/unit/pipeline/analysis/test_multipass.py",
+      "sha256": "7c69d5794254454a284300cba9782156a7723c15285ffaeab7f50bcf8ecbdd32"
+    },
+    {
+      "path": "tests/unit/pipeline/analysis/test_paper.py",
+      "sha256": "0144566d856a882fedc71bc3748366aa3471da2729169200cf03bd2091c36511"
+    },
+    {
+      "path": "tests/unit/pipeline/analysis/test_paper_evidence.py",
+      "sha256": "1b2db1bc98cd889cf158f098b7595792ab8d43b341f1cde2d18e4f8f25aa6224"
+    }
+  ]
+}

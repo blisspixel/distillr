@@ -148,6 +148,29 @@ Expert review was not performed, so the row stays queued and defaults stay
 unchanged. Issue #61 stays open. Issue #63 remains the offline recipe
 identity check only.
 
+The [October 25 offline agent review](docs/design/research-desk-review-2026-10-25.md)
+adds production paper-selection challenges and repairs misleading authored
+correction examples. Late unmatched qualifications and repeated within-paper
+recaps can leave primary evidence outside every selected prompt. Broader
+context and sufficient multipass coverage are controls, not a quality win.
+Independent agent assessment does not establish calibrated judge performance;
+the release gate stays closed and no live comparison or default change is
+claimed.
+
+The next bounded [paper-input evidence slice](docs/design/paper-input-evidence-2026-10-25.md)
+repairs route/context metadata mismatches, refuses empty paper analysis rather
+than completing from a lead chunk, and records actual response models and
+supplied/omitted chunk identities in content-addressed receipts. This supports
+inspection of the baseline's production selection counterexamples; it does
+not change model defaults, selection policy or semantic acceptance. `0.20.9`
+remains queued until its quality evidence is complete.
+
+The same integrity slice archives prior paper captures, gates current insight
+reads on source/evidence bindings, and reuses sidecar-first verified publication
+under one paper lock. Failed replacements preserve history and cannot present
+old analysis as current. Complete semantic correction and selective revision
+remain outside this slice.
+
 Issue #67's first slice is recorded here and is not a release row. Caption
 cues keep their times in a sidecar and the insight records coverage. The
 analysis prompt stays the plain transcript. A separate local frame manifest

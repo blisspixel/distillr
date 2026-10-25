@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from distill.ingestors.youtube.caption_timing import (
     CAPTION_GAP_MS,
     evidence_failed,
@@ -94,6 +96,54 @@ def test_known_duration_records_a_trailing_gap():
     assert evidence.duration_known is True
     assert evidence.text_coverage == "partial"
     assert evidence.gaps_ms == ((2000, 120_000),)
+
+
+@pytest.mark.parametrize("duration_ms", [None, 180_000])
+def test_leading_gap_is_partial_even_without_known_duration(duration_ms):
+    vtt = "WEBVTT\n\n00:02:00.000 --> 00:02:01.000\nLate start\n"
+    evidence = evidence_from_vtt(vtt, duration_ms=duration_ms)
+    assert evidence.text_coverage == "partial"
+    assert evidence.gaps_ms == ((0, 120_000),)
+    assert evidence.duration_known is (duration_ms is not None)
+
+
+@pytest.mark.parametrize("duration_ms", [None, 180_000, 300_000])
+def test_nested_cues_do_not_invent_interior_or_trailing_gaps(duration_ms):
+    # Input order is intentionally different from chronological order. The
+    # first long interval covers both shorter cues and the apparent gap.
+    vtt = (
+        "WEBVTT\n\n"
+        "00:01:40.000 --> 00:02:00.000\nNested later\n\n"
+        "00:00:00.000 --> 00:03:00.000\nLong coverage\n\n"
+        "00:00:10.000 --> 00:00:20.000\nNested earlier\n"
+    )
+    evidence = evidence_from_vtt(vtt, duration_ms=duration_ms)
+    expected = ((180_000, 300_000),) if duration_ms == 300_000 else ()
+    assert evidence.gaps_ms == expected
+    assert evidence.text_coverage == ("partial" if expected else "complete")
+    assert len(evidence.cues) == 3
+
+
+def test_overlapping_chain_preserves_union_and_later_real_gap():
+    vtt = (
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:01:30.000\nFirst\n\n"
+        "00:01:00.000 --> 00:02:30.000\nOverlap\n\n"
+        "00:02:00.000 --> 00:03:00.000\nOverlap again\n\n"
+        "00:04:01.000 --> 00:04:02.000\nAfter real gap\n"
+    )
+    evidence = evidence_from_vtt(vtt)
+    assert evidence.text_coverage == "partial"
+    assert evidence.gaps_ms == ((180_000, 241_000),)
+
+
+@pytest.mark.parametrize("start_ms", [60_000, 60_001])
+def test_leading_gap_retains_strictly_greater_than_sixty_second_policy(start_ms):
+    timestamp = f"00:01:00.{start_ms - 60_000:03d}"
+    vtt = f"WEBVTT\n\n{timestamp} --> 00:01:01.000\nStart\n"
+    evidence = evidence_from_vtt(vtt)
+    assert evidence.gaps_ms == (((0, start_ms),) if start_ms > CAPTION_GAP_MS else ())
+    assert evidence.text_coverage == ("partial" if start_ms > CAPTION_GAP_MS else "complete")
 
 
 def test_empty_interrupted_and_asr_states():

@@ -200,6 +200,12 @@ _FAROS_GAP = _anchor(
     "The frozen takeaway page does not report a randomized effect.",
     authored=True,
 )
+_FAROS_REPORT_GAP = _anchor(
+    "faros-report-not-captured",
+    "gap",
+    "The full report was not captured; this brief is limited to the frozen takeaway page.",
+    authored=True,
+)
 _FAROS_HEADLINE = _anchor(
     "faros-headline",
     "headline",
@@ -259,6 +265,7 @@ _FAROS_SOURCES = (
             _FAROS_OBSERVATIONAL,
             _FAROS_POPULATION,
             _FAROS_GAP,
+            _FAROS_REPORT_GAP,
             _FAROS_MONTHLY,
         ),
         "Public takeaway page. Section heading and body are separate anchors.",
@@ -298,7 +305,7 @@ _FAROS_CASE = _case(
         "faros-observational",
         "faros-population",
     ),
-    gap_ids=("faros-no-randomized-effect",),
+    gap_ids=("faros-no-randomized-effect", "faros-report-not-captured"),
 )
 
 _FAROS_SELECTION = Selection(
@@ -401,6 +408,12 @@ _PEDIATRIC = _anchor(
     "A pediatric cohort exists outside this captured set.",
     authored=True,
 )
+_PEDIATRIC_UNKNOWN = _anchor(
+    "pediatric-applicability-unknown",
+    "qualification",
+    "Whether the adult result applies to children is unknown from this captured evidence.",
+    authored=True,
+)
 
 _MATURE_CASE = _case(
     "mature-adult-review",
@@ -414,7 +427,7 @@ _MATURE_CASE = _case(
             "fixture:synthetic-2019-adult-review",
             "essential",
             "primary",
-            (_ADULT, _CHILDREN, _ENROLLED),
+            (_ADULT, _CHILDREN, _ENROLLED, _PEDIATRIC_UNKNOWN),
             "Authored stand-in for a stable primary review.",
         ),
         _source(
@@ -439,7 +452,7 @@ _MATURE_CASE = _case(
     ),
     "Synthetic mature-field episode. No live paper was fetched.",
     measurement_ids=("review-adults",),
-    qualification_ids=("review-children",),
+    qualification_ids=("review-children", "pediatric-applicability-unknown"),
     unaffected_ids=("review-enrolled",),
     gap_ids=("pediatric-outside",),
 )
@@ -482,6 +495,12 @@ _SCORE_STILL = _anchor(
     population="2024 scorer",
     comparison="unchanged by the website batch",
     causal="not_claimed",
+)
+_SCORE_UNCHANGED = _anchor(
+    "website-no-score-change",
+    "qualification",
+    "The website redesign supplies no evidence of a benchmark score change; the recorded score remains 70.",
+    authored=True,
 )
 
 _FAST_CHANGE = _case(
@@ -535,7 +554,7 @@ _FAST_BATCH = _case(
             "fixture:bench-2024",
             "essential",
             "primary",
-            (_SCORE_STILL,),
+            (_SCORE_STILL, _SCORE_UNCHANGED),
             "The score is unchanged by this batch.",
         ),
         _source(
@@ -550,6 +569,7 @@ _FAST_BATCH = _case(
     ),
     "No meaningful change. The website sentence is not a measurement.",
     measurement_ids=("score-still-70",),
+    qualification_ids=("website-no-score-change",),
 )
 
 _A_DISAGREE = _anchor(
@@ -573,6 +593,18 @@ _A_CALIBRATED = _anchor(
     population="method A instrument",
     comparison="calibration check",
     causal="not_claimed",
+)
+_A_HISTORY = _anchor(
+    "method-a-10-history",
+    "history",
+    "The earlier method A receipt reported 10 under condition X; this is retained history, not current support.",
+    authored=True,
+)
+_ZERO_UNCHANGED = _anchor(
+    "zero-claim-unchanged",
+    "gap",
+    "The successful extraction produced zero new claims; earlier current evidence remains unchanged.",
+    authored=True,
 )
 _B_DISAGREE = _anchor(
     "method-b-16",
@@ -623,52 +655,77 @@ _HOMEPAGE = _anchor(
     authored=True,
 )
 
-_CORRECTION_SOURCES = (
-    _source(
-        "method-a",
-        "Synthetic method A",
-        "fixture:method-a",
-        "essential",
-        "primary",
-        (_A_DISAGREE, _A_CALIBRATED, _WITHDRAWN),
-        "Disagreement, unaffected calibration, and a later withdrawal sentence.",
-    ),
-    _source(
-        "method-b",
-        "Synthetic method B",
-        "fixture:method-b",
-        "essential",
-        "primary",
-        (_B_DISAGREE,),
-        "The other side of the unresolved conflict.",
-    ),
-    _source(
-        "note-2026",
-        "Synthetic 2026 narrowing",
-        "fixture:method-a-2026-note",
-        "correction",
-        "primary",
-        (_NARROWED,),
-        "Narrows method A and leaves method B untouched.",
-    ),
-    _source(
-        "verifier",
-        "Synthetic verifier refusal",
-        "fixture:verifier-refusal",
-        "essential",
-        "primary",
-        (_REFUSAL,),
-        "Used by the refused-extraction variant.",
-    ),
-    _source(
-        "journal-site",
-        "Synthetic journal homepage",
-        "fixture:journal-homepage",
-        "later_immaterial",
-        "primary",
-        (_HOMEPAGE,),
-        "Later batch with no bearing on condition X.",
-    ),
+_A_CURRENT_SOURCE = _source(
+    "method-a",
+    "Synthetic method A",
+    "fixture:method-a",
+    "essential",
+    "primary",
+    (_A_DISAGREE, _A_CALIBRATED),
+    "Current result and unaffected calibration before a successful correction.",
+)
+_A_HISTORY_SOURCE = _source(
+    "method-a",
+    "Synthetic earlier method A receipt",
+    "fixture:method-a",
+    "essential",
+    "primary",
+    (_A_HISTORY, _A_CALIBRATED),
+    "The earlier result is historical; calibration remains unaffected.",
+)
+_B_SOURCE = _source(
+    "method-b",
+    "Synthetic method B",
+    "fixture:method-b",
+    "essential",
+    "primary",
+    (_B_DISAGREE,),
+    "The other side of the unresolved conflict.",
+)
+_NARROWING_SOURCE = _source(
+    "note-2026",
+    "Synthetic 2026 narrowing",
+    "fixture:method-a-2026-note",
+    "correction",
+    "primary",
+    (_NARROWED,),
+    "Narrows method A and leaves method B untouched.",
+)
+_WITHDRAWAL_SOURCE = _source(
+    "withdrawal-2026",
+    "Synthetic method A withdrawal",
+    "fixture:method-a-withdrawal",
+    "correction",
+    "primary",
+    (_WITHDRAWN,),
+    "Withdrawal is a separate later event, not part of the original receipt.",
+)
+_ZERO_SOURCE = _source(
+    "zero-extraction",
+    "Synthetic successful zero-claim extraction",
+    "fixture:zero-extraction",
+    "essential",
+    "primary",
+    (_ZERO_UNCHANGED,),
+    "Successful extraction status, with no new evidence claims.",
+)
+_REFUSAL_SOURCE = _source(
+    "verifier",
+    "Synthetic verifier refusal",
+    "fixture:verifier-refusal",
+    "essential",
+    "primary",
+    (_REFUSAL,),
+    "Used by the refused-extraction variant.",
+)
+_HOMEPAGE_SOURCE = _source(
+    "journal-site",
+    "Synthetic journal homepage",
+    "fixture:journal-homepage",
+    "later_immaterial",
+    "primary",
+    (_HOMEPAGE,),
+    "Later batch with no bearing on condition X.",
 )
 
 _CORRECTION_LIMITS = (
@@ -681,6 +738,7 @@ def _correction_case(
     case_id: str,
     variant: str,
     question: str,
+    sources: tuple[Source, ...],
     *,
     measurement_ids: tuple[str, ...] = (),
     disagreement_ids: tuple[str, ...] = (),
@@ -694,7 +752,7 @@ def _correction_case(
         "contested",
         variant,
         question,
-        _CORRECTION_SOURCES,
+        sources,
         _CORRECTION_LIMITS,
         measurement_ids=measurement_ids,
         disagreement_ids=disagreement_ids,
@@ -709,24 +767,29 @@ _NARROWING = _correction_case(
     "correction-narrowing",
     "correction",
     "After the 2026 note, what is method A's condition X result, and what remains unresolved?",
+    (_A_HISTORY_SOURCE, _B_SOURCE, _NARROWING_SOURCE),
     measurement_ids=("method-a-11",),
-    disagreement_ids=("method-a-10", "method-b-16"),
+    disagreement_ids=("method-b-16",),
     unaffected_ids=("method-a-calibrated",),
-    history_ids=("method-a-10",),
+    history_ids=("method-a-10-history",),
 )
 _WITHDRAWAL = _correction_case(
     "correction-withdrawal",
     "withdrawal",
     "What current reliance remains after method A's condition X result is withdrawn?",
+    (_A_HISTORY_SOURCE, _B_SOURCE, _WITHDRAWAL_SOURCE),
     disagreement_ids=("method-b-16",),
     unaffected_ids=("method-a-calibrated",),
     withdrawn_ids=("method-a-withdrawn",),
-    history_ids=("method-a-10",),
+    history_ids=("method-a-10-history",),
 )
 _ZERO_CLAIM = _correction_case(
     "correction-zero-claim",
     "zero_claim",
     "What should a zero-claim extraction change?",
+    (_A_CURRENT_SOURCE, _B_SOURCE, _ZERO_SOURCE),
+    disagreement_ids=("method-a-10", "method-b-16"),
+    gap_ids=("zero-claim-unchanged",),
     unaffected_ids=("method-a-calibrated",),
     history_ids=("method-a-10",),
 )
@@ -734,6 +797,9 @@ _REFUSED = _correction_case(
     "correction-refused",
     "invalid_extraction",
     "What should a refused verification change?",
+    (_A_CURRENT_SOURCE, _B_SOURCE, _REFUSAL_SOURCE),
+    disagreement_ids=("method-a-10", "method-b-16"),
+    unaffected_ids=("method-a-calibrated",),
     gap_ids=("verification-refused",),
     history_ids=("method-a-10",),
 )
@@ -741,6 +807,7 @@ _IMMATERIAL = _correction_case(
     "correction-homepage",
     "no_meaningful_change",
     "Did the homepage redesign change the condition X disagreement?",
+    (_A_CURRENT_SOURCE, _B_SOURCE, _HOMEPAGE_SOURCE),
     disagreement_ids=("method-a-10", "method-b-16"),
     unaffected_ids=("method-a-calibrated",),
 )
@@ -775,6 +842,7 @@ class BaselineMaterial:
     faros_observational: Anchor
     faros_population: Anchor
     faros_gap: Anchor
+    faros_report_gap: Anchor
     faros_headline: Anchor
     faros_monthly: Anchor
     probability: Anchor
@@ -783,12 +851,16 @@ class BaselineMaterial:
     children: Anchor
     enrolled: Anchor
     pediatric: Anchor
+    pediatric_unknown: Anchor
     score_new: Anchor
     score_old: Anchor
     score_still: Anchor
+    score_unchanged: Anchor
     website: Anchor
     narrowed: Anchor
     a_disagree: Anchor
+    a_history: Anchor
+    zero_unchanged: Anchor
     b_disagree: Anchor
     a_calibrated: Anchor
     withdrawn: Anchor
@@ -806,6 +878,7 @@ def baseline_material() -> BaselineMaterial:
         faros_observational=_FAROS_OBSERVATIONAL,
         faros_population=_FAROS_POPULATION,
         faros_gap=_FAROS_GAP,
+        faros_report_gap=_FAROS_REPORT_GAP,
         faros_headline=_FAROS_HEADLINE,
         faros_monthly=_FAROS_MONTHLY,
         probability=_PROBABILITY,
@@ -814,12 +887,16 @@ def baseline_material() -> BaselineMaterial:
         children=_CHILDREN,
         enrolled=_ENROLLED,
         pediatric=_PEDIATRIC,
+        pediatric_unknown=_PEDIATRIC_UNKNOWN,
         score_new=_SCORE_NEW,
         score_old=_SCORE_OLD,
         score_still=_SCORE_STILL,
+        score_unchanged=_SCORE_UNCHANGED,
         website=_WEBSITE,
         narrowed=_NARROWED,
         a_disagree=_A_DISAGREE,
+        a_history=_A_HISTORY,
+        zero_unchanged=_ZERO_UNCHANGED,
         b_disagree=_B_DISAGREE,
         a_calibrated=_A_CALIBRATED,
         withdrawn=_WITHDRAWN,
