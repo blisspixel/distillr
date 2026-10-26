@@ -448,6 +448,42 @@ class TestYoutubeCaptionsFallback:
 
 
 class TestWhisperLadderFallback:
+    def test_ladder_canonicalizes_its_owned_scratch_directory(self, tmp_path, monkeypatch):
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+
+        import distill.ingestors.transcribe as transcription
+
+        private_root = tmp_path.resolve(strict=True)
+        alias = private_root / ".." / private_root.name
+
+        @contextmanager
+        def created_scratch():
+            yield str(alias)
+
+        def download(url, video_id, destination):
+            assert destination == private_root
+            media = destination / "audio.wav"
+            media.write_bytes(b"inert acquisition fixture")
+            return media, "source hint", 1.0
+
+        def transcribe(media, *_args, **_kwargs):
+            assert media == private_root / "audio.wav"
+            return transcription.TranscriptionResult(
+                text="captured speech", provider="faster-whisper", model="offline-fixture"
+            )
+
+        monkeypatch.setattr(
+            transcripts, "tempfile", SimpleNamespace(TemporaryDirectory=created_scratch)
+        )
+        monkeypatch.setattr(transcripts, "_download_audio", download)
+        monkeypatch.setattr(transcription, "transcribe_media", transcribe)
+        output = private_root / "transcript.txt"
+        assert transcripts._try_whisper_ladder(
+            "https://youtube.com/watch?v=fixture", "fixture", output, DistillConfig()
+        )
+        assert output.read_text(encoding="utf-8") == "captured speech"
+
     @pytest.mark.parametrize(
         ("raw_duration", "expected_duration"),
         [

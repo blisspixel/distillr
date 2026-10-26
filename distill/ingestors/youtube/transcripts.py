@@ -367,7 +367,10 @@ def _try_whisper_ladder(
     class for caption-less YouTube videos too.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        audio_path, hint, duration_s = _download_audio(video_url, video_id, Path(tmpdir))
+        # Resolve our own new private directory, including macOS /var aliases.
+        # Untrusted media inputs still pass the transcription confinement guard.
+        scratch_root = Path(tmpdir).resolve(strict=True)
+        audio_path, hint, duration_s = _download_audio(video_url, video_id, scratch_root)
         if audio_path is None:
             return False
         from distill.ingestors.transcribe import TranscriptionError, transcribe_media

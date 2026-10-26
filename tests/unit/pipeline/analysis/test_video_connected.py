@@ -82,6 +82,7 @@ def connected_video(monkeypatch, tmp_path):
         assert url == video.url
         assert video_id == video.video_id
         events.append("audio_fixture_acquired")
+        assert destination == destination.resolve(strict=True)
         media = destination / "fixture.wav"
         # Inert media transport bytes are not passed to any decoder. The real
         # transcription router still snapshots and confines the input file.

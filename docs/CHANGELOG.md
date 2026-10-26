@@ -89,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Canonicalize newly created private YouTube audio scratch directories before
+  transcription, including macOS `/var` aliases. Media input confinement and
+  symlink rejection remain unchanged.
 - Evaluation caches bind requested reasoning configuration and refuse invalid
   explicit settings before reuse. Ollama retries preserve requested controls;
   private thinking text is never substituted for an answer. Empty video

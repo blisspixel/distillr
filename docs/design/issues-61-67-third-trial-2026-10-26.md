@@ -150,13 +150,17 @@ retained file and its original identity where formatting differs. PNG and
 compressed source media reuse earlier retained identical artifacts. Each file
 is below 1 MB. Recipe snapshots are evidence, not new execution authority.
 
-The [final local mechanical gate](../research/evidence/2026-10-25/issues-61-67-third-trial-checks.json)
+The [recorded local full mechanical gate](../research/evidence/2026-10-25/issues-61-67-third-trial-checks.json)
 passed: 8,126 tests, four skipped and nine deselected, with 95.54% combined
 coverage and 91.89% branch-only coverage (14,432 of 15,706 branches). Ruff,
 formatting, Pyright with zero warnings, all four import contracts, Bandit at
 medium/high severity, generated contracts/distributions and source/wheel builds
-also passed. Model testing remains stopped. Exact-commit remote CI is recorded
-separately after pushing. No historical
+also passed. Subsequent macOS CI found that the internally created audio
+scratch path retained a system `/var` alias and was correctly rejected by the
+unchanged direct-path input guard. Canonicalizing only that owned scratch root
+repairs the acquisition path; 173 focused transcription and connected-video
+tests passed after the change. The exact-commit remote matrix must verify this
+last portability repair separately. Model testing remains stopped. No historical
 green gate validates newer code, and separate combined/branch coverage must
 remain explicit. The earlier mixed-interpreter failure is not erased by this
 trial. No hooks, environment setup, model calls or remote writes were performed
