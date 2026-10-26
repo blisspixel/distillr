@@ -1,0 +1,17 @@
+{
+  "schema": "trial-fixture-adjudication.v1",
+  "scope": "The one targeted third-trial paper reconciliation call; not a full live paper pipeline run",
+  "original_verdict": "paper-independent-verdict.json retained unchanged",
+  "disposition": "invalid_incomplete_retention_fixture",
+  "evidence": [
+    "third_trial_paper.py assigned the 242.7% magnitude and instrument-calibration facts to body['Technical Details'].",
+    "PAPER_CANONICAL_SECTIONS uses 'Methods and Evidence', not 'Technical Details'.",
+    "The authored prior insight was rendered by iterating only canonical headings, so neither positive fact entered that prior insight.",
+    "The actual saved model request contains only the omitted primary chunk 1 and the authored prior insight; neither '242.7' nor 'instrument' appears."
+  ],
+  "interpretation": "The call corrected probability, causal and population scope. It cannot demonstrate retention of facts never supplied to the model. Its uncertainty about those missing details is not evidence that it lost supplied positive facts. It is not a passing end-to-end paper qualification either.",
+  "next_trial_requirement": "Correct the authored heading to Methods and Evidence and assert that every intended positive fact appears in the exact actual request before inference. Preserve the negative prior-summary control. A further trial requires a renewed authorized scope.",
+  "remaining_product_limit": "Residual review still relies on prior derived text for facts from earlier focused inputs. Larger-source grounding and semantic retention require further qualification; structural all-chunk delivery is not a universal faithfulness proof.",
+  "basis": "Independent review plus static source/request inspection by the paper implementation reviewer and parent; no further inference",
+  "human_expert_review": false
+}

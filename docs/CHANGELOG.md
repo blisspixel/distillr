@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Third-trial receipts retain 29 attempts, $0.112788 reported API cost,
+  per-workload inconclusive/rejected reasoning comparisons and independent
+  video-review failures. Model testing is stopped at the operator's request.
+  #61 is ready for bounded inconclusive closeout after final checks and an
+  acceptance comment; #67 remains open. The paper fixture's original failure
+  and separate invalid-fixture adjudication are both retained. Version 0.20.9
+  remains queued, without a tag or PyPI publication. See the
+  [third-trial report](design/issues-61-67-third-trial-2026-10-26.md).
 - A second bounded local repair trial distinguishes model pixel-reading
   failures from transport, demonstrates two captionless ASR passes including
   one shared audio/visual source, and retains failed extraction and consumer

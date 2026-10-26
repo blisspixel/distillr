@@ -6,6 +6,7 @@ Feature: local-inference
 
 from __future__ import annotations
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -271,3 +272,9 @@ def test_split_into_paragraphs_strips_and_drops_blanks() -> None:
     from distill.pipeline.analysis.chunking import _split_into_paragraphs
 
     assert _split_into_paragraphs("one\n\ntwo\n\n\n  three  \n\n") == ["one", "two", "three"]
+
+
+def test_oversized_heading_prefix_refuses_instead_of_looping() -> None:
+    source = "## " + "HugeHeading" * 1000 + "\n" + "Source qualification. " * 100
+    with pytest.raises(ValueError, match="Source heading prefix exceeds"):
+        chunk_content(source, 128)

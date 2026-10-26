@@ -1,0 +1,277 @@
+{
+  "schema": "local-video-evidence.v1",
+  "status": "model_review_passed",
+  "reason": "All model-review criteria passed; sampled coverage only.",
+  "transcript": "This is a synthetic local speech qualification. The initial claim says incident probability rose. The source compares software changes across two adoption periods. We will correct this measurement later. Correction. The measurement is an incidence to pull requests ratio, not probability. 40 adults only. This is observational, not causal. Do not generalize to children.",
+  "transcript_sha256": "c24c5a5d1fbe9d9726732df23eedef8c24641c95f2f36f7a205c58d894cbaf99",
+  "transcript_origin": "asr",
+  "transcript_source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+  "route_policy": "explicit_text_route_local_images",
+  "frames": {
+    "source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+    "source_relative_path": "source-d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "insight": "---\nvideo_title: \"Local captured video\"\nchannel: \nupload_date: \nanalyzed_by: anthropic/claude-sonnet-5.5\nmodel: anthropic/claude-sonnet-5.5\nmodel_version: anthropic/claude-sonnet-5.5\ntemperature: 0.0\nprompt_id: \"analysis.pass2.v3\"\nlens: general\n---\n\n## Summary\nThis is a short, self-described \"synthetic local speech qualification\" (visual header: \"SYNTHETIC STUDY\"). It states an initial claim that incident probability rose, then corrects the metric to an incidence-to-pull-requests ratio rather than a probability. It also gives scope limits: 40 adults only, observational rather than causal, and no generalization to children. The evidence is ASR text plus a model description of four sampled frames, so fidelity and completeness are unverified. The source's full length and completeness are unknown.\n\n## Key Points\n- **Comparison (ASR):** \"The source compares software changes across two adoption periods.\" The source does not say what was adopted, how long the periods were, or how \"software changes\" were counted.\n- **Initial claim:**\n  - The ASR says \"incident probability rose.\"\n  - The visual description of image_index 0 (sha256 `50469bde…6f43c`, sampled at 0, 60,000 and 120,000 ms) reads \"Production incident probability tripled.\" It is labeled \"Preliminary spoken claim, not an established result.\"\n  - \"Tripled\" and \"production\" appear only in the visual description. The ASR gives no magnitude.\n- **Correction:**\n  - The ASR says \"The measurement is an incidence to pull requests ratio, not probability.\"\n  - The visual description of image_index 1 (sha256 `63bc4a55…c474d`, sampled at 67,000 ms) reads \"Incidents-to-PR RATIO, not probability.\"\n  - The source does not explicitly link \"PR\" to \"pull requests.\" \"PR\" is kept as a literal acronym, and its meaning in the source is not defined.\n- **Scope limits (ASR):** \"40 adults only. This is observational, not causal. Do not generalize to children.\"\n\n## Details and Evidence\n- **Logic chain:**\n  1. A preliminary claim says incident probability rose, or tripled per the slide.\n  2. The source says \"We will correct this measurement later.\"\n  3. The correction reclassifies the metric as an incidence-to-pull-requests ratio, not a probability.\n  4. Limits follow: 40 adults, observational, no generalization to children.\n- **Not supplied:**\n  - Numeric values for incidents, pull requests or the ratio, apart from the visual \"tripled.\"\n  - Baselines, confidence intervals, statistical tests, sample definitions, confounders, design details and the adopted technology.\n- **Unresolved gap:** The source pairs \"40 adults\" with a software-change comparison but does not say how the adults relate to incidents or pull requests.\n- **Evidence limits:**\n  - The transcript has no timestamps, so no spoken sentence can be aligned to a frame.\n  - Frame anchors are requested seeks, not measured presentation times.\n  - The blind intervals are 0–60,000, 60,000–67,000, 67,000–120,000 and 120,000–125,000 ms. Identical bytes at 0, 60,000 and 120,000 ms do not show what was on screen between those anchors.\n  - The correction frame was observed only at 67,000 ms, so its start, end and duration are unknown.\n  - The 125,000 ms end of the blind-interval list does not establish the video's length.\n  - The frame descriptions are model-derived, not independent OCR.\n- **Channel difference:** The visual text includes \"tripled\" and \"production,\" which the ASR lacks. The ASR includes \"adoption periods\" and \"software changes,\" which the visual description lacks. Neither can confirm the other.\n\n## Creator's Take\nNo creator is identified (channel blank, generic title). The source itself expresses these positions:\n- The original claim is preliminary and not an established result.\n- The measure should not be treated as a probability.\n- The design is observational, so causation should not be inferred.\n- The findings should not be generalized to children.\n\nIt makes no predictions and no bullish or bearish statements.\n\n## Notable Specifics\n- Metrics and terms: \"incidence to pull requests ratio\" (ASR); \"Incidents-to-PR RATIO\" (slide, \"PR\" undefined in the source); \"tripled\" (slide only).\n- Sample: \"40 adults only.\"\n- Quotes (ASR, wording unverified):\n  - \"The initial claim says incident probability rose.\"\n  - \"Correction. The measurement is an incidence to pull requests ratio, not probability.\"\n  - \"40 adults only. This is observational, not causal.\"\n  - \"Do not generalize to children.\"\n- Image identities: image_index 0 `50469bde…6f43c` (0, 60,000, 120,000 ms); image_index 1 `63bc4a55…c474d` (67,000 ms).\n- Transcript source_sha256: `d5c98513…e9cc`.\n- No products, vendors, organizations, people, dates or prices are mentioned.\n",
+  "observations": {
+    "text": "Based on the provided images, here is the detailed description of the text and visual content.\n\n**Image 1 (Index 0)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > SYNTHETIC STUDY\n    > Production incident probability tripled.\n    > Preliminary spoken claim, not an established result.\n\n**Image 2 (Index 1)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > CORRECTION\n    > Incidents-to-PR RATIO, not probability.\n    > 40 adults only. Observational, not causal.\n    > Do not generalize to children.",
+    "model": "qwen3.6:27b",
+    "input_image_hashes": [
+      "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+      "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+    ],
+    "origin": "model_description"
+  },
+  "review": {
+    "source_fidelity": {
+      "verdict": "pass",
+      "reason": "The candidate accurately reflects the text visible in the supplied images (e.g., 'Production incident probability tripled', 'Incidents-to-PR RATIO') and the ASR transcript. It correctly identifies that the source corrects the metric from probability to a ratio and notes the specific limitations ('40 adults only', 'observational'). It does not invent data or overclaim beyond the provided evidence."
+    },
+    "material_qualifications": {
+      "verdict": "pass",
+      "reason": "The candidate explicitly highlights all decisive limitations found in the source: the correction of the metric (ratio vs probability), the small sample size (40 adults), the observational nature (not causal), and the restriction against generalizing to children. It also notes the lack of baseline data and statistical details."
+    },
+    "disagreement": {
+      "verdict": "pass",
+      "reason": "The candidate correctly identifies and preserves the conflict between the initial claim ('probability tripled') and the subsequent correction ('ratio, not probability'). It also notes discrepancies between the visual text (e.g., 'tripled', 'production') and the ASR transcript (which lacks these specific terms), treating them as separate evidence streams rather than forcing a false consensus."
+    },
+    "coverage_disclosure": {
+      "verdict": "pass",
+      "reason": "The candidate clearly states that the source's full length and completeness are unknown. It details the limitations of the sampling method (requested seeks, blind intervals) and explicitly mentions that identical frame bytes do not prove continuous visual coverage. It acknowledges that the transcript is model-derived and unverified."
+    },
+    "detail_and_citations": {
+      "verdict": "pass",
+      "reason": "The candidate provides specific details such as image hashes, timestamps, and exact phrasing from both the slides and the ASR. It correctly notes that 'PR' is undefined in the source text (despite the ASR expanding it to pull requests) and cites the specific limitations regarding sample size and causality."
+    }
+  },
+  "calls": [
+    {
+      "stage": "video_visual_observation",
+      "response": {
+        "text": "Based on the provided images, here is the detailed description of the text and visual content.\n\n**Image 1 (Index 0)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > SYNTHETIC STUDY\n    > Production incident probability tripled.\n    > Preliminary spoken claim, not an established result.\n\n**Image 2 (Index 1)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > CORRECTION\n    > Incidents-to-PR RATIO, not probability.\n    > 40 adults only. Observational, not causal.\n    > Do not generalize to children.",
+        "input_tokens": 2470,
+        "output_tokens": 192,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2470,
+            "output_tokens": 192,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "c73a1682fbcf438499cfc850cf0f41cd",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0093509,
+        "prefill_seconds": 1.300864,
+        "decode_seconds": 4.36279,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    },
+    {
+      "stage": "pass1",
+      "response": {
+        "text": "# Extraction: \"Local captured video\"\n\n**Source basis:** The transcript is ASR text (source_sha256 `d5c98513…e9cc`), which is model-derived and not verified for fidelity or completeness. The visual material is a model description of four sampled frames, not independent OCR. Channel and date are blank. The title is a generic local label. The operator's question is used only to choose emphasis.\n\n## Evidence coverage and limits\n- **Transcript:** It is short and has no timestamps. I cannot align any spoken sentence to a frame time.\n- **Frame anchors (requested seeks, not measured presentation times):**\n  - 0 ms, 60,000 ms and 120,000 ms: image_index 0, sha256 `50469bde…6f43c` (identical bytes at all three).\n  - 67,000 ms: image_index 1, sha256 `63bc4a55…c474d`.\n- **Blind intervals:** [0–60,000], [60,000–67,000], [67,000–120,000] and [120,000–125,000] ms. Identical bytes at 0, 60,000 and 120,000 ms do not show what was on screen between those anchors. The correction frame was observed only at 67,000 ms, so its start, end and duration are unknown.\n- **Completeness:** The original source's full length and completeness are not established. The blind-interval list reaches 125,000 ms, but that does not establish the video's length.\n- **Model description:** It is not independent corroboration of itself. Its quoted text is treated as a derived reading.\n\n## 1. Key announcements & events\nNone. The source announces no products, pricing, partnerships, personnel moves or publications. It describes itself as \"a synthetic local speech qualification.\" The visual header reads \"SYNTHETIC STUDY.\"\n\n## 2. Technical details (what the source supports)\n- **Comparison (transcript):** \"The source compares software changes across two adoption periods.\" The source does not say what was adopted, how long the periods were, or how \"software changes\" were counted.\n- **Initial claim (transcript):** \"incident probability rose.\"\n- **Initial claim (visual, image 0 at 0, 60,000 and 120,000 ms):** \"Production incident probability tripled.\" The slide also says \"Preliminary spoken claim, not an established result.\"\n  - The word \"tripled\" and the phrase \"production incident\" appear only in the visual description. The ASR transcript says \"rose.\" No magnitude is stated in the transcript.\n- **Correction (transcript):** \"The measurement is an incidence to pull requests ratio, not probability.\"\n- **Correction (visual, image 1 at 67,000 ms):** \"Incidents-to-PR RATIO, not probability.\" The slide uses the literal acronym \"PR.\" The transcript says \"pull requests.\" The source does not explicitly link the two terms, and I do not extend \"PR\" beyond what the slide shows.\n- **Not supplied:**\n  - Any numeric values for incidents, pull requests or the ratio, other than the visual's \"tripled.\"\n  - Baselines, confidence intervals, tests and sample definitions.\n\n## 3. Business & market signals\nNone present. No revenue, adoption figures, customers or competitors are given. \"Adoption periods\" is the only adoption-related phrase, and the adopted thing is not identified.\n\n## 4. Analytical frameworks & arguments\nThe source has one logic chain, a claim followed by a correction.\n1. An initial, preliminary claim says incident probability rose, or tripled per the slide.\n2. The source says a correction will come later: \"We will correct this measurement later.\"\n3. The correction reclassifies the metric as an incidence-to-pull-requests ratio, not a probability.\n4. Scope and inference limits follow:\n   - \"40 adults only.\"\n   - \"This is observational, not causal.\"\n   - \"Do not generalize to children.\"\n\n**Unresolved tension:** The source pairs \"40 adults\" with a software-change comparison. It does not say how the 40 adults relate to incidents or pull requests, for example whether they are developers, participants or something else. This gap is not resolved in the evidence.\n\n## 5. Opinions, predictions & advice\n- No predictions are made.\n- **Advice or cautions (explicit in the source):** do not treat the ratio as a probability, do not infer causation, and do not generalize to children.\n- The slide labels the original claim \"Preliminary… not an established result.\"\n\n## 6. Risks, warnings & failure modes\n- **Metric mislabeling:** a ratio was first described as a probability.\n- **Causal over-reading:** the source states the design is observational.\n- **Over-generalization:** the sample is 40 adults and the source says not to extend this to children.\n- **Source-stated qualification:** the original claim is preliminary.\n- **Gaps (not filled here):**\n  - Confounders, the study design details and the adopted technology are not described.\n  - Any statistical support is absent.\n\n## 7. Vendor & organization positioning\nNone discussed.\n\n## 8. Customer & practitioner patterns\nNone beyond the unspecified \"software changes across two adoption periods.\" No industries, use cases or outcomes are described.\n\n## 9. Notable quotes (from ASR transcript; wording unverified)\n- \"The initial claim says incident probability rose.\"\n- \"Correction. The measurement is an incidence to pull requests ratio, not probability.\"\n- \"40 adults only. This is observational, not causal.\"\n- \"Do not generalize to children.\"\n\n## Summary of what the source supports\n- **Supported:** A self-described synthetic source states a claim, then corrects it. The measure is an incidence-to-pull-requests ratio rather than a probability. The sample is 40 adults, the design is observational, and it should not be generalized to children.\n- **Disagreement or difference between channels:** The visual description includes \"tripled\" and \"production,\" which the ASR does not. The ASR includes \"adoption periods\" and \"software changes,\" which the visual does not. These are differences between derived texts, and neither can confirm the other.\n- **Not captured:** Magnitudes, definitions, methods, timing alignment, content in the blind intervals, and whether the source is complete.",
+        "input_tokens": 2823,
+        "output_tokens": 2758,
+        "model": "anthropic/claude-sonnet-5.5",
+        "provider_name": "openrouter",
+        "provider_type": "cloud",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2823,
+            "output_tokens": 2758,
+            "model": "anthropic/claude-sonnet-5.5",
+            "provider_name": "openrouter",
+            "provider_type": "cloud",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "84092a80b6f847ca8f5953fc9d91891c",
+            "billed_cost_usd": 0.033226,
+            "upstream_provider": "Google",
+            "reasoning_requested": "",
+            "reasoning_sent": "",
+            "reasoning_support": "",
+            "reasoning_effective": ""
+          }
+        ],
+        "billed_cost_usd": 0.033226,
+        "upstream_provider": "Google",
+        "load_seconds": 0.0,
+        "prefill_seconds": 0.0,
+        "decode_seconds": 0.0,
+        "num_ctx": 0,
+        "finish_reason": "stop",
+        "reasoning_requested": "",
+        "reasoning_sent": "",
+        "reasoning_support": "",
+        "reasoning_effective": "",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "pass2",
+      "response": {
+        "text": "## Summary\nThis is a short, self-described \"synthetic local speech qualification\" (visual header: \"SYNTHETIC STUDY\"). It states an initial claim that incident probability rose, then corrects the metric to an incidence-to-pull-requests ratio rather than a probability. It also gives scope limits: 40 adults only, observational rather than causal, and no generalization to children. The evidence is ASR text plus a model description of four sampled frames, so fidelity and completeness are unverified. The source's full length and completeness are unknown.\n\n## Key Points\n- **Comparison (ASR):** \"The source compares software changes across two adoption periods.\" The source does not say what was adopted, how long the periods were, or how \"software changes\" were counted.\n- **Initial claim:**\n  - The ASR says \"incident probability rose.\"\n  - The visual description of image_index 0 (sha256 `50469bde…6f43c`, sampled at 0, 60,000 and 120,000 ms) reads \"Production incident probability tripled.\" It is labeled \"Preliminary spoken claim, not an established result.\"\n  - \"Tripled\" and \"production\" appear only in the visual description. The ASR gives no magnitude.\n- **Correction:**\n  - The ASR says \"The measurement is an incidence to pull requests ratio, not probability.\"\n  - The visual description of image_index 1 (sha256 `63bc4a55…c474d`, sampled at 67,000 ms) reads \"Incidents-to-PR RATIO, not probability.\"\n  - The source does not explicitly link \"PR\" to \"pull requests.\" \"PR\" is kept as a literal acronym, and its meaning in the source is not defined.\n- **Scope limits (ASR):** \"40 adults only. This is observational, not causal. Do not generalize to children.\"\n\n## Details and Evidence\n- **Logic chain:**\n  1. A preliminary claim says incident probability rose, or tripled per the slide.\n  2. The source says \"We will correct this measurement later.\"\n  3. The correction reclassifies the metric as an incidence-to-pull-requests ratio, not a probability.\n  4. Limits follow: 40 adults, observational, no generalization to children.\n- **Not supplied:**\n  - Numeric values for incidents, pull requests or the ratio, apart from the visual \"tripled.\"\n  - Baselines, confidence intervals, statistical tests, sample definitions, confounders, design details and the adopted technology.\n- **Unresolved gap:** The source pairs \"40 adults\" with a software-change comparison but does not say how the adults relate to incidents or pull requests.\n- **Evidence limits:**\n  - The transcript has no timestamps, so no spoken sentence can be aligned to a frame.\n  - Frame anchors are requested seeks, not measured presentation times.\n  - The blind intervals are 0–60,000, 60,000–67,000, 67,000–120,000 and 120,000–125,000 ms. Identical bytes at 0, 60,000 and 120,000 ms do not show what was on screen between those anchors.\n  - The correction frame was observed only at 67,000 ms, so its start, end and duration are unknown.\n  - The 125,000 ms end of the blind-interval list does not establish the video's length.\n  - The frame descriptions are model-derived, not independent OCR.\n- **Channel difference:** The visual text includes \"tripled\" and \"production,\" which the ASR lacks. The ASR includes \"adoption periods\" and \"software changes,\" which the visual description lacks. Neither can confirm the other.\n\n## Creator's Take\nNo creator is identified (channel blank, generic title). The source itself expresses these positions:\n- The original claim is preliminary and not an established result.\n- The measure should not be treated as a probability.\n- The design is observational, so causation should not be inferred.\n- The findings should not be generalized to children.\n\nIt makes no predictions and no bullish or bearish statements.\n\n## Notable Specifics\n- Metrics and terms: \"incidence to pull requests ratio\" (ASR); \"Incidents-to-PR RATIO\" (slide, \"PR\" undefined in the source); \"tripled\" (slide only).\n- Sample: \"40 adults only.\"\n- Quotes (ASR, wording unverified):\n  - \"The initial claim says incident probability rose.\"\n  - \"Correction. The measurement is an incidence to pull requests ratio, not probability.\"\n  - \"40 adults only. This is observational, not causal.\"\n  - \"Do not generalize to children.\"\n- Image identities: image_index 0 `50469bde…6f43c` (0, 60,000, 120,000 ms); image_index 1 `63bc4a55…c474d` (67,000 ms).\n- Transcript source_sha256: `d5c98513…e9cc`.\n- No products, vendors, organizations, people, dates or prices are mentioned.",
+        "input_tokens": 3271,
+        "output_tokens": 1576,
+        "model": "anthropic/claude-sonnet-5.5",
+        "provider_name": "openrouter",
+        "provider_type": "cloud",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 3271,
+            "output_tokens": 1576,
+            "model": "anthropic/claude-sonnet-5.5",
+            "provider_name": "openrouter",
+            "provider_type": "cloud",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "6eeea44a2f0048058a95996a769c0ea6",
+            "billed_cost_usd": 0.022302,
+            "upstream_provider": "Google",
+            "reasoning_requested": "",
+            "reasoning_sent": "",
+            "reasoning_support": "",
+            "reasoning_effective": ""
+          }
+        ],
+        "billed_cost_usd": 0.022302,
+        "upstream_provider": "Google",
+        "load_seconds": 0.0,
+        "prefill_seconds": 0.0,
+        "decode_seconds": 0.0,
+        "num_ctx": 0,
+        "finish_reason": "stop",
+        "reasoning_requested": "",
+        "reasoning_sent": "",
+        "reasoning_support": "",
+        "reasoning_effective": "",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "video_visual_review",
+      "response": {
+        "text": "```json\n{\n  \"source_fidelity\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate accurately reflects the text visible in the supplied images (e.g., 'Production incident probability tripled', 'Incidents-to-PR RATIO') and the ASR transcript. It correctly identifies that the source corrects the metric from probability to a ratio and notes the specific limitations ('40 adults only', 'observational'). It does not invent data or overclaim beyond the provided evidence.\"\n  },\n  \"material_qualifications\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate explicitly highlights all decisive limitations found in the source: the correction of the metric (ratio vs probability), the small sample size (40 adults), the observational nature (not causal), and the restriction against generalizing to children. It also notes the lack of baseline data and statistical details.\"\n  },\n  \"disagreement\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate correctly identifies and preserves the conflict between the initial claim ('probability tripled') and the subsequent correction ('ratio, not probability'). It also notes discrepancies between the visual text (e.g., 'tripled', 'production') and the ASR transcript (which lacks these specific terms), treating them as separate evidence streams rather than forcing a false consensus.\"\n  },\n  \"coverage_disclosure\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate clearly states that the source's full length and completeness are unknown. It details the limitations of the sampling method (requested seeks, blind intervals) and explicitly mentions that identical frame bytes do not prove continuous visual coverage. It acknowledges that the transcript is model-derived and unverified.\"\n  },\n  \"detail_and_citations\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate provides specific details such as image hashes, timestamps, and exact phrasing from both the slides and the ASR. It correctly notes that 'PR' is undefined in the source text (despite the ASR expanding it to pull requests) and cites the specific limitations regarding sample size and causality.\"\n  }\n}\n```",
+        "input_tokens": 4299,
+        "output_tokens": 468,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 4299,
+            "output_tokens": 468,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "3466d7e44ab2489b919bd4c3e9027e37",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0081801,
+        "prefill_seconds": 2.125338,
+        "decode_seconds": 10.547011,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    }
+  ],
+  "visual_coverage": "sampled_only",
+  "original_source_completeness": "not_established",
+  "text_coverage": "not_independently_verified",
+  "semantic_review": "local_model_review_not_independent_ground_truth"
+}

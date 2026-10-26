@@ -1,0 +1,946 @@
+[
+  {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:45:45.181187+00:00",
+    "status": "completed",
+    "output": "## Summary\nThis page presents a specific finding from Faros’s \"AI Engineering Impact Report 2026,\" highlighting a correlation between increased AI adoption in software development and a rise in production incidents. The data indicates that as teams transition from low to high AI usage, the ratio of incidents to pull requests (PRs) increases by 242.7%, and monthly incident counts rise by 57.9%. This matters because it challenges the assumption that AI acceleration inherently improves stability, suggesting instead a potential \"whiplash\" effect where speed gains may come at the cost of increased operational risk. However, these findings are observational correlations derived from telemetry data, not causal proofs that AI directly causes incidents.\n\n## Key Signals\n*   **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams moved from periods of lowest to highest AI adoption.\n    *   *Qualification:* This is a ratio, not a probability; a single PR can link to multiple incidents, and not every incident traces directly to the most recent merge.\n*   **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% during the same transition from low to high AI adoption.\n    *   *Qualification:* This is an observational measurement of metric change between periods within organizations, not a randomized controlled trial result.\n*   **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" for every code change merged.\n    *   *Correction/Clarification:* The supporting evidence explicitly states this is a ratio increase (242.7%), not a probability calculation. The page notes that because one PR can cause multiple incidents, the metric does not represent the likelihood of any single merge causing an incident. Treating the ratio increase as a tripling of probability is an unsupported claim based on the provided definitions.\n*   **Data Source Scope:** The findings are drawn from two years of telemetry data covering 22,000 developers and over 4,000 teams on the Faros platform.\n\n## Technical Details\n*   **Metric Definition:** The primary metric is the \"incidents-to-PR ratio,\" calculated by comparing periods of lowest AI adoption to periods of highest AI adoption within each organization.\n*   **Data Collection Method:** Telemetry data collected via the Faros platform across the software development lifecycle.\n*   **Population:** 22,000 developers and >4,000 teams.\n*   **Timeframe:** Two years of historical data.\n*   **Analysis Type:** Observational comparison of metric changes between defined adoption periods (low vs. high). No randomized causal effects were measured or reported in this excerpt.\n\n## Business Relevance\n*   **Risk Management:** Organizations adopting AI coding assistants should anticipate potential increases in production instability during the transition phase from low to high adoption. The 57.9% rise in monthly incidents suggests a need for enhanced testing or monitoring protocols alongside AI integration.\n*   **Strategy Adjustment:** The \"acceleration whiplash\" concept implies that speed gains (more PRs) may not translate to efficiency if incident resolution costs rise disproportionately. Leaders must weigh the velocity benefits against the operational overhead of increased incident volume.\n*   **Vendor Evaluation:** When evaluating AI development tools, customers should inquire about how vendors measure and mitigate quality degradation during high-adoption phases, rather than focusing solely on code generation speed.\n\n## Open Questions\n*   What specific types of incidents are increasing (e.g., security vulnerabilities, performance regressions, functional bugs)?\n*   How does the incident rate stabilize after the initial transition to high AI adoption? Does the ratio plateau or continue to rise?\n*   What controls or best practices were present in organizations that saw smaller increases in incident ratios?\n*   How is \"AI adoption\" quantitatively defined and measured within the Faros platform (e.g., lines of code generated, percentage of PRs with AI assistance)?\n\n## Useful Follow-ups\n*   **Full Report Access:** Locate the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" to review methodology, confidence intervals, and sector-specific breakdowns.\n*   **Mitigation Strategies:** Research Faros’s recommendations for balancing AI acceleration with quality gates, such as automated testing integration or pre-merge analysis tools.\n*   **Comparative Studies:** Investigate other industry reports on AI-assisted development quality metrics to see if the 242.7% ratio increase is consistent across different platforms and populations.\n*   **Definition of \"High Adoption\":** Clarify the threshold used by Faros to classify a team as having \"high\" vs. \"low\" AI adoption to understand the scale of usage associated with these incident spikes.",
+    "attempt_indexes": [
+      8
+    ],
+    "call_indexes": [
+      8
+    ],
+    "responses": [
+      {
+        "text": "## Summary\nThis page presents a specific finding from Faros’s \"AI Engineering Impact Report 2026,\" highlighting a correlation between increased AI adoption in software development and a rise in production incidents. The data indicates that as teams transition from low to high AI usage, the ratio of incidents to pull requests (PRs) increases by 242.7%, and monthly incident counts rise by 57.9%. This matters because it challenges the assumption that AI acceleration inherently improves stability, suggesting instead a potential \"whiplash\" effect where speed gains may come at the cost of increased operational risk. However, these findings are observational correlations derived from telemetry data, not causal proofs that AI directly causes incidents.\n\n## Key Signals\n*   **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams moved from periods of lowest to highest AI adoption.\n    *   *Qualification:* This is a ratio, not a probability; a single PR can link to multiple incidents, and not every incident traces directly to the most recent merge.\n*   **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% during the same transition from low to high AI adoption.\n    *   *Qualification:* This is an observational measurement of metric change between periods within organizations, not a randomized controlled trial result.\n*   **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" for every code change merged.\n    *   *Correction/Clarification:* The supporting evidence explicitly states this is a ratio increase (242.7%), not a probability calculation. The page notes that because one PR can cause multiple incidents, the metric does not represent the likelihood of any single merge causing an incident. Treating the ratio increase as a tripling of probability is an unsupported claim based on the provided definitions.\n*   **Data Source Scope:** The findings are drawn from two years of telemetry data covering 22,000 developers and over 4,000 teams on the Faros platform.\n\n## Technical Details\n*   **Metric Definition:** The primary metric is the \"incidents-to-PR ratio,\" calculated by comparing periods of lowest AI adoption to periods of highest AI adoption within each organization.\n*   **Data Collection Method:** Telemetry data collected via the Faros platform across the software development lifecycle.\n*   **Population:** 22,000 developers and >4,000 teams.\n*   **Timeframe:** Two years of historical data.\n*   **Analysis Type:** Observational comparison of metric changes between defined adoption periods (low vs. high). No randomized causal effects were measured or reported in this excerpt.\n\n## Business Relevance\n*   **Risk Management:** Organizations adopting AI coding assistants should anticipate potential increases in production instability during the transition phase from low to high adoption. The 57.9% rise in monthly incidents suggests a need for enhanced testing or monitoring protocols alongside AI integration.\n*   **Strategy Adjustment:** The \"acceleration whiplash\" concept implies that speed gains (more PRs) may not translate to efficiency if incident resolution costs rise disproportionately. Leaders must weigh the velocity benefits against the operational overhead of increased incident volume.\n*   **Vendor Evaluation:** When evaluating AI development tools, customers should inquire about how vendors measure and mitigate quality degradation during high-adoption phases, rather than focusing solely on code generation speed.\n\n## Open Questions\n*   What specific types of incidents are increasing (e.g., security vulnerabilities, performance regressions, functional bugs)?\n*   How does the incident rate stabilize after the initial transition to high AI adoption? Does the ratio plateau or continue to rise?\n*   What controls or best practices were present in organizations that saw smaller increases in incident ratios?\n*   How is \"AI adoption\" quantitatively defined and measured within the Faros platform (e.g., lines of code generated, percentage of PRs with AI assistance)?\n\n## Useful Follow-ups\n*   **Full Report Access:** Locate the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" to review methodology, confidence intervals, and sector-specific breakdowns.\n*   **Mitigation Strategies:** Research Faros’s recommendations for balancing AI acceleration with quality gates, such as automated testing integration or pre-merge analysis tools.\n*   **Comparative Studies:** Investigate other industry reports on AI-assisted development quality metrics to see if the 242.7% ratio increase is consistent across different platforms and populations.\n*   **Definition of \"High Adoption\":** Clarify the threshold used by Faros to classify a team as having \"high\" vs. \"low\" AI adoption to understand the scale of usage associated with these incident spikes.",
+        "input_tokens": 931,
+        "output_tokens": 1009,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 931,
+            "output_tokens": 1009,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "abe1113675d74a16ab41a94d7648bb66",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.003124,
+        "prefill_seconds": 0.539325,
+        "decode_seconds": 22.7066,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:46:09.037130+00:00"
+  },
+  {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:46:09.041257+00:00",
+    "status": "completed",
+    "output": "## Summary\nThis page presents a frozen excerpt from Faros's \"AI Engineering Impact Report 2026: The Acceleration Whiplash,\" reporting an observational correlation between increased AI adoption in software development and higher production incident frequency. Based on two years of telemetry from 22,000 developers and over 4,000 teams, the data shows a 242.7% increase in an incidents-to-pull-request ratio and a 57.9% rise in monthly incidents when comparing each organization's lowest to highest AI adoption periods (observational comparison; does not establish causation). The page explicitly clarifies that its headline claim of \"tripled probability\" actually refers to a ratio metric, not a probabilistic or causal measure, which matters for engineering leaders evaluating reliability trade-offs during rapid AI integration.\n\n## Key Signals\n- **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams transitioned from low to high AI adoption periods within each organization. *Qualification:* This is explicitly a ratio, not a probability; a single PR can generate multiple incidents, and not every incident traces directly to the most recent merge.\n- **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% across the same low-to-high AI adoption period comparison. *Qualification:* Tied to observational within-organization tracking; does not prove AI caused the increase.\n- **Observational Design, Not Causal:** The metric shifts reflect a period comparison of what AI is producing across the full software development lifecycle. *Qualification:* The page explicitly states this is not a randomized causal effect and does not demonstrate that AI caused the change. (Note: This observational framing originates from the provided authored context/metadata tags.)\n- **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" per merged code change. *Unsupported Claim Identification:* This overstates and conflicts with the underlying evidence, which measures a 242.7% ratio increase and explicitly disclaims probabilistic interpretation. The headline's framing cannot be treated as an established finding given the page's own methodological qualifications.\n\n## Technical Details\n- **Data Source & Population:** Two years of telemetry data collected via the Faros platform, covering 22,000 developers and more than 4,000 teams.\n- **Metrics Tracked:** Incidents-to-pull-request (PR) ratio; monthly incident volume.\n- **Comparison Methodology:** Within-organization period comparison between lowest and highest AI adoption phases across the full SDLC.\n- **Measurement Scope:** Tracks aggregate output/impact of AI usage across development workflows; does not isolate specific AI models, coding assistants, or pipeline stages.\n- **Statistical Design:** Observational cohort tracking; no randomized controlled trial, confidence intervals, or causal inference methodology reported on this excerpt. (Note: Full report methodology is uncaptured per provided authored context.)\n\n## Business Relevance\n- **Platform & Tooling Strategy:** Engineering leaders using Faros or similar observability platforms can benchmark incident trends against AI adoption levels, but must treat the 242.7% ratio increase as a correlational signal rather than proof of tool-induced degradation (observational comparison; not causal).\n- **Operational Risk Management:** The concurrent 57.9% monthly incident rise suggests potential reliability trade-offs during rapid AI integration phases, warranting tighter PR quality gates and post-merge validation. *Qualification:* These trends reflect period shifts within organizations and do not isolate AI as the driver; concurrent changes in deployment velocity or team structure may contribute.\n- **Customer & Stakeholder Conversations:** When discussing AI acceleration with development teams or clients, leaders should clarify that increased incident ratios reflect observed period shifts, not proven causal impacts, to avoid overstating risks or benefits (explicitly non-probabilistic and non-causal per page qualifications).\n\n## Open Questions\n- How are \"production incidents\" defined, classified, and deduplicated in the Faros telemetry (e.g., severity thresholds, MTTR, false-positive filtering)?\n- What specific AI capabilities (code generation, automated testing, PR review assistance) correspond to the \"low\" and \"high\" adoption periods?\n- What concurrent changes in deployment frequency, codebase complexity, or team composition occurred during the transition that might confound the ratio increase?\n- Does the full \"AI Engineering Impact Report 2026\" provide causal controls, confidence intervals, or industry/size breakdowns absent from this excerpt?\n\n## Useful Follow-ups\n- Locate and review the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" for methodology details, causal controls, and granular metric breakdowns.\n- Research Faros platform telemetry architecture and how it ingests PR/merge data and incident tracking from CI/CD pipelines and issue trackers.\n- Investigate industry benchmarks on AI-assisted development reliability, particularly studies using randomized or quasi",
+    "attempt_indexes": [
+      9
+    ],
+    "call_indexes": [
+      9
+    ],
+    "responses": [
+      {
+        "text": "## Summary\nThis page presents a frozen excerpt from Faros's \"AI Engineering Impact Report 2026: The Acceleration Whiplash,\" reporting an observational correlation between increased AI adoption in software development and higher production incident frequency. Based on two years of telemetry from 22,000 developers and over 4,000 teams, the data shows a 242.7% increase in an incidents-to-pull-request ratio and a 57.9% rise in monthly incidents when comparing each organization's lowest to highest AI adoption periods (observational comparison; does not establish causation). The page explicitly clarifies that its headline claim of \"tripled probability\" actually refers to a ratio metric, not a probabilistic or causal measure, which matters for engineering leaders evaluating reliability trade-offs during rapid AI integration.\n\n## Key Signals\n- **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams transitioned from low to high AI adoption periods within each organization. *Qualification:* This is explicitly a ratio, not a probability; a single PR can generate multiple incidents, and not every incident traces directly to the most recent merge.\n- **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% across the same low-to-high AI adoption period comparison. *Qualification:* Tied to observational within-organization tracking; does not prove AI caused the increase.\n- **Observational Design, Not Causal:** The metric shifts reflect a period comparison of what AI is producing across the full software development lifecycle. *Qualification:* The page explicitly states this is not a randomized causal effect and does not demonstrate that AI caused the change. (Note: This observational framing originates from the provided authored context/metadata tags.)\n- **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" per merged code change. *Unsupported Claim Identification:* This overstates and conflicts with the underlying evidence, which measures a 242.7% ratio increase and explicitly disclaims probabilistic interpretation. The headline's framing cannot be treated as an established finding given the page's own methodological qualifications.\n\n## Technical Details\n- **Data Source & Population:** Two years of telemetry data collected via the Faros platform, covering 22,000 developers and more than 4,000 teams.\n- **Metrics Tracked:** Incidents-to-pull-request (PR) ratio; monthly incident volume.\n- **Comparison Methodology:** Within-organization period comparison between lowest and highest AI adoption phases across the full SDLC.\n- **Measurement Scope:** Tracks aggregate output/impact of AI usage across development workflows; does not isolate specific AI models, coding assistants, or pipeline stages.\n- **Statistical Design:** Observational cohort tracking; no randomized controlled trial, confidence intervals, or causal inference methodology reported on this excerpt. (Note: Full report methodology is uncaptured per provided authored context.)\n\n## Business Relevance\n- **Platform & Tooling Strategy:** Engineering leaders using Faros or similar observability platforms can benchmark incident trends against AI adoption levels, but must treat the 242.7% ratio increase as a correlational signal rather than proof of tool-induced degradation (observational comparison; not causal).\n- **Operational Risk Management:** The concurrent 57.9% monthly incident rise suggests potential reliability trade-offs during rapid AI integration phases, warranting tighter PR quality gates and post-merge validation. *Qualification:* These trends reflect period shifts within organizations and do not isolate AI as the driver; concurrent changes in deployment velocity or team structure may contribute.\n- **Customer & Stakeholder Conversations:** When discussing AI acceleration with development teams or clients, leaders should clarify that increased incident ratios reflect observed period shifts, not proven causal impacts, to avoid overstating risks or benefits (explicitly non-probabilistic and non-causal per page qualifications).\n\n## Open Questions\n- How are \"production incidents\" defined, classified, and deduplicated in the Faros telemetry (e.g., severity thresholds, MTTR, false-positive filtering)?\n- What specific AI capabilities (code generation, automated testing, PR review assistance) correspond to the \"low\" and \"high\" adoption periods?\n- What concurrent changes in deployment frequency, codebase complexity, or team composition occurred during the transition that might confound the ratio increase?\n- Does the full \"AI Engineering Impact Report 2026\" provide causal controls, confidence intervals, or industry/size breakdowns absent from this excerpt?\n\n## Useful Follow-ups\n- Locate and review the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" for methodology details, causal controls, and granular metric breakdowns.\n- Research Faros platform telemetry architecture and how it ingests PR/merge data and incident tracking from CI/CD pipelines and issue trackers.\n- Investigate industry benchmarks on AI-assisted development reliability, particularly studies using randomized or quasi",
+        "input_tokens": 929,
+        "output_tokens": 4096,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 929,
+            "output_tokens": 4096,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "7d8beabb8de5421f82001bd6a0fdb052",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.003122,
+        "prefill_seconds": 0.112203,
+        "decode_seconds": 91.737066,
+        "num_ctx": 32768,
+        "finish_reason": "length",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:47:41.212419+00:00"
+  },
+  {
+    "case_id": "mature-source-screening",
+    "repeat": 1,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:47:41.217114+00:00",
+    "status": "completed",
+    "selected": [
+      {
+        "paper_id": "review-2019",
+        "selected_by": "llm",
+        "rationale": "Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work."
+      }
+    ],
+    "output": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+    "effective_contrast": "none: structured_json_think_false_both_settings",
+    "attempt_indexes": [
+      10
+    ],
+    "call_indexes": [
+      10
+    ],
+    "responses": [
+      {
+        "text": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+        "input_tokens": 651,
+        "output_tokens": 360,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 651,
+            "output_tokens": 360,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "577bf377d83e4a2c9d68590146cc22ca",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0031447,
+        "prefill_seconds": 0.348933,
+        "decode_seconds": 8.055466,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:47:50.096355+00:00"
+  },
+  {
+    "case_id": "mature-source-screening",
+    "repeat": 1,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:47:50.102033+00:00",
+    "status": "completed",
+    "selected": [
+      {
+        "paper_id": "review-2019",
+        "selected_by": "llm",
+        "rationale": "Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work."
+      }
+    ],
+    "output": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+    "effective_contrast": "none: structured_json_think_false_both_settings",
+    "attempt_indexes": [
+      11
+    ],
+    "call_indexes": [
+      11
+    ],
+    "responses": [
+      {
+        "text": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+        "input_tokens": 651,
+        "output_tokens": 360,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 651,
+            "output_tokens": 360,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "adf2e5bf57cc408bb555282605e151f4",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0034728,
+        "prefill_seconds": 0.131533999,
+        "decode_seconds": 8.2316,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:47:58.652106+00:00"
+  },
+  {
+    "case_id": "conflict-correction",
+    "repeat": 1,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:47:58.658303+00:00",
+    "status": "completed",
+    "output": "Based on the provided corpus, the current status after the correction is that Method A reports 11 under condition X, restricted to adults [correction_episode_fixture]. The earlier report of A=10 is retained as history but does not provide current support [correction_episode_fixture].\n\nWhat remains unresolved between A and B is the comparison or relationship regarding Method B, as the correction explicitly does not address method B [correction_episode_fixture]. Additionally, the population for Method B remains unspecified in the original receipt [correction_episode_fixture].\n\nWhat is unaffected by the correction is the finding that Method A's instrument was calibrated [correction_episode_fixture].\n\nCaveats: The corpus consists of a single fixture-authored composite receipt rather than independent real studies [correction_episode_fixture].",
+    "attempt_indexes": [
+      12
+    ],
+    "call_indexes": [
+      12
+    ],
+    "responses": [
+      {
+        "text": "Based on the provided corpus, the current status after the correction is that Method A reports 11 under condition X, restricted to adults [correction_episode_fixture]. The earlier report of A=10 is retained as history but does not provide current support [correction_episode_fixture].\n\nWhat remains unresolved between A and B is the comparison or relationship regarding Method B, as the correction explicitly does not address method B [correction_episode_fixture]. Additionally, the population for Method B remains unspecified in the original receipt [correction_episode_fixture].\n\nWhat is unaffected by the correction is the finding that Method A's instrument was calibrated [correction_episode_fixture].\n\nCaveats: The corpus consists of a single fixture-authored composite receipt rather than independent real studies [correction_episode_fixture].",
+        "input_tokens": 524,
+        "output_tokens": 158,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 524,
+            "output_tokens": 158,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "9744aa3b85d544dda37c2d9c624abc27",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0058424,
+        "prefill_seconds": 0.42039,
+        "decode_seconds": 3.631588,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:48:03.176744+00:00"
+  },
+  {
+    "case_id": "conflict-correction",
+    "repeat": 1,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:48:03.184059+00:00",
+    "status": "completed",
+    "output": "After the 2026 correction, the current supported value for Method A is 11, restricted to adults [correction_episode_fixture]. The earlier 2024 report of A=10 is retained as historical record but does not serve as current support [correction_episode_fixture]. \n\nWhat remains unresolved between A and B is that the correction explicitly does not address Method B, leaving its original 2024 report of 16 under condition X (with an unspecified population) unmodified alongside the corrected A value [correction_episode_fixture]. \n\nThe instrument-calibration finding for Method A is unaffected by the correction [correction_episode_fixture]. \n\nCaveats: The corpus explicitly states that this material is a \"fixture-authored composite receipt, not independent real studies,\" meaning the data represents a constructed scenario rather than empirical research findings [correction_episode_fixture].",
+    "attempt_indexes": [
+      13
+    ],
+    "call_indexes": [
+      13
+    ],
+    "responses": [
+      {
+        "text": "After the 2026 correction, the current supported value for Method A is 11, restricted to adults [correction_episode_fixture]. The earlier 2024 report of A=10 is retained as historical record but does not serve as current support [correction_episode_fixture]. \n\nWhat remains unresolved between A and B is that the correction explicitly does not address Method B, leaving its original 2024 report of 16 under condition X (with an unspecified population) unmodified alongside the corrected A value [correction_episode_fixture]. \n\nThe instrument-calibration finding for Method A is unaffected by the correction [correction_episode_fixture]. \n\nCaveats: The corpus explicitly states that this material is a \"fixture-authored composite receipt, not independent real studies,\" meaning the data represents a constructed scenario rather than empirical research findings [correction_episode_fixture].",
+        "input_tokens": 522,
+        "output_tokens": 2154,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 522,
+            "output_tokens": 2154,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "ab9aef904c0f4436897689032a40dfc7",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0042188,
+        "prefill_seconds": 0.210167,
+        "decode_seconds": 49.82295,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:48:53.439174+00:00"
+  },
+  {
+    "case_id": "freshness-change",
+    "repeat": 1,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:48:53.447513+00:00",
+    "status": "completed",
+    "output": "The current score is 81 [scorer_update_fixture]. Compared to the 2024 benchmark score of 70, the recorded value was revised upward due to a 2026 scorer fix [scorer_update_fixture]. This change does not demonstrate that model capability improved; the excerpt explicitly states the revision is a scoring correction and \"not evidence that the model itself improved\" [scorer_update_fixture]. Furthermore, the later website redesign batch in 2026 did not alter the evidence or contribute to any additional score change [scorer_update_fixture].\n\n**Caveats:** The corpus contains only a single fixture-authored receipt addressing this scoring update. While it clearly separates historical records from scorer corrections and notes that the website redesign had no impact on the score, it provides no additional methodological details about the benchmark, the nature of the 2026 fix, or independent verification of the model's actual performance.",
+    "attempt_indexes": [
+      14
+    ],
+    "call_indexes": [
+      14
+    ],
+    "responses": [
+      {
+        "text": "The current score is 81 [scorer_update_fixture]. Compared to the 2024 benchmark score of 70, the recorded value was revised upward due to a 2026 scorer fix [scorer_update_fixture]. This change does not demonstrate that model capability improved; the excerpt explicitly states the revision is a scoring correction and \"not evidence that the model itself improved\" [scorer_update_fixture]. Furthermore, the later website redesign batch in 2026 did not alter the evidence or contribute to any additional score change [scorer_update_fixture].\n\n**Caveats:** The corpus contains only a single fixture-authored receipt addressing this scoring update. While it clearly separates historical records from scorer corrections and notes that the website redesign had no impact on the score, it provides no additional methodological details about the benchmark, the nature of the 2026 fix, or independent verification of the model's actual performance.",
+        "input_tokens": 493,
+        "output_tokens": 1265,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 493,
+            "output_tokens": 1265,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "2852ef50fb1748c480d1a60fc0e7542d",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0033382,
+        "prefill_seconds": 0.364439,
+        "decode_seconds": 28.526622,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:49:22.745126+00:00"
+  },
+  {
+    "case_id": "freshness-change",
+    "repeat": 1,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:49:22.750889+00:00",
+    "status": "completed",
+    "output": "The current score is 81 [scorer_update_fixture]. This represents an increase from the original 2024 benchmark score of 70, which was revised due to a \"2026 scorer fix\" [scorer_update_fixture]. The later website batch redesigned in 2026 did not contribute any additional score change [scorer_update_fixture].\n\nThis change does not show that model capability improved; the excerpts explicitly state that the revision \"is not evidence that the model itself improved\" and advise distinguishing \"scorer correction from capability gain\" [scorer_update_fixture].\n\nCaveats: The corpus provides only a single fixture-authored composite receipt, so this analysis is limited to that specific data point.",
+    "attempt_indexes": [
+      15
+    ],
+    "call_indexes": [
+      15
+    ],
+    "responses": [
+      {
+        "text": "The current score is 81 [scorer_update_fixture]. This represents an increase from the original 2024 benchmark score of 70, which was revised due to a \"2026 scorer fix\" [scorer_update_fixture]. The later website batch redesigned in 2026 did not contribute any additional score change [scorer_update_fixture].\n\nThis change does not show that model capability improved; the excerpts explicitly state that the revision \"is not evidence that the model itself improved\" and advise distinguishing \"scorer correction from capability gain\" [scorer_update_fixture].\n\nCaveats: The corpus provides only a single fixture-authored composite receipt, so this analysis is limited to that specific data point.",
+        "input_tokens": 495,
+        "output_tokens": 149,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 495,
+            "output_tokens": 149,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "6e29b78b5960478aad07ec389f90fa97",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0030698,
+        "prefill_seconds": 0.260095,
+        "decode_seconds": 3.322138,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:49:26.656271+00:00"
+  },
+  {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:49:26.661865+00:00",
+    "status": "completed",
+    "output": "## Summary\nThis page presents a frozen excerpt from Faros's \"AI Engineering Impact Report 2026: The Acceleration Whiplash,\" reporting an observational correlation between increased AI adoption in software development and higher production incident frequency. Based on two years of telemetry from 22,000 developers and over 4,000 teams, the data shows a 242.7% increase in an incidents-to-pull-request ratio and a 57.9% rise in monthly incidents when comparing each organization's lowest to highest AI adoption periods (observational comparison; does not establish causation). The page explicitly clarifies that its headline claim of \"tripled probability\" actually refers to a ratio metric, not a probabilistic or causal measure, which matters for engineering leaders evaluating reliability trade-offs during rapid AI integration.\n\n## Key Signals\n- **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams transitioned from low to high AI adoption periods within each organization. *Qualification:* This is explicitly a ratio, not a probability; a single PR can generate multiple incidents, and not every incident traces directly to the most recent merge.\n- **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% across the same low-to-high AI adoption period comparison. *Qualification:* Tied to observational within-organization tracking; does not prove AI caused the increase.\n- **Observational Design, Not Causal:** The metric shifts reflect a period comparison of what AI is producing across the full software development lifecycle. *Qualification:* The page explicitly states this is not a randomized causal effect and does not demonstrate that AI caused the change. (Note: This observational framing originates from the provided authored context/metadata tags.)\n- **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" per merged code change. *Unsupported Claim Identification:* This overstates and conflicts with the underlying evidence, which measures a 242.7% ratio increase and explicitly disclaims probabilistic interpretation. The headline's framing cannot be treated as an established finding given the page's own methodological qualifications.\n\n## Technical Details\n- **Data Source & Population:** Two years of telemetry data collected via the Faros platform, covering 22,000 developers and more than 4,000 teams.\n- **Metrics Tracked:** Incidents-to-pull-request (PR) ratio; monthly incident volume.\n- **Comparison Methodology:** Within-organization period comparison between lowest and highest AI adoption phases across the full SDLC.\n- **Measurement Scope:** Tracks aggregate output/impact of AI usage across development workflows; does not isolate specific AI models, coding assistants, or pipeline stages.\n- **Statistical Design:** Observational cohort tracking; no randomized controlled trial, confidence intervals, or causal inference methodology reported on this excerpt. (Note: Full report methodology is uncaptured per provided authored context.)\n\n## Business Relevance\n- **Platform & Tooling Strategy:** Engineering leaders using Faros or similar observability platforms can benchmark incident trends against AI adoption levels, but must treat the 242.7% ratio increase as a correlational signal rather than proof of tool-induced degradation (observational comparison; not causal).\n- **Operational Risk Management:** The concurrent 57.9% monthly incident rise suggests potential reliability trade-offs during rapid AI integration phases, warranting tighter PR quality gates and post-merge validation. *Qualification:* These trends reflect period shifts within organizations and do not isolate AI as the driver; concurrent changes in deployment velocity or team structure may contribute.\n- **Customer & Stakeholder Conversations:** When discussing AI acceleration with development teams or clients, leaders should clarify that increased incident ratios reflect observed period shifts, not proven causal impacts, to avoid overstating risks or benefits (explicitly non-probabilistic and non-causal per page qualifications).\n\n## Open Questions\n- How are \"production incidents\" defined, classified, and deduplicated in the Faros telemetry (e.g., severity thresholds, MTTR, false-positive filtering)?\n- What specific AI capabilities (code generation, automated testing, PR review assistance) correspond to the \"low\" and \"high\" adoption periods?\n- What concurrent changes in deployment frequency, codebase complexity, or team composition occurred during the transition that might confound the ratio increase?\n- Does the full \"AI Engineering Impact Report 2026\" provide causal controls, confidence intervals, or industry/size breakdowns absent from this excerpt?\n\n## Useful Follow-ups\n- Locate and review the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" for methodology details, causal controls, and granular metric breakdowns.\n- Research Faros platform telemetry architecture and how it ingests PR/merge data and incident tracking from CI/CD pipelines and issue trackers.\n- Investigate industry benchmarks on AI-assisted development reliability, particularly studies using randomized or quasi",
+    "attempt_indexes": [
+      16
+    ],
+    "call_indexes": [
+      16
+    ],
+    "responses": [
+      {
+        "text": "## Summary\nThis page presents a frozen excerpt from Faros's \"AI Engineering Impact Report 2026: The Acceleration Whiplash,\" reporting an observational correlation between increased AI adoption in software development and higher production incident frequency. Based on two years of telemetry from 22,000 developers and over 4,000 teams, the data shows a 242.7% increase in an incidents-to-pull-request ratio and a 57.9% rise in monthly incidents when comparing each organization's lowest to highest AI adoption periods (observational comparison; does not establish causation). The page explicitly clarifies that its headline claim of \"tripled probability\" actually refers to a ratio metric, not a probabilistic or causal measure, which matters for engineering leaders evaluating reliability trade-offs during rapid AI integration.\n\n## Key Signals\n- **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams transitioned from low to high AI adoption periods within each organization. *Qualification:* This is explicitly a ratio, not a probability; a single PR can generate multiple incidents, and not every incident traces directly to the most recent merge.\n- **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% across the same low-to-high AI adoption period comparison. *Qualification:* Tied to observational within-organization tracking; does not prove AI caused the increase.\n- **Observational Design, Not Causal:** The metric shifts reflect a period comparison of what AI is producing across the full software development lifecycle. *Qualification:* The page explicitly states this is not a randomized causal effect and does not demonstrate that AI caused the change. (Note: This observational framing originates from the provided authored context/metadata tags.)\n- **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" per merged code change. *Unsupported Claim Identification:* This overstates and conflicts with the underlying evidence, which measures a 242.7% ratio increase and explicitly disclaims probabilistic interpretation. The headline's framing cannot be treated as an established finding given the page's own methodological qualifications.\n\n## Technical Details\n- **Data Source & Population:** Two years of telemetry data collected via the Faros platform, covering 22,000 developers and more than 4,000 teams.\n- **Metrics Tracked:** Incidents-to-pull-request (PR) ratio; monthly incident volume.\n- **Comparison Methodology:** Within-organization period comparison between lowest and highest AI adoption phases across the full SDLC.\n- **Measurement Scope:** Tracks aggregate output/impact of AI usage across development workflows; does not isolate specific AI models, coding assistants, or pipeline stages.\n- **Statistical Design:** Observational cohort tracking; no randomized controlled trial, confidence intervals, or causal inference methodology reported on this excerpt. (Note: Full report methodology is uncaptured per provided authored context.)\n\n## Business Relevance\n- **Platform & Tooling Strategy:** Engineering leaders using Faros or similar observability platforms can benchmark incident trends against AI adoption levels, but must treat the 242.7% ratio increase as a correlational signal rather than proof of tool-induced degradation (observational comparison; not causal).\n- **Operational Risk Management:** The concurrent 57.9% monthly incident rise suggests potential reliability trade-offs during rapid AI integration phases, warranting tighter PR quality gates and post-merge validation. *Qualification:* These trends reflect period shifts within organizations and do not isolate AI as the driver; concurrent changes in deployment velocity or team structure may contribute.\n- **Customer & Stakeholder Conversations:** When discussing AI acceleration with development teams or clients, leaders should clarify that increased incident ratios reflect observed period shifts, not proven causal impacts, to avoid overstating risks or benefits (explicitly non-probabilistic and non-causal per page qualifications).\n\n## Open Questions\n- How are \"production incidents\" defined, classified, and deduplicated in the Faros telemetry (e.g., severity thresholds, MTTR, false-positive filtering)?\n- What specific AI capabilities (code generation, automated testing, PR review assistance) correspond to the \"low\" and \"high\" adoption periods?\n- What concurrent changes in deployment frequency, codebase complexity, or team composition occurred during the transition that might confound the ratio increase?\n- Does the full \"AI Engineering Impact Report 2026\" provide causal controls, confidence intervals, or industry/size breakdowns absent from this excerpt?\n\n## Useful Follow-ups\n- Locate and review the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" for methodology details, causal controls, and granular metric breakdowns.\n- Research Faros platform telemetry architecture and how it ingests PR/merge data and incident tracking from CI/CD pipelines and issue trackers.\n- Investigate industry benchmarks on AI-assisted development reliability, particularly studies using randomized or quasi",
+        "input_tokens": 929,
+        "output_tokens": 4096,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 929,
+            "output_tokens": 4096,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "4df3eccaa9ec4f1a8add7412bcc83b80",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.003132,
+        "prefill_seconds": 0.122302,
+        "decode_seconds": 94.654516,
+        "num_ctx": 32768,
+        "finish_reason": "length",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:51:01.908925+00:00"
+  },
+  {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:51:01.919877+00:00",
+    "status": "completed",
+    "output": "## Summary\nThis page presents a specific finding from Faros’s \"AI Engineering Impact Report 2026,\" highlighting a correlation between increased AI adoption in software development and a rise in production incidents. The data indicates that as teams transition from low to high AI usage, the ratio of incidents to pull requests (PRs) increases by 242.7%, and monthly incident counts rise by 57.9%. This matters because it challenges the assumption that AI acceleration inherently improves stability, suggesting instead a potential \"whiplash\" effect where speed gains may come at the cost of increased operational risk. However, these findings are observational correlations derived from telemetry data, not causal proofs that AI directly causes incidents.\n\n## Key Signals\n*   **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams moved from periods of lowest to highest AI adoption.\n    *   *Qualification:* This is a ratio, not a probability; a single PR can link to multiple incidents, and not every incident traces directly to the most recent merge.\n*   **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% during the same transition from low to high AI adoption.\n    *   *Qualification:* This is an observational measurement of metric change between periods within organizations, not a randomized controlled trial result.\n*   **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" for every code change merged.\n    *   *Correction/Clarification:* The supporting evidence explicitly states this is a ratio increase (242.7%), not a probability calculation. The page notes that because one PR can cause multiple incidents, the metric does not represent the likelihood of any single merge causing an incident. Treating the ratio increase as a tripling of probability is an unsupported claim based on the provided definitions.\n*   **Data Source Scope:** The findings are drawn from two years of telemetry data covering 22,000 developers and over 4,000 teams on the Faros platform.\n\n## Technical Details\n*   **Metric Definition:** The primary metric is the \"incidents-to-PR ratio,\" calculated by comparing periods of lowest AI adoption to periods of highest AI adoption within each organization.\n*   **Data Collection Method:** Telemetry data collected via the Faros platform across the software development lifecycle.\n*   **Population:** 22,000 developers and >4,000 teams.\n*   **Timeframe:** Two years of historical data.\n*   **Analysis Type:** Observational comparison of metric changes between defined adoption periods (low vs. high). No randomized causal effects were measured or reported in this excerpt.\n\n## Business Relevance\n*   **Risk Management:** Organizations adopting AI coding assistants should anticipate potential increases in production instability during the transition phase from low to high adoption. The 57.9% rise in monthly incidents suggests a need for enhanced testing or monitoring protocols alongside AI integration.\n*   **Strategy Adjustment:** The \"acceleration whiplash\" concept implies that speed gains (more PRs) may not translate to efficiency if incident resolution costs rise disproportionately. Leaders must weigh the velocity benefits against the operational overhead of increased incident volume.\n*   **Vendor Evaluation:** When evaluating AI development tools, customers should inquire about how vendors measure and mitigate quality degradation during high-adoption phases, rather than focusing solely on code generation speed.\n\n## Open Questions\n*   What specific types of incidents are increasing (e.g., security vulnerabilities, performance regressions, functional bugs)?\n*   How does the incident rate stabilize after the initial transition to high AI adoption? Does the ratio plateau or continue to rise?\n*   What controls or best practices were present in organizations that saw smaller increases in incident ratios?\n*   How is \"AI adoption\" quantitatively defined and measured within the Faros platform (e.g., lines of code generated, percentage of PRs with AI assistance)?\n\n## Useful Follow-ups\n*   **Full Report Access:** Locate the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" to review methodology, confidence intervals, and sector-specific breakdowns.\n*   **Mitigation Strategies:** Research Faros’s recommendations for balancing AI acceleration with quality gates, such as automated testing integration or pre-merge analysis tools.\n*   **Comparative Studies:** Investigate other industry reports on AI-assisted development quality metrics to see if the 242.7% ratio increase is consistent across different platforms and populations.\n*   **Definition of \"High Adoption\":** Clarify the threshold used by Faros to classify a team as having \"high\" vs. \"low\" AI adoption to understand the scale of usage associated with these incident spikes.",
+    "attempt_indexes": [
+      17
+    ],
+    "call_indexes": [
+      17
+    ],
+    "responses": [
+      {
+        "text": "## Summary\nThis page presents a specific finding from Faros’s \"AI Engineering Impact Report 2026,\" highlighting a correlation between increased AI adoption in software development and a rise in production incidents. The data indicates that as teams transition from low to high AI usage, the ratio of incidents to pull requests (PRs) increases by 242.7%, and monthly incident counts rise by 57.9%. This matters because it challenges the assumption that AI acceleration inherently improves stability, suggesting instead a potential \"whiplash\" effect where speed gains may come at the cost of increased operational risk. However, these findings are observational correlations derived from telemetry data, not causal proofs that AI directly causes incidents.\n\n## Key Signals\n*   **Incidents-to-PR Ratio Increase:** The ratio of production incidents to merged pull requests increased by 242.7% as teams moved from periods of lowest to highest AI adoption.\n    *   *Qualification:* This is a ratio, not a probability; a single PR can link to multiple incidents, and not every incident traces directly to the most recent merge.\n*   **Monthly Incident Volume Rise:** Monthly production incidents increased by 57.9% during the same transition from low to high AI adoption.\n    *   *Qualification:* This is an observational measurement of metric change between periods within organizations, not a randomized controlled trial result.\n*   **Headline vs. Evidence Mismatch:** The headline claims \"the probability of a production incident has more than tripled\" for every code change merged.\n    *   *Correction/Clarification:* The supporting evidence explicitly states this is a ratio increase (242.7%), not a probability calculation. The page notes that because one PR can cause multiple incidents, the metric does not represent the likelihood of any single merge causing an incident. Treating the ratio increase as a tripling of probability is an unsupported claim based on the provided definitions.\n*   **Data Source Scope:** The findings are drawn from two years of telemetry data covering 22,000 developers and over 4,000 teams on the Faros platform.\n\n## Technical Details\n*   **Metric Definition:** The primary metric is the \"incidents-to-PR ratio,\" calculated by comparing periods of lowest AI adoption to periods of highest AI adoption within each organization.\n*   **Data Collection Method:** Telemetry data collected via the Faros platform across the software development lifecycle.\n*   **Population:** 22,000 developers and >4,000 teams.\n*   **Timeframe:** Two years of historical data.\n*   **Analysis Type:** Observational comparison of metric changes between defined adoption periods (low vs. high). No randomized causal effects were measured or reported in this excerpt.\n\n## Business Relevance\n*   **Risk Management:** Organizations adopting AI coding assistants should anticipate potential increases in production instability during the transition phase from low to high adoption. The 57.9% rise in monthly incidents suggests a need for enhanced testing or monitoring protocols alongside AI integration.\n*   **Strategy Adjustment:** The \"acceleration whiplash\" concept implies that speed gains (more PRs) may not translate to efficiency if incident resolution costs rise disproportionately. Leaders must weigh the velocity benefits against the operational overhead of increased incident volume.\n*   **Vendor Evaluation:** When evaluating AI development tools, customers should inquire about how vendors measure and mitigate quality degradation during high-adoption phases, rather than focusing solely on code generation speed.\n\n## Open Questions\n*   What specific types of incidents are increasing (e.g., security vulnerabilities, performance regressions, functional bugs)?\n*   How does the incident rate stabilize after the initial transition to high AI adoption? Does the ratio plateau or continue to rise?\n*   What controls or best practices were present in organizations that saw smaller increases in incident ratios?\n*   How is \"AI adoption\" quantitatively defined and measured within the Faros platform (e.g., lines of code generated, percentage of PRs with AI assistance)?\n\n## Useful Follow-ups\n*   **Full Report Access:** Locate the complete \"AI Engineering Impact Report 2026: The Acceleration Whiplash\" to review methodology, confidence intervals, and sector-specific breakdowns.\n*   **Mitigation Strategies:** Research Faros’s recommendations for balancing AI acceleration with quality gates, such as automated testing integration or pre-merge analysis tools.\n*   **Comparative Studies:** Investigate other industry reports on AI-assisted development quality metrics to see if the 242.7% ratio increase is consistent across different platforms and populations.\n*   **Definition of \"High Adoption\":** Clarify the threshold used by Faros to classify a team as having \"high\" vs. \"low\" AI adoption to understand the scale of usage associated with these incident spikes.",
+        "input_tokens": 931,
+        "output_tokens": 1009,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 931,
+            "output_tokens": 1009,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "7817d2ac46114d08aa3f4d4fa521b573",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0094072,
+        "prefill_seconds": 0.213381,
+        "decode_seconds": 23.406126,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:51:26.052462+00:00"
+  },
+  {
+    "case_id": "mature-source-screening",
+    "repeat": 2,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:51:26.059526+00:00",
+    "status": "completed",
+    "selected": [
+      {
+        "paper_id": "review-2019",
+        "selected_by": "llm",
+        "rationale": "Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work."
+      }
+    ],
+    "output": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+    "effective_contrast": "none: structured_json_think_false_both_settings",
+    "attempt_indexes": [
+      18
+    ],
+    "call_indexes": [
+      18
+    ],
+    "responses": [
+      {
+        "text": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+        "input_tokens": 651,
+        "output_tokens": 360,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 651,
+            "output_tokens": 360,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "88e92651cf754a8888da89e4d67d11eb",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0035511,
+        "prefill_seconds": 0.174894,
+        "decode_seconds": 8.155429,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:51:34.842812+00:00"
+  },
+  {
+    "case_id": "mature-source-screening",
+    "repeat": 2,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:51:34.849356+00:00",
+    "status": "completed",
+    "selected": [
+      {
+        "paper_id": "review-2019",
+        "selected_by": "llm",
+        "rationale": "Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work."
+      }
+    ],
+    "output": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+    "effective_contrast": "none: structured_json_think_false_both_settings",
+    "attempt_indexes": [
+      19
+    ],
+    "call_indexes": [
+      19
+    ],
+    "responses": [
+      {
+        "text": "{\n  \"ranked_papers\": [\n    {\n      \"paper_id\": \"review-2019\",\n      \"relevance_score\": 1.0,\n      \"depth_score\": 0.8,\n      \"novelty_score\": 0.7,\n      \"credibility_score\": 0.9,\n      \"final_score\": 0.85,\n      \"rationale\": \"Directly addresses the query by providing captured primary evidence for adult estimates and explicitly stating pediatric uncertainty due to lack of enrollment. Fits the preference for primary review over derivative work.\"\n    },\n    {\n      \"paper_id\": \"textbook-copy\",\n      \"relevance_score\": 0.4,\n      \"depth_score\": 0.1,\n      \"novelty_score\": 0.0,\n      \"credibility_score\": 0.5,\n      \"final_score\": 0.25,\n      \"rationale\": \"Derivative repetition of the adult figure without new evidence or independent analysis. Explicitly down-ranked per instructions to avoid derivative repetition.\"\n    },\n    {\n      \"paper_id\": \"pediatric-unknown\",\n      \"relevance_score\": 0.3,\n      \"depth_score\": 0.0,\n      \"novelty_score\": 0.1,\n      \"credibility_score\": 0.2,\n      \"final_score\": 0.15,\n      \"rationale\": \"Content is uncaptured, making it impossible to extract primary evidence or explain uncertainty substantively. Down-ranked as per instruction to avoid uncaptured material.\"\n    }\n  ]\n}",
+        "input_tokens": 651,
+        "output_tokens": 360,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 651,
+            "output_tokens": 360,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "7b206f019e054d6ead2ce81effe5643e",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0044339,
+        "prefill_seconds": 0.174577,
+        "decode_seconds": 8.197714,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Structured JSON workloads send think=false so the JSON contract stays intact.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:51:43.428317+00:00"
+  },
+  {
+    "case_id": "conflict-correction",
+    "repeat": 2,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:51:43.434170+00:00",
+    "status": "completed",
+    "output": "After the 2026 correction, the current supported value for Method A is 11, restricted to the adult population [correction_episode_fixture]. The historical 2024 report of A=10 is retained as record but explicitly does not serve as current support [correction_episode_fixture]. What remains unresolved between A and B is that the correction does not address Method B, which continues to report a value of 16 under condition X with an unspecified population, leaving any discrepancy or alignment between the two methods unaddressed [correction_episode_fixture]. The instrument-calibration finding for Method A is explicitly unaffected by the correction [correction_episode_fixture].\n\nCaveats: The corpus consists of a single fixture-authored composite receipt rather than independent real studies, which limits broader validation and generalizability [correction_episode_fixture].",
+    "attempt_indexes": [
+      20
+    ],
+    "call_indexes": [
+      20
+    ],
+    "responses": [
+      {
+        "text": "After the 2026 correction, the current supported value for Method A is 11, restricted to the adult population [correction_episode_fixture]. The historical 2024 report of A=10 is retained as record but explicitly does not serve as current support [correction_episode_fixture]. What remains unresolved between A and B is that the correction does not address Method B, which continues to report a value of 16 under condition X with an unspecified population, leaving any discrepancy or alignment between the two methods unaddressed [correction_episode_fixture]. The instrument-calibration finding for Method A is explicitly unaffected by the correction [correction_episode_fixture].\n\nCaveats: The corpus consists of a single fixture-authored composite receipt rather than independent real studies, which limits broader validation and generalizability [correction_episode_fixture].",
+        "input_tokens": 522,
+        "output_tokens": 2305,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 522,
+            "output_tokens": 2305,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "612a3d22bc7e45aeb34fa121d79704e9",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0032962,
+        "prefill_seconds": 0.315953,
+        "decode_seconds": 51.78859,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:52:35.844454+00:00"
+  },
+  {
+    "case_id": "conflict-correction",
+    "repeat": 2,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:52:35.850040+00:00",
+    "status": "completed",
+    "output": "Based on the provided corpus, here is the analysis regarding the current status, unresolved issues, and unaffected elements:\n\n**Current Status After Correction**\nThe current supported value for Method A is 11, restricted to adults [correction_episode_fixture]. The earlier report of A=10 is retained as history but does not constitute current support [correction_episode_fixture]. Method B remains at a reported value of 16 under condition X [correction_episode_fixture].\n\n**Unresolved Between A and B**\nThe population scope for Method B remains unspecified, whereas the corrected result for Method A is restricted to adults [correction_episode_fixture]. The correction explicitly does not address Method B [correction_episode_fixture].\n\n**Unaffected Elements**\nThe finding that Method A’s instrument was calibrated remains unchanged [correction_episode_fixture]. The historical record of A=10 is retained, though it is no longer current support [correction_episode_fixture].\n\nCaveats: This information is derived from a single fixture-authored composite receipt and does not represent independent real studies [correction_episode_fixture].",
+    "attempt_indexes": [
+      21
+    ],
+    "call_indexes": [
+      21
+    ],
+    "responses": [
+      {
+        "text": "Based on the provided corpus, here is the analysis regarding the current status, unresolved issues, and unaffected elements:\n\n**Current Status After Correction**\nThe current supported value for Method A is 11, restricted to adults [correction_episode_fixture]. The earlier report of A=10 is retained as history but does not constitute current support [correction_episode_fixture]. Method B remains at a reported value of 16 under condition X [correction_episode_fixture].\n\n**Unresolved Between A and B**\nThe population scope for Method B remains unspecified, whereas the corrected result for Method A is restricted to adults [correction_episode_fixture]. The correction explicitly does not address Method B [correction_episode_fixture].\n\n**Unaffected Elements**\nThe finding that Method A’s instrument was calibrated remains unchanged [correction_episode_fixture]. The historical record of A=10 is retained, though it is no longer current support [correction_episode_fixture].\n\nCaveats: This information is derived from a single fixture-authored composite receipt and does not represent independent real studies [correction_episode_fixture].",
+        "input_tokens": 524,
+        "output_tokens": 223,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 524,
+            "output_tokens": 223,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "25406cc5db2d48d986fb535222c2db45",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0030652,
+        "prefill_seconds": 0.18105,
+        "decode_seconds": 4.964514,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:52:41.366547+00:00"
+  },
+  {
+    "case_id": "freshness-change",
+    "repeat": 2,
+    "think_requested": false,
+    "started_at": "2026-10-26T03:52:41.372734+00:00",
+    "status": "completed",
+    "output": "The current score is 81 [scorer_update_fixture]. This represents an increase from the original 2024 benchmark score of 70, which was revised due to a \"2026 scorer fix\" [scorer_update_fixture]. The later website batch redesigned in 2026 did not contribute any additional score change [scorer_update_fixture].\n\nThis change does not show that model capability improved; the excerpts explicitly state that the revision \"is not evidence that the model itself improved\" and advise distinguishing \"scorer correction from capability gain\" [scorer_update_fixture].\n\nCaveats: The corpus provides only a single fixture-authored composite receipt, so this analysis is limited to that specific data point.",
+    "attempt_indexes": [
+      22
+    ],
+    "call_indexes": [
+      22
+    ],
+    "responses": [
+      {
+        "text": "The current score is 81 [scorer_update_fixture]. This represents an increase from the original 2024 benchmark score of 70, which was revised due to a \"2026 scorer fix\" [scorer_update_fixture]. The later website batch redesigned in 2026 did not contribute any additional score change [scorer_update_fixture].\n\nThis change does not show that model capability improved; the excerpts explicitly state that the revision \"is not evidence that the model itself improved\" and advise distinguishing \"scorer correction from capability gain\" [scorer_update_fixture].\n\nCaveats: The corpus provides only a single fixture-authored composite receipt, so this analysis is limited to that specific data point.",
+        "input_tokens": 495,
+        "output_tokens": 149,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 495,
+            "output_tokens": 149,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "ba01e27801154c88a4ee17fa3c3ee2e3",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0031286,
+        "prefill_seconds": 0.154663,
+        "decode_seconds": 3.336121,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:52:45.310221+00:00"
+  },
+  {
+    "case_id": "freshness-change",
+    "repeat": 2,
+    "think_requested": true,
+    "started_at": "2026-10-26T03:52:45.320864+00:00",
+    "status": "completed",
+    "output": "The current score is 81 [scorer_update_fixture]. Compared to the 2024 benchmark score of 70, the recorded value was revised upward due to a 2026 scorer fix [scorer_update_fixture]. This change does not indicate that model capability improved; the excerpt explicitly states the revision \"is not evidence that the model itself improved\" and instructs users to distinguish \"scorer correction from capability gain\" [scorer_update_fixture]. Furthermore, the later website batch did not change the evidence or score, as the lab's 2026 website redesign \"supplies no additional score change\" [scorer_update_fixture].\n\nCaveats: The corpus contains only a single fixture-authored receipt addressing this specific scoring update. It does not provide broader benchmark context, alternative model versions, or methodological details about how the scorer fix was implemented. All statements are strictly confined to the provided excerpt.",
+    "attempt_indexes": [
+      23
+    ],
+    "call_indexes": [
+      23
+    ],
+    "responses": [
+      {
+        "text": "The current score is 81 [scorer_update_fixture]. Compared to the 2024 benchmark score of 70, the recorded value was revised upward due to a 2026 scorer fix [scorer_update_fixture]. This change does not indicate that model capability improved; the excerpt explicitly states the revision \"is not evidence that the model itself improved\" and instructs users to distinguish \"scorer correction from capability gain\" [scorer_update_fixture]. Furthermore, the later website batch did not change the evidence or score, as the lab's 2026 website redesign \"supplies no additional score change\" [scorer_update_fixture].\n\nCaveats: The corpus contains only a single fixture-authored receipt addressing this specific scoring update. It does not provide broader benchmark context, alternative model versions, or methodological details about how the scorer fix was implemented. All statements are strictly confined to the provided excerpt.",
+        "input_tokens": 493,
+        "output_tokens": 1586,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 493,
+            "output_tokens": 1586,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "d97c0a3b523a40b382071308939d19b0",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=true",
+            "reasoning_sent": "think=true",
+            "reasoning_support": "Server capabilities include thinking.",
+            "reasoning_effective": "trace_present"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.002661,
+        "prefill_seconds": 0.119235,
+        "decode_seconds": 36.803877,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=true",
+        "reasoning_sent": "think=true",
+        "reasoning_support": "Server capabilities include thinking.",
+        "reasoning_effective": "trace_present",
+        "input_image_hashes": []
+      }
+    ],
+    "completed_at": "2026-10-26T03:53:22.454521+00:00"
+  }
+]

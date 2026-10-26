@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": ".agent/third_trial_consumer.py",
+  "original_sha256": "2bf72b7f4d94d81d560295c011a94d5e578117cfe8ef725bcaaff9366268eab5",
+  "original_bytes": 219,
+  "utf8_text": "import sys\nfrom pathlib import Path\nsys.path[:0] = [str(Path(__file__).resolve().parent.parent), str(Path(__file__).resolve().parent)]\nfrom third_trial_final_consumer import main\n\nif __name__ == \"__main__\":\n    main()\r\n"
+}

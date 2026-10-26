@@ -1,0 +1,59 @@
+{
+  "source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+  "transcript_origin": "asr",
+  "transcript_sha256": "c24c5a5d1fbe9d9726732df23eedef8c24641c95f2f36f7a205c58d894cbaf99",
+  "asr_receipt": "C:\\GitHub\\distillr\\.agent\\issue67-asr-repair\\asr-receipt.json",
+  "capture": {
+    "source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+    "source_relative_path": "source-d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "candidate_sha256": "6fe96a8a8be8ba6db4c92031fc59b2ab3eb388ee58db7d16a00dd0b2c3474cc7",
+  "review_instructions": "Evaluate candidate against actual supplied PNG pixels and captured ASR text. Preserve source gaps and disagreements. Judge unsupported additions, lost caveats, exact citations and coverage honestly. Independent review must not use the pipeline self-review as evidence. No expected answer or model identity is supplied in this packet."
+}

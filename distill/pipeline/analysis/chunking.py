@@ -171,6 +171,8 @@ def _hard_split_text(text: str, prefix: str, max_tokens: int) -> list[str]:
     section/paragraph passes above cannot resolve, so without this a single
     giant paragraph would be emitted as one over-window chunk.
     """
+    if estimate_tokens(prefix) >= max_tokens:
+        raise ValueError("Source heading prefix exceeds the available chunk budget")
     pieces: list[str] = []
     current = prefix
     for word in text.split():

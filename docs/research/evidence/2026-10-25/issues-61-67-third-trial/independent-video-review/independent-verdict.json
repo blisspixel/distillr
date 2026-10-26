@@ -1,0 +1,52 @@
+{
+  "schema": "independent-video-review.v1",
+  "review_type": "independent_agent_review",
+  "human_expert_review": false,
+  "inputs": ["candidate.md", "captured-asr.txt", "source-manifest.json", "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png", "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png"],
+  "excluded_inputs": "No pipeline self-review, trial conditions or other trial records were read for this verdict.",
+  "identity_checks": "Candidate, captured ASR and both unique PNG hashes match packet manifest identities. Identity alone does not establish faithfulness.",
+  "criteria": {
+    "measurement_and_qualification_preservation": {
+      "verdict": "pass",
+      "support": [
+        {"candidate": "The initial claim that \"production incident probability tripled\" was retracted and corrected to state that the measurement is an \"incidents-to-PR ratio\" (Incidents to Pull Requests ratio), not a probability.", "evidence": "Initial PNG labels probability tripled a preliminary claim; correction PNG explicitly says Incidents-to-PR RATIO, not probability. ASR independently expands pull requests, so expansion is supported without guessing PR."},
+        {"candidate": "The findings are explicitly labeled as \"observational, not causal.\"", "evidence": "Correction PNG and ASR both retain this qualification; 40 adults only and do not generalize to children also appear in both."}
+      ]
+    },
+    "all_section_source_faithfulness": {
+      "verdict": "fail",
+      "failures": [
+        {"candidate": "By issuing a formal correction, the creator signals that imprecise terminology in technical reporting is a failure mode that must be rectified.", "evidence": "Source says Correction and names the measurement. Neither PNG nor ASR states a general technical-reporting stance, a formal correction process or that failure modes must be rectified. This infers an attributed creator position."},
+        {"candidate": "The creator argues that using \"probability\" to describe the metric was an analytical error, advocating for the precise use of \"ratio\" (incidents per pull request).", "evidence": "Correction of ratio versus probability is supported; the creator is not captured making an argument about analytical error or terminology advocacy. The attributed argument exceeds the sparse source."}
+      ]
+    },
+    "timestamp_and_coverage_honesty": {
+      "verdict": "fail",
+      "failures": [
+        {"candidate": "At timestamp 67000ms, the header changed to \"CORRECTION,\" and the text clarified: \"Incidents-to-PR RATIO, not probability.\"", "evidence": "Manifest labels 67000ms requested_seek_not_measured_pts. It supports a requested sample displaying CORRECTION, not the exact time the header changed. Blind interval 60000..67000 is unseen."},
+        {"candidate": "At timestamps 0ms and 60000ms, the source presented a preliminary spoken claim: \"Production incident probability tripled.\"", "evidence": "Those are requested frame anchors. Captured ASR has no timed cues and says probability rose, not tripled. The PNG contains the tripled statement and labels it spoken, but does not independently establish speech at both exact anchors."},
+        {"candidate": "The initial claim that \"production incident probability tripled\" was retracted and corrected", "evidence": "Correction is visible at requested 67000ms; the requested 120000ms frame returns to the same initial-claim PNG. Candidate omits that later captured return. It must retain this sequence without implying the corrected slide persisted or the later conflict was resolved."}
+      ],
+      "support": [{"candidate": "Blind intervals exist between sampled anchors, meaning content within those intervals is unknown.", "evidence": "This accurately states the general sampling limitation, but does not cure exact timing and omitted later-frame issues elsewhere."}]
+    },
+    "provenance_and_acquisition_limits": {
+      "verdict": "pass",
+      "support": [
+        {"candidate": "The source is a local captured video (SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`).", "evidence": "Matches packet source identity and captured-frame source identity."},
+        {"candidate": "Text fidelity is model-derived ASR and not independently verified.", "evidence": "Packet identifies transcript_origin as asr, with a retained transcript hash. This correctly avoids asserting a verified literal transcript."}
+      ],
+      "limits": "Reviewer examined supplied PNG pixels and raw captured ASR, not full source audio or unsampled frames. No claim of full-source semantic completeness or whole-chain privacy follows. Audio is present as ASR evidence but independently listened audio is absent from this review packet."
+    },
+    "consumer_readiness_without_material_invention": {
+      "verdict": "fail",
+      "failures": [
+        {"candidate": "It matters as a demonstration of data integrity practices, highlighting the risks of misinterpreting observational data and using imprecise terminology in technical reporting.", "evidence": "This is plausible reviewer interpretation, but the summary presents it without distinguishing authored interpretation from source content. Together with unsupported Creator's Take and timestamp claims, this candidate needs revision before trusted consumer use."}
+      ],
+      "required_revision": "Retain ratio/adult/observational limits, label interpretation explicitly, remove unsupported creator advocacy, state requested sample anchors rather than exact event/speech timing, and disclose initial slide recurring at requested 120000ms."
+    }
+  },
+  "overall": "fail",
+  "material_failure_cannot_be_averaged_away": true,
+  "inference_api_calls": 0,
+  "scope": "Independent review of this exact packet only; no production-quality or broad semantic calibration claim."
+}

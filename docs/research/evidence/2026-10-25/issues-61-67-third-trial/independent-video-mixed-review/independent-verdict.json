@@ -1,0 +1,57 @@
+{
+  "schema": "independent-video-review.v1",
+  "review_type": "independent_agent_review",
+  "human_expert_review": false,
+  "inputs": ["candidate.md", "captured-asr.txt", "source-manifest.json", "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png", "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png"],
+  "excluded_inputs": "No route records, pipeline self-review, trial conditions or other trial records read for this verdict.",
+  "identity_checks": "Candidate, raw ASR and both actual viewed PNGs match manifest hashes.",
+  "criteria": {
+    "measurement_and_qualification_preservation": {
+      "verdict": "pass",
+      "support": [
+        {"candidate": "It also gives scope limits: 40 adults only, observational rather than causal, and no generalization to children.", "evidence": "All three qualifications appear in actual correction PNG and raw ASR."},
+        {"candidate": "The ASR says \"The measurement is an incidence to pull requests ratio, not probability.\"", "evidence": "Matches raw ASR; candidate separately quotes Incidents-to-PR RATIO from actual PNG without overwriting the different channel wording."}
+      ]
+    },
+    "all_section_source_faithfulness": {
+      "verdict": "pass",
+      "support": [
+        {"candidate": "The source itself expresses these positions:", "evidence": "Following bullets are limited to preliminary claim, not probability, observational scope and no generalization. No invented advocacy or creator theory is added."},
+        {"candidate": "The source pairs \"40 adults\" with a software-change comparison but does not say how the adults relate to incidents or pull requests.", "evidence": "Actual supplied channels provide both phrases and no connecting methodology. The gap remains explicit rather than invented."}
+      ],
+      "nonmaterial_cautions": ["PR expansion is conservatively left undefined despite contextual pull-requests wording in ASR. This adds caution without changing the ratio measurement.", "Negative statements about absent details should ideally be scoped to captured material, since unseen intervals remain. The surrounding repeated evidence disclaimers substantially supply that scope."]
+    },
+    "timestamp_and_coverage_honesty": {
+      "verdict": "fail",
+      "support": [
+        {"candidate": "Frame anchors are requested seeks, not measured presentation times.", "evidence": "Matches timestamp_basis requested_seek_not_measured_pts."},
+        {"candidate": "Identical bytes at 0, 60,000 and 120,000 ms do not show what was on screen between those anchors.", "evidence": "Manifest and actual images show initial slide at all three requested anchors, with correction at requested 67000ms. Later recurrence is preserved without invented continuity."},
+        {"candidate": "The transcript has no timestamps, so no spoken sentence can be aligned to a frame.", "evidence": "Raw ASR contains no timed cues."}
+      ],
+      "failures": [
+        {"candidate": "The source's full length and completeness are unknown.", "evidence": "Completeness of meaningful captured content remains unknown, but supplied manifest explicitly records local source duration_ms=125000. Conflating known captured-source duration with unknown semantic completeness discards a known acquisition fact."}
+      ],
+      "required_revision": "State that captured local-source duration is 125000ms according to the acquisition manifest; semantic completeness and unsampled content remain unknown. Do not imply original upstream content completeness from this local duration."
+    },
+    "provenance_and_acquisition_limits": {
+      "verdict": "pass",
+      "support": [
+        {"candidate": "The evidence is ASR text plus a model description of four sampled frames, so fidelity and completeness are unverified.", "evidence": "Matches origin and actual four requested captures; does not claim independent OCR or full video comprehension."},
+        {"candidate": "Transcript source_sha256: `d5c98513…e9cc`.", "evidence": "Matches full source identity in supplied manifest; frame and ASR identities match."}
+      ],
+      "limits": "Reviewer viewed supplied unique PNGs and raw ASR only, not independently listened source audio or unseen intervals. No whole-chain privacy or general production quality conclusion."
+    },
+    "consumer_readiness_without_material_invention": {
+      "verdict": "fail",
+      "failures": [
+        {"candidate": "The source's full length and completeness are unknown.", "evidence": "Consumer should receive the actual known captured duration separately from unknown semantic coverage. This single remaining acquisition-fact error is repairable without changing the otherwise supported corrected metric and qualifications."}
+      ],
+      "required_revision": "Correct captured duration versus semantic completeness, then re-review exact revised artifact."
+    }
+  },
+  "overall": "fail",
+  "unique_material_failure_count": 1,
+  "failure_severity": "bounded acquisition-fact error; main measurement and scope are faithful",
+  "inference_api_calls": 0,
+  "scope": "Strict independent judgment of exact supplied packet only. No invented error count target or aggregate overrides the criterion verdicts."
+}

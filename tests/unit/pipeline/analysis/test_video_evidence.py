@@ -18,7 +18,10 @@ from distill.ingestors.youtube.local_frames import LocalVideoFrames, SampledFram
 from distill.llm.router import RouterConfig
 from distill.llm.types import LLM_Response
 from distill.pipeline.analysis.video import analyze_video
-from distill.pipeline.analysis.video_evidence import analyze_local_video_evidence
+from distill.pipeline.analysis.video_evidence import (
+    analyze_local_video_evidence,
+    analyze_sampled_video_evidence,
+)
 from distill.pipeline.costs import CostTracker
 
 _CRITERIA = (
@@ -81,7 +84,14 @@ def transport(monkeypatch):
     def respond(router, *, prompt, call_type, **kwargs):
         images = kwargs.get("images", ())
         index = len(calls)
-        calls.append({"prompt": prompt, "call_type": call_type, **kwargs})
+        calls.append(
+            {
+                "prompt": prompt,
+                "call_type": call_type,
+                "route_provider": router.resolve("analysis")[0],
+                **kwargs,
+            }
+        )
         text = {
             "video_visual_observation": _OBSERVATION,
             "pass1": _EXTRACTION,
@@ -183,6 +193,10 @@ def test_sampled_evidence_requirements_frame_both_text_passes_and_review_target(
     assert result.insight in review_prompt
     assert source_frames.source_sha256 in review_prompt
     assert source_frames.frames[0].sha256 in review_prompt
+    for call in calls:
+        assert f'"captured_duration_ms": {source_frames.duration_ms}' in call["prompt"]
+        assert '"original_source_completeness": "not_established"' in call["prompt"]
+    assert "Captured file duration is known" in calls[2]["prompt"]
 
 
 @pytest.mark.parametrize("origin", ["provided_text", "captions", "asr", "model_brief"])
@@ -226,6 +240,79 @@ def test_invalid_origin_or_mismatched_source_binding_stops_before_model_calls(
 ):
     calls, _, _ = transport
     result = _run(source_frames, tmp_path, **provenance)
+    assert result.status == "incomplete"
+    assert calls == []
+
+
+def test_explicit_mixed_text_route_keeps_image_bytes_local_and_accounts_actual_routes(
+    source_frames, tmp_path, transport
+):
+    calls, modifications, _ = transport
+    for index in (1, 2):
+        modifications[index] = lambda response: replace(
+            response,
+            provider_name="openrouter",
+            provider_type="cloud",
+            model="anthropic/claude-sonnet-5.5",
+        )
+    tracker = CostTracker(budget=3)
+    result = analyze_sampled_video_evidence(
+        "Captured video",
+        _LATE,
+        source_frames,
+        tmp_path,
+        DistillConfig(),
+        vision_router_config=RouterConfig(
+            provider="ollama", model="fixture-model", cost_mode="no-metered"
+        ),
+        text_router_config=RouterConfig(
+            provider="openrouter",
+            model="anthropic/claude-sonnet-5.5",
+            cost_mode="paid-ok",
+            openrouter_api_key="offline-fixture",
+        ),
+        tracker=tracker,
+        transcript_origin="asr",
+        transcript_source_sha256=source_frames.source_sha256,
+    )
+    assert result.status == "model_review_passed"
+    assert result.route_policy == "explicit_text_route_local_images"
+    assert result.as_record()["route_policy"] == result.route_policy
+    assert len(calls) == len(tracker.entries) == 4
+    for index in (1, 2):
+        assert calls[index]["route_provider"] == "openrouter"
+        assert not calls[index].get("images")
+        assert source_frames.source_sha256 in calls[index]["prompt"]
+        assert "origin=asr" in calls[index]["prompt"]
+        assert result.calls[index].response.provider_name == "openrouter"
+    for index in (0, 3):
+        assert calls[index]["route_provider"] == "ollama"
+        assert calls[index]["images"][0].data == (tmp_path / "frame.png").read_bytes()
+        assert result.calls[index].response.provider_type == "local"
+
+
+@pytest.mark.parametrize("mode,budget", [("no-metered", 3), ("paid-ok", None)])
+def test_mixed_cloud_policy_or_missing_budget_refuses_before_any_image_call(
+    source_frames, tmp_path, transport, mode, budget
+):
+    calls, _, _ = transport
+    result = analyze_sampled_video_evidence(
+        "Captured video",
+        _LATE,
+        source_frames,
+        tmp_path,
+        DistillConfig(),
+        vision_router_config=RouterConfig(
+            provider="ollama", model="fixture-model", cost_mode="no-metered"
+        ),
+        text_router_config=RouterConfig(
+            provider="openrouter",
+            model="anthropic/claude-sonnet-5.5",
+            cost_mode=mode,
+            openrouter_api_key="offline-fixture",
+        ),
+        tracker=CostTracker(budget=budget),
+    )
     assert result.status == "incomplete"
     assert calls == []
 

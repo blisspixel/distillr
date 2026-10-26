@@ -207,7 +207,7 @@ def _multipass_analysis(
     body = merge_paper_pass_results(results, body="")
     input_evidence = paper_input_evidence(
         document,
-        chunks,
+        multipass.supplied_chunks if multipass.supplied_chunks is not None else chunks,
         multipass.passes,
         context_window=metadata.context_window,
         source_capture=source_capture,

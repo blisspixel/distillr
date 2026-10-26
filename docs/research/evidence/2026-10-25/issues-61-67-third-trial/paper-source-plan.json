@@ -1,0 +1,19 @@
+{
+  "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence.",
+  "chunks": [
+    {
+      "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+      "heading_context": "Results",
+      "index": 0,
+      "total_chunks": 2
+    },
+    {
+      "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+      "heading_context": "Erratum",
+      "index": 1,
+      "total_chunks": 2
+    }
+  ],
+  "source_sha256": "a867ea01c8a40a463782c2161afebe8bc0cc1907cdfeb0683b6af3bce2809403",
+  "prior_insight": "## Summary\nProduction incident probability tripled because AI caused more incidents; this applies to children.\n\n## Core Contribution\nNot established by the available evidence.\n\n## Methods and Evidence\nNot established by the available evidence.\n\n## Practical Implications\nNot established by the available evidence.\n\n## Limits and Open Questions\nNot established by the available evidence.\n\n## Follow-Up Research\nNot established by the available evidence."
+}

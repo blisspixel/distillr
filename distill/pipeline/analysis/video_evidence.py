@@ -16,6 +16,8 @@ from distill.config import DistillConfig
 from distill.ingestors.youtube.local_frames import MAX_SOURCE_BYTES, LocalVideoFrames
 from distill.library.confined import read_confined_bytes
 from distill.llm import call as llm_call
+from distill.llm.cost import has_known_pricing
+from distill.llm.cost_policy import classify_provider
 from distill.llm.images import MAX_IMAGE_BYTES, MAX_IMAGES, LLMImage, validate_images
 from distill.llm.json_extract import extract_json
 from distill.llm.router import LLMRouterError, RouterConfig
@@ -105,6 +107,7 @@ class VideoEvidenceResult:
     original_source_completeness: Literal["not_established"] = "not_established"
     transcript_origin: TranscriptOrigin = "provided_text"
     transcript_source_sha256: str | None = None
+    route_policy: Literal["local_only", "explicit_text_route_local_images"] = "local_only"
 
     def as_record(self) -> dict[str, object]:
         """Return caller-owned evidence; this function performs no artifact writes."""
@@ -116,6 +119,7 @@ class VideoEvidenceResult:
             "transcript_sha256": self.transcript_sha256,
             "transcript_origin": self.transcript_origin,
             "transcript_source_sha256": self.transcript_source_sha256,
+            "route_policy": self.route_policy,
             "frames": asdict(self.frames),
             "insight": self.insight,
             "observations": asdict(self.observations) if self.observations is not None else None,
@@ -185,6 +189,8 @@ def _frame_identity(frames: LocalVideoFrames) -> str:
     return json.dumps(
         {
             "source_sha256": frames.source_sha256,
+            "captured_duration_ms": frames.duration_ms,
+            "original_source_completeness": "not_established",
             "timestamp_basis": frames.timestamp_basis,
             "frames": [
                 {
@@ -246,6 +252,8 @@ def _combined_evidence(
         f"{observations.text}\n\n"
         f"SOURCE IDENTITIES: {_frame_identity(frames)}\n"
         "COVERAGE: sampled images only; original source completeness not established. "
+        "Captured file duration is known from the manifest; this does not establish upstream "
+        "source completeness or continuous visual coverage. "
         f"Blind intervals in milliseconds: {json.dumps(frames.blind_intervals_ms)}. "
         "Times are requested seek anchors, not measured frame presentation times. "
         "Cite transcript passages and source/image hash plus requested time anchors when supported. "
@@ -292,9 +300,16 @@ def _review_prompt(
     )
 
 
-def _require_response(stage: str, response: LLM_Response, hashes: tuple[str, ...] = ()) -> None:
-    if response.provider_name != "ollama" or response.provider_type != "local":
-        raise _Incomplete(f"{stage} did not return a confirmed local Ollama route identity.")
+def _require_response(
+    stage: str,
+    response: LLM_Response,
+    hashes: tuple[str, ...] = (),
+    *,
+    expected_provider: str = "ollama",
+    expected_type: str = "local",
+) -> None:
+    if response.provider_name != expected_provider or response.provider_type != expected_type:
+        raise _Incomplete(f"{stage} did not return the explicitly configured route identity.")
     if not response.text.strip():
         raise _Incomplete(f"{stage} returned no output.")
     if response.finish_reason != "stop":
@@ -351,6 +366,58 @@ def analyze_local_video_evidence(
     transcript_origin: TranscriptOrigin = "provided_text",
     transcript_source_sha256: str | None = None,
 ) -> VideoEvidenceResult:
+    """Preserve the local-only contract for every stage and configured fallback."""
+    try:
+        _check_route(router_config)
+    except _Incomplete as exc:
+        return VideoEvidenceResult("incomplete", str(exc), transcript, "", frames)
+    return analyze_sampled_video_evidence(
+        title,
+        transcript,
+        frames,
+        frame_root,
+        config,
+        vision_router_config=router_config,
+        text_router_config=router_config,
+        tracker=tracker,
+        question=question,
+        cancelled=cancelled,
+        max_tokens=max_tokens,
+        transcript_origin=transcript_origin,
+        transcript_source_sha256=transcript_source_sha256,
+    )
+
+
+def _check_text_route(router: RouterConfig, ledger: CostTracker) -> tuple[str, str]:
+    router.validate_config("analysis")
+    if router.fallback_provider or router.fallback_model:
+        raise _Incomplete("Sampled evidence requires explicit text routing without fallback.")
+    provider, model = router.resolve("analysis")
+    route_class = classify_provider(provider)
+    if route_class not in {"local", "metered-api"}:
+        raise _Incomplete("Text route requires a supported local or explicit metered provider.")
+    provider_type = "local" if route_class == "local" else "cloud"
+    if provider_type == "cloud" and (ledger.budget_limit is None or not has_known_pricing(model)):
+        raise _Incomplete("Metered text requires an explicit tracker budget and known pricing.")
+    return provider, provider_type
+
+
+def analyze_sampled_video_evidence(
+    title: str,
+    transcript: str,
+    frames: LocalVideoFrames,
+    frame_root: Path,
+    config: DistillConfig,
+    *,
+    vision_router_config: RouterConfig,
+    text_router_config: RouterConfig,
+    tracker: CostTracker | None = None,
+    question: str = "",
+    cancelled: Callable[[], bool] | None = None,
+    max_tokens: int = _DEFAULT_MAX_TOKENS,
+    transcript_origin: TranscriptOrigin = "provided_text",
+    transcript_source_sha256: str | None = None,
+) -> VideoEvidenceResult:
     """Use two image calls around existing two-pass text analysis, opt-in only.
 
     Four logical calls at most. Existing provider-attempt receipts remain the
@@ -361,6 +428,14 @@ def analyze_local_video_evidence(
     calls: list[EvidenceCall] = []
     ledger = tracker if tracker is not None else CostTracker()
     try:
+        _check_route(vision_router_config)
+        text_provider, text_type = _check_text_route(text_router_config, ledger)
+        result = replace(
+            result,
+            route_policy="explicit_text_route_local_images"
+            if text_type == "cloud"
+            else "local_only",
+        )
         if not _origin_is_valid(transcript_origin):
             raise _Incomplete("Captured text origin is invalid.")
         if transcript_source_sha256 is not None and type(transcript_source_sha256) is not str:
@@ -378,7 +453,6 @@ def analyze_local_video_evidence(
         text_provenance = _text_provenance(transcript_origin, transcript_source_sha256)
         if type(max_tokens) is not int or not 1 <= max_tokens <= 8192:
             raise _Incomplete("Output token budget must be an integer from 1 to 8192.")
-        _check_route(router_config)
         _check_cancelled(cancelled)
         encoded = transcript.encode("utf-8")
         if not transcript.strip() or len(encoded) > _MAX_TRANSCRIPT_BYTES:
@@ -388,7 +462,7 @@ def analyze_local_video_evidence(
         hashes = tuple(image.sha256 for image in images)
         _check_cancelled(cancelled)
         observed = _vision_call(
-            router_config,
+            vision_router_config,
             _observation_prompt(frames),
             images,
             "video_visual_observation",
@@ -402,7 +476,9 @@ def analyze_local_video_evidence(
 
         def observe_text(stage: str, response: LLM_Response) -> None:
             calls.append(EvidenceCall(stage, response))
-            _require_response(stage, response)
+            _require_response(
+                stage, response, expected_provider=text_provider, expected_type=text_type
+            )
             _check_cancelled(cancelled)
 
         _check_cancelled(cancelled)
@@ -414,17 +490,21 @@ def analyze_local_video_evidence(
             config,
             tracker=ledger,
             custom_instructions=question,
-            router_config=router_config,
+            router_config=text_router_config,
             response_observer=observe_text,
             max_tokens=max_tokens,
             timeout=_TIMEOUT_SECONDS,
             retries=0,
-            trusted_analysis_instructions=f"{_SAMPLED_EVIDENCE_REQUIREMENTS}\n{text_provenance}",
+            trusted_analysis_instructions=(
+                f"{_SAMPLED_EVIDENCE_REQUIREMENTS}\n{text_provenance}\n"
+                f"CAPTURED FILE IDENTITIES: {_frame_identity(frames)}\n"
+                "Captured file duration is known; upstream source completeness remains unknown."
+            ),
         )
         result = replace(result, insight=insight)
         _check_cancelled(cancelled)
         reviewed = _vision_call(
-            router_config,
+            vision_router_config,
             _review_prompt(transcript, insight, frames, question, text_provenance),
             images,
             "video_visual_review",
@@ -441,7 +521,7 @@ def analyze_local_video_evidence(
         return replace(
             result,
             status="model_review_passed",
-            reason="All local model-review criteria passed; sampled coverage only.",
+            reason="All model-review criteria passed; sampled coverage only.",
             calls=tuple(calls),
         )
     except _Incomplete as exc:
@@ -449,6 +529,6 @@ def analyze_local_video_evidence(
     except (LLMRouterError, OSError, RuntimeError, ValueError) as exc:
         return replace(
             result,
-            reason=f"Local evidence processing failed: {type(exc).__name__}.",
+            reason=f"Sampled evidence processing failed: {type(exc).__name__}.",
             calls=tuple(calls),
         )

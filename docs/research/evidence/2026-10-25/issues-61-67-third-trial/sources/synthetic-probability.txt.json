@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": ".agent/issue61-67-third-trial/sources/synthetic-probability.txt",
+  "original_sha256": "a63fcb1538809bd8ac710db6bca2b884fa2a0e4d50b7ff626d7d1d2bbe109177",
+  "original_bytes": 312,
+  "utf8_text": "trial-probability [measurement; frozen page excerpt]: In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants.\n\ntrial-no-pr-denominator [gap; authored context]: The trial does not report an incidents-to-PR ratio."
+}

@@ -234,7 +234,7 @@ def test_analyze_paper_multipass_keeps_full_receipt(monkeypatch, tmp_path):
     assert "source_mode: chunked_multipass" in insights
     assert "## Summary" in insights
     assert "A multipass summary." in insights
-    assert 'prompt_id: "analysis.paper.v3"' in insights
+    assert 'prompt_id: "analysis.paper.v4"' in insights
     assert "chunk_selection_modes: front matter:structural; methods and evidence:model" in insights
 
 

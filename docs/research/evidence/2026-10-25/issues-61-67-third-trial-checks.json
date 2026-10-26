@@ -1,0 +1,47 @@
+{
+  "schema": "wave-verification.v1",
+  "checked_at": "2026-10-26T15:28:54.462184+00:00",
+  "base_local_commit": "70815e2e8963ecbf0684f8e2a9a41900eac04d6f",
+  "base_remote_commit": "51d0c187fd71b03a387f8ecdee3d61ea2d09ed46",
+  "python": "3.15.1",
+  "tests": {
+    "passed": 8126,
+    "skipped": 4,
+    "deselected": 9,
+    "warnings": 2,
+    "elapsed_seconds": 765.93,
+    "combined_coverage_percent": 95.5410381646457,
+    "branch_only_coverage_percent": 91.88845027378072,
+    "covered_branches": 14432,
+    "total_branches": 15706
+  },
+  "gates": {
+    "ruff": "passed",
+    "format": "passed",
+    "pyright": "passed_zero_warnings",
+    "import_contracts": "four_kept",
+    "bandit": "zero_medium_or_high",
+    "public_contracts": "passed",
+    "corpus_skill_distributions": "passed",
+    "editorial_skill_distributions": "passed",
+    "source_and_wheel_build": "passed"
+  },
+  "semantic_status": "incomplete; see third-trial report and independent verdicts",
+  "model_testing": "stopped_by_user_no_more_calls",
+  "third_trial": {
+    "actual_attempts": 29,
+    "attempt_limit": 30,
+    "reported_api_cost_usd": 0.112788,
+    "budget_usd": 3
+  },
+  "release": "0.20.9 queued; draft only; package version unchanged0.20.8",
+  "github_ci": "recorded separately on exact pushed commit; no historical run substituted",
+  "source_files": {
+    "distill/pipeline/analysis/chunking.py": "0c5bf8dc4275ee324a8e17320870be99f3f66170781244a9ea496c60b5129bdb",
+    "distill/pipeline/analysis/multipass.py": "7c9614d36e5e7beae1b531084a7d5f3507e7e8a3780de3c88c5d2911f39466d2",
+    "distill/pipeline/analysis/paper.py": "5334bde6d14bd428fc6592270ae4d7340481a606088ad03fe4f98f80be265e8f",
+    "distill/pipeline/analysis/paper_review.py": "0d8a7466c1d34d45e3595722612704ae6ec28dabe6ef072615d93caf1c9a9dd3",
+    "distill/pipeline/analysis/video_evidence.py": "9a96c507a5c51ab0dc241f3e1a7d47925367f681eac90b86b8c4f82a11ffb6f9",
+    "distill/prompts/registry.py": "e2d709a2e442e14f147935f801f7ce5ed48ceb4fbb517bb7935d930cb3a6e4ea"
+  }
+}

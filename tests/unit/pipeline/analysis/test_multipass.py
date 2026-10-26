@@ -492,6 +492,14 @@ def test_pass_provenance_records_actual_prompt_chunks_and_response_model(legacy)
         transport.side_effect = [
             LLM_Response(text="first", input_tokens=1, output_tokens=1, model="effective-first"),
             LLM_Response(text="second", input_tokens=1, output_tokens=1, model="effective-second"),
+            LLM_Response(
+                text="\n\n".join(
+                    f"## {heading}\nReconciled." for heading in PAPER_CANONICAL_SECTIONS
+                ),
+                input_tokens=1,
+                output_tokens=1,
+                model="effective-review",
+            ),
         ]
         result = multi_pass_analysis(
             chunks,
@@ -500,16 +508,20 @@ def test_pass_provenance_records_actual_prompt_chunks_and_response_model(legacy)
             passes=None if legacy else PAPER_ANALYSIS_PASSES,
         )
 
-    assert [item.category for item in result.passes] == categories[:2]
-    assert [item.chunk_indices for item in result.passes] == [(2, 0), (0,)]
-    assert [item.chunks_used for item in result.passes] == [2, 1]
-    assert [item.model for item in result.passes] == ["effective-first", "effective-second"]
+    assert [item.category for item in result.passes[:2]] == categories[:2]
+    assert [item.chunk_indices for item in result.passes[:2]] == [(2, 0), (0,)]
+    assert [item.chunks_used for item in result.passes[:2]] == [2, 1]
+    assert [item.model for item in result.passes[:2]] == ["effective-first", "effective-second"]
     assert all(item.model != _make_config().resolve("analysis")[1] for item in result.passes)
-    assert transport.call_count == 2
-    first_prompt, second_prompt = [call.kwargs["prompt"] for call in transport.call_args_list]
+    assert transport.call_count == (2 if legacy else 3)
+    first_prompt, second_prompt = [call.kwargs["prompt"] for call in transport.call_args_list[:2]]
     assert first_prompt.index("evidence-2") < first_prompt.index("evidence-0")
     assert "evidence-2" not in second_prompt
     assert all("evidence-1" not in prompt for prompt in (first_prompt, second_prompt))
+    if not legacy:
+        assert result.passes[-1].chunk_indices == (1,)
+        assert result.passes[-1].model == "effective-review"
+        assert "evidence-1" in transport.call_args_list[-1].kwargs["prompt"]
 
 
 @pytest.mark.parametrize("legacy", [False, True])

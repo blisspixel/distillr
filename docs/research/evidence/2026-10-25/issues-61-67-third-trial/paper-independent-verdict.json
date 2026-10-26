@@ -1,0 +1,171 @@
+{
+  "sample_id": "paper-targeted-reconciliation",
+  "overall": "fail",
+  "criteria": {
+    "source_independence_fit": {
+      "verdict": "fail",
+      "rationale": "Actual reconciliation uses chunk_indices [1] only. Late qualification is relevant, but results chunk 0 is part of the supplied source and contains the positive magnitude and instrument identity needed for faithful reconciliation. No independent real-study corroboration is claimed.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    },
+    "claim_fidelity": {
+      "verdict": "fail",
+      "rationale": "Summary says \"The supplied evidence does not confirm the tripled magnitude, so that figure should be treated as unverified.\" Core Contribution says the supplied evidence does not describe \"the size of any difference\". But source chunk 0 explicitly says \"the incidents-to-pull-requests ratio rose 242.7%\". This supports a ratio magnitude of 3.427 times baseline, while not supporting incident probability. Correcting metric type must preserve the supplied ratio magnitude. Also says \"What was calibrated and how is not established\", but chunk 0 identifies instrument calibration. How calibration was performed remains unknown.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    },
+    "material_qualification_unknowns": {
+      "verdict": "pass",
+      "rationale": "All six sections consistently retain ratio rather than probability, observational noncausal scope and 40 adults with children applicability unestablished. Follow-up recommendations are explicitly inferences. It does not invent absent confounder controls; uncertainty details are described as unavailable in the supplied chunk. Positive-evidence loss is scored under fidelity/completion.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    },
+    "fair_disagreement": {
+      "verdict": "pass",
+      "rationale": "Explicitly rejects prior probability, causal and child-applicability claims and explains why, rather than retaining the negative control as a competing empirical finding. Prior insight is an authored negative control, not a model-generated evidence source.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    },
+    "history_current_refusal": {
+      "verdict": "fail",
+      "rationale": "Preserves unaffected calibration only as a vague statement and loses source-supported identity \"instrument\". More materially, it discards the unaffected positive result +242.7% instead of selectively correcting probability/causality/population. There is no refusal event here.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    },
+    "useful_completion": {
+      "verdict": "fail",
+      "rationale": "All six sections are present and late qualification corrects the dangerous negative-control Summary. Nevertheless the resulting full insight omits +242.7% and falsely says its magnitude is unverified, while losing instrument-calibration specificity. This is a targeted actual helper test with one model call, not proof of complete paper-pipeline behavior.",
+      "support": {
+        "source_chunks": [
+          {
+            "text": "Synthetic primary paper: the incidents-to-pull-requests ratio rose 242.7%. The instrument calibration remained unchanged.",
+            "heading_context": "Results",
+            "index": 0,
+            "total_chunks": 2
+          },
+          {
+            "text": "Late qualification under an unmatched Erratum heading: this is an incidents-to-pull-requests ratio, not the probability of an incident. A pull request may link to multiple incidents. This observational comparison covers 40 adults and does not establish causation or applicability to children. Calibration is unaffected.",
+            "heading_context": "Erratum",
+            "index": 1,
+            "total_chunks": 2
+          }
+        ],
+        "candidate_exact_text": "## Summary\n\nThe provisional claim that production incident probability tripled because AI caused more incidents, and that this applies to children, is not supported. Source chunk 1 says the measure is an **incidents-to-pull-requests ratio**, not the probability of an incident. A pull request may link to multiple incidents, so the ratio is not a share of pull requests that had an incident. The comparison is **observational** and covers **40 adults**. It does not establish causation, so \"AI caused more incidents\" is not supported. It also does not establish that the result applies to children (SOURCE CHUNK 1). The supplied evidence does not confirm the \"tripled\" magnitude, so that figure should be treated as unverified. The chunk says calibration is unaffected, but it does not say what was calibrated.\n\n## Core Contribution\n\nThe only contribution the supplied evidence supports is an observational comparison of incidents-to-pull-requests ratios in a group of 40 adults (SOURCE CHUNK 1). The chunk does not describe the compared conditions, the ratio values, or the size of any difference. A causal contribution, a probability estimate, and a finding about children are not established.\n\n## Methods and Evidence\n\n- **Outcome measure:** an incidents-to-pull-requests ratio. The unit of analysis is the pull request, and one pull request can link to several incidents (SOURCE CHUNK 1).\n- **Design:** observational comparison, so it cannot separate AI use from other differences between the compared groups or conditions (SOURCE CHUNK 1).\n- **Population:** 40 adults (SOURCE CHUNK 1).\n- **Calibration:** described only as \"unaffected\" by this qualification. What was calibrated and how is not established.\n- **Provenance:** the qualification appears under an unmatched \"Erratum\" heading. The chunk does not show which table, claim, or section it attaches to.\n- **Not established:** the numerical ratios, the number of pull requests and incidents, the comparison conditions, any uncertainty intervals, and the basis for \"tripled.\"\n\n## Practical Implications\n\nNot established by the available evidence beyond a caution about interpretation. Any reported increase should be read as a change in incidents per pull request among 40 adults, not as a tripled chance that a change causes an incident. The evidence gives no basis for AI-related policy or process decisions, and none for decisions about children.\n\n## Limits and Open Questions\n\n- The ratio is not a probability, because a pull request may link to multiple incidents.\n- The observational comparison does not establish causation.\n- The sample is 40 adults, so applicability to children is not established. It is also unknown how well the sample represents other adult populations.\n- The \"tripled\" figure has no support in the supplied chunk.\n- The chunk gives no uncertainty estimates, no information on confounders, and no definition of \"incident.\"\n- It is unclear what \"calibration is unaffected\" refers to.\n- It is unclear which results the unmatched erratum qualification applies to.\n\n## Follow-Up Research\n\nThe supplied evidence does not state any follow-up work. Based on the gaps above, the needed steps are to:\n- recover the original ratio values, counts, and comparison conditions;\n- check how incidents were linked to pull requests;\n- report uncertainty;\n- address confounding, or use a design that could support causal claims;\n- study children directly if applicability to them is of interest.\n\nThese are inferences from what is missing, not findings from the source.\n",
+        "actual_reconciliation_chunk_indices": [
+          1
+        ],
+        "scope": "Targeted actual reconciliation helper, not full live paper pipeline. Prior focused draft is authored negative control, not model evidence."
+      }
+    }
+  },
+  "rationale": "Late qualification is applied successfully to metric type, causality and adult-only scope, but reconciliation sees only chunk 1 and erases supported chunk-0 magnitude and calibration identity. SOURCE CHUNK 1 citations do support the qualification claims under zero-based chunk indices. They cannot support statements about absence across the whole source.",
+  "section_review": {
+    "Summary": "Fail: correctly revises ratio/causal/child claims but calls known ratio magnitude unverified and calibration identity unknown.",
+    "Core Contribution": "Fail: says no size of difference although chunk 0 supplies +242.7%.",
+    "Methods and Evidence": "Fail: omits known magnitude and instrument identity; chunk 1 citations otherwise accurate.",
+    "Practical Implications": "Preserves ratio/adult/noncausal limits, but lacks the supported quantitative result.",
+    "Limits and Open Questions": "Fail: treats known magnitude and instrument identity as missing across the supplied evidence.",
+    "Follow-Up Research": "Recommendations clearly labeled inference, but recovering missing magnitude is unnecessary because chunk 0 already supplies it."
+  },
+  "handoff": {
+    "assessment_kind": "Independent agent semantic review, not human expert review.",
+    "third_trial_phase1": "3 of 4 passed. One Faros output asserted confounder controls absent and monthly comparison alignment despite supplied uncertainty. True-probability controls passed on material scientific content, with minor contextual limitations recorded.",
+    "third_trial_pairs": "11 of 16 passed: screening 4/4, scorer correction 4/4, correction/conflict 3/4, Faros extraction 0/4. Failed correction omitted B=16; all four Faros outputs assigned monthly +57.9% to the same low/high periods without supplied support, two also truncated, two omitted capture boundary.",
+    "route_constraints": "Successful headline-versus-ratio handling does not establish source quality across every section. Preserve unknown controls, independently scoped monthly metrics, exact source versus collector provenance, completion status, and both sides of unresolved evidence. Reconciliation must retain supported results from prior chunks, not only apply late qualifications. No blanket local-route quality acceptance or full production-pipeline validation follows from these scoped receipts."
+  }
+}

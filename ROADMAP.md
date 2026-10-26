@@ -171,6 +171,16 @@ wrong object. General prompt and review repairs remain mechanically tested
 but not live-qualified. Stable and prerelease publication are stopped until
 the outcome is trustworthy; this does not advance the queued baseline row.
 
+The [third trial and stopping point](docs/design/issues-61-67-third-trial-2026-10-26.md)
+retain 29 actual attempts and $0.112788 reported API spending. Paired local
+reasoning evidence supports a bounded inconclusive closeout for #61 after
+verification and its acceptance comment. Independent video review leaves #67
+open: captured duration must remain distinct from unknown semantic/upstream
+coverage, and the latest metadata repair has not regenerated a qualified
+consumer artifact. A targeted paper fixture was invalid, not evidence of
+losing facts the model never received. Model tests are stopped at the user's
+request; 0.20.9 stays queued and no tag or PyPI publication is planned now.
+
 The next bounded [paper-input evidence slice](docs/design/paper-input-evidence-2026-10-25.md)
 repairs route/context metadata mismatches, refuses empty paper analysis rather
 than completing from a lead chunk, and records actual response models and

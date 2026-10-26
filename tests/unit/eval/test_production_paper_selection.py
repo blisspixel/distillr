@@ -1,6 +1,6 @@
-"""Observe production evidence selection, without judging mocked model prose.
+"""Observe source-complete production selection without judging mocked prose.
 
-Omission assertions record baseline failures, not acceptable research quality.
+The old omitted-source counterexamples now require bounded reconciliation.
 The tests exercise selection within one synthetic paper, not cross-source
 discovery or deduplication. Only acquisition, metadata discovery and model
 transport are replaced. Prompt inclusion does not establish final faithfulness.
@@ -17,6 +17,7 @@ from distill.library.paths import extract_frontmatter, find_artifact, strip_fron
 from distill.llm.metadata import ProviderMetadata
 from distill.llm.router import LLM_Response
 from distill.pipeline.analysis.chunking import chunk_content, estimate_tokens
+from distill.pipeline.analysis.multipass import PAPER_CANONICAL_SECTIONS
 from distill.pipeline.analysis.paper import analyze_paper
 
 _MEASUREMENT = "The incidents-to-PR ratio rose 242.7% between adoption periods."
@@ -44,11 +45,20 @@ def _paper():
 def capture_analysis(monkeypatch, tmp_path):
     """Run the real paper/chunk/selection/prompt path with inert responses."""
     prompts = []
+    response_body = None
 
     def respond(config, *, prompt, call_type, **kwargs):
         prompts.append((call_type, prompt))
         return LLM_Response(
-            text="Transport stub, not a research answer.",
+            text=(
+                response_body(call_type, prompt)
+                if response_body is not None
+                else "\n\n".join(
+                    f"## {heading}\nNot judged." for heading in PAPER_CANONICAL_SECTIONS
+                )
+                if call_type == "paper_source_reconciliation"
+                else "Transport stub, not a research answer."
+            ),
             model="offline-stub",
             input_tokens=0,
             output_tokens=0,
@@ -62,7 +72,9 @@ def capture_analysis(monkeypatch, tmp_path):
     monkeypatch.setattr("distill.pipeline.analysis.chunk_selection.call", unexpected_ranking)
     monkeypatch.setattr("distill.pipeline.analysis.chunk_selection.model_available", lambda _: True)
 
-    def run(document, window):
+    def run(document, window, *, transport_response=None):
+        nonlocal response_body
+        response_body = transport_response
         prompts.clear()
         monkeypatch.setattr(
             "distill.pipeline.analysis.paper.fetch_paper_pdf_text", lambda _: document
@@ -92,34 +104,37 @@ def _document(caveat_heading):
 
 
 @pytest.mark.parametrize("heading", ["Erratum", "Population Notes", "Limitations"])
-def test_production_selection_exposes_heading_dependent_caveat_loss(capture_analysis, heading):
+def test_production_selection_reconciles_late_caveats_regardless_of_heading(
+    capture_analysis, heading
+):
     insights, receipt, prompts = capture_analysis(_document(heading), 1024)
     assert _MEASUREMENT in receipt
     assert _CAVEAT in receipt
     assert "source_mode: chunked_multipass" in insights
-    assert len(prompts) == 3
+    assert len(prompts) >= 3
     evidence_prompt = next(
         prompt for kind, prompt in prompts if kind.endswith("methods_and_evidence")
     )
     assert _MEASUREMENT in evidence_prompt
-    # Unmatched headings lose the qualification from every analysis prompt.
-    # A matching limitations heading reaches another pass, which can preserve
-    # it in the final document. These stubs do not judge that final prose.
+    # Focused methods still omit this caveat, but source reconciliation must
+    # actually receive it. These transport stubs do not judge final prose.
     assert _CAVEAT not in evidence_prompt
     selected_anywhere = any(_CAVEAT in prompt for _, prompt in prompts)
-    assert selected_anywhere is (heading == "Limitations")
+    assert selected_anywhere
     evidence = _input_evidence(insights)
     chunks = chunk_content(receipt, 1024)
     caveat_chunk = next(chunk for chunk in chunks if _CAVEAT in chunk.text)
-    assert (caveat_chunk.index in evidence["omitted_chunk_indices"]) is not selected_anywhere
-    assert evidence["prompt_chunk_coverage"] == "some_supplied_chunks"
+    assert caveat_chunk.index in evidence["selected_chunk_indices"]
+    assert evidence["omitted_chunk_indices"] == []
+    assert evidence["prompt_chunk_coverage"] == "all_supplied_chunks"
     assert evidence["semantic_sufficiency"] == "not_assessed"
     assert evidence["document_sha256"] == hashlib.sha256(receipt.encode()).hexdigest()
-    by_section = {row["section"]: row for row in evidence["passes"]}
-    for call_type, prompt in prompts:
-        section = call_type.removeprefix("paper_multipass_").replace("_", " ")
-        for index in by_section[section]["chunk_indices"]:
-            assert chunks[index].text in prompt
+    for row, (call_type, prompt) in zip(evidence["passes"], prompts, strict=True):
+        for index in row["chunk_indices"]:
+            if call_type == "paper_source_reconciliation":
+                assert f"SOURCE CHUNK {index}:\n" in prompt
+            else:
+                assert chunks[index].text in prompt
 
 
 def test_broad_context_control_preserves_the_late_qualification(capture_analysis):
@@ -148,7 +163,7 @@ def test_multipass_control_preserves_matched_measurement_and_qualification(captu
     insights, receipt, prompts = capture_analysis(document, 4096)
     assert "source_mode: chunked_multipass" in insights
     assert estimate_tokens(receipt) >= int(4096 * 0.8)
-    assert len(prompts) == 3
+    assert len(prompts) >= 3
     evidence_prompt = next(
         prompt for kind, prompt in prompts if kind.endswith("methods_and_evidence")
     )
@@ -163,7 +178,7 @@ def test_multipass_control_preserves_matched_measurement_and_qualification(captu
 
 
 @pytest.mark.parametrize("copies", [1, 16])
-def test_repeated_recap_sections_can_crowd_out_primary_results(capture_analysis, copies):
+def test_reconciliation_recovers_primary_results_crowded_out_by_recaps(capture_analysis, copies):
     # All sections belong to one synthetic paper. This tests within-paper
     # budget pressure, not source-pool deduplication or independent evidence.
     # Repeat count is a stress input, never a source-quality score.
@@ -190,12 +205,13 @@ def test_repeated_recap_sections_can_crowd_out_primary_results(capture_analysis,
     assert "Fixture-authored derivative summary" in evidence_prompt
     assert (_MEASUREMENT in evidence_prompt) is (copies == 1)
     assert (_CAVEAT in evidence_prompt) is (copies == 1)
-    assert any(_MEASUREMENT in prompt for _, prompt in prompts) is (copies == 1)
-    assert any(_CAVEAT in prompt for _, prompt in prompts) is (copies == 1)
+    assert any(_MEASUREMENT in prompt for _, prompt in prompts)
+    assert any(_CAVEAT in prompt for _, prompt in prompts)
     evidence = _input_evidence(insights)
     chunks = chunk_content(receipt, 1024)
     primary = next(chunk for chunk in chunks if _MEASUREMENT in chunk.text)
-    assert (primary.index in evidence["omitted_chunk_indices"]) is (copies != 1)
+    assert primary.index in evidence["selected_chunk_indices"]
+    assert evidence["omitted_chunk_indices"] == []
     # Keeping the same returned receipt with a broader window restores access.
     _, broad_receipt, broad_prompts = capture_analysis(document, 32768)
     assert broad_receipt == receipt
@@ -220,7 +236,7 @@ def test_real_token_estimate_routes_at_eighty_percent(capture_analysis, offset):
     assert estimate_tokens(actual_receipt) == tokens + offset
     multipass = offset >= 0
     assert ("source_mode: chunked_multipass" in insights) is multipass
-    assert len(prompts) == (3 if multipass else 1)
+    assert (len(prompts) >= 3) if multipass else (len(prompts) == 1)
 
 
 @pytest.mark.parametrize("window", [1024, 32768])
@@ -256,4 +272,59 @@ def test_paper_publication_retains_bound_input_receipt_without_prompt_bulk(
     assert receipt["document_sha256"] != source_body_digest
     assert receipt["document_sha256"] == hashlib.sha256(source.encode()).hexdigest()
     assert receipt["semantic_sufficiency"] == "not_assessed"
-    assert len(prompts) == (3 if window == 1024 else 1)
+    assert (len(prompts) >= 3) if window == 1024 else (len(prompts) == 1)
+
+
+def test_late_source_reconciliation_replaces_wrong_summary_before_actual_publication(
+    capture_analysis, tmp_path
+):
+    from distill.commands._paper_artifacts import write_paper_artifacts
+
+    wrong = "AI caused the incident probability to triple."
+    unaffected = "The instrument remained calibrated."
+
+    def body(summary):
+        return "\n\n".join(
+            f"## {heading}\n"
+            + (
+                summary
+                if heading == "Summary"
+                else unaffected
+                if heading == "Core Contribution"
+                else _MEASUREMENT
+            )
+            for heading in PAPER_CANONICAL_SECTIONS
+        )
+
+    prior = body(wrong)
+    corrected = body(_MEASUREMENT + " " + _CAVEAT)
+
+    def response(call_type, prompt):
+        # A deterministic transport witness, not a semantic model judge. The
+        # corrected output is admitted only after the actual caveat reaches a
+        # reconciliation request; the earlier metadata/headline cannot do it.
+        return (
+            corrected if call_type == "paper_source_reconciliation" and _CAVEAT in prompt else prior
+        )
+
+    insights, source, prompts = capture_analysis(
+        _document("Erratum") + "\n\n## Introduction calibration\n" + unaffected,
+        1536,
+        transport_response=response,
+    )
+    assert any(
+        kind == "paper_source_reconciliation" and _CAVEAT in prompt for kind, prompt in prompts
+    )
+    config = DistillConfig(distill_output_dir=tmp_path / "reconciled", distill_verify="strict")
+    directory = write_paper_artifacts("evidence", _paper(), config, insights, source)
+    published = find_artifact(directory, "insights").read_text(encoding="utf-8")
+    assert wrong not in strip_frontmatter(published)
+    assert _MEASUREMENT in strip_frontmatter(published)
+    assert _CAVEAT in strip_frontmatter(published)
+    assert unaffected in strip_frontmatter(published)
+    fields = extract_frontmatter(published)
+    manifest = json.loads(
+        (directory / fields["paper_input_evidence_file"]).read_text(encoding="utf-8")
+    )
+    assert manifest["prompt_chunk_coverage"] == "all_supplied_chunks"
+    assert any(row["section"] == "source reconciliation" for row in manifest["passes"])

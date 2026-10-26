@@ -1,0 +1,276 @@
+{
+  "schema": "local-video-evidence.v1",
+  "status": "model_review_passed",
+  "reason": "All local model-review criteria passed; sampled coverage only.",
+  "transcript": "This is a synthetic local speech qualification. The initial claim says incident probability rose. The source compares software changes across two adoption periods. We will correct this measurement later. Correction. The measurement is an incidence to pull requests ratio, not probability. 40 adults only. This is observational, not causal. Do not generalize to children.",
+  "transcript_sha256": "c24c5a5d1fbe9d9726732df23eedef8c24641c95f2f36f7a205c58d894cbaf99",
+  "transcript_origin": "asr",
+  "transcript_source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+  "frames": {
+    "source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+    "source_relative_path": "source-d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "insight": "---\nvideo_title: \"Local captured video\"\nchannel: \nupload_date: \nanalyzed_by: qwen3.6:27b\nmodel: qwen3.6:27b\nmodel_version: qwen3.6:27b\ntemperature: 0.0\nprompt_id: \"analysis.pass2.v3\"\nlens: general\n---\n\n## Summary\nThe source material presents a correction to a preliminary claim regarding software engineering metrics, specifically distinguishing between \"incident probability\" and an \"incidents-to-PR ratio.\" The content identifies itself as a synthetic study involving 40 adults, explicitly warning against causal inference or generalizing findings to children. It matters as a demonstration of data integrity practices, highlighting the risks of misinterpreting observational data and using imprecise terminology in technical reporting.\n\n## Key Points\n*   **Metric Correction:** The initial claim that \"production incident probability tripled\" was retracted and corrected to state that the measurement is an \"incidents-to-PR ratio\" (Incidents to Pull Requests ratio), not a probability.\n*   **Study Constraints:** The data applies strictly to a sample of \"40 adults only.\"\n*   **Methodological Limitations:** The findings are explicitly labeled as \"observational, not causal.\"\n*   **Generalization Warning:** The source instructs viewers: \"Do not generalize to children.\"\n*   **Context:** The content is identified as a \"SYNTHETIC STUDY\" and involves comparing software changes across two adoption periods, though specific details of these periods are absent from the sampled text.\n\n## Details and Evidence\n*   **Initial Claim (Retracted):** At timestamps 0ms and 60000ms, the source presented a preliminary spoken claim: \"Production incident probability tripled.\" This was labeled as a \"Preliminary spoken claim, not an established result.\"\n*   **Correction Event:** At timestamp 67000ms, the header changed to \"CORRECTION,\" and the text clarified: \"Incidents-to-PR RATIO, not probability.\"\n*   **Visual Evidence:** Image Index 0 displays the initial claim; Image Index 1 displays the correction and methodological constraints.\n*   **Source Integrity:** The source is a local captured video (SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`). Blind intervals exist between sampled anchors, meaning content within those intervals is unknown. Text fidelity is model-derived ASR and not independently verified.\n\n## Creator's Take\n*   **Precision in Terminology:** The creator argues that using \"probability\" to describe the metric was an analytical error, advocating for the precise use of \"ratio\" (incidents per pull request).\n*   **Skepticism of Causal Inference:** The creator emphasizes that observational data should not be interpreted as causal evidence.\n*   **Advice on Extrapolation:** The creator advises against extrapolating findings from this specific adult sample to other populations, specifically children.\n*   **Data Integrity Stance:** By issuing a formal correction, the creator signals that imprecise terminology in technical reporting is a failure mode that must be rectified.\n\n## Notable Specifics\n*   **Quotes:**\n    *   \"Production incident probability tripled. Preliminary spoken claim, not an established result.\"\n    *   \"Incidents-to-PR RATIO, not probability.\"\n    *   \"40 adults only. Observational, not causal. Do not generalize to children.\"\n*   **Metrics:** Incidents-to-PR ratio (Incidents to Pull Requests ratio).\n*   **Sample Size:** 40 adults.\n*   **Source Identity:** Local captured video; SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`.\n",
+  "observations": {
+    "text": "Based on the provided images, here is the detailed description of the text and visual content.\n\n**Image 1 (Index 0)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > SYNTHETIC STUDY\n    > Production incident probability tripled.\n    > Preliminary spoken claim, not an established result.\n\n**Image 2 (Index 1)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > CORRECTION\n    > Incidents-to-PR RATIO, not probability.\n    > 40 adults only. Observational, not causal.\n    > Do not generalize to children.",
+    "model": "qwen3.6:27b",
+    "input_image_hashes": [
+      "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+      "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+    ],
+    "origin": "model_description"
+  },
+  "review": {
+    "source_fidelity": {
+      "verdict": "pass",
+      "reason": "The candidate accurately reflects the text visible in the provided images, correctly identifying the initial claim ('Production incident probability tripled') and the subsequent correction ('Incidents-to-PR RATIO'). It faithfully reports the specific constraints listed: '40 adults only', 'Observational, not causal', and 'Do not generalize to children'."
+    },
+    "material_qualifications": {
+      "verdict": "pass",
+      "reason": "The candidate explicitly highlights the decisive limitations provided in the source material. It clearly states that the study is observational rather than causal, involves a small sample of adults only, and warns against generalizing to children."
+    },
+    "disagreement": {
+      "verdict": "pass",
+      "reason": "The candidate correctly identifies and preserves the conflict between the initial claim (probability) and the correction (ratio). It accurately describes the source's self-correction process without smoothing over the discrepancy."
+    },
+    "coverage_disclosure": {
+      "verdict": "pass",
+      "reason": "The candidate explicitly notes that 'Blind intervals exist between sampled anchors, meaning content within those intervals is unknown' and acknowledges that text fidelity is model-derived. It also correctly identifies the source as a local captured video."
+    },
+    "detail_and_citations": {
+      "verdict": "pass",
+      "reason": "The candidate provides specific details such as the SHA256 hash, timestamps for the visual changes (0ms vs 67000ms), and direct quotes from the slides. It correctly identifies the metric change from probability to ratio."
+    }
+  },
+  "calls": [
+    {
+      "stage": "video_visual_observation",
+      "response": {
+        "text": "Based on the provided images, here is the detailed description of the text and visual content.\n\n**Image 1 (Index 0)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > SYNTHETIC STUDY\n    > Production incident probability tripled.\n    > Preliminary spoken claim, not an established result.\n\n**Image 2 (Index 1)**\n*   **Visual Description:** A white background with black sans-serif text arranged in three lines. The first line is a header in all-caps.\n*   **Quoted Text:**\n    > CORRECTION\n    > Incidents-to-PR RATIO, not probability.\n    > 40 adults only. Observational, not causal.\n    > Do not generalize to children.",
+        "input_tokens": 2470,
+        "output_tokens": 192,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2470,
+            "output_tokens": 192,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "03d43c3c9cfa4f8f966e9250c1bf41fc",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0075565,
+        "prefill_seconds": 4.537142,
+        "decode_seconds": 4.41869,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    },
+    {
+      "stage": "pass1",
+      "response": {
+        "text": "Based on the provided source evidence (ASR transcript and sampled visual frames), here is the strategic intelligence extraction.\n\n**Source Limitations & Integrity Notes:**\n*   **Source Identity:** Local captured video; SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`.\n*   **Completeness:** The source is incomplete. Blind intervals exist between sampled anchors: [0, 60000], [60000, 67000], [67000, 120000], and [120000, 125000] ms. Content within these intervals is unknown.\n*   **Fidelity:** Text is model-derived ASR; not verbatim primary evidence. Visual descriptions are derived interpretations, not independently verified OCR.\n*   **Context:** The content appears to be a synthetic qualification or demonstration of data correction rather than a standard industry report. No specific vendor, product launch, or market event is identified in the available text.\n\n### 1. KEY ANNOUNCEMENTS & EVENTS\n*   **Initial Claim (Retracted):** At timestamp 0ms and 60000ms (Image Index 0), the source presents a preliminary spoken claim that \"Production incident probability tripled.\" The source explicitly labels this as a \"Preliminary spoken claim, not an established result\" and identifies the context as a \"SYNTHETIC STUDY.\"\n*   **Correction Event:** At timestamp 67000ms (Image Index 1), the source issues a formal correction to the initial claim. The header changes from \"SYNTHETIC STUDY\" to \"CORRECTION.\"\n\n### 2. TECHNICAL DETAILS\n*   **Metric Definition Correction:** The source corrects the metric used in the initial claim.\n    *   *Initial (Incorrect):* \"Incident probability.\"\n    *   *Corrected:* \"Incidents-to-PR RATIO\" (Incidents to Pull Requests ratio).\n    *   *Evidence:* Transcript states, \"The measurement is an incidence to pull requests ratio, not probability.\" Image 1 text confirms: \"Incidents-to-PR RATIO, not probability.\"\n*   **Study Methodology Constraints:**\n    *   **Sample Size/Demographic:** The data applies to \"40 adults only.\"\n    *   **Causality:** The source explicitly states the findings are \"Observational, not causal.\"\n    *   **Generalizability:** The source warns: \"Do not generalize to children.\"\n    *   **Comparison Basis:** The transcript notes the source \"compares software changes across two adoption periods,\" though specific details of these periods are not provided in the sampled text.\n\n### 3. BUSINESS & MARKET SIGNALS\n*   **No Market Signals Detected:** The available transcript and visual frames do not contain revenue figures, adoption numbers, competitive moves, or funding rounds. The content is limited to methodological clarification of a synthetic study.\n\n### 4. ANALYTICAL FRAMEWORKS & ARGUMENTS\n*   **Distinction Between Probability and Ratio:** The source presents an argument regarding the precision of technical metrics. It distinguishes between \"probability\" (a statistical likelihood) and a \"ratio\" (incidents per pull request). The correction implies that using \"probability\" was an analytical error in the initial claim.\n*   **Observational vs. Causal Logic:** The source establishes a framework for interpreting the data by explicitly denying causal inference. It frames the findings strictly as observational correlations within a specific adult demographic, rejecting broader causal claims or generalizations to other demographics (children).\n\n### 5. OPINIONS, PREDICTIONS & ADVICE\n*   **Creator’s Stance on Data Integrity:** The creator demonstrates a preference for precise metric definition. By issuing a correction from \"probability\" to \"ratio,\" the creator signals that imprecise terminology in technical reporting is an error to be rectified.\n*   **Advice on Generalization:** The explicit instruction \"Do not generalize to children\" serves as advice against extrapolating findings from this specific sample (40 adults) to other populations.\n\n### 6. RISKS, WARNINGS & FAILURE MODES\n*   **Risk of Misinterpretation:** The source highlights the risk of misinterpreting observational data as causal evidence.\n*   **Risk of Over-Generalization:** The source warns against applying findings from a small adult sample (40 adults) to children or broader populations.\n*   **Failure Mode in Reporting:** The initial claim (\"probability tripled\") is presented as a failure mode in technical communication, which is then corrected to the more accurate \"incidents-to-PR ratio.\"\n\n### 7. VENDOR & ORGANIZATION POSITIONING\n*   **No Vendors Identified:** No specific companies, labs, or organizations are named or positioned in the available text. The source refers only to a \"synthetic study\" and \"software changes\" generally.\n\n### 8. CUSTOMER & PRACTITIONER PATTERNS\n*   **No Practitioner Patterns Detected:** The transcript does not describe user behaviors, deployment patterns, or specific use cases beyond the abstract comparison of \"software changes across two adoption periods.\"\n\n### 9. NOTABLE QUOTES\n*   *\"Production incident probability tripled. Preliminary spoken claim, not an established result.\"* (Image Index 0, Timestamps 0ms/60000ms)\n*   *\"Incidents-to-PR RATIO, not probability.\"* (Image Index 1, Timestamp 67000ms)\n*   *\"40 adults only. Observational, not causal. Do not generalize to children.\"* (Image Index 1, Timestamp 67000ms; Transcript confirmation)\n\n**Summary of Uncertainty:**\nThe source provides a correction to a metric definition but lacks the underlying data, the specific \"two adoption periods\" details, or the actual values of the incidents-to-PR ratio. The blind intervals between frames mean any additional context, examples, or elaboration on the \"synthetic study\" is missing from this extraction.",
+        "input_tokens": 1972,
+        "output_tokens": 1333,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 1972,
+            "output_tokens": 1333,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "0631869b4a9e4fdf8a162f9f4a511c3d",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0032163,
+        "prefill_seconds": 0.80008,
+        "decode_seconds": 30.465449,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "pass2",
+      "response": {
+        "text": "## Summary\nThe source material presents a correction to a preliminary claim regarding software engineering metrics, specifically distinguishing between \"incident probability\" and an \"incidents-to-PR ratio.\" The content identifies itself as a synthetic study involving 40 adults, explicitly warning against causal inference or generalizing findings to children. It matters as a demonstration of data integrity practices, highlighting the risks of misinterpreting observational data and using imprecise terminology in technical reporting.\n\n## Key Points\n*   **Metric Correction:** The initial claim that \"production incident probability tripled\" was retracted and corrected to state that the measurement is an \"incidents-to-PR ratio\" (Incidents to Pull Requests ratio), not a probability.\n*   **Study Constraints:** The data applies strictly to a sample of \"40 adults only.\"\n*   **Methodological Limitations:** The findings are explicitly labeled as \"observational, not causal.\"\n*   **Generalization Warning:** The source instructs viewers: \"Do not generalize to children.\"\n*   **Context:** The content is identified as a \"SYNTHETIC STUDY\" and involves comparing software changes across two adoption periods, though specific details of these periods are absent from the sampled text.\n\n## Details and Evidence\n*   **Initial Claim (Retracted):** At timestamps 0ms and 60000ms, the source presented a preliminary spoken claim: \"Production incident probability tripled.\" This was labeled as a \"Preliminary spoken claim, not an established result.\"\n*   **Correction Event:** At timestamp 67000ms, the header changed to \"CORRECTION,\" and the text clarified: \"Incidents-to-PR RATIO, not probability.\"\n*   **Visual Evidence:** Image Index 0 displays the initial claim; Image Index 1 displays the correction and methodological constraints.\n*   **Source Integrity:** The source is a local captured video (SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`). Blind intervals exist between sampled anchors, meaning content within those intervals is unknown. Text fidelity is model-derived ASR and not independently verified.\n\n## Creator's Take\n*   **Precision in Terminology:** The creator argues that using \"probability\" to describe the metric was an analytical error, advocating for the precise use of \"ratio\" (incidents per pull request).\n*   **Skepticism of Causal Inference:** The creator emphasizes that observational data should not be interpreted as causal evidence.\n*   **Advice on Extrapolation:** The creator advises against extrapolating findings from this specific adult sample to other populations, specifically children.\n*   **Data Integrity Stance:** By issuing a formal correction, the creator signals that imprecise terminology in technical reporting is a failure mode that must be rectified.\n\n## Notable Specifics\n*   **Quotes:**\n    *   \"Production incident probability tripled. Preliminary spoken claim, not an established result.\"\n    *   \"Incidents-to-PR RATIO, not probability.\"\n    *   \"40 adults only. Observational, not causal. Do not generalize to children.\"\n*   **Metrics:** Incidents-to-PR ratio (Incidents to Pull Requests ratio).\n*   **Sample Size:** 40 adults.\n*   **Source Identity:** Local captured video; SHA256 `d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc`.",
+        "input_tokens": 2047,
+        "output_tokens": 802,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2047,
+            "output_tokens": 802,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "aeb517e4e7fb479f867ccb605fa33549",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.003175,
+        "prefill_seconds": 0.778836,
+        "decode_seconds": 18.380079,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "video_visual_review",
+      "response": {
+        "text": "```json\n{\n  \"source_fidelity\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate accurately reflects the text visible in the provided images, correctly identifying the initial claim ('Production incident probability tripled') and the subsequent correction ('Incidents-to-PR RATIO'). It faithfully reports the specific constraints listed: '40 adults only', 'Observational, not causal', and 'Do not generalize to children'.\"\n  },\n  \"material_qualifications\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate explicitly highlights the decisive limitations provided in the source material. It clearly states that the study is observational rather than causal, involves a small sample of adults only, and warns against generalizing to children.\"\n  },\n  \"disagreement\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate correctly identifies and preserves the conflict between the initial claim (probability) and the correction (ratio). It accurately describes the source's self-correction process without smoothing over the discrepancy.\"\n  },\n  \"coverage_disclosure\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate explicitly notes that 'Blind intervals exist between sampled anchors, meaning content within those intervals is unknown' and acknowledges that text fidelity is model-derived. It also correctly identifies the source as a local captured video.\"\n  },\n  \"detail_and_citations\": {\n    \"verdict\": \"pass\",\n    \"reason\": \"The candidate provides specific details such as the SHA256 hash, timestamps for the visual changes (0ms vs 67000ms), and direct quotes from the slides. It correctly identifies the metric change from probability to ratio.\"\n  }\n}\n```",
+        "input_tokens": 3887,
+        "output_tokens": 377,
+        "model": "qwen3.6:27b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 3887,
+            "output_tokens": 377,
+            "model": "qwen3.6:27b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "cf990f22eaf448309ec37262acf4cda1",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0324301,
+        "prefill_seconds": 1.73869,
+        "decode_seconds": 8.72603,
+        "num_ctx": 32768,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    }
+  ],
+  "visual_coverage": "sampled_only",
+  "original_source_completeness": "not_established",
+  "text_coverage": "not_independently_verified",
+  "semantic_review": "local_model_review_not_independent_ground_truth"
+}

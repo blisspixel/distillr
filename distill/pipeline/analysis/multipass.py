@@ -22,6 +22,10 @@ from distill.pipeline.analysis.chunk_selection import (
     select_chunks_for_category,
 )
 from distill.pipeline.analysis.chunking import Chunk
+from distill.pipeline.analysis.paper_review import (
+    RECONCILIATION_SECTION,
+    reconcile_paper_evidence,
+)
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.lenses import focus_directive
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
@@ -126,6 +130,7 @@ class MultiPassAnalysisResult:
 
     passes: list[PassResult]
     selection_modes: str = ""
+    supplied_chunks: list[Chunk] | None = None
 
 
 def _build_focused_prompt(
@@ -254,6 +259,35 @@ def multi_pass_analysis(
             len(response.text),
         )
 
+    if not results:
+        return MultiPassAnalysisResult(
+            passes=[],
+            selection_modes=format_selection_modes(selection_plan.modes),
+            supplied_chunks=chunks,
+        )
+
+    def review_call(prompt: str) -> LLM_Response:
+        return call(
+            config,
+            workload_tag="analysis",
+            prompt=prompt,
+            call_type="paper_source_reconciliation",
+            usage_tracker=tracker,
+        )
+
+    review = reconcile_paper_evidence(
+        chunks,
+        results,
+        config,
+        metadata,
+        tracker=tracker,
+        goal=goal,
+        lens=lens,
+        call_model=review_call,
+    )
+    if len(review.passes) > len(results):
+        selection_plan.modes[RECONCILIATION_SECTION] = "positional_order"
+    results = review.passes
     logger.info(
         "Multi-pass analysis complete: %d/%d passes produced",
         len(results),
@@ -262,6 +296,7 @@ def multi_pass_analysis(
     return MultiPassAnalysisResult(
         passes=results,
         selection_modes=format_selection_modes(selection_plan.modes),
+        supplied_chunks=review.chunks,
     )
 
 
@@ -332,6 +367,10 @@ def merge_paper_pass_results(
     """Merge per-pass paper responses into canonical single-pass section headings."""
     if not results:
         return body
+
+    for result in reversed(results):
+        if result.category == RECONCILIATION_SECTION:
+            return result.insights.strip() + "\n"
 
     section_map: dict[str, str] = {}
     for result in results:
