@@ -1,0 +1,12 @@
+[
+  {
+    "attempt": 1,
+    "batched": true,
+    "status": "returned_segments"
+  },
+  {
+    "attempt": 2,
+    "batched": true,
+    "status": "returned_segments"
+  }
+]

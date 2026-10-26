@@ -164,6 +164,13 @@ materializes a late frame but the model misreads its pixels; a malformed review
 leaves the consumer artifact incomplete. ASR remains blocked. These failures
 keep #61 and #67 open, the release gate closed, and defaults unchanged.
 
+The [second repair trial](docs/design/issues-61-67-repair-trial-2026-10-25.md)
+demonstrates actual captionless local ASR and shared-source audio/frame capture.
+It also retains failed source extraction and a consumer review judging the
+wrong object. General prompt and review repairs remain mechanically tested
+but not live-qualified. Stable and prerelease publication are stopped until
+the outcome is trustworthy; this does not advance the queued baseline row.
+
 The next bounded [paper-input evidence slice](docs/design/paper-input-evidence-2026-10-25.md)
 repairs route/context metadata mismatches, refuses empty paper analysis rather
 than completing from a lead chunk, and records actual response models and

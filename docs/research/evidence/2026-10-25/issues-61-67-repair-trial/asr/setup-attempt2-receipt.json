@@ -1,0 +1,13 @@
+{
+  "source_sha256": "86317b502d089f1cea9a7b28fb7e9bdf766f4aa77cf872cd7acd7a150365498d",
+  "source_bytes": 3510496,
+  "late_correction_seconds": 65,
+  "interpreter": "C:\\GitHub\\scribe\\.venv\\Scripts\\python.exe",
+  "network": "all Python socket connections and DNS denied in parent and actual ASR worker",
+  "limit": "native dependencies are not OS sandboxed; no whole-chain privacy claim",
+  "cost_usd": 0,
+  "status": "failed",
+  "error_type": "TranscriptionError",
+  "error": "local: Unexpected subprocess in ASR qualification",
+  "elapsed_seconds": 0.02581420005299151
+}

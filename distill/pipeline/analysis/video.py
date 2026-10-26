@@ -70,6 +70,7 @@ def analyze_video(
     max_tokens: int = 8192,
     timeout: int = 300,
     retries: int = 2,
+    trusted_analysis_instructions: str = "",
 ) -> str:
     """Run 2-pass analysis on a video transcript. Returns insights markdown.
 
@@ -85,6 +86,8 @@ def analyze_video(
     prompt1 = pass1_extraction_prompt(
         title, upload_date, channel_name, transcript, custom_instructions, goal=goal
     )
+    if trusted_analysis_instructions:
+        prompt1 = f"ANALYSIS REQUIREMENTS:\n{trusted_analysis_instructions}\n\n{prompt1}"
     response1 = llm_call(
         rc,
         workload_tag="analysis",
@@ -107,6 +110,8 @@ def analyze_video(
         )
 
     prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1, goal=goal, lens=lens)
+    if trusted_analysis_instructions:
+        prompt2 = f"ANALYSIS REQUIREMENTS:\n{trusted_analysis_instructions}\n\n{prompt2}"
     response2 = llm_call(
         rc,
         workload_tag="analysis",

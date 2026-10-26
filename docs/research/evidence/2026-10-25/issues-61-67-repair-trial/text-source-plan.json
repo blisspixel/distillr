@@ -1,0 +1,128 @@
+{
+  "schema": "repair-text-source-plan.v1",
+  "prompt_id": "analysis.site_page.v3",
+  "fixtures": {
+    "faros-extraction": {
+      "id": "faros-extraction",
+      "workload": "site",
+      "title": "Frozen Faros takeaway excerpt",
+      "source_text": "faros-headline [headline; frozen page excerpt]: For every code change merged, the probability of a production incident has more than tripled.\n\nfaros-ratio [measurement; frozen page excerpt]: The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.\n\nfaros-not-probability [qualification; frozen page excerpt]: This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.\n\nfaros-method [qualification; frozen page excerpt]: It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.\n\nfaros-observational [qualification; authored context]: The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.\n\nfaros-population [qualification; frozen page excerpt]: The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.\n\nfaros-no-randomized-effect [gap; authored context]: The frozen takeaway page does not report a randomized effect.\n\nfaros-report-not-captured [gap; authored context]: The full report was not captured; this brief is limited to the frozen takeaway page.\n\nfaros-monthly [measurement; frozen page excerpt]: Monthly incidents are up 57.9%.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "https://www.faros.ai/blog/ai-acceleration-whiplash-takeaways",
+      "site_name": "Frozen Faros page accessed2026-10-24",
+      "question": "",
+      "source_stems": [],
+      "risk_patterns": []
+    },
+    "faros-concise": {
+      "id": "faros-concise",
+      "workload": "site",
+      "title": "Synthetic concise ratio qualification",
+      "source_text": "Headline: Production incident probability more than tripled.\nBody measurement: The incidents-to-PR ratio increased 242.7% between each organization's lowest and highest AI-adoption periods. A PR can be linked to multiple incidents, so this is not an incident probability. The observational comparison does not establish causation. Full report not captured.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "fixture:concise-ratio",
+      "site_name": "Synthetic adversarial fixture",
+      "question": "",
+      "source_stems": [],
+      "risk_patterns": []
+    },
+    "faros-reordered": {
+      "id": "faros-reordered",
+      "workload": "site",
+      "title": "Frozen Faros anchors reordered",
+      "source_text": "faros-monthly [measurement; frozen page excerpt]: Monthly incidents are up 57.9%.\n\nfaros-report-not-captured [gap; authored context]: The full report was not captured; this brief is limited to the frozen takeaway page.\n\nfaros-no-randomized-effect [gap; authored context]: The frozen takeaway page does not report a randomized effect.\n\nfaros-population [qualification; frozen page excerpt]: The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.\n\nfaros-observational [qualification; authored context]: The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.\n\nfaros-method [qualification; frozen page excerpt]: It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.\n\nfaros-not-probability [qualification; frozen page excerpt]: This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.\n\nfaros-ratio [measurement; frozen page excerpt]: The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.\n\nfaros-headline [headline; frozen page excerpt]: For every code change merged, the probability of a production incident has more than tripled.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "https://www.faros.ai/blog/ai-acceleration-whiplash-takeaways",
+      "site_name": "Frozen Faros page accessed2026-10-24",
+      "question": "",
+      "source_stems": [],
+      "risk_patterns": []
+    },
+    "genuine-probability": {
+      "id": "genuine-probability",
+      "workload": "site",
+      "title": "Synthetic randomized probability trial",
+      "source_text": "trial-probability [measurement; fixture authored]: In the randomized trial, the probability of an incident within 7 days was 0.12 in the treated arm and 0.04 in the control arm among randomized participants.\n\ntrial-no-pr-denominator [gap; fixture authored]: The trial does not report an incidents-to-PR ratio.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "fixture:synthetic-probability-trial",
+      "site_name": "Synthetic probability control",
+      "question": "",
+      "source_stems": [],
+      "risk_patterns": []
+    }
+  },
+  "schedule": [
+    {
+      "case_id": "faros-extraction",
+      "repeat": 1,
+      "think_requested": false
+    },
+    {
+      "case_id": "faros-extraction",
+      "repeat": 1,
+      "think_requested": true
+    },
+    {
+      "case_id": "faros-concise",
+      "repeat": 1,
+      "think_requested": true
+    },
+    {
+      "case_id": "faros-concise",
+      "repeat": 1,
+      "think_requested": false
+    },
+    {
+      "case_id": "faros-reordered",
+      "repeat": 1,
+      "think_requested": false
+    },
+    {
+      "case_id": "faros-reordered",
+      "repeat": 1,
+      "think_requested": true
+    },
+    {
+      "case_id": "genuine-probability",
+      "repeat": 1,
+      "think_requested": true
+    },
+    {
+      "case_id": "genuine-probability",
+      "repeat": 1,
+      "think_requested": false
+    },
+    {
+      "case_id": "faros-extraction",
+      "repeat": 2,
+      "think_requested": true
+    },
+    {
+      "case_id": "faros-extraction",
+      "repeat": 2,
+      "think_requested": false
+    }
+  ],
+  "max_calls": 10,
+  "cache": "disabled; _run_analysis direct actual production prompt",
+  "source_identity": "original fixture exactly reused from first trial; reordered retains every anchor verbatim",
+  "coverage_tradeoff": "Original has two repeats per setting. Concise, reordered and probability controls each have one per setting; no generalization claim.",
+  "comparison": "New template only; original v2 exact outputs retained in prior trial for historical matched-source comparison. Not a fresh counterbalanced v2/v3 trial.",
+  "context": "Shared trial-only 16384 request override; production adaptive policy not validated"
+}

@@ -174,7 +174,10 @@ def wait_for_process_budget(
     memory_limit_bytes: int,
     poll_seconds: float = 0.025,
 ) -> int:
-    """Wait for a child while enforcing aggregate tree RSS and elapsed time."""
+    """Enforce aggregate tree RSS and elapsed time; return peak RSS in bytes.
+
+    Read ``process.returncode`` separately for the child's exit status.
+    """
 
     if timeout_seconds <= 0 or memory_limit_bytes <= 0 or poll_seconds <= 0:
         raise ValueError("process budgets must be positive")

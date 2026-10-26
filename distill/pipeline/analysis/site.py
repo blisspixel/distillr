@@ -127,7 +127,7 @@ def analyze_site_page(
         f"model: {response.model}\n"
         f"model_version: {response.model}\n"
         f"temperature: 0.0\n"
-        f'prompt_id: "analysis.site_page.v2"\n'
+        f'prompt_id: "{PROMPT_IDS["analysis.site_page"]}"\n'
         f"lens: {lens or 'general'}\n"
         "---\n\n"
         f"{result}\n"

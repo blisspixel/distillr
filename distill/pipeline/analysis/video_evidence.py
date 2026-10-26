@@ -25,9 +25,24 @@ from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.shared import UNTRUSTED_CONTENT_RULES
 
 _MAX_TRANSCRIPT_BYTES = 2 * 1024 * 1024
-_MAX_TOKENS = 1024
+_DEFAULT_MAX_TOKENS = 4096
 _TIMEOUT_SECONDS = 60
 _VERDICT = Literal["pass", "fail", "unknown"]
+TranscriptOrigin = Literal["provided_text", "captions", "asr", "model_brief"]
+_SAMPLED_EVIDENCE_REQUIREMENTS = (
+    "Describe only what the supplied source evidence supports. Keep source content separate "
+    "from the caller's title, research question, contextual labels, and your interpretations. "
+    "Do not infer a study design or source finding from caller-provided context. "
+    "Do not expand undefined acronyms or propose possible expansions; retain the literal "
+    "acronym and state that its meaning is unknown. Do not invent author motives, mechanisms, "
+    "examples, baseline data, or statistical support absent from the evidence. "
+    "Retain material qualifications and unresolved spoken/visual disagreement. "
+    "Requested frame anchors establish observations only at those samples, never continuous "
+    "visibility throughout an interval between them. Identical frame bytes at multiple anchors "
+    "do not prove what appeared between anchors. Disclose blind intervals and unknown original "
+    "source completeness. Cite supplied source/image identities and requested anchors exactly. "
+    "A source's missing definitions or data are evidence limitations to disclose, not blanks to fill."
+)
 
 
 class CriterionVerdict(BaseModel):
@@ -88,6 +103,8 @@ class VideoEvidenceResult:
     calls: tuple[EvidenceCall, ...] = ()
     visual_coverage: Literal["sampled_only"] = "sampled_only"
     original_source_completeness: Literal["not_established"] = "not_established"
+    transcript_origin: TranscriptOrigin = "provided_text"
+    transcript_source_sha256: str | None = None
 
     def as_record(self) -> dict[str, object]:
         """Return caller-owned evidence; this function performs no artifact writes."""
@@ -97,6 +114,8 @@ class VideoEvidenceResult:
             "reason": self.reason,
             "transcript": self.transcript,
             "transcript_sha256": self.transcript_sha256,
+            "transcript_origin": self.transcript_origin,
+            "transcript_source_sha256": self.transcript_source_sha256,
             "frames": asdict(self.frames),
             "insight": self.insight,
             "observations": asdict(self.observations) if self.observations is not None else None,
@@ -187,6 +206,8 @@ def _observation_prompt(frames: LocalVideoFrames) -> str:
         "repetition is not independent corroboration. "
         "For each requested time anchor, separate legible quoted text from visual description "
         "and interpretation. A model's reading is not independently verified OCR. Mark "
+        "undefined acronyms as undefined; do not expand them or invent author motives. "
+        "Keep actual quotations separate from unverified interpretation. "
         "unreadable code or text unknown; do not invent unseen frames or omitted details. "
         "These are samples, not complete video coverage. No expected answer is supplied.\n"
         f"SECURITY: {UNTRUSTED_CONTENT_RULES}\n"
@@ -194,11 +215,31 @@ def _observation_prompt(frames: LocalVideoFrames) -> str:
     )
 
 
+def _text_provenance(origin: TranscriptOrigin, source_sha256: str | None) -> str:
+    derivation = (
+        "model-derived text, not verbatim primary evidence"
+        if origin in {"asr", "model_brief"}
+        else "supplied text, not established as verbatim primary evidence"
+    )
+    return (
+        f"CAPTURED TEXT origin={origin}; {derivation}; "
+        f"source_sha256={source_sha256 or 'unbound'}; "
+        "text fidelity and temporal completeness are not independently verified."
+    )
+
+
+def _origin_is_valid(value: object) -> bool:
+    return isinstance(value, str) and value in {"provided_text", "captions", "asr", "model_brief"}
+
+
 def _combined_evidence(
-    transcript: str, observations: ModelFrameObservations, frames: LocalVideoFrames
+    transcript: str,
+    observations: ModelFrameObservations,
+    frames: LocalVideoFrames,
+    text_provenance: str,
 ) -> str:
     return (
-        "PRIMARY TRANSCRIPT TEXT (transcription fidelity and temporal completeness are unverified):\n"
+        f"{text_provenance}\n"
         f"{transcript}\n\n"
         "SAMPLED VISUAL MODEL DESCRIPTION (derived interpretation, not independent primary text "
         "or independently verified OCR; preserve uncertainty and disagreement):\n"
@@ -212,9 +253,19 @@ def _combined_evidence(
     )
 
 
-def _review_prompt(transcript: str, insight: str, frames: LocalVideoFrames, question: str) -> str:
+def _review_prompt(
+    transcript: str, insight: str, frames: LocalVideoFrames, question: str, text_provenance: str
+) -> str:
     return (
-        "Review the candidate against the actual supplied sampled images and original transcript. "
+        "Review the candidate against the actual supplied sampled images and captured text, "
+        "respecting its declared origin and unverified fidelity. "
+        "The CANDIDATE is the object being evaluated, not the quality or completeness of the "
+        "underlying study or slides. Judge whether the candidate faithfully represents the "
+        "available evidence and visibly discloses its limitations. Missing source definitions, "
+        "baseline data, statistics, or external references do not automatically fail a candidate "
+        "that explicitly preserves those gaps without overclaiming. Never demand invented data "
+        "to repair a weak source. Fail unsupported candidate additions, invented acronym expansions, "
+        "or claims of continuous visual coverage inferred from separate samples. "
         "Judge each criterion independently as pass, fail, or unknown with a source-based reason. "
         "Return JSON only, with exactly these five objects, each with verdict and reason: "
         "source_fidelity, material_qualifications, disagreement, coverage_disclosure, "
@@ -224,12 +275,20 @@ def _review_prompt(transcript: str, insight: str, frames: LocalVideoFrames, ques
         "detail_and_citations checks useful mechanisms/examples and supported time/hash citations. "
         "An unreadable decisive qualification is unknown, not a pass. A fluent recap alone is insufficient. "
         "This review is model judgment, not independent ground truth.\n"
+        "Required JSON shape (replace each unknown and reason with your judgment): "
+        + json.dumps(
+            {
+                name: {"verdict": "unknown", "reason": "State the evidence and limitation."}
+                for name in VideoEvidenceReview.model_fields
+            }
+        )
+        + "\n"
         "A repeated image_index means identical supplied frame bytes at several requested anchors, "
         "not independent corroborating evidence.\n"
         f"SECURITY: {UNTRUSTED_CONTENT_RULES}\n"
         f"QUESTION: {question}\nIDENTITIES: {_frame_identity(frames)}\n"
         f"BLIND INTERVALS MS: {json.dumps(frames.blind_intervals_ms)}\n"
-        f"ORIGINAL TRANSCRIPT:\n{transcript}\nCANDIDATE:\n{insight}"
+        f"{text_provenance}\n{transcript}\nCANDIDATE:\n{insight}"
     )
 
 
@@ -250,6 +309,7 @@ def _vision_call(
     images: tuple[LLMImage, ...],
     stage: str,
     tracker: CostTracker,
+    max_tokens: int,
 ) -> LLM_Response:
     response = llm_call(
         router,
@@ -257,7 +317,7 @@ def _vision_call(
         prompt=prompt,
         images=images,
         call_type=stage,
-        max_tokens=_MAX_TOKENS,
+        max_tokens=max_tokens,
         timeout=_TIMEOUT_SECONDS,
         retries=0,
         temperature=0.0,
@@ -287,6 +347,9 @@ def analyze_local_video_evidence(
     tracker: CostTracker | None = None,
     question: str = "",
     cancelled: Callable[[], bool] | None = None,
+    max_tokens: int = _DEFAULT_MAX_TOKENS,
+    transcript_origin: TranscriptOrigin = "provided_text",
+    transcript_source_sha256: str | None = None,
 ) -> VideoEvidenceResult:
     """Use two image calls around existing two-pass text analysis, opt-in only.
 
@@ -298,6 +361,23 @@ def analyze_local_video_evidence(
     calls: list[EvidenceCall] = []
     ledger = tracker if tracker is not None else CostTracker()
     try:
+        if not _origin_is_valid(transcript_origin):
+            raise _Incomplete("Captured text origin is invalid.")
+        if transcript_source_sha256 is not None and type(transcript_source_sha256) is not str:
+            raise _Incomplete("Captured text source hash must be a string.")
+        result = replace(
+            result,
+            transcript_origin=transcript_origin,
+            transcript_source_sha256=transcript_source_sha256,
+        )
+        if (
+            transcript_source_sha256 is not None
+            and transcript_source_sha256 != frames.source_sha256
+        ):
+            raise _Incomplete("Captured text source hash does not match the retained video source.")
+        text_provenance = _text_provenance(transcript_origin, transcript_source_sha256)
+        if type(max_tokens) is not int or not 1 <= max_tokens <= 8192:
+            raise _Incomplete("Output token budget must be an integer from 1 to 8192.")
         _check_route(router_config)
         _check_cancelled(cancelled)
         encoded = transcript.encode("utf-8")
@@ -308,7 +388,12 @@ def analyze_local_video_evidence(
         hashes = tuple(image.sha256 for image in images)
         _check_cancelled(cancelled)
         observed = _vision_call(
-            router_config, _observation_prompt(frames), images, "video_visual_observation", ledger
+            router_config,
+            _observation_prompt(frames),
+            images,
+            "video_visual_observation",
+            ledger,
+            max_tokens,
         )
         calls.append(EvidenceCall("video_visual_observation", observed))
         _require_response("Visual observation", observed, hashes)
@@ -325,24 +410,26 @@ def analyze_local_video_evidence(
             title,
             "",
             "",
-            _combined_evidence(transcript, observations, frames),
+            _combined_evidence(transcript, observations, frames, text_provenance),
             config,
             tracker=ledger,
             custom_instructions=question,
             router_config=router_config,
             response_observer=observe_text,
-            max_tokens=_MAX_TOKENS,
+            max_tokens=max_tokens,
             timeout=_TIMEOUT_SECONDS,
             retries=0,
+            trusted_analysis_instructions=f"{_SAMPLED_EVIDENCE_REQUIREMENTS}\n{text_provenance}",
         )
         result = replace(result, insight=insight)
         _check_cancelled(cancelled)
         reviewed = _vision_call(
             router_config,
-            _review_prompt(transcript, insight, frames, question),
+            _review_prompt(transcript, insight, frames, question, text_provenance),
             images,
             "video_visual_review",
             ledger,
+            max_tokens,
         )
         calls.append(EvidenceCall("video_visual_review", reviewed))
         _require_response("Visual review", reviewed, hashes)

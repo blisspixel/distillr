@@ -1,0 +1,60 @@
+{
+  "source": "C:\\GitHub\\distillr\\.agent\\issue67-asr-repair\\spoken-visual-synthetic.mp4",
+  "sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+  "bytes": 1291831,
+  "audio_source_sha256": "86317b502d089f1cea9a7b28fb7e9bdf766f4aa77cf872cd7acd7a150365498d",
+  "visual_source_sha256": "127e891d459d22309598b07a7eb0924241f6a2c5cfc80e525af07005ec89b8b7",
+  "late_spoken_correction_seconds": 65,
+  "capture": {
+    "source_sha256": "d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc",
+    "source_relative_path": "source-d5c98513f7342ab63409a677d3f797aa6dccc686d0f5f9dafee19025bee3e9cc.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "scope": "local mux and actual frame capture only; no additional ASR or model call"
+}

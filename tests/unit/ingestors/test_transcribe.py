@@ -6,6 +6,7 @@ import io
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -516,8 +517,16 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
 
     stream_command = run.call_args_list[0].args[0]
     decode_command = run.call_args_list[1].args[0]
-    assert stream_command[:4] == [ffprobe, "-v", "error", "-protocol_whitelist"]
-    assert stream_command[4] == "cache,pipe"
+    assert stream_command[:6] == [
+        ffprobe,
+        "-read_ahead_limit",
+        "5",
+        "-v",
+        "error",
+        "-protocol_whitelist",
+    ]
+    assert decode_command[1:3] == ["-read_ahead_limit", "5"]
+    assert stream_command[stream_command.index("-protocol_whitelist") + 1] == "cache,pipe"
     assert stream_command[-1] == "cache:pipe:0"
     assert "stream=index" in stream_command
     assert "-xerror" in decode_command
@@ -528,6 +537,21 @@ def test_probe_media_duration_uses_decoded_sample_timeline(tmp_path: Path) -> No
     assert run.call_args_list[1].kwargs["timeout"] == 30
     assert run.call_args_list[0].kwargs["stdin"].closed
     assert run.call_args_list[1].kwargs["stdin"].closed
+
+
+@pytest.mark.parametrize("size", [0, transcribe_module._MAX_MEDIA_INPUT_BYTES + 1])
+def test_media_probe_refuses_unbounded_cache_before_process(tmp_path: Path, size: int) -> None:
+    media = tmp_path / "input.mp4"
+    with media.open("wb") as stream:
+        stream.truncate(size)
+    with patch("distill.ingestors.transcribe.subprocess.run") as run:
+        assert (
+            transcribe_module._run_media_probe(
+                ["ffprobe", "cache:pipe:0"], media, timeout_seconds=1
+            )
+            is None
+        )
+    run.assert_not_called()
 
 
 def test_probe_media_duration_refuses_before_spawn_when_tools_are_unresolved(
@@ -596,6 +620,52 @@ def test_probe_media_duration_rejects_unsafe_or_invalid_output(
         patch("distill.ingestors.transcribe.subprocess.run", side_effect=probe_results),
     ):
         assert _probe_media_duration(media) == 0.0
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="FFmpeg tools are optional",
+)
+def test_probe_media_duration_reads_tail_metadata_beyond_default_cache(tmp_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg is not None
+    media = tmp_path / "tail-metadata.m4a"
+    subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=20:sample_rate=44100",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-y",
+            str(media),
+        ],
+        capture_output=True,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        timeout=10,
+    )
+    payload = media.read_bytes()
+    # A valid free box leaves chunk offsets unchanged while placing the tail
+    # metadata beyond the pipe cache's default forward-seek allowance.
+    metadata_offset = payload.index(b"moov") - 4
+    padding_size = 1024 * 1024
+    payload = (
+        payload[:metadata_offset]
+        + struct.pack(">I4s", padding_size, b"free")
+        + bytes(padding_size - 8)
+        + payload[metadata_offset:]
+    )
+    media.write_bytes(payload)
+    assert payload.index(b"moov") > 65536
+    assert _probe_media_duration(media) >= 20.0
 
 
 @pytest.mark.skipif(

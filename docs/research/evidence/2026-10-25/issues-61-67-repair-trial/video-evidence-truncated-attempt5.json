@@ -1,0 +1,164 @@
+{
+  "schema": "local-video-evidence.v1",
+  "status": "incomplete",
+  "reason": "pass1 did not confirm an untruncated completed response.",
+  "transcript": "Fixture-authored transcript supplied for this synthetic silent video, not ASR: The speaker initially claims production incident probability tripled. A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.",
+  "transcript_sha256": "bd649a98280b786ab9e7ddce9e6190ab63bce1ef296f952a84e940dbf3e0e631",
+  "frames": {
+    "source_sha256": "127e891d459d22309598b07a7eb0924241f6a2c5cfc80e525af07005ec89b8b7",
+    "source_relative_path": "source-127e891d459d22309598b07a7eb0924241f6a2c5cfc80e525af07005ec89b8b7.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "insight": "",
+  "observations": {
+    "text": "Here is a detailed textual description of the two unique PNG images provided, in order of their `image_index` (ignoring repeated timestamps):\n\n---\n\n### **Image 1 (image_index: 0)**\n**Requested Timestamp:** 0 ms, 60000 ms, 120000 ms (SHA256: `50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c`)\n\n#### **Legible Quoted Text:**\n- **\"SYNTHETIC STUDY\"**\n- **\"Production incident probability tripled.\"**\n- **\"Preliminary spoken claim, not an established result.\"**\n\n#### **Visual Description:**\n- The image is a plain white background with black text.\n- The text is centered and written in a sans-serif font.\n- The font size is large and bold, with each line separated by a single space.\n- The text is aligned to the left within each line.\n\n#### **Interpretation:**\n- The image appears to be a slide or a note summarizing a claim about a study on production incidents.\n- The term **\"synthetic study\"** suggests a simulated or modeled analysis rather than empirical data.\n- The phrase **\"preliminary spoken claim\"** indicates that this is an informal or unverified statement, not a finalized or peer-reviewed result.\n\n---\n\n### **Image 2 (image_index: 1)**\n**Requested Timestamp:** 67000 ms (SHA256: `63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d`)\n\n#### **Legible Quoted Text:**\n- **\"CORRECTION\"**\n- **\"Incidents-to-PR RATIO, not probability.\"**\n- **\"40 adults only. Observational, not causal.\"**\n- **\"Do not generalize to children.\"**\n\n#### **Visual Description:**\n- The image is also a plain white background with black text.\n- The text is centered and written in a sans-serif font, similar to the first image.\n- The font size is slightly smaller than the first image but still bold and clear.\n- Each line is separated by a single space, and the text is left-aligned within each line.\n\n#### **Interpretation:**\n- This slide appears to be a correction or clarification of the previous claim.\n- **\"Incidents-to-PR RATIO\"** suggests that the study measured the ratio of incidents to some other metric (likely \"PR,\" which could stand for \"production runs\" or \"production-related\").\n- **\"Observational, not causal\"** indicates that the study observed correlations but did not establish causation.\n- The restriction to **\"40 adults only\"** and the warning **\"Do not generalize to children\"** highlights limitations in the study's applicability and scope.\n\n---",
+    "model": "ministral-3:8b",
+    "input_image_hashes": [
+      "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+      "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+    ],
+    "origin": "model_description"
+  },
+  "review": null,
+  "calls": [
+    {
+      "stage": "video_visual_observation",
+      "response": {
+        "text": "Here is a detailed textual description of the two unique PNG images provided, in order of their `image_index` (ignoring repeated timestamps):\n\n---\n\n### **Image 1 (image_index: 0)**\n**Requested Timestamp:** 0 ms, 60000 ms, 120000 ms (SHA256: `50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c`)\n\n#### **Legible Quoted Text:**\n- **\"SYNTHETIC STUDY\"**\n- **\"Production incident probability tripled.\"**\n- **\"Preliminary spoken claim, not an established result.\"**\n\n#### **Visual Description:**\n- The image is a plain white background with black text.\n- The text is centered and written in a sans-serif font.\n- The font size is large and bold, with each line separated by a single space.\n- The text is aligned to the left within each line.\n\n#### **Interpretation:**\n- The image appears to be a slide or a note summarizing a claim about a study on production incidents.\n- The term **\"synthetic study\"** suggests a simulated or modeled analysis rather than empirical data.\n- The phrase **\"preliminary spoken claim\"** indicates that this is an informal or unverified statement, not a finalized or peer-reviewed result.\n\n---\n\n### **Image 2 (image_index: 1)**\n**Requested Timestamp:** 67000 ms (SHA256: `63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d`)\n\n#### **Legible Quoted Text:**\n- **\"CORRECTION\"**\n- **\"Incidents-to-PR RATIO, not probability.\"**\n- **\"40 adults only. Observational, not causal.\"**\n- **\"Do not generalize to children.\"**\n\n#### **Visual Description:**\n- The image is also a plain white background with black text.\n- The text is centered and written in a sans-serif font, similar to the first image.\n- The font size is slightly smaller than the first image but still bold and clear.\n- Each line is separated by a single space, and the text is left-aligned within each line.\n\n#### **Interpretation:**\n- This slide appears to be a correction or clarification of the previous claim.\n- **\"Incidents-to-PR RATIO\"** suggests that the study measured the ratio of incidents to some other metric (likely \"PR,\" which could stand for \"production runs\" or \"production-related\").\n- **\"Observational, not causal\"** indicates that the study observed correlations but did not establish causation.\n- The restriction to **\"40 adults only\"** and the warning **\"Do not generalize to children\"** highlights limitations in the study's applicability and scope.\n\n---",
+        "input_tokens": 3224,
+        "output_tokens": 648,
+        "model": "ministral-3:8b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 3224,
+            "output_tokens": 648,
+            "model": "ministral-3:8b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "ff1a1a924ff44892a6b0b70471f8eec7",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=unset",
+            "reasoning_sent": "think=omitted",
+            "reasoning_support": "Default request omits think for this model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0073751,
+        "prefill_seconds": 0.57167,
+        "decode_seconds": 5.225438,
+        "num_ctx": 16384,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=unset",
+        "reasoning_sent": "think=omitted",
+        "reasoning_support": "Default request omits think for this model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    },
+    {
+      "stage": "pass1",
+      "response": {
+        "text": "Below is an exhaustive extraction from the provided transcript and visual content, adhering strictly to the **Operator Analysis Preferences** and **CRITICAL RULES**. All items are grounded in the **exact wording, framing, and omissions** of the transcript/visuals, with no inference beyond what is explicitly stated.\n\n---\n\n### **1. KEY ANNOUNCEMENTS & EVENTS**\n**Evidence:**\n- **Claim (Image 1, SHA256: `50469bde...` at 0/60000/120000 ms):**\n  - *\"Production incident probability tripled.\"* (Unverified, preliminary, no denominator/population specified).\n  - *\"Synthetic study\"* (implied: not empirical; likely a simulation/model).\n  - *\"Preliminary spoken claim, not an established result.\"* (Status: **rumored/leaked**).\n\n- **Correction (Image 2, SHA256: `63bc4a55...` at 67000 ms):**\n  - **Revised metric:** *\"Incidents-to-PR RATIO\"* (replaces \"probability\").\n  - **Scope:** *\"40 adults only\"* (sample size explicitly stated).\n  - **Causal disclaimer:** *\"Observational, not causal.\"*\n  - **Generalization warning:** *\"Do not generalize to children.\"* (Explicit exclusion of pediatric data).\n\n**Extracted Announcement:**\n- **Event:** A **correction of a preliminary claim** about incident rates in a synthetic study.\n  - **Original claim:** \"Production incident probability tripled\" (unverified, no population/baseline).\n  - **Corrected claim:** Incidents-to-PR ratio (observational, n=40 adults; **not causal**; **not applicable to children**).\n  - **Status:** Confirmed correction (via slide), but **no spoken audio** to confirm/deny the original claim’s veracity.\n\n---\n\n### **2. TECHNICAL DETAILS**\n**Evidence:**\n- **Metric Shift:**\n  - From *\"probability\"* (statistical likelihood) → *\"Incidents-to-PR RATIO\"* (ratio of incidents to production runs/related metric).\n  - **No definition of \"PR\"** provided (could imply \"production runs,\" \"production-related,\" or another domain-specific term).\n\n- **Study Design:**\n  - **Synthetic study** (simulated/model-based, not empirical).\n  - **Observational** (correlation, not causation).\n  - **Sample:** 40 adults (no age/sex/gender breakdown; no control group mentioned).\n  - **Exclusion:** Children explicitly excluded (*\"Do not generalize to children\"*).\n\n- **Performance Claims:**\n  - **Original claim:** \"Tripled\" (no baseline/denominator; likely a **relative change** claim).\n  - **Correction:** No new numerical performance claims; only **metric clarification**.\n\n**Extracted Technical Details:**\n- **Architecture/Methodology:** Synthetic (simulated) study with **observational design**.\n- **Evaluation:** Incidents-to-PR ratio (undefined \"PR\"; likely production-related).\n- **Benchmarks:** None provided (only ratio correction).\n- **Failure Mode:** Original claim lacked **denominator/population context**; correction clarifies **scope limitations**.\n\n---\n\n### **3. BUSINESS & MARKET SIGNALS**\n**Evidence:**\n- **None explicitly stated.** The transcript/visuals focus on **internal study corrections**, not market dynamics.\n- **Implied Signals:**\n  - **Risk of premature generalization:** The warning *\"Do not generalize to children\"* suggests **internal caution** about broader applicability (potential market/regulatory concern).\n  - **Lack of external validation:** \"Preliminary spoken claim\" implies **no peer review/publication** (early-stage or proprietary data).\n\n**Extracted Signals:**\n- **Market Risk:** Potential for **misinterpretation** if the original claim (probability tripling) was shared externally without context.\n- **Organizational Caution:** Explicit **pediatric exclusion** may reflect **regulatory sensitivity** or **limited evidence base**.\n\n---\n\n### **4. ANALYTICAL FRAMEWORKS & ARGUMENTS**\n**Evidence:**\n- **Correction Framework:**\n  1. **Original Claim:** *\"Production incident probability tripled.\"* (Implied: a **causal or probabilistic statement**).\n  2. **Correction:** Replaced with *\"Incidents-to-PR RATIO\"* (a **descriptive metric**, not causal).\n  3. **Scope Limits:** *\"40 adults only\"* + *\"observational\"* → **multi-factor framework**:\n     - **Metric:** Ratio (not probability).\n     - **Population:** Adults (exclusion of children).\n     - **Caus",
+        "input_tokens": 2675,
+        "output_tokens": 1024,
+        "model": "ministral-3:8b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2675,
+            "output_tokens": 1024,
+            "model": "ministral-3:8b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "94ac1b9182cc4d6fa8eb2474dc235112",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=unset",
+            "reasoning_sent": "think=omitted",
+            "reasoning_support": "Default request omits think for this model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0030932,
+        "prefill_seconds": 0.221429,
+        "decode_seconds": 8.488523999,
+        "num_ctx": 16384,
+        "finish_reason": "length",
+        "reasoning_requested": "think=unset",
+        "reasoning_sent": "think=omitted",
+        "reasoning_support": "Default request omits think for this model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    }
+  ],
+  "visual_coverage": "sampled_only",
+  "original_source_completeness": "not_established",
+  "text_coverage": "not_independently_verified",
+  "semantic_review": "local_model_review_not_independent_ground_truth"
+}

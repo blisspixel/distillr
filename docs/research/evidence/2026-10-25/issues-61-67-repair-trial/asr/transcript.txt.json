@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": ".agent/issue67-asr-repair/transcript.txt",
+  "original_sha256": "c24c5a5d1fbe9d9726732df23eedef8c24641c95f2f36f7a205c58d894cbaf99",
+  "original_bytes": 370,
+  "utf8_text": "This is a synthetic local speech qualification. The initial claim says incident probability rose. The source compares software changes across two adoption periods. We will correct this measurement later. Correction. The measurement is an incidence to pull requests ratio, not probability. 40 adults only. This is observational, not causal. Do not generalize to children."
+}

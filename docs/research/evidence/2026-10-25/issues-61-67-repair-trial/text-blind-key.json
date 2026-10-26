@@ -1,0 +1,52 @@
+{
+  "79fef33866f9": {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "c0390f5eead0": {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "1dbd59e88d74": {
+    "case_id": "faros-concise",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "19a0486a769b": {
+    "case_id": "faros-concise",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "40770db8385f": {
+    "case_id": "faros-reordered",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "e0231ef172bc": {
+    "case_id": "faros-reordered",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "0d4a98ec2bfa": {
+    "case_id": "genuine-probability",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "9f54360dac55": {
+    "case_id": "genuine-probability",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "f4b098d5c617": {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": true
+  },
+  "1e338d2a9450": {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": false
+  }
+}

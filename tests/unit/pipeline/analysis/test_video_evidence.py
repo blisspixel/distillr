@@ -151,7 +151,7 @@ def test_actual_images_survive_four_stage_path_with_separate_derived_observation
     assert result.transcript in calls[3]["prompt"]
     assert result.insight in calls[3]["prompt"]
     assert all(
-        call["max_tokens"] == 1024 and call["timeout"] == 60 and call["retries"] == 0
+        call["max_tokens"] == 4096 and call["timeout"] == 60 and call["retries"] == 0
         for call in calls
     )
     record = result.as_record()
@@ -159,6 +159,104 @@ def test_actual_images_survive_four_stage_path_with_separate_derived_observation
     assert record["original_source_completeness"] == "not_established"
     assert record["text_coverage"] == "not_independently_verified"
     assert json.loads(json.dumps(record))["transcript"] == result.transcript
+
+
+def test_sampled_evidence_requirements_frame_both_text_passes_and_review_target(
+    source_frames, tmp_path, transport
+):
+    calls, _, _ = transport
+    result = _run(source_frames, tmp_path)
+    assert result.status == "model_review_passed"
+    for index in (1, 2):
+        prompt = calls[index]["prompt"]
+        assert prompt.startswith("ANALYSIS REQUIREMENTS:\n")
+        requirements = prompt.split("\n\n", 1)[0]
+        assert "Do not expand undefined acronyms" in requirements
+        assert "never continuous" in requirements
+        assert "caller-provided context" in requirements
+        assert "not blanks to fill" in requirements
+    review_prompt = calls[3]["prompt"]
+    assert "CANDIDATE is the object being evaluated" in review_prompt
+    assert "do not automatically fail" in review_prompt
+    assert "Never demand invented data" in review_prompt
+    assert result.transcript in review_prompt
+    assert result.insight in review_prompt
+    assert source_frames.source_sha256 in review_prompt
+    assert source_frames.frames[0].sha256 in review_prompt
+
+
+@pytest.mark.parametrize("origin", ["provided_text", "captions", "asr", "model_brief"])
+def test_text_origin_and_exact_source_binding_survive_prompts_and_record(
+    source_frames, tmp_path, transport, origin
+):
+    calls, _, _ = transport
+    result = _run(
+        source_frames,
+        tmp_path,
+        transcript_origin=origin,
+        transcript_source_sha256=source_frames.source_sha256,
+    )
+    assert result.status == "model_review_passed"
+    assert result.transcript_origin == origin
+    assert result.transcript_source_sha256 == source_frames.source_sha256
+    record = result.as_record()
+    assert record["transcript_origin"] == origin
+    assert record["transcript_source_sha256"] == source_frames.source_sha256
+    for index in (1, 2, 3):
+        prompt = calls[index]["prompt"]
+        assert f"CAPTURED TEXT origin={origin}" in prompt
+        assert f"source_sha256={source_frames.source_sha256}" in prompt
+        assert "not independently verified" in prompt
+        assert "PRIMARY TRANSCRIPT TEXT" not in prompt
+        if origin in {"asr", "model_brief"}:
+            assert "model-derived text, not verbatim primary evidence" in prompt
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {"transcript_origin": "unknown"},
+        {"transcript_origin": []},
+        {"transcript_source_sha256": "0" * 64},
+        {"transcript_source_sha256": []},
+    ],
+)
+def test_invalid_origin_or_mismatched_source_binding_stops_before_model_calls(
+    source_frames, tmp_path, transport, provenance
+):
+    calls, _, _ = transport
+    result = _run(source_frames, tmp_path, **provenance)
+    assert result.status == "incomplete"
+    assert calls == []
+
+
+@pytest.mark.parametrize("max_tokens", [1536, 8192])
+def test_explicit_output_budget_reaches_all_stages_without_changing_source_identity(
+    source_frames, tmp_path, transport, max_tokens
+):
+    calls, _, _ = transport
+    result = _run(source_frames, tmp_path, max_tokens=max_tokens)
+    assert result.status == "model_review_passed"
+    assert len(calls) == 4
+    assert all(call["max_tokens"] == max_tokens for call in calls)
+    assert result.frames == source_frames
+    assert result.transcript_sha256 == hashlib.sha256(result.transcript.encode()).hexdigest()
+    for index in (0, 3):
+        assert calls[index]["images"][0].sha256 == source_frames.frames[0].sha256
+        assert source_frames.source_sha256 in calls[index]["prompt"]
+    assert "do not expand" in calls[0]["prompt"]
+    assert '"verdict": "unknown", "reason":' in calls[3]["prompt"]
+
+
+@pytest.mark.parametrize("max_tokens", [0, -1, 8193, True, 1.5])
+def test_invalid_output_budget_cannot_start_any_stage(
+    source_frames, tmp_path, transport, max_tokens
+):
+    calls, _, _ = transport
+    result = _run(source_frames, tmp_path, max_tokens=max_tokens)
+    assert result.status == "incomplete"
+    assert "token budget" in result.reason
+    assert calls == []
 
 
 def test_repeated_frame_payload_is_supplied_once_with_all_requested_anchors(

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A second bounded local repair trial distinguishes model pixel-reading
+  failures from transport, demonstrates two captionless ASR passes including
+  one shared audio/visual source, and retains failed extraction and consumer
+  review outcomes. General site prompt v4 preserves unknown method details
+  and collector provenance; its semantic repair remains unvalidated. Publication
+  is stopped pending successful qualification. See the
+  [repair trial](design/issues-61-67-repair-trial-2026-10-25.md).
 - Opt-in local sampled-PNG evidence uses bounded frame acquisition, exact
   byte identities, the existing two-pass video analyzer, and per-criterion
   model review. Required missing, truncated or invalid evidence stays

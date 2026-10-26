@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -139,8 +140,19 @@ def _run_media_probe(
     """Run one bounded media probe over a pipe-only input boundary."""
     try:
         with media_path.open("rb") as media_file:
+            # Tail metadata can require seeking beyond cache's 64 KiB default.
+            # Bound forward reads to this already bounded private media file.
+            media_bytes = os.fstat(media_file.fileno()).st_size
+            if not 0 < media_bytes <= _MAX_MEDIA_INPUT_BYTES:
+                return None
+            bounded_command = [
+                command[0],
+                "-read_ahead_limit",
+                str(media_bytes),
+                *command[1:],
+            ]
             completed = subprocess.run(
-                command,
+                bounded_command,
                 capture_output=True,
                 check=False,
                 stdin=media_file,

@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": ".agent/run_repair_child.py",
+  "original_sha256": "02f7f7cfa1ea3ec9fe0f37af79bc5bfb76ac46e58198af006f123f5453811bc8",
+  "original_bytes": 1276,
+  "utf8_text": "import json\nimport os\nimport subprocess\nimport sys\nfrom datetime import UTC, datetime\nfrom pathlib import Path\n\nfrom distill.process_resources import ProcessBudgetExceeded, terminate_isolated_process_tree, wait_for_process_budget\nfrom distill.process_security import sanitized_package_env\n\nauthority = json.loads(Path('.agent/repair-trial-authority.json').read_text())\nleft = (datetime.fromisoformat(authority['deadline_utc']) - datetime.now(UTC)).total_seconds()\nif left <= 0:\n    raise RuntimeError('Approved repair trial window ended')\nenv = sanitized_package_env()\nenv['DISTILL_APPROVED_ASR_TRIAL'] = 'reserved-by-parent'\nwith Path(sys.argv[3]).open('wb') as output:\n    process = subprocess.Popen([sys.argv[1], str(Path(sys.argv[2]).resolve()), *sys.argv[4:]], stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, env=env, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW)\n    try:\n        peak_rss = wait_for_process_budget(process, timeout_seconds=left, memory_limit_bytes=1024**3)\n        print(f'Repair child returncode: {process.returncode}; peak_rss_bytes: {peak_rss}')\n    except ProcessBudgetExceeded as exc:\n        terminate_isolated_process_tree(process)\n        print(f'Repair child stopped by {exc.kind} budget')\n"
+}

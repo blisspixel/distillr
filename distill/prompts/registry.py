@@ -32,6 +32,7 @@ PROMPT_IDS: dict[str, str] = {
     "analysis.newsletter": "analysis.newsletter.v1",
     "analysis.x_tweet": "analysis.x_tweet.v1",
     "analysis.paper": "analysis.paper.v3",
+    "analysis.site_page": "analysis.site_page.v4",
     "analysis.pass2": "analysis.pass2.v3",
     "analysis.short": "analysis.short.v2",
     "analysis.scan": "analysis.scan.v2",

@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": ".agent/issue61-67-repair-trial/prompts/003291c1f6e145d243c7956b56ef55d7b0d3d2d829b2646b105c6086c53e3ddd.txt",
+  "original_sha256": "003291c1f6e145d243c7956b56ef55d7b0d3d2d829b2646b105c6086c53e3ddd",
+  "original_bytes": 91,
+  "utf8_text": "Transcribe the readable text in this image. If unreadable, say UNKNOWN. Do not invent text."
+}
