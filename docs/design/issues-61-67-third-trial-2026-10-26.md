@@ -97,8 +97,9 @@ failed unsupported creator interpretation, claims about event/speech timing
 from requested sample positions, and omission of the recurring initial slide.
 A self-pass is not independent acceptance.
 
-The explicit mixed route kept image processing local with Qwen and supplied
-text to Sonnet for extraction, synthesis and review. It also self-passed.
+The explicit mixed route kept image processing and the final sampled-image
+review local with Qwen. Sonnet performed the two text extraction and synthesis
+passes. The route also self-passed.
 Independent review found one remaining material error: "The source's full
 length and completeness are unknown." The acquired local source duration is
 known to be 125,000 ms. Semantic completeness and upstream source completeness
