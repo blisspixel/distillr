@@ -1,0 +1,7 @@
+file 'initial.png'
+duration 65
+file 'qualification.png'
+duration 5
+file 'initial.png'
+duration 55
+file 'initial.png'

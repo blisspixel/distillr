@@ -1,0 +1,253 @@
+{
+  "schema": "local-video-evidence.v1",
+  "status": "incomplete",
+  "reason": "The visual review did not provide the required per-criterion verdicts.",
+  "transcript": "Fixture-authored transcript supplied for this synthetic silent video, not ASR: The speaker initially claims production incident probability tripled. A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.",
+  "transcript_sha256": "bd649a98280b786ab9e7ddce9e6190ab63bce1ef296f952a84e940dbf3e0e631",
+  "frames": {
+    "source_sha256": "127e891d459d22309598b07a7eb0924241f6a2c5cfc80e525af07005ec89b8b7",
+    "source_relative_path": "source-127e891d459d22309598b07a7eb0924241f6a2c5cfc80e525af07005ec89b8b7.mp4",
+    "duration_ms": 125000,
+    "frames": [
+      {
+        "timestamp_ms": 0,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 60000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 67000,
+        "relative_path": "frame-63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d.png",
+        "sha256": "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d",
+        "selection_reason": "requested"
+      },
+      {
+        "timestamp_ms": 120000,
+        "relative_path": "frame-50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c.png",
+        "sha256": "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+        "selection_reason": "requested"
+      }
+    ],
+    "blind_intervals_ms": [
+      [
+        0,
+        60000
+      ],
+      [
+        60000,
+        67000
+      ],
+      [
+        67000,
+        120000
+      ],
+      [
+        120000,
+        125000
+      ]
+    ],
+    "status": "complete",
+    "timestamp_basis": "requested_seek_not_measured_pts"
+  },
+  "insight": "---\nvideo_title: \"Synthetic correction-slide qualification\"\nchannel: \nupload_date: \nanalyzed_by: gemma4:e2b\nmodel: gemma4:e2b\nmodel_version: gemma4:e2b\ntemperature: 0.0\nprompt_id: \"analysis.pass2.v3\"\nlens: general\n---\n\n## Summary\nThis video analyzes a statistical claim regarding the tripling of \"production incident probability\" and the subsequent qualification of that claim via a correction slide. The core focus is on the presentation and refinement of statistical data, highlighting the risk of misinterpretation when presenting probability claims. It matters because it demonstrates a critical analytical process in communicating risk assessment based on evolving data.\n\n## Key Points\n*   The speaker initially claimed that the \"production incident probability tripled.\"\n*   This initial claim was qualified by a subsequent \"correction slide.\"\n*   No specific products, features, pricing changes, partnerships, acquisitions, policy changes, or research publications were explicitly named.\n\n## Details and Evidence\nThe technical discussion centered on a statistical claim about \"production incident probability.\" The evidence presented consisted entirely of identical, highly structured tables/data grids (Images 0, 1, 0 at different timestamps), indicating a data-heavy context, although the specific content of the data was not transcribed. The structure of the argument involved an initial claim followed by a qualification.\n\n## Creator's Take\nThe creator's primary analytical framework involved presenting an initial, uncontextualized statistical claim, which was then refined by a subsequent qualification. The main takeaway is the risk associated with presenting probability claims without sufficient context, as evidenced by the need for a correction slide. The uncertainty between the initial claim and the qualified claim represents a potential failure mode in data presentation.\n\n## Notable Specifics\n*   **Claim:** Production incident probability tripled.\n*   **Qualification:** A correction slide qualified the initial claim.\n*   **Quote:** \"The speaker initially claims production incident probability tripled.\"\n*   **Quote:** \"A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.\"\n",
+  "observations": {
+    "text": "- **Image 0 (0ms):** This image is a table with many rows and columns, likely a form or a detailed data grid. The content appears to be a template or a structured document with numerous empty or placeholder cells, suggesting it's a form for data entry or a structured report. The structure is highly repetitive, with many rows defined by lines and labels.\n\n- **Image 1 (60000ms):** This image is identical to Image 0. It is a table with many rows and columns, likely a form or a detailed data grid, featuring a repetitive structure of rows and columns, suggesting a template or a structured document.\n\n- **Image 0 (120000ms):** This image is identical to Image 0. It is a table with many rows and columns, likely a form or a detailed data grid, featuring a repetitive structure of rows and columns, suggesting a template or a structured document.\n\n**Overall Description:** The provided images are all identical. They display a large, highly structured table format, resembling a complex form or a detailed data grid with numerous rows and columns. The structure is characterized by many repeating rows, each containing various labeled fields, suggesting a template for data collection or reporting.",
+    "model": "gemma4:e2b",
+    "input_image_hashes": [
+      "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+      "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+    ],
+    "origin": "model_description"
+  },
+  "review": null,
+  "calls": [
+    {
+      "stage": "video_visual_observation",
+      "response": {
+        "text": "- **Image 0 (0ms):** This image is a table with many rows and columns, likely a form or a detailed data grid. The content appears to be a template or a structured document with numerous empty or placeholder cells, suggesting it's a form for data entry or a structured report. The structure is highly repetitive, with many rows defined by lines and labels.\n\n- **Image 1 (60000ms):** This image is identical to Image 0. It is a table with many rows and columns, likely a form or a detailed data grid, featuring a repetitive structure of rows and columns, suggesting a template or a structured document.\n\n- **Image 0 (120000ms):** This image is identical to Image 0. It is a table with many rows and columns, likely a form or a detailed data grid, featuring a repetitive structure of rows and columns, suggesting a template or a structured document.\n\n**Overall Description:** The provided images are all identical. They display a large, highly structured table format, resembling a complex form or a detailed data grid with numerous rows and columns. The structure is characterized by many repeating rows, each containing various labeled fields, suggesting a template for data collection or reporting.",
+        "input_tokens": 1434,
+        "output_tokens": 260,
+        "model": "gemma4:e2b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 1434,
+            "output_tokens": 260,
+            "model": "gemma4:e2b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "8285309cdacd4296979c7afba4b4de94",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0068446,
+        "prefill_seconds": 0.225449,
+        "decode_seconds": 1.085638,
+        "num_ctx": 16384,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    },
+    {
+      "stage": "pass1",
+      "response": {
+        "text": "**OPERATOR ANALYSIS RESULTS**\n\n**1. KEY ANNOUNCEMENTS & EVENTS**\n*   The speaker initially claims that the \"production incident probability tripled.\"\n*   A \"correction slide\" was presented which qualified this initial claim.\n*   No specific products, features, pricing changes, partnerships, acquisitions, policy changes, personnel moves, or research publications are explicitly named in the provided text.\n\n**2. TECHNICAL DETAILS**\n*   The core technical discussion revolves around a statistical claim regarding \"production incident probability.\"\n*   The speaker notes a discrepancy between an initial claim and a subsequent qualification (the correction slide).\n*   The visual evidence consists entirely of identical, highly structured tables/data grids (Images 0, 1, 0 at different timestamps), suggesting the context is data-heavy, though the specific content of the data is not transcribed.\n\n**3. BUSINESS & MARKET SIGNALS**\n*   No specific business metrics (revenue, adoption, customer stories) or competitive moves are mentioned.\n\n**4. ANALYTICAL FRAMEWORKS & ARGUMENTS**\n*   The primary argument structure involves a claim followed by a qualification/correction:\n    *   **Initial Claim:** Production incident probability tripled.\n    *   **Qualification:** This claim is qualified by a subsequent slide.\n*   The structure implies an analysis of probability or risk assessment where an initial, uncontextualized figure is refined by additional data or context.\n\n**5. OPINIONS, PREDICTIONS & ADVICE**\n*   No explicit personal opinions, predictions, or advice from the speaker are extractable beyond the presentation of the statistical claim and its correction.\n\n**6. RISKS, WARNINGS & FAILURE MODES**\n*   The primary risk highlighted is the potential for misinterpretation or overstatement of probability, as evidenced by the need for a \"correction slide.\"\n*   The uncertainty surrounding the initial claim versus the qualified claim represents a potential failure mode in communication or data presentation.\n\n**7. VENDOR & ORGANIZATION POSITIONING**\n*   No specific vendors, labs, or organizations are discussed in the provided text.\n\n**8. CUSTOMER & PRACTITIONER PATTERNS**\n*   No specific use cases, industries, or deployment patterns are mentioned.\n\n**9. NOTABLE QUOTES**\n*   \"The speaker initially claims production incident probability tripled.\"\n*   \"A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.\"",
+        "input_tokens": 1699,
+        "output_tokens": 514,
+        "model": "gemma4:e2b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 1699,
+            "output_tokens": 514,
+            "model": "gemma4:e2b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "c2ddb6c766ad48b9b029d656c2c61588",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0036869,
+        "prefill_seconds": 0.122234,
+        "decode_seconds": 2.189161,
+        "num_ctx": 16384,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "pass2",
+      "response": {
+        "text": "## Summary\nThis video analyzes a statistical claim regarding the tripling of \"production incident probability\" and the subsequent qualification of that claim via a correction slide. The core focus is on the presentation and refinement of statistical data, highlighting the risk of misinterpretation when presenting probability claims. It matters because it demonstrates a critical analytical process in communicating risk assessment based on evolving data.\n\n## Key Points\n*   The speaker initially claimed that the \"production incident probability tripled.\"\n*   This initial claim was qualified by a subsequent \"correction slide.\"\n*   No specific products, features, pricing changes, partnerships, acquisitions, policy changes, or research publications were explicitly named.\n\n## Details and Evidence\nThe technical discussion centered on a statistical claim about \"production incident probability.\" The evidence presented consisted entirely of identical, highly structured tables/data grids (Images 0, 1, 0 at different timestamps), indicating a data-heavy context, although the specific content of the data was not transcribed. The structure of the argument involved an initial claim followed by a qualification.\n\n## Creator's Take\nThe creator's primary analytical framework involved presenting an initial, uncontextualized statistical claim, which was then refined by a subsequent qualification. The main takeaway is the risk associated with presenting probability claims without sufficient context, as evidenced by the need for a correction slide. The uncertainty between the initial claim and the qualified claim represents a potential failure mode in data presentation.\n\n## Notable Specifics\n*   **Claim:** Production incident probability tripled.\n*   **Qualification:** A correction slide qualified the initial claim.\n*   **Quote:** \"The speaker initially claims production incident probability tripled.\"\n*   **Quote:** \"A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.\"",
+        "input_tokens": 958,
+        "output_tokens": 364,
+        "model": "gemma4:e2b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 958,
+            "output_tokens": 364,
+            "model": "gemma4:e2b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "09c00e0f76484b79bcaaee6264bc1e7e",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0058012,
+        "prefill_seconds": 0.074002,
+        "decode_seconds": 1.506067,
+        "num_ctx": 16384,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": []
+      }
+    },
+    {
+      "stage": "video_visual_review",
+      "response": {
+        "text": "```json\n{\n  \"source_fidelity\": \"pass\",\n  \"material_qualifications\": \"pass\",\n  \"disagreement\": \"unknown\",\n  \"coverage_disclosure\": \"unknown\",\n  \"detail_and_citations\": \"The analysis is based on the provided transcript and the visual evidence (the structured tables). The key points derived are directly supported by the text: the initial claim, the qualification by a correction slide, and the lack of specified denominators/populations. No specific time/hash citations are provided in the transcript itself, only the context of the visual data.\"\n}\n```",
+        "input_tokens": 2119,
+        "output_tokens": 128,
+        "model": "gemma4:e2b",
+        "provider_name": "ollama",
+        "provider_type": "local",
+        "usage_source": "reported",
+        "usage_attempts": [
+          {
+            "input_tokens": 2119,
+            "output_tokens": 128,
+            "model": "gemma4:e2b",
+            "provider_name": "ollama",
+            "provider_type": "local",
+            "usage_source": "reported",
+            "outcome": "success",
+            "error_type": "",
+            "attempt_id": "2cc82e746d1d4ce4a547158a7ca52087",
+            "billed_cost_usd": null,
+            "upstream_provider": "",
+            "reasoning_requested": "think=false",
+            "reasoning_sent": "think=false",
+            "reasoning_support": "Explicit think=false on a thinking-capable model.",
+            "reasoning_effective": "unknown"
+          }
+        ],
+        "billed_cost_usd": null,
+        "upstream_provider": "",
+        "load_seconds": 0.0067362,
+        "prefill_seconds": 0.307045,
+        "decode_seconds": 0.535525999,
+        "num_ctx": 16384,
+        "finish_reason": "stop",
+        "reasoning_requested": "think=false",
+        "reasoning_sent": "think=false",
+        "reasoning_support": "Explicit think=false on a thinking-capable model.",
+        "reasoning_effective": "unknown",
+        "input_image_hashes": [
+          "50469bde6415f7d66ba0732cf25d0295738c9139fa6b9d276340b5005fe6f43c",
+          "63bc4a5511685351c6c5f1938036d93afaf9061cc8eb00e2b19baca86c5c474d"
+        ]
+      }
+    }
+  ],
+  "visual_coverage": "sampled_only",
+  "original_source_completeness": "not_established",
+  "text_coverage": "not_independently_verified",
+  "semantic_review": "local_model_review_not_independent_ground_truth"
+}

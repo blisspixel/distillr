@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,7 +31,13 @@ from distill.eval.recipe_contrast import ResearchRecipe, recipe_digest, runner_i
 from distill.eval.scoring import QualityScore, score_output
 from distill.library.paths import atomic_write_json
 from distill.llm import call as llm_call
+from distill.llm.call_execution import _provider_reasoning_effort
 from distill.llm.cost_policy import classify_provider, local_provider_endpoint
+from distill.llm.local_reasoning import (
+    LocalReasoningConfigError,
+    local_think_override,
+    requested_effort_token,
+)
 from distill.llm.router import RouterConfig
 from distill.parsing import read_bounded_json_object
 from distill.pipeline.costs import CostTracker, TokenUsage
@@ -235,9 +241,22 @@ def _analyze(
     recipe_id: str,
 ) -> _Analysis:
     provider = provider_for_model(model)
+    rc = RouterConfig(provider=provider, model=model)
+    try:
+        reasoning_config = _analysis_reasoning_identity(fixture, rc, provider, model)
+    except LocalReasoningConfigError as exc:
+        logger.warning("eval analysis configuration refused for %s/%s: %s", model, fixture.id, exc)
+        return _Analysis(
+            output="",
+            cost=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            cached=False,
+            error=f"LocalReasoningConfigError: {exc}"[:200],
+        )
     endpoint = local_provider_endpoint(provider) if provider in LOCAL_PROVIDERS else ""
     key = _hash(
-        "analysis-v3",
+        "analysis-v4",
         model,
         fixture.id,
         _src_hash(fixture),
@@ -246,28 +265,14 @@ def _analyze(
         endpoint,
         recipe_id,
         runner_identity(runner),
+        reasoning_config,
     )
-    cached = _load_json(cache_dir, key)
+    cached = _cached_analysis(
+        _load_json(cache_dir, key), recipe_id, reasoning_config, identity=f"{model}/{fixture.id}"
+    )
     if cached is not None:
-        try:
-            if cached.get("recipe_digest") != recipe_id:
-                raise ValueError("recipe digest does not match")
-            output = cached["output"]
-            if not isinstance(output, str):
-                raise TypeError("cached output must be text")
-            return _Analysis(
-                output=output,
-                cost=float(cached.get("cost", 0.0)),
-                input_tokens=int(cached.get("input_tokens", 0)),
-                output_tokens=int(cached.get("output_tokens", 0)),
-                cached=True,
-            )
-        except (KeyError, TypeError, ValueError):
-            # A missing manifest, a mismatched recipe, or a corrupt row is not
-            # reusable. Recompute rather than crashing the sweep.
-            logger.warning("Ignoring malformed eval cache entry for %s/%s", model, fixture.id)
+        return cached
     row_tracker = run_tracker.concurrent_child()
-    rc = RouterConfig(provider=provider, model=model)
     if provider == "adapter" and runner is _run_analysis:
         # Adapter plan-quota routes require a live adapter analyzer. A synthetic
         # output would create false graduation evidence, so the default path
@@ -327,9 +332,73 @@ def _analyze(
             "input_tokens": analysis.input_tokens,
             "output_tokens": analysis.output_tokens,
             "recipe_digest": recipe_id,
+            "reasoning_config_digest": reasoning_config,
         },
     )
     return analysis
+
+
+def _cached_analysis(
+    cached: Mapping[str, object] | None,
+    recipe_id: str,
+    reasoning_config: str,
+    *,
+    identity: str,
+) -> _Analysis | None:
+    if cached is None:
+        return None
+    try:
+        if cached.get("recipe_digest") != recipe_id:
+            raise ValueError("recipe digest does not match")
+        if cached.get("reasoning_config_digest") != reasoning_config:
+            raise ValueError("reasoning configuration does not match")
+        output = cached["output"]
+        cost = cached.get("cost", 0.0)
+        input_tokens = cached.get("input_tokens", 0)
+        output_tokens = cached.get("output_tokens", 0)
+        if (
+            not isinstance(output, str)
+            or not isinstance(cost, (int, float, str))
+            or not isinstance(input_tokens, (int, float, str))
+            or not isinstance(output_tokens, (int, float, str))
+        ):
+            raise TypeError("cached analysis fields have invalid types")
+        return _Analysis(
+            output=output,
+            cost=float(cost),
+            input_tokens=int(input_tokens),
+            output_tokens=int(output_tokens),
+            cached=True,
+        )
+    except (KeyError, TypeError, ValueError):
+        # A missing manifest, a mismatched recipe, or a corrupt row is not
+        # reusable. Recompute rather than crashing the sweep.
+        logger.warning("Ignoring malformed eval cache entry for %s", identity)
+        return None
+
+
+def _analysis_reasoning_identity(
+    fixture: Fixture, rc: RouterConfig, provider: str, model: str
+) -> str:
+    """Bind request controls without claiming runtime support or effect.
+
+    Validate explicit local settings before a cache can bypass normal provider
+    preflight. These are the workloads sent by the production-prompt runner;
+    custom analyzers remain responsible for their own additional environment.
+    """
+    workload_tag = {"paper": "site", "site": "site", "video": "analysis", "ask": "qa"}.get(
+        fixture.workload, fixture.workload
+    )
+    think = local_think_override(provider, workload_tag)
+    requested_effort = requested_effort_token(workload_tag)
+    provider_effort = _provider_reasoning_effort(rc, workload_tag, provider, model)
+    return _hash(
+        "analysis-requested-reasoning-v1",
+        workload_tag,
+        "unset" if think is None else "true" if think else "false",
+        requested_effort or "",
+        provider_effort or "",
+    )
 
 
 def _normalize_eval_usage(row_tracker: CostTracker, provider: str) -> bool:

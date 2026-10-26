@@ -11,12 +11,14 @@ here, so the provider's public surface is unchanged.
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 from typing import Any, cast
 
 import httpx
 
+from distill.llm.images import LLMImage, validate_images
 from distill.llm.local_reasoning import plan_ollama_think
 from distill.llm.providers._ollama_registry import bounded_context_window
 
@@ -115,6 +117,7 @@ def build_chat_payload(
     local_think: bool | None = None,
     reasoning_effort: str | None = None,
     degraded: bool = False,
+    images: tuple[LLMImage, ...] = (),
 ) -> dict[str, Any]:
     """Assemble the /api/chat request body.
 
@@ -127,9 +130,13 @@ def build_chat_payload(
     ``/api/show``). When it is None the name-prefix guess stands in, which is
     only correct for families whose instruct variants do not share the prefix.
     """
+    validate_images(images)
+    message: dict[str, object] = {"role": "user", "content": prompt}
+    if images:
+        message["images"] = [base64.b64encode(image.data).decode("ascii") for image in images]
     payload: dict[str, Any] = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [message],
         "stream": True,
         "options": {"num_predict": max_tokens, "num_ctx": num_ctx},
     }
@@ -211,9 +218,15 @@ def parse_chat_frame(line: str) -> tuple[dict[str, Any], str, str] | None:
         return None
     frame = cast("dict[str, Any]", frame)
     message = frame.get("message")
+    if message is not None and not isinstance(message, dict):
+        return None
     message = cast("dict[str, Any]", message) if isinstance(message, dict) else {}
     content = message.get("content")
     thinking = message.get("thinking")
+    if (content is not None and not isinstance(content, str)) or (
+        thinking is not None and not isinstance(thinking, str)
+    ):
+        return None
     return (
         frame,
         content if isinstance(content, str) else "",

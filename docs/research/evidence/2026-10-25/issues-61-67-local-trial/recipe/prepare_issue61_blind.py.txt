@@ -1,0 +1,35 @@
+import hashlib
+import json
+from pathlib import Path
+
+root = Path('.agent/issue61-67-trial')
+trial = json.loads((root/'trial.json').read_text())
+plan = json.loads((root/'source-plan.json').read_text())
+calibration = json.loads(Path('.agent/issue61-judge-calibration.json').read_text())
+reviewed = json.loads(Path('docs/research/evidence/2026-10-25/blind-agent-review.json').read_text())
+expected = {row['sample_id']:row['reviewed_expectation'] for row in reviewed['verdicts']}
+joined = [{**row,'reviewed_expectation':expected[row['sample_id']]} for row in calibration]
+assert len(joined)==16
+matches = sum(row['overall']==row['reviewed_expectation'] for row in joined)
+Path('.agent/issue61-judge-calibration-joined.json').write_text(json.dumps({'examples':16,'agreement':matches,'human_review':False,'universal_calibration_claim':False,'rows':joined},indent=2)+'\n',encoding='utf-8',newline='\n')
+packet=[]; key={}
+for row in trial['cases']:
+    identifier=hashlib.sha256(f"{row['case_id']}:{row['repeat']}:{row['think_requested']}".encode()).hexdigest()[:12]
+    if row['case_id']=='mature-source-screening':
+        question=plan['screening_query']
+        source=plan['screening_pool']
+        source_handles=[p['paper_id'] for p in source]
+        selection=row.get('selected',[])
+    else:
+        fixture=plan['fixtures'][row['case_id']]
+        question=fixture['question'] or 'Extract the page content faithfully, preserving metric type, denominator, population, comparison, causal uncertainty, and collection limits.'
+        source=fixture['source_text']
+        source_handles=fixture['source_stems'] or [fixture['url']]
+        selection=None
+    calls=[trial['logical_calls'][i] for i in row['logical_call_indexes']]
+    packet.append({'sample_id':identifier,'question':question,'supplied_source_evidence':source,'source_handles':source_handles,'candidate_answer':row['output'],'production_selection':selection,'completion_status':row['status'],'terminal_reasons':[c.get('response',{}).get('finish_reason','unknown') for c in calls]})
+    key[identifier]={'case_id':row['case_id'],'repeat':row['repeat'],'think_requested':row['think_requested']}
+packet.sort(key=lambda x:x['sample_id'])
+Path('.agent/issue61-live-blind-inputs.json').write_text(json.dumps(packet,indent=2)+'\n',encoding='utf-8',newline='\n')
+Path('.agent/issue61-live-blind-key.json').write_text(json.dumps(key,indent=2)+'\n',encoding='utf-8',newline='\n')
+print(f'Calibration agreement {matches}/16; prepared {len(packet)} live blind samples')

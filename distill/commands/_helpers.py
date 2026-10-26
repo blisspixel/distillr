@@ -34,6 +34,7 @@ from distill.pipeline.analysis.video import (
     generate_channel_context,
 )
 from distill.library.insights import insight_has_body
+from distill.library.confined import read_confined_text
 from distill.library.paths import (
     atomic_write_text,
     base_frontmatter,
@@ -156,6 +157,9 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+# Match the shared source-insight reader's bounded artifact size.
+_MAX_PUBLISHED_INSIGHT_BYTES = 4 * 1024 * 1024
 
 # The one shared human-output console, imported (not constructed) so every
 # module prints through the same object -- this is what lets --json redirect all
@@ -836,6 +840,15 @@ def process_video(  # noqa: C901 — legacy, will refactor
                 },
             ),
         )
+        published_insight = read_confined_text(
+            insights_file, vid_dir, max_bytes=_MAX_PUBLISHED_INSIGHT_BYTES
+        )
+        if published_insight is None:
+            raise ValueError(
+                "Published video insight is missing, unreadable or outside artifact limits"
+            )
+        if not insight_has_body(published_insight):
+            raise ValueError("Published video insight is empty")
         size = f"{transcript_bytes:,}b" if transcript_bytes else ""
         _tick_video_eta(eta, vid_start, success=True)
         console.print(f"    [{_ACCENT}]done[/{_ACCENT}]  [dim]{size}[/dim]")

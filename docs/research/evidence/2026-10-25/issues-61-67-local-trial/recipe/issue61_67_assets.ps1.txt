@@ -1,0 +1,21 @@
+param([Parameter(Mandatory=$true)][string]$OutputRoot)
+Add-Type -AssemblyName System.Drawing
+[System.IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
+function Write-Slide([string]$Name, [string[]]$Lines) {
+    $bitmap = [System.Drawing.Bitmap]::new(1280, 720)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.Clear([System.Drawing.Color]::White)
+    $font = [System.Drawing.Font]::new('Arial', 30)
+    try {
+        $vertical = 70
+        foreach ($line in $Lines) {
+            $graphics.DrawString($line, $font, [System.Drawing.Brushes]::Black, 35, $vertical)
+            $vertical += 100
+        }
+        $bitmap.Save([System.IO.Path]::Combine($OutputRoot, $Name), [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+        $font.Dispose(); $graphics.Dispose(); $bitmap.Dispose()
+    }
+}
+Write-Slide 'initial.png' @('SYNTHETIC STUDY', 'Production incident probability tripled.', 'Preliminary spoken claim, not an established result.')
+Write-Slide 'qualification.png' @('CORRECTION', 'Incidents-to-PR RATIO, not probability.', '40 adults only. Observational, not causal.', 'Do not generalize to children.')

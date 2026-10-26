@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Opt-in local sampled-PNG evidence uses bounded frame acquisition, exact
+  byte identities, the existing two-pass video analyzer, and per-criterion
+  model review. Required missing, truncated or invalid evidence stays
+  incomplete. This Python path does not change default video processing or
+  establish native video ingestion or successful visual understanding.
+- Bounded local reasoning and sampled-image qualification retains exact
+  responses, prompts, pixels and blinded agent verdicts. All four Faros
+  extractions fail faithfulness under both thinking settings; sampled-image
+  interpretation also fails and the malformed review leaves the artifact
+  incomplete. Screening has no effective thinking contrast. No defaults
+  change; issues #61 and #67 remain open. See the
+  [local trial receipt](design/issues-61-67-local-trial-2026-10-25.md).
 - Paper input receipts bind actual per-pass chunk identities and response
   models to the analyzer input and normalized published source/insight bodies.
   Content-addressed sibling JSON keeps the full manifest outside downstream
@@ -62,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Evaluation caches bind requested reasoning configuration and refuse invalid
+  explicit settings before reuse. Ollama retries preserve requested controls;
+  private thinking text is never substituted for an answer. Empty video
+  analysis and missing or unreadable published insights cannot report success.
 - Paper single-pass context decisions now use the existing `site` route's
   metadata, while multipass chunking uses its existing `analysis` route's
   metadata. Empty single-pass or multipass output fails explicitly; multipass

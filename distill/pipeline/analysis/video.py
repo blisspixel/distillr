@@ -1,11 +1,14 @@
 # pyright: strict
 """Per-video analysis via the LLM router."""
 
+from collections.abc import Callable
+
 from distill.config import DistillConfig
 from distill.ingestors.youtube.caption_timing import CaptionEvidence
 from distill.library.intent import CorpusIntent
 from distill.llm import call as llm_call
 from distill.llm.router import RouterConfig
+from distill.llm.types import LLM_Response
 from distill.pipeline.costs import CostTracker, TokenUsage
 from distill.prompts.analysis import (
     auto_watch_instructions_prompt,
@@ -63,6 +66,10 @@ def analyze_video(
     *,
     intent: CorpusIntent | None = None,
     caption_evidence: CaptionEvidence | None = None,
+    response_observer: Callable[[str, LLM_Response], None] | None = None,
+    max_tokens: int = 8192,
+    timeout: int = 300,
+    retries: int = 2,
 ) -> str:
     """Run 2-pass analysis on a video transcript. Returns insights markdown.
 
@@ -70,6 +77,8 @@ def analyze_video(
     model/provider; defaults to the configured routing. ``intent`` selects the
     analysis lens and goal focus; ``None`` keeps the neutral default.
     """
+    if max_tokens <= 0 or timeout <= 0 or retries < 0:
+        raise ValueError("Video call limits require positive tokens/time and nonnegative retries")
     rc = router_config or RouterConfig()
     goal, lens = _intent_goal_lens(intent)
 
@@ -82,10 +91,20 @@ def analyze_video(
         prompt=prompt1,
         call_type="pass1",
         usage_tracker=tracker,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        retries=retries,
     )
     pass1 = response1.text
     if tracker:
         tracker.record(TokenUsage.from_response(response1, call_type="pass1"))
+    if response_observer is not None:
+        response_observer("pass1", response1)
+    if not pass1.strip():
+        raise ValueError(
+            "Video pass1 extraction returned no content; analysis is incomplete. "
+            "Check the source and provider response before retrying."
+        )
 
     prompt2 = pass2_synthesis_prompt(title, upload_date, channel_name, pass1, goal=goal, lens=lens)
     response2 = llm_call(
@@ -94,10 +113,20 @@ def analyze_video(
         prompt=prompt2,
         call_type="pass2",
         usage_tracker=tracker,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        retries=retries,
     )
     pass2 = response2.text
     if tracker:
         tracker.record(TokenUsage.from_response(response2, call_type="pass2"))
+    if response_observer is not None:
+        response_observer("pass2", response2)
+    if not pass2.strip():
+        raise ValueError(
+            "Video pass2 synthesis returned no content; analysis is incomplete. "
+            "The acquired transcript remains available for retry."
+        )
 
     model = response2.model
     safe_title = title.replace('"', '\\"')

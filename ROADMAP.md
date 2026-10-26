@@ -153,9 +153,16 @@ adds production paper-selection challenges and repairs misleading authored
 correction examples. Late unmatched qualifications and repeated within-paper
 recaps can leave primary evidence outside every selected prompt. Broader
 context and sufficient multipass coverage are controls, not a quality win.
-Independent agent assessment does not establish calibrated judge performance;
-the release gate stays closed and no live comparison or default change is
-claimed.
+That offline assessment does not establish calibrated judge performance or a
+live comparison. The release gate stays closed and defaults remain unchanged.
+
+The [bounded local trial](docs/design/issues-61-67-local-trial-2026-10-25.md)
+adds exact outputs and blinded agent judgments: four Faros faithfulness failures
+under both thinking settings, twelve passing text examples, and no effective
+thinking contrast for structured screening. Actual sampled-image transport
+materializes a late frame but the model misreads its pixels; a malformed review
+leaves the consumer artifact incomplete. ASR remains blocked. These failures
+keep #61 and #67 open, the release gate closed, and defaults unchanged.
 
 The next bounded [paper-input evidence slice](docs/design/paper-input-evidence-2026-10-25.md)
 repairs route/context metadata mismatches, refuses empty paper analysis rather

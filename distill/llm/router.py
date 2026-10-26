@@ -21,6 +21,7 @@ from distill.llm.cost_policy import (
     require_route_allowed,
 )
 from distill.llm.fallback import fallback_target
+from distill.llm.images import LLMImage
 from distill.llm.model_policy import (
     RETIRED_MODELS,
     RETIREMENT_DATE,
@@ -303,11 +304,8 @@ class RouterConfig(BaseSettings):
         if self.model.strip():
             return True
 
-        if workload_tag:
-            workload_field = f"{workload_tag}_model"
-            workload_model = str(getattr(self, workload_field, "")).strip()
-            if workload_model:
-                return True
+        if workload_tag and str(getattr(self, f"{workload_tag}_model", "")).strip():
+            return True
 
         tier_field = "premium_model" if workload_tag in self.PREMIUM_WORKLOADS else "fast_model"
         tier_model = str(getattr(self, tier_field, "")).strip()
@@ -464,6 +462,7 @@ def call(
     ops_dir: str = "",
     run_id: str = "",
     usage_tracker: UsageTracker | None = None,
+    images: tuple[LLMImage, ...] = (),
 ) -> LLM_Response:
     """Dispatch an LLM call through the configured provider, with optional local fallback."""
     config.validate_config(workload_tag)
@@ -496,5 +495,6 @@ def call(
         provider_getter=_provider_getter,
         usage_authorizer=authorizer,
         usage_reservation=reservation,
+        images=images,
     )
     return execute_call(options, provider_name, model_id)

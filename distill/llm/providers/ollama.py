@@ -22,6 +22,7 @@ from distill.llm.cost_policy import (
     classify_provider,
     local_provider_endpoint_is_valid,
 )
+from distill.llm.images import LLMImage, validate_images
 from distill.llm.local_reasoning import confirm_effective, plan_ollama_think
 
 # Re-exported for callers/tests that import it from this module; the redundant
@@ -128,6 +129,7 @@ class OllamaProvider:
         reasoning_effort: str | None = None,
         usage_sink: UsageAttemptSink | None = None,
         local_think: bool | None = None,
+        images: tuple[LLMImage, ...] = (),
     ) -> LLM_Response:
         """Send a prompt to Ollama and return an LLM_Response.
 
@@ -136,6 +138,7 @@ class OllamaProvider:
         The final answer (message.content) is returned as the response text.
         Retries on transient errors with exponential backoff (base 2s, factor 2).
         """
+        self._validate_image_route(images)
         await wait_for_model_slot(
             model,
             timeout,
@@ -161,12 +164,17 @@ class OllamaProvider:
             prompt_sent = False
             try:
                 await self._show.require_local(model)
+                if images and "vision" not in await self._show.capabilities(model):
+                    raise CostPolicyError(
+                        "This local Ollama model has not advertised vision capability. "
+                        "Use an installed vision-capable model; text-only fallback is refused."
+                    )
                 # Size the context to prompt + output + headroom so a model's huge
                 # default window does not allocate a KV cache that spills VRAM.
                 num_ctx = await self._adaptive_num_ctx(model, prompt, max_tokens)
                 supports_thinking = await self._show.supports_thinking(model)
                 think_plan = plan_ollama_think(
-                    explicit_think=None if thinking_degraded else local_think,
+                    explicit_think=local_think,
                     reasoning_effort=reasoning_effort,
                     supports_thinking=supports_thinking,
                     name_suggests_thinking=_is_thinking_model(model),
@@ -181,9 +189,10 @@ class OllamaProvider:
                     temperature=temperature,
                     call_type=call_type,
                     supports_thinking=supports_thinking,
-                    local_think=None if thinking_degraded else local_think,
+                    local_think=local_think,
                     reasoning_effort=reasoning_effort,
                     degraded=thinking_degraded,
+                    images=images,
                 )
                 prompt_sent = True
                 response, trace_present = await self._stream_chat(model, payload, timeout)
@@ -197,6 +206,7 @@ class OllamaProvider:
                         think_plan,
                         trace_present=trace_present,
                     ),
+                    input_image_hashes=tuple(image.sha256 for image in images),
                 )
             except CostPolicyError as exc:
                 counts = (
@@ -215,6 +225,10 @@ class OllamaProvider:
                         usage_source="conservative" if prompt_sent else "unavailable",
                         outcome="error",
                         error_type=type(exc).__name__,
+                        reasoning_requested=think_plan.requested if prompt_sent else "",
+                        reasoning_sent=think_plan.sent if prompt_sent else "",
+                        reasoning_support=think_plan.support if prompt_sent else "",
+                        reasoning_effective="unknown" if prompt_sent else "",
                     ),
                     usage_sink,
                 )
@@ -240,6 +254,10 @@ class OllamaProvider:
                         usage_source="conservative",
                         outcome="error",
                         error_type=type(exc).__name__,
+                        reasoning_requested=think_plan.requested if prompt_sent else "",
+                        reasoning_sent=think_plan.sent if prompt_sent else "",
+                        reasoning_support=think_plan.support if prompt_sent else "",
+                        reasoning_effective="unknown" if prompt_sent else "",
                     ),
                     usage_sink,
                 )
@@ -291,7 +309,7 @@ class OllamaProvider:
                         "Ollama error (attempt %d/%d): %s. Retrying in %ds...",
                         attempt + 1,
                         retries + 1,
-                        _describe_ollama_error(exc),
+                        type(exc).__name__ if images else _describe_ollama_error(exc),
                         wait,
                     )
                     # Must not be time.sleep: this is a coroutine, and a blocking
@@ -323,6 +341,11 @@ class OllamaProvider:
 
         assert last_error is not None  # nosec B101  # pragma: no cover
         raise last_error  # pragma: no cover
+
+    def _validate_image_route(self, images: tuple[LLMImage, ...]) -> None:
+        validate_images(images)
+        if images and self._provider_type != "local":
+            raise CostPolicyError("Image inputs require a proved local loopback Ollama route.")
 
     async def _running_model_names(self, probe_timeout: float) -> tuple[str, ...] | None:
         """Return models reported by ``/api/ps``, or ``None`` when unavailable."""

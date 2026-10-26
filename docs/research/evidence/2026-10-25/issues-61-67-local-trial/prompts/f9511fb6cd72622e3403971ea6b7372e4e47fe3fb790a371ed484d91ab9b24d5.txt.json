@@ -1,0 +1,7 @@
+{
+  "schema": "exact-utf8-artifact.v1",
+  "original_relative_path": "prompts/f9511fb6cd72622e3403971ea6b7372e4e47fe3fb790a371ed484d91ab9b24d5.txt",
+  "original_sha256": "f9511fb6cd72622e3403971ea6b7372e4e47fe3fb790a371ed484d91ab9b24d5",
+  "original_bytes": 149,
+  "utf8_text": "Describe only the readable text and visible qualifications in these sampled frames. Name any missing context or unknowns. Do not infer unseen slides."
+}

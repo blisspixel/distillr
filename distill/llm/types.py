@@ -42,6 +42,7 @@ class LLM_Response:
     reasoning_sent: str = ""
     reasoning_support: str = ""
     reasoning_effective: str = ""
+    input_image_hashes: tuple[str, ...] = ()
 
 
 class UsageTracker(Protocol):

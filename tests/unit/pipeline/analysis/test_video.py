@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from distill.config import DistillConfig
 from distill.ingestors.youtube.caption_timing import evidence_from_vtt
 from distill.library.intent import CorpusIntent
@@ -103,6 +105,47 @@ def test_analyze_video_builds_frontmatter(tmp_path):
     assert len(tracker.entries) == 2
     assert tracker.entries[0].call_type == "pass1"
     assert tracker.entries[1].call_type == "pass2"
+
+
+@pytest.mark.parametrize("stage", ["pass1", "pass2"])
+@pytest.mark.parametrize("empty_text", ["", " \n\t"])
+@pytest.mark.parametrize("with_tracker", [False, True])
+def test_empty_video_pass_refuses_after_accounting_without_metadata_only_fallback(
+    tmp_path, stage, empty_text, with_tracker
+):
+    config = DistillConfig(distill_output_dir=tmp_path / "library")
+    tracker = CostTracker() if with_tracker else None
+    calls = []
+
+    def respond(router, *, call_type, **kwargs):
+        calls.append(call_type)
+        text = (
+            empty_text
+            if call_type == stage
+            else "A fluent result that must not replace an empty source extraction."
+        )
+        return LLM_Response(
+            text=text,
+            model="grok-4.6",
+            provider_name="xai",
+            provider_type="cloud",
+            input_tokens=17,
+            output_tokens=9,
+        )
+
+    with (
+        patch("distill.pipeline.analysis.video.llm_call", respond),
+        pytest.raises(ValueError, match=rf"{stage}.*analysis is incomplete"),
+    ):
+        analyze_video("Title", "20261025", "Fixture", "Source transcript", config, tracker)
+
+    expected_calls = ["pass1"] if stage == "pass1" else ["pass1", "pass2"]
+    assert calls == expected_calls
+    if tracker is not None:
+        assert [entry.call_type for entry in tracker.entries] == expected_calls
+        assert tracker.total_input_tokens == 17 * len(expected_calls)
+        assert tracker.total_output_tokens == 9 * len(expected_calls)
+        assert tracker.total_cost > 0
 
 
 def test_analyze_video_accepts_intent_without_tracker(tmp_path):

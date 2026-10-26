@@ -1,0 +1,82 @@
+{
+  "89fa454f932e": {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "efcbfe281dd9": {
+    "case_id": "faros-extraction",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "28887da78b4a": {
+    "case_id": "mature-source-screening",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "936308291de2": {
+    "case_id": "mature-source-screening",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "36a971ca08c5": {
+    "case_id": "conflict-correction",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "6095b26d67c2": {
+    "case_id": "conflict-correction",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "9fc9f959f45d": {
+    "case_id": "freshness-change",
+    "repeat": 1,
+    "think_requested": true
+  },
+  "80077f4cadfe": {
+    "case_id": "freshness-change",
+    "repeat": 1,
+    "think_requested": false
+  },
+  "4e4edaf0afcb": {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": true
+  },
+  "dbdeeaf484ab": {
+    "case_id": "faros-extraction",
+    "repeat": 2,
+    "think_requested": false
+  },
+  "3ae7f9facac8": {
+    "case_id": "mature-source-screening",
+    "repeat": 2,
+    "think_requested": false
+  },
+  "4eb0c511bcd7": {
+    "case_id": "mature-source-screening",
+    "repeat": 2,
+    "think_requested": true
+  },
+  "432bcc22c191": {
+    "case_id": "conflict-correction",
+    "repeat": 2,
+    "think_requested": true
+  },
+  "c52d3c4302e7": {
+    "case_id": "conflict-correction",
+    "repeat": 2,
+    "think_requested": false
+  },
+  "aa5615dcdfa9": {
+    "case_id": "freshness-change",
+    "repeat": 2,
+    "think_requested": false
+  },
+  "4eaef5b926a0": {
+    "case_id": "freshness-change",
+    "repeat": 2,
+    "think_requested": true
+  }
+}

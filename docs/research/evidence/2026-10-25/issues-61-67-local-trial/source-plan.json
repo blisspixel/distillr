@@ -1,0 +1,118 @@
+{
+  "fixtures": {
+    "faros-extraction": {
+      "id": "faros-extraction",
+      "workload": "site",
+      "title": "Frozen Faros takeaway excerpt",
+      "source_text": "faros-headline [headline; frozen page excerpt]: For every code change merged, the probability of a production incident has more than tripled.\n\nfaros-ratio [measurement; frozen page excerpt]: The incidents-to-PR ratio is up 242.7% as teams move from low to high AI adoption.\n\nfaros-not-probability [qualification; frozen page excerpt]: This is a ratio, not a probability: a single PR can be linked to multiple incidents, and not every incident traces directly to the most recent merge.\n\nfaros-method [qualification; frozen page excerpt]: It is a measurement of what AI is actually producing across the full software development lifecycle, tracking metric change between periods of lowest and highest AI adoption within each organization.\n\nfaros-observational [qualification; authored context]: The period comparison is observational. It is not a randomized causal effect, and it does not show that AI caused the change.\n\nfaros-population [qualification; frozen page excerpt]: The AI Engineering Impact Report 2026: The Acceleration Whiplash draws on two years of telemetry data from 22,000 developers and more than 4,000 teams across the Faros platform, tracking metric change between each organization's periods of lowest and highest AI adoption.\n\nfaros-no-randomized-effect [gap; authored context]: The frozen takeaway page does not report a randomized effect.\n\nfaros-report-not-captured [gap; authored context]: The full report was not captured; this brief is limited to the frozen takeaway page.\n\nfaros-monthly [measurement; frozen page excerpt]: Monthly incidents are up 57.9%.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "https://www.faros.ai/blog/ai-acceleration-whiplash-takeaways",
+      "site_name": "Frozen Faros page accessed2026-10-24",
+      "question": "",
+      "source_stems": [],
+      "risk_patterns": []
+    },
+    "conflict-correction": {
+      "id": "conflict-correction",
+      "workload": "ask",
+      "title": "Synthetic correction",
+      "source_text": "This is one fixture-authored composite receipt, not independent real studies.\nA receipt (2024): Method A reports 10 under condition X. Its instrument was calibrated.\nB receipt (2024): Method B reports 16 under condition X; population not specified.\nA correction (2026): Replace A=10 with A=11 and restrict that result to adults. This correction does not address method B or change the instrument-calibration finding. The earlier A=10 is retained history, not current support.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "",
+      "site_name": "",
+      "question": "What is current after the correction, what remains unresolved between A and B, and what is unaffected? Preserve historical/current and population scope.",
+      "source_stems": [
+        "correction_episode_fixture"
+      ],
+      "risk_patterns": []
+    },
+    "freshness-change": {
+      "id": "freshness-change",
+      "workload": "ask",
+      "title": "Synthetic scorer update",
+      "source_text": "This is one fixture-authored composite receipt. The 2024 benchmark score was 70. A 2026 scorer fix revised the recorded score to 81; this is not evidence that the model itself improved. The lab redesigned its website later in 2026; that batch supplies no additional score change. Keep the earlier score as history and distinguish scorer correction from capability gain.",
+      "expected_sections": [],
+      "golden_concepts": [],
+      "min_words": 180,
+      "paper_id": "",
+      "channel": "",
+      "url": "",
+      "site_name": "",
+      "question": "What score is current, what changed versus2024, and does this show that model capability improved or that the later website batch changed evidence?",
+      "source_stems": [
+        "scorer_update_fixture"
+      ],
+      "risk_patterns": []
+    }
+  },
+  "screening_pool": [
+    {
+      "paper_id": "review-2019",
+      "title": "Captured primary adult review",
+      "abstract": "Primary captured review: adult trials estimated12% relative reduction. No children enrolled. Pediatric applicability unknown.",
+      "authors": [
+        "Fixture"
+      ],
+      "published_at": "2019-01-01",
+      "updated_at": "",
+      "categories": [],
+      "doi": "",
+      "abs_url": "",
+      "pdf_url": "",
+      "source": "arxiv",
+      "revision_status": "new",
+      "captured_revisions": []
+    },
+    {
+      "paper_id": "textbook-copy",
+      "title": "Derivative textbook",
+      "abstract": "A captured textbook repeats the adult review12% figure; no new experiment or independent evidence.",
+      "authors": [
+        "Fixture"
+      ],
+      "published_at": "2026-01-01",
+      "updated_at": "",
+      "categories": [],
+      "doi": "",
+      "abs_url": "",
+      "pdf_url": "",
+      "source": "arxiv",
+      "revision_status": "new",
+      "captured_revisions": []
+    },
+    {
+      "paper_id": "pediatric-unknown",
+      "title": "Uncaptured pediatric cohort",
+      "abstract": "Known external cohort, full content not captured; cannot establish benefit for children from this pool.",
+      "authors": [
+        "Fixture"
+      ],
+      "published_at": "2026-01-01",
+      "updated_at": "",
+      "categories": [],
+      "doi": "",
+      "abs_url": "",
+      "pdf_url": "",
+      "source": "arxiv",
+      "revision_status": "new",
+      "captured_revisions": []
+    }
+  ],
+  "screening_query": "Use captured primary evidence for the adult estimate and explain pediatric uncertainty. Prefer primary review to derivative repetition or uncaptured material.",
+  "repeats": 2,
+  "settings": [
+    false,
+    true
+  ],
+  "cache": "disabled",
+  "context_override": "Trial-only provider transport override pins requested num_ctx16384 for allconditions; production adaptive context is not validated by this trial.",
+  "screening_note": "Production paper_rerank is structured JSON and sends thinkfalse for BOTH requests. No effective reasoning contrast is expected; never manufacture one."
+}

@@ -29,11 +29,12 @@ async def stream_chat(
     long-but-progressing generation streams to completion, while a genuinely
     stalled call fails after one idle window. The terminal (done) frame
     carries cumulative token counts. ``content`` is the answer and
-    ``thinking`` is the reasoning trace, used only when content is empty.
-    The trace itself is not returned. The boolean says whether one arrived.
+    ``thinking`` is a private reasoning trace, never an answer. The trace
+    itself is not retained. The boolean says whether one arrived.
     """
     content_parts: list[str] = []
-    thinking_parts: list[str] = []
+    trace_present = False
+    malformed_frame = False
     finish_reason = "incomplete"
     input_tokens = 0
     output_tokens = 0
@@ -59,6 +60,7 @@ async def stream_chat(
             # than raising past the retry loop and usage accounting.
             parsed_frame = parse_chat_frame(line)
             if parsed_frame is None:
+                malformed_frame = True
                 logger.debug("Skipping malformed Ollama chat frame")
                 continue
             frame, content_value, thinking_value = parsed_frame
@@ -66,9 +68,9 @@ async def stream_chat(
             if content_value:
                 content_parts.append(content_value)
             if thinking_value:
-                thinking_parts.append(thinking_value)
-            if frame.get("done"):
-                finish_reason = str(frame.get("done_reason") or "stop")
+                trace_present = True
+            if frame.get("done") is True:
+                finish_reason = _completion_reason(frame.get("done_reason"))
                 input_tokens = frame.get("prompt_eval_count", 0) or 0
                 output_tokens = frame.get("eval_count", 0) or 0
                 # Ollama reports each phase separately, in nanoseconds. They
@@ -78,10 +80,11 @@ async def stream_chat(
                 prefill_seconds = frame_seconds(frame, "prompt_eval_duration")
                 decode_seconds = frame_seconds(frame, "eval_duration")
     content = "".join(content_parts)
-    thinking = "".join(thinking_parts)
+    if malformed_frame:
+        finish_reason = "incomplete"
     return (
         LLM_Response(
-            text=content if content else thinking,
+            text=content,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model=model,
@@ -90,5 +93,10 @@ async def stream_chat(
             prefill_seconds=prefill_seconds,
             decode_seconds=decode_seconds,
         ),
-        bool(thinking),
+        trace_present,
     )
+
+
+def _completion_reason(raw: object) -> str:
+    """A terminal frame alone does not prove the absence of truncation."""
+    return raw if isinstance(raw, str) and raw in {"stop", "length"} else "unknown"

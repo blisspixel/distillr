@@ -1,0 +1,351 @@
+"""One authorized local-only trial, using canonical routing and analysis seams."""
+
+import asyncio
+import base64
+import hashlib
+import importlib.util
+import json
+import os
+import socket
+import subprocess
+import time
+from dataclasses import asdict
+from datetime import UTC, datetime
+from contextvars import ContextVar
+from pathlib import Path
+
+import httpx
+
+from distill.config import DistillConfig
+from distill.eval import harness
+from distill.eval.fixtures import Fixture
+from distill.eval.research_desk_cases import CASES
+from distill.ingestors.papers.arxiv import PaperRecord
+from distill.ingestors.youtube.local_frames import capture_local_video_frames
+from distill.library.confined import read_confined_bytes
+from distill.library.paths import atomic_write_json, atomic_write_text
+from distill.llm import call as canonical_call
+from distill.llm.images import LLMImage
+from distill.llm.providers.ollama import OllamaProvider
+from distill.llm.router import RouterConfig
+from distill.pipeline import ranking
+from distill.pipeline.analysis import video, video_evidence
+from distill.pipeline.costs import BudgetExceededError, CostTracker
+from distill.process_security import resolve_executable, sanitized_package_env
+
+ROOT = Path('.agent/issue61-67-trial').resolve()
+ROOT.mkdir(parents=True, exist_ok=True)
+MODEL = 'gemma4:e2b'
+ENDPOINT = 'http://127.0.0.1:11434'
+START = time.monotonic()
+authority = json.loads(Path('.agent/issue61-67-authority.json').read_text())
+DEADLINE = START + max(0, datetime.fromisoformat(authority['deadline_utc']).timestamp() - datetime.now(UTC).timestamp())
+ATTEMPTS = []
+CALLS = []
+ROWS = []
+CASE_CONTEXT = {}
+RECEIPT = {
+    'schema': 'issue61-67-local-trial.v1',
+    'started_at': datetime.now(UTC).isoformat(),
+    'base_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+    'authority': 'User allowed existing installed models, synthetic local media/frozen fixtures, maximum24 inference calls/15minutes, zero API spend, no downloads/cloud fallback.',
+    'limits': {'max_inference_attempts': 24, 'max_elapsed_seconds': 900, 'max_output_tokens': 1536, 'requested_num_ctx': 16384, 'temperature': 0, 'retries': 0},
+    'runtime': {}, 'cases': ROWS, 'logical_calls': CALLS, 'transport_attempts': ATTEMPTS,
+    'repository_api_spend_usd': 0,
+    'host_agent_review_usage_cost_usd': None,
+    'no_downloads': True,
+    'cloud_fallback': False,
+    'defaults_changed': False,
+    'status': 'in_progress',
+}
+
+
+class TrialLimitReached(BudgetExceededError):
+    def __init__(self, message):
+        super().__init__(0, 0)
+        self.args = (message,)
+
+
+def remaining():
+    left = DEADLINE - time.monotonic()
+    if left < 1 or len(ATTEMPTS) >= 24:
+        raise TrialLimitReached('Authorized trial request/time limit reached')
+    return left
+
+
+def save():
+    RECEIPT['elapsed_seconds'] = round(time.monotonic() - START, 3)
+    atomic_write_json(ROOT / 'trial.json', RECEIPT)
+
+
+original_connect = socket.socket.connect
+original_connect_ex = socket.socket.connect_ex
+original_socketpair = socket.socketpair
+CONTROL_SOCKETPAIR = ContextVar('trial_asyncio_control_socketpair',default=False)
+
+
+def control_socketpair(*args, **kwargs):
+    token = CONTROL_SOCKETPAIR.set(True)
+    try:
+        return original_socketpair(*args, **kwargs)
+    finally:
+        CONTROL_SOCKETPAIR.reset(token)
+
+
+def guarded_connect(sock, address):
+    if CONTROL_SOCKETPAIR.get() and isinstance(address,tuple) and address[0] in ('127.0.0.1','::1'):
+        return original_connect(sock,address)
+    if not isinstance(address, tuple) or address[0] not in ('127.0.0.1', '::1') or address[1] != 11434:
+        raise OSError('Trial transport denied outside the approved local Ollama endpoint')
+    return original_connect(sock, address)
+
+
+def guarded_connect_ex(sock, address):
+    if CONTROL_SOCKETPAIR.get() and isinstance(address,tuple) and address[0] in ('127.0.0.1','::1'):
+        return original_connect_ex(sock,address)
+    if not isinstance(address, tuple) or address[0] not in ('127.0.0.1', '::1') or address[1] != 11434:
+        raise OSError('Trial transport denied outside the approved local Ollama endpoint')
+    return original_connect_ex(sock, address)
+
+
+socket.socket.connect = guarded_connect
+socket.socket.connect_ex = guarded_connect_ex
+socket.socketpair = control_socketpair
+for name in list(os.environ):
+    if name.endswith(('_API_KEY', '_TOKEN', '_PASSWORD', '_SECRET')):
+        os.environ.pop(name, None)
+os.environ.update({
+    'OLLAMA_BASE_URL': ENDPOINT, 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1',
+    'DISTILL_PROVIDER': 'ollama', 'DISTILL_MODEL': MODEL, 'DISTILL_COST_MODE': 'no-metered',
+    'DISTILL_FALLBACK_PROVIDER': '', 'DISTILL_FALLBACK_MODEL': '', 'OLLAMA_MAX_NUM_CTX': '16384',
+})
+for tag in ('SITE', 'ANALYSIS', 'RERANK', 'QA'):
+    os.environ[f'DISTILL_{tag}_PROVIDER'] = 'ollama'
+    os.environ[f'DISTILL_{tag}_MODEL'] = MODEL
+    os.environ.pop(f'DISTILL_{tag}_REASONING_EFFORT', None)
+rc = RouterConfig(provider='ollama', model=MODEL, cost_mode='no-metered', analysis_provider='ollama', site_provider='ollama', rerank_provider='ollama', qa_provider='ollama', fallback_provider='', fallback_model='')
+config = DistillConfig(distill_output_dir=ROOT/'library', distill_verify='strict')
+
+
+def metadata(path, payload=None):
+    with httpx.Client(timeout=min(5, remaining()), trust_env=False) as client:
+        with client.stream('POST' if payload else 'GET', ENDPOINT+path, json=payload) as response:
+            response.raise_for_status()
+            raw = bytearray()
+            for chunk in response.iter_bytes():
+                raw.extend(chunk)
+                if len(raw) > 2 * 1024 * 1024:
+                    raise ValueError('Trial metadata byte ceiling exceeded')
+    return json.loads(raw)
+
+
+def model_digest():
+    tags = metadata('/api/tags')
+    entry = next(row for row in tags['models'] if row.get('name', row.get('model')) == MODEL)
+    return entry['digest']
+
+
+original_stream = OllamaProvider._stream_chat
+
+
+async def bounded_stream(self, model, payload, timeout):
+    left = remaining()
+    if model != MODEL or self._base_url != ENDPOINT:
+        raise TrialLimitReached('Trial model/endpoint changed')
+    row = {
+        'attempt': len(ATTEMPTS)+1, **CASE_CONTEXT,
+        'started_seconds': round(time.monotonic()-START, 3),
+        'model': model, 'num_ctx_requested': payload['options']['num_ctx'],
+        'num_predict': payload['options']['num_predict'], 'think_sent': payload.get('think', 'omitted'),
+        'input_image_hashes': [hashlib.sha256(base64.b64decode(image)).hexdigest() for image in payload['messages'][0].get('images', [])],
+        'status': 'started',
+    }
+    ATTEMPTS.append(row)
+    save()
+    try:
+        response, trace_present = await original_stream(self, model, payload, min(timeout, left))
+        row.update({'status': 'completed', 'input_tokens': response.input_tokens, 'output_tokens': response.output_tokens, 'finish_reason': response.finish_reason, 'trace_present': trace_present})
+        return response, trace_present
+    except Exception as exc:
+        row.update({'status': 'failed', 'error_type': type(exc).__name__})
+        raise
+    finally:
+        row['ended_seconds'] = round(time.monotonic()-START, 3)
+        save()
+
+
+async def fixed_context(self, model, prompt, max_tokens):
+    advertised = await self.get_context_window(model)
+    if advertised < 16384:
+        raise ValueError('Trial model cannot support the predeclared context setting')
+    return 16384
+
+
+def bounded_call(config_arg, workload_tag, prompt, **kwargs):
+    left = remaining()
+    if config_arg.resolve(workload_tag) != ('ollama', MODEL):
+        raise ValueError('Trial route is not the approved local model')
+    prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+    atomic_write_text(ROOT/'prompts'/f'{prompt_hash}.txt', prompt)
+    kwargs.update({'max_tokens': min(kwargs.get('max_tokens', 1536), 1536), 'timeout': max(1, min(60, int(left))), 'retries': 0, 'temperature': 0})
+    row = {**CASE_CONTEXT, 'workload_tag': workload_tag, 'call_type': kwargs.get('call_type',''), 'prompt_sha256': prompt_hash, 'started_seconds': round(time.monotonic()-START,3), 'status': 'started'}
+    CALLS.append(row)
+    save()
+    try:
+        response = canonical_call(config_arg, workload_tag, prompt, **kwargs)
+        if response.provider_name != 'ollama' or response.provider_type != 'local':
+            raise ValueError('Trial response did not retain proven local route identity')
+        row.update({'status': 'completed', 'response': asdict(response)})
+        return response
+    except Exception as exc:
+        row.update({'status': 'failed', 'error_type': type(exc).__name__})
+        raise
+    finally:
+        row['ended_seconds'] = round(time.monotonic()-START,3)
+        save()
+
+
+OllamaProvider._stream_chat = bounded_stream
+OllamaProvider._adaptive_num_ctx = fixed_context
+harness.llm_call = bounded_call
+ranking.llm_call = bounded_call
+ranking.RouterConfig = lambda: rc
+video.llm_call = bounded_call
+video_evidence.llm_call = bounded_call
+
+
+def set_think(value):
+    for tag in ('SITE', 'ANALYSIS', 'RERANK', 'QA'):
+        os.environ[f'DISTILL_{tag}_LOCAL_THINK'] = 'true' if value else 'false'
+
+
+faros = CASES['faros-headline-body']
+faros_source = '\n\n'.join(f'{anchor.anchor_id} [{anchor.role}; {"authored context" if anchor.authored else "frozen page excerpt"}]: {anchor.text}' for anchor in faros.sources[0].anchors)
+correction_source = (
+    'This is one fixture-authored composite receipt, not independent real studies.\n'
+    'A receipt (2024): Method A reports 10 under condition X. Its instrument was calibrated.\n'
+    'B receipt (2024): Method B reports 16 under condition X; population not specified.\n'
+    'A correction (2026): Replace A=10 with A=11 and restrict that result to adults. '
+    'This correction does not address method B or change the instrument-calibration finding. '
+    'The earlier A=10 is retained history, not current support.'
+)
+fresh_source = (
+    'This is one fixture-authored composite receipt. The 2024 benchmark score was 70. '
+    'A 2026 scorer fix revised the recorded score to 81; this is not evidence that the model itself improved. '
+    'The lab redesigned its website later in 2026; that batch supplies no additional score change. '
+    'Keep the earlier score as history and distinguish scorer correction from capability gain.'
+)
+fixtures = {
+    'faros-extraction': Fixture('faros-extraction','site','Frozen Faros takeaway excerpt',faros_source,(),(),url=faros.sources[0].locator,site_name='Frozen Faros page accessed2026-10-24'),
+    'conflict-correction': Fixture('conflict-correction','ask','Synthetic correction',correction_source,(),(),question='What is current after the correction, what remains unresolved between A and B, and what is unaffected? Preserve historical/current and population scope.',source_stems=('correction_episode_fixture',)),
+    'freshness-change': Fixture('freshness-change','ask','Synthetic scorer update',fresh_source,(),(),question='What score is current, what changed versus2024, and does this show that model capability improved or that the later website batch changed evidence?',source_stems=('scorer_update_fixture',)),
+}
+papers = [
+    PaperRecord('review-2019','Captured primary adult review','Primary captured review: adult trials estimated12% relative reduction. No children enrolled. Pediatric applicability unknown.',authors=['Fixture'],published_at='2019-01-01'),
+    PaperRecord('textbook-copy','Derivative textbook','A captured textbook repeats the adult review12% figure; no new experiment or independent evidence.',authors=['Fixture'],published_at='2026-01-01'),
+    PaperRecord('pediatric-unknown','Uncaptured pediatric cohort','Known external cohort, full content not captured; cannot establish benefit for children from this pool.',authors=['Fixture'],published_at='2026-01-01'),
+]
+screen_query = 'Use captured primary evidence for the adult estimate and explain pediatric uncertainty. Prefer primary review to derivative repetition or uncaptured material.'
+
+
+def run_pairs():
+    source_plan = {
+        'fixtures': {key: asdict(value) for key,value in fixtures.items()},
+        'screening_pool': [asdict(paper) for paper in papers], 'screening_query': screen_query,
+        'repeats': 2, 'settings': [False,True], 'cache': 'disabled',
+        'context_override': 'Trial-only provider transport override pins requested num_ctx16384 for allconditions; production adaptive context is not validated by this trial.',
+        'screening_note': 'Production paper_rerank is structured JSON and sends thinkfalse for BOTH requests. No effective reasoning contrast is expected; never manufacture one.',
+    }
+    atomic_write_json(ROOT/'source-plan.json', source_plan)
+    names = ['faros-extraction','mature-source-screening','conflict-correction','freshness-change']
+    for repeat in (1,2):
+        for index, name in enumerate(names):
+            for think in ((False,True) if (repeat+index)%2 else (True,False)):
+                remaining()
+                if model_digest() != RECEIPT['runtime']['model_digest']:
+                    raise ValueError('Model artifact identity changed during the paired trial')
+                set_think(think)
+                CASE_CONTEXT.clear(); CASE_CONTEXT.update({'case_id':name,'repeat':repeat,'think_requested':think})
+                tracker = CostTracker()
+                before = len(CALLS)
+                row = {**CASE_CONTEXT, 'status':'started'}
+                ROWS.append(row); save()
+                try:
+                    if name == 'mature-source-screening':
+                        ranked = ranking.rerank_papers(screen_query,papers,config,tracker=tracker,top_n=1)
+                        row['selected'] = [{'paper_id':item.paper.paper_id,'selected_by':item.selected_by,'rationale':item.rationale} for item in ranked]
+                        row['output'] = CALLS[-1].get('response',{}).get('text','') if len(CALLS)>before else ''
+                    else:
+                        row['output'] = harness._run_analysis(fixtures[name],rc,tracker)
+                    row['status'] = 'completed' if row['output'].strip() else 'empty_final'
+                except Exception as exc:
+                    row.update({'status':'failed','error_type':type(exc).__name__,'output':''})
+                row['logical_call_indexes'] = list(range(before,len(CALLS)))
+                row['input_tokens'] = tracker.total_input_tokens
+                row['output_tokens'] = tracker.total_output_tokens
+                row['cost_usd'] = tracker.total_cost
+                save()
+
+
+def run_visual():
+    set_think(False)
+    CASE_CONTEXT.clear(); CASE_CONTEXT.update({'case_id':'synthetic-local-video','think_requested':False})
+    assets = ROOT/'assets'; assets.mkdir(exist_ok=True)
+    powershell = resolve_executable('pwsh')
+    ffmpeg = resolve_executable('ffmpeg')
+    if not powershell or not ffmpeg:
+        raise ValueError('Existing media tools unavailable; no installation permitted')
+    subprocess.run([powershell,'-NoProfile','-NonInteractive','-File',str(Path('.agent/issue61_67_assets.ps1').resolve()),'-OutputRoot',str(assets)],check=True,timeout=min(20,remaining()),env=sanitized_package_env(),capture_output=True)
+    concat = "file 'initial.png'\nduration65\nfile 'qualification.png'\nduration5\nfile 'initial.png'\nduration55\nfile 'initial.png'\n".replace('duration','duration ')
+    (assets/'slides.txt').write_text(concat,encoding='utf-8')
+    source = assets/'synthetic.mp4'
+    subprocess.run([ffmpeg,'-v','error','-nostdin','-protocol_whitelist','file,pipe','-f','concat','-safe','0','-i',str(assets/'slides.txt'),'-vf','fps=1','-t','125','-c:v','mpeg4','-q:v','2','-an','-y',str(source)],check=True,timeout=min(30,remaining()),env=sanitized_package_env(),capture_output=True)
+    grid = capture_local_video_frames(source,ROOT/'grid',timestamps_ms=(0,60000,120000),timeout_seconds=min(60,int(remaining())))
+    atomic_write_json(ROOT/'grid.json',asdict(grid))
+    images = tuple(LLMImage(read_confined_bytes(ROOT/'grid'/frame.relative_path,ROOT/'grid',max_bytes=4*1024*1024)) for frame in grid.frames)
+    grid_response = bounded_call(rc,'analysis','Describe only the readable text and visible qualifications in these sampled frames. Name any missing context or unknowns. Do not infer unseen slides.',images=images,call_type='video_grid_probe',usage_tracker=CostTracker())
+    atomic_write_json(ROOT/'grid-observation.json',asdict(grid_response))
+    frames = capture_local_video_frames(source,ROOT/'targeted',timestamps_ms=(0,60000,67000,120000),timeout_seconds=min(60,int(remaining())))
+    atomic_write_json(ROOT/'targeted.json',asdict(frames))
+    # Completed acquisition must be reusable without rendering again.
+    restarted = capture_local_video_frames(source,ROOT/'targeted',timestamps_ms=(0,60000,67000,120000),timeout_seconds=min(60,int(remaining())))
+    assert frames == restarted
+    transcript = ('Fixture-authored transcript supplied for this synthetic silent video, not ASR: '
+                  'The speaker initially claims production incident probability tripled. '
+                  'A later correction slide qualifies the claim, but no spoken denominator or population is supplied here.')
+    result = video_evidence.analyze_local_video_evidence('Synthetic correction-slide qualification',transcript,frames,ROOT/'targeted',config,router_config=rc,tracker=CostTracker(),question='Can a consumer treat the result as a causal incident-probability claim applying to children? Preserve the actual correction and audio/visual disagreement, with requested frame anchors and sampling omissions.')
+    atomic_write_json(ROOT/'video-evidence.json',result.as_record())
+    atomic_write_text(ROOT/'video-insight.md',result.insight)
+    RECEIPT['visual'] = {'status':result.status,'reason':result.reason,'grid':str(ROOT/'grid.json'),'targeted':str(ROOT/'targeted.json'),'restart_acquisition_reused':frames==restarted,'audio_route':'not_tested: faster_whisper is not installed in the project or inspected system environment; no install/download permitted; this fixture is silent.'}
+    save()
+
+
+try:
+    version = metadata('/api/version')
+    probe = OllamaProvider(base_url=ENDPOINT)
+    asyncio.run(probe.require_local(MODEL))
+    shown = metadata('/api/show',{'model':MODEL})
+    RECEIPT['runtime'] = {
+        'provider':'ollama','endpoint':ENDPOINT,'local_proof':'passed_uncached',
+        'version':version,'model':MODEL,'model_digest':model_digest(),
+        'capabilities':sorted(asyncio.run(probe._show.capabilities(MODEL))),
+        'advertised_context':asyncio.run(probe.get_context_window(MODEL)),
+        'returned_template_chars':len(shown.get('template','')),
+        'returned_template_sha256':hashlib.sha256(shown.get('template','').encode()).hexdigest(),
+        'full_chat_template':'unknown; returned server string is not proof of full template',
+        'faster_whisper_installed':importlib.util.find_spec('faster_whisper') is not None,
+        'num_ctx_runtime_confirmation':'request setting recorded; no independent runtime context measurement',
+    }
+    save()
+    run_pairs()
+    try:
+        run_visual()
+    except Exception as exc:
+        RECEIPT['visual'] = {'status':'failed','error_type':type(exc).__name__}
+    RECEIPT['status'] = 'completed_with_recorded_limits'
+except Exception as exc:
+    RECEIPT.update({'status':'stopped','error_type':type(exc).__name__})
+finally:
+    RECEIPT['completed_at'] = datetime.now(UTC).isoformat()
+    save()
+    print(json.dumps({'status':RECEIPT['status'],'attempts':len(ATTEMPTS),'cases':len(ROWS),'elapsed_seconds':RECEIPT['elapsed_seconds'],'visual':RECEIPT.get('visual')}))

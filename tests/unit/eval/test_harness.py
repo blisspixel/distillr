@@ -159,6 +159,168 @@ def test_cache_hit_skips_reanalysis(tmp_path, monkeypatch):
     assert all(r.cached for r in second)
 
 
+@pytest.mark.parametrize(
+    ("workload", "tag"),
+    [("paper", "SITE"), ("site", "SITE"), ("video", "ANALYSIS"), ("ask", "QA")],
+)
+def test_analysis_cache_separates_local_think_requests_without_runtime_probes(
+    tmp_path, monkeypatch, workload, tag
+):
+    fixture = load_fixtures(workload)[0]
+    calls = []
+
+    def analyze(_fixture, _config, _tracker):
+        calls.append(len(calls))
+        return f"Controlled completion {len(calls)}"
+
+    def unexpected_probe(*args, **kwargs):
+        pytest.fail("Cache identity must not instantiate or probe a provider")
+
+    monkeypatch.setattr("distill.llm.router.get_provider", unexpected_probe)
+    key = f"DISTILL_{tag}_LOCAL_THINK"
+    for value in (None, "true", "false"):
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+        first = harness_mod._analyze(
+            "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+        )
+        second = harness_mod._analyze(
+            "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+        )
+        assert not first.cached
+        assert second.cached
+        assert first.output == second.output
+    assert len(calls) == 3
+    monkeypatch.setenv(key, "off")
+    equivalent_false = harness_mod._analyze(
+        "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    assert equivalent_false.cached
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize(
+    ("workload", "unused_tag"),
+    [("paper", "ANALYSIS"), ("site", "QA"), ("video", "SITE"), ("ask", "ANALYSIS")],
+)
+def test_analysis_cache_uses_the_actual_workload_reasoning_tag(
+    tmp_path, monkeypatch, workload, unused_tag
+):
+    fixture = load_fixtures(workload)[0]
+    calls = []
+    analyze = _fake_analyze_factory(calls)
+    first = harness_mod._analyze(
+        "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    monkeypatch.setenv(f"DISTILL_{unused_tag}_LOCAL_THINK", "true")
+    second = harness_mod._analyze(
+        "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    assert not first.cached
+    assert second.cached
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("value", ["low", "medium", "high", "unsupported"])
+def test_invalid_local_think_cannot_be_hidden_by_a_completion_cache(tmp_path, monkeypatch, value):
+    fixture = load_fixtures("paper")[0]
+    calls = []
+    analyze = _fake_analyze_factory(calls)
+    harness_mod._analyze("gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe")
+    assert len(calls) == 1
+    monkeypatch.setenv("DISTILL_SITE_LOCAL_THINK", value)
+
+    def unexpected_cache_read(*args, **kwargs):
+        pytest.fail("Explicit control validation must precede a cache read")
+
+    monkeypatch.setattr(harness_mod, "_load_json", unexpected_cache_read)
+    result = harness_mod._analyze(
+        "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    assert "LocalReasoningConfigError" in result.error
+    assert "must be true or false" in result.error
+    assert result.output == ""
+    assert not result.cached
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("value", ["true", "false"])
+def test_lmstudio_explicit_unsupported_think_cannot_reuse_cached_completion(
+    tmp_path, monkeypatch, value
+):
+    fixture = load_fixtures("paper")[0]
+    monkeypatch.setattr(harness_mod, "provider_for_model", lambda _: "lmstudio")
+    calls = []
+    analyze = _fake_analyze_factory(calls)
+    harness_mod._analyze("local-model", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe")
+    monkeypatch.setenv("DISTILL_SITE_LOCAL_THINK", value)
+    result = harness_mod._analyze(
+        "local-model", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    assert "LM Studio has no verified thinking" in result.error
+    assert result.output == ""
+    assert not result.cached
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("model", ["gemma4:e2b", "grok-4.6"])
+def test_reasoning_effort_requests_have_distinct_analysis_cache_identity(
+    tmp_path, monkeypatch, model
+):
+    fixture = load_fixtures("paper")[0]
+    calls = []
+    analyze = _fake_analyze_factory(calls)
+    for value in (None, "low", "high"):
+        if value is None:
+            monkeypatch.delenv("DISTILL_SITE_REASONING_EFFORT", raising=False)
+        else:
+            monkeypatch.setenv("DISTILL_SITE_REASONING_EFFORT", value)
+        result = harness_mod._analyze(
+            model, fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+        )
+        assert not result.cached
+    # A local effort label remains unsupported, but its requested receipt must
+    # not be confused with a differently requested cached evaluation.
+    assert len(calls) == 3
+
+
+def test_analysis_cache_rejects_a_mismatched_reasoning_manifest(tmp_path):
+    fixture = load_fixtures("paper")[0]
+    calls = []
+    analyze = _fake_analyze_factory(calls)
+    harness_mod._analyze("gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe")
+    path = next(tmp_path.glob("*.json"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert "reasoning_config_digest" in payload
+    payload["reasoning_config_digest"] = "a different requested control"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    result = harness_mod._analyze(
+        "gemma4:e2b", fixture, analyze, CostTracker(), tmp_path, "fixed-recipe"
+    )
+    assert not result.cached
+    assert len(calls) == 2
+
+
+def test_invalid_local_control_records_refusal_without_aborting_other_models(monkeypatch):
+    monkeypatch.setenv("DISTILL_SITE_LOCAL_THINK", "high")
+    calls = []
+    rows = run_model_eval(
+        "paper",
+        ["grok-4.6", "gemma4:e2b"],
+        anchor="grok-4.6",
+        judge_model="",
+        analyze=_fake_analyze_factory(calls),
+    )
+    local = [row for row in rows if row.model == "gemma4:e2b"]
+    cloud = [row for row in rows if row.model == "grok-4.6"]
+    assert local and all("LocalReasoningConfigError" in row.error for row in local)
+    assert all(row.output_tokens == 0 and row.cost == 0 for row in local)
+    assert cloud and all(not row.error for row in cloud)
+    assert {model for _, model in calls} == {"grok-4.6"}
+
+
 def test_malformed_cache_entry_recomputes(tmp_path, monkeypatch):
     # A corrupt-but-valid-JSON cache row (wrong shape) must be ignored and the
     # row recomputed, not crash the sweep with KeyError/TypeError.

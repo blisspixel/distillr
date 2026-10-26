@@ -7,6 +7,7 @@ Feature: local-inference
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 from collections.abc import AsyncIterator, Callable
@@ -19,7 +20,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from distill.commands._json import ExitCode, map_exception_to_exit_code
+from distill.llm.cost_policy import CostPolicyError
 from distill.llm.errors import ProviderBusyTimeoutError, describe_provider_error
+from distill.llm.images import LLMImage
 from distill.llm.providers import ollama as ollama_module
 from distill.llm.providers._ollama_show import ShowProbe
 from distill.llm.providers.ollama import (
@@ -28,6 +31,7 @@ from distill.llm.providers.ollama import (
     _describe_ollama_error,
 )
 from distill.llm.router import LLM_Response
+from distill.llm.usage import usage_attempts_from_exception
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -103,7 +107,6 @@ class _FakeStreamResponse:
 
     async def aiter_lines(self) -> AsyncIterator[str]:
         yield ""
-        yield "not-json{"
         for frame in self._frames:
             yield json.dumps(frame)
         if self._stall_exc is not None:
@@ -936,18 +939,25 @@ class TestChatPayload:
         assert "think" not in payload
         assert "temperature" not in payload["options"]
 
-    def test_thinking_trace_used_when_content_empty(self) -> None:
-        """When the model streams only a reasoning trace, it becomes the answer."""
+    @pytest.mark.parametrize("content", ["", "public answer"])
+    def test_thinking_trace_never_becomes_answer(self, content: str) -> None:
+        """Private trace presence is recorded without retaining its text."""
         provider = OllamaProvider(base_url="http://localhost:11434")
         frame = {
-            "message": {"content": "", "thinking": "just reasoning"},
+            "message": {"content": content, "thinking": "private reasoning"},
             "done": True,
+            "done_reason": "stop",
             "prompt_eval_count": 1,
             "eval_count": 2,
         }
         with patch("httpx.AsyncClient", _stream_client_factory(frames=[frame])):
-            result = asyncio.run(provider.call("qwen3.5:27b", "hi"))
-        assert result.text == "just reasoning"
+            result, trace_present = asyncio.run(provider._stream_chat("qwen3.5:27b", {}, 5))
+        assert result.text == content
+        assert "private reasoning" not in repr(result)
+        assert result.input_tokens == 1
+        assert result.output_tokens == 2
+        assert result.finish_reason == "stop"
+        assert trace_present is True
 
 
 class TestOllamaGetContextWindow:
@@ -1385,7 +1395,11 @@ class TestThinkingCapability:
         )
         assert thinking["think"] is True
 
-    def test_thinking_rejection_retries_the_call_without_thinking(self) -> None:
+    @pytest.mark.parametrize("explicit_think", [True, False])
+    @pytest.mark.parametrize("effort", [None, "high"])
+    def test_thinking_rejection_retries_the_call_without_thinking(
+        self, explicit_think: bool, effort: str | None
+    ) -> None:
         provider = OllamaProvider(base_url="http://localhost:11434")
         request = httpx.Request("POST", "http://localhost:11434/api/chat")
         response = httpx.Response(
@@ -1416,17 +1430,80 @@ class TestThinkingCapability:
             patch.object(provider._show, "supports_thinking", AsyncMock(return_value=True)),
         ):
             result = asyncio.run(
-                provider.call("qwen3-coder:30b", "hello", retries=0, local_think=True)
+                provider.call(
+                    "qwen3-coder:30b",
+                    "hello",
+                    retries=0,
+                    local_think=explicit_think,
+                    reasoning_effort=effort,
+                )
             )
 
         assert result.text == "ok"
         assert calls["n"] == 2
-        assert payloads[0]["think"] is True
+        assert payloads[0]["think"] is explicit_think
         assert "think" not in payloads[1]
         assert result.reasoning_effective == "rejected_retried_without_think"
         assert result.reasoning_sent == "think=omitted"
+        requested = f"think={str(explicit_think).lower()}"
+        if effort:
+            requested += f";effort={effort}"
+        assert result.reasoning_requested == requested
+        assert [row.reasoning_requested for row in result.usage_attempts] == [requested, requested]
+        assert result.usage_attempts[0].reasoning_sent == f"think={str(explicit_think).lower()}"
+        assert result.usage_attempts[1].reasoning_sent == "think=omitted"
         assert result.usage_attempts[0].reasoning_effective == "unknown"
         assert result.usage_attempts[1].reasoning_effective == "rejected_retried_without_think"
+
+    @pytest.mark.parametrize(
+        "failure_type", [httpx.ConnectError, httpx.ConnectTimeout, CostPolicyError]
+    )
+    @pytest.mark.parametrize("rejected_first", [False, True])
+    def test_failed_transport_retains_requested_and_sent_thinking_receipt(
+        self,
+        failure_type: type[httpx.ConnectError] | type[httpx.ConnectTimeout] | type[CostPolicyError],
+        rejected_first: bool,
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        rejection_response = httpx.Response(
+            400,
+            json={"error": '"qwen3-coder:30b" does not support thinking'},
+            request=request,
+        )
+        rejection = httpx.HTTPStatusError("400", request=request, response=rejection_response)
+        calls = 0
+
+        async def fail(
+            _model: str, _payload: dict[str, Any], _timeout: int
+        ) -> tuple[LLM_Response, bool]:
+            nonlocal calls
+            calls += 1
+            if rejected_first and calls == 1:
+                raise rejection
+            raise failure_type("transport refused")
+
+        surfaced = CostPolicyError if failure_type is CostPolicyError else ConnectionError
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider, "_stream_chat", side_effect=fail),
+            patch.object(provider._show, "require_local", AsyncMock()),
+            patch.object(provider._show, "supports_thinking", AsyncMock(return_value=True)),
+            pytest.raises(surfaced) as raised,
+        ):
+            asyncio.run(
+                provider.call(
+                    "qwen3-coder:30b", "hello", retries=0, local_think=True, reasoning_effort="high"
+                )
+            )
+
+        attempts = usage_attempts_from_exception(raised.value)
+        assert len(attempts) == (2 if rejected_first else 1)
+        assert {row.reasoning_requested for row in attempts} == {"think=true;effort=high"}
+        assert attempts[-1].reasoning_sent == ("think=omitted" if rejected_first else "think=true")
+        assert attempts[-1].reasoning_effective == "unknown"
+        assert attempts[-1].reasoning_support
+        assert attempts[-1].outcome == "error"
 
     def test_thinking_rejection_is_recognized(self) -> None:
         request = httpx.Request("POST", "http://localhost:11434/api/chat")
@@ -1445,6 +1522,177 @@ class TestThinkingCapability:
         exc = httpx.HTTPStatusError("400", request=request, response=response)
 
         assert ShowProbe.is_thinking_rejection(exc) is False
+
+
+def _transport_image(marker: bytes = b"frame") -> LLMImage:
+    # A bounded structural PNG fixture. Decoding/readability is not exercised
+    # by these transport tests; the runtime qualification owns that evidence.
+    header = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    return LLMImage(header + b"\x00" * 9 + marker)
+
+
+class TestOllamaVisionTransport:
+    def test_payload_and_response_bind_the_actual_ordered_image_bytes(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        images = (_transport_image(b"first"), _transport_image(b"second"))
+        payloads: list[dict[str, object]] = []
+
+        async def stream(
+            _model: str, payload: dict[str, object], _timeout: int
+        ) -> tuple[LLM_Response, bool]:
+            payloads.append(payload)
+            return LLM_Response("Visible qualification.", 10, 4, "actual-vision-model"), False
+
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider._show, "require_local", AsyncMock()) as locality,
+            patch.object(
+                provider._show, "capabilities", AsyncMock(return_value=frozenset({"vision"}))
+            ) as capabilities,
+            patch.object(provider._show, "supports_thinking", AsyncMock(return_value=False)),
+            patch.object(provider, "_adaptive_num_ctx", AsyncMock(return_value=2048)),
+            patch.object(provider, "_stream_chat", side_effect=stream),
+        ):
+            result = asyncio.run(provider.call("vision-model", "Read this frame.", images=images))
+
+        locality.assert_awaited_once_with("vision-model")
+        capabilities.assert_awaited_once_with("vision-model")
+        assert payloads[0]["messages"] == [
+            {
+                "role": "user",
+                "content": "Read this frame.",
+                "images": [base64.b64encode(image.data).decode("ascii") for image in images],
+            }
+        ]
+        assert result.input_image_hashes == tuple(image.sha256 for image in images)
+        assert result.model == "actual-vision-model"
+
+    @pytest.mark.parametrize("capabilities", [frozenset(), frozenset({"completion", "thinking"})])
+    def test_missing_or_unknown_vision_capability_refuses_before_chat(
+        self, capabilities: frozenset[str]
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider._show, "require_local", AsyncMock()) as locality,
+            patch.object(provider._show, "capabilities", AsyncMock(return_value=capabilities)),
+            patch.object(provider, "_stream_chat", AsyncMock()) as stream,
+            pytest.raises(CostPolicyError, match="vision capability"),
+        ):
+            asyncio.run(provider.call("gemma4-vision-name", "read", images=(_transport_image(),)))
+        locality.assert_awaited_once()
+        stream.assert_not_awaited()
+
+    def test_failed_locality_proof_withholds_images_and_capability_probe(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(
+                provider._show, "require_local", AsyncMock(side_effect=CostPolicyError("not local"))
+            ),
+            patch.object(provider._show, "capabilities", AsyncMock()) as capabilities,
+            patch.object(provider, "_stream_chat", AsyncMock()) as stream,
+            pytest.raises(CostPolicyError, match="not local"),
+        ):
+            asyncio.run(provider.call("vision-model", "read", images=(_transport_image(),)))
+        capabilities.assert_not_awaited()
+        stream.assert_not_awaited()
+
+    def test_non_loopback_direct_provider_refuses_without_probes(self) -> None:
+        provider = OllamaProvider(base_url="http://example.invalid:11434")
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock()) as running,
+            patch.object(provider._show, "require_local", AsyncMock()) as locality,
+            patch.object(provider, "_stream_chat", AsyncMock()) as stream,
+            pytest.raises(CostPolicyError, match="loopback"),
+        ):
+            asyncio.run(provider.call("vision-model", "read", images=(_transport_image(),)))
+        running.assert_not_awaited()
+        locality.assert_not_awaited()
+        stream.assert_not_awaited()
+
+    def test_text_only_calls_do_not_add_an_image_capability_probe(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        success = LLM_Response("Text answer.", 1, 1, "text-model")
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider._show, "require_local", AsyncMock()),
+            patch.object(provider._show, "supports_thinking", AsyncMock(return_value=False)),
+            patch.object(provider._show, "capabilities", AsyncMock()) as capabilities,
+            patch.object(provider, "_adaptive_num_ctx", AsyncMock(return_value=2048)),
+            patch.object(
+                provider, "_stream_chat", AsyncMock(return_value=(success, False))
+            ) as stream,
+        ):
+            result = asyncio.run(provider.call("text-model", "Only text."))
+        capabilities.assert_not_awaited()
+        assert stream.call_args.args[1]["messages"] == [{"role": "user", "content": "Only text."}]
+        assert result.input_image_hashes == ()
+
+    @pytest.mark.parametrize("loses_vision", [False, True])
+    def test_retry_keeps_images_and_rechecks_locality_and_capability(
+        self, loses_vision: bool, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        image = _transport_image(b"private-frame")
+        encoded = base64.b64encode(image.data).decode("ascii")
+        request = httpx.Request("POST", "http://localhost:11434/api/chat")
+        refusal = httpx.Response(503, text=encoded, request=request)
+        transient = httpx.HTTPStatusError("unavailable", request=request, response=refusal)
+        payloads: list[dict[str, object]] = []
+
+        async def stream(
+            _model: str, payload: dict[str, object], _timeout: int
+        ) -> tuple[LLM_Response, bool]:
+            payloads.append(payload)
+            if len(payloads) == 1:
+                raise transient
+            return LLM_Response("Vision answer.", 1, 1, "vision-model"), False
+
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock(return_value=())),
+            patch.object(provider._show, "require_local", AsyncMock()) as locality,
+            patch.object(
+                provider._show,
+                "capabilities",
+                AsyncMock(
+                    side_effect=[
+                        frozenset({"vision"}),
+                        frozenset() if loses_vision else frozenset({"vision"}),
+                    ]
+                ),
+            ) as capabilities,
+            patch.object(provider._show, "supports_thinking", AsyncMock(return_value=False)),
+            patch.object(provider, "_adaptive_num_ctx", AsyncMock(return_value=2048)),
+            patch.object(provider, "_stream_chat", side_effect=stream),
+            patch("distill.llm.providers.ollama.asyncio.sleep", AsyncMock()),
+        ):
+            if loses_vision:
+                with pytest.raises(CostPolicyError, match="vision capability"):
+                    asyncio.run(provider.call("vision-model", "Read.", retries=1, images=(image,)))
+            else:
+                result = asyncio.run(
+                    provider.call("vision-model", "Read.", retries=1, images=(image,))
+                )
+                assert result.input_image_hashes == (image.sha256,)
+        assert locality.await_count == capabilities.await_count == 2
+        assert len(payloads) == (1 if loses_vision else 2)
+        assert all(
+            payload["messages"] == [{"role": "user", "content": "Read.", "images": [encoded]}]
+            for payload in payloads
+        )
+        assert encoded not in caplog.text
+
+    def test_direct_provider_rejects_excessive_image_batch_before_probes(self) -> None:
+        provider = OllamaProvider(base_url="http://localhost:11434")
+        with (
+            patch.object(provider, "_running_model_names", AsyncMock()) as running,
+            patch.object(provider, "_stream_chat", AsyncMock()) as stream,
+            pytest.raises(ValueError, match="four images"),
+        ):
+            asyncio.run(provider.call("vision-model", "read", images=(_transport_image(),) * 5))
+        running.assert_not_awaited()
+        stream.assert_not_awaited()
 
 
 class TestOllamaProviderInit:
@@ -1683,7 +1931,85 @@ def test_malformed_chat_frames_are_skipped_not_crashed() -> None:
         )
 
     assert response.text == "hello"
+    assert response.finish_reason == "incomplete"
     assert trace_present is False
+
+
+@pytest.mark.parametrize("reason", [None, "", "unrecognized", 1, ["stop"]])
+def test_done_frame_does_not_invent_a_known_completion_reason(reason: object) -> None:
+    frame: dict[str, object] = {
+        "message": {"content": "A candidate answer."},
+        "done": True,
+        "prompt_eval_count": 7,
+        "eval_count": 3,
+    }
+    if reason is not None:
+        frame["done_reason"] = reason
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    with patch("httpx.AsyncClient", _stream_client_factory(frames=[frame])):
+        result, _trace_present = asyncio.run(provider._stream_chat("fixture-model", {}, 5))
+    assert result.text == "A candidate answer."
+    assert result.finish_reason == "unknown"
+    assert result.input_tokens == 7 and result.output_tokens == 3
+
+
+@pytest.mark.parametrize("done", ["true", 1, [True]])
+def test_non_boolean_done_cannot_establish_terminal_completion(done: object) -> None:
+    frame = {"message": {"content": "Partial output."}, "done": done, "done_reason": "stop"}
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    with patch("httpx.AsyncClient", _stream_client_factory(frames=[frame])):
+        result, _trace_present = asyncio.run(provider._stream_chat("fixture-model", {}, 5))
+    assert result.text == "Partial output."
+    assert result.finish_reason == "incomplete"
+
+
+def test_malformed_output_frame_prevents_later_stop_from_certifying_completeness() -> None:
+    lines = [
+        json.dumps({"message": {"content": "First part."}, "done": False}),
+        '{"message":{"content":',
+        json.dumps(
+            {
+                "message": {"content": "Last part."},
+                "done": True,
+                "done_reason": "stop",
+                "prompt_eval_count": 7,
+                "eval_count": 3,
+            }
+        ),
+    ]
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    with patch(
+        "distill.llm.providers._ollama_stream.httpx.AsyncClient", _RawLineStreamClient(lines)
+    ):
+        result, _trace_present = asyncio.run(provider._stream_chat("fixture-model", {}, 5))
+    assert result.text == "First part.Last part."
+    assert result.finish_reason == "incomplete"
+    assert result.input_tokens == 7 and result.output_tokens == 3
+
+
+@pytest.mark.parametrize(
+    "message", ["not an object", {"content": ["lost content"]}, {"thinking": 123}]
+)
+def test_unreadable_message_frame_cannot_be_hidden_by_a_later_stop(message: object) -> None:
+    lines = [
+        json.dumps({"message": message, "done": False}),
+        json.dumps(
+            {
+                "message": {"content": "Retained decoded output."},
+                "done": True,
+                "done_reason": "stop",
+                "prompt_eval_count": 7,
+                "eval_count": 3,
+            }
+        ),
+    ]
+    provider = OllamaProvider(base_url="http://localhost:11434")
+    with patch(
+        "distill.llm.providers._ollama_stream.httpx.AsyncClient", _RawLineStreamClient(lines)
+    ):
+        result, _trace_present = asyncio.run(provider._stream_chat("fixture-model", {}, 5))
+    assert result.text == "Retained decoded output."
+    assert result.finish_reason == "incomplete"
 
 
 class TestShowProbeDegradation:

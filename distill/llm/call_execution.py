@@ -35,6 +35,7 @@ from distill.llm.fallback import (
     fallback_target,
     require_fallback_route_allowed,
 )
+from distill.llm.images import LLMImage, validate_images
 from distill.llm.local_reasoning import local_think_override
 from distill.llm.metadata import LOCAL_PROVIDERS, local_call_timeout
 from distill.llm.providers._usage import projected_usage_attempt
@@ -87,11 +88,17 @@ class CallOptions:
     provider_getter: Callable[[str], Any]
     usage_authorizer: UsageAttemptAuthorizer | None = None
     usage_reservation: UsageAttemptReservation | None = None
+    images: tuple[LLMImage, ...] = ()
 
 
 def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Response:
     """Run a primary route and its policy-eligible fallback, if required."""
 
+    validate_images(options.images)
+    if options.images and provider_name != "ollama":
+        raise ValueError(
+            "Image evidence currently requires an explicitly selected local Ollama route"
+        )
     started = _monotonic()
     try:
         response = _run_provider_call(options, provider_name, model)
@@ -115,7 +122,9 @@ def execute_call(options: CallOptions, provider_name: str, model: str) -> LLM_Re
             _monotonic() - started,
             primary_attempts,
         )
-        target = fallback_target(options.config, provider_name, exc)
+        # A text fallback cannot silently drop visual evidence or forward a
+        # private image to a route that has not qualified this input contract.
+        target = None if options.images else fallback_target(options.config, provider_name, exc)
         if target is None:
             raise
         return _call_fallback(options, provider_name, exc, primary_attempts, target)
@@ -237,6 +246,8 @@ def _run_admitted_provider_call(
     explicit_think = local_think_override(provider_name, options.workload_tag)
     provider = options.provider_getter(provider_name)
     provider_type = _provider_type(provider_name, provider)
+    if options.images and provider_type != "local":
+        raise ValueError("Image evidence requires a loopback local Ollama endpoint")
     effective_timeout = (
         local_call_timeout(options.timeout) if provider_type == "local" else options.timeout
     )
@@ -264,6 +275,8 @@ def _run_admitted_provider_call(
     )
     if provider_name == "openrouter" and options.run_id:
         call_kwargs["session_id"] = options.run_id
+    if options.images:
+        call_kwargs["images"] = options.images
     coroutine = provider.call(model, options.prompt, **call_kwargs)
     try:
         response = run_coroutine_sync(coroutine)

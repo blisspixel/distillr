@@ -1,0 +1,27 @@
+{
+  "schema": "issue61-67-local-trial.v1",
+  "started_at": "2026-10-26T00:15:23.040118+00:00",
+  "base_commit": "a38c5d2bfefd8eb82c17e8c097a8b60e65e3705c",
+  "authority": "User allowed existing installed models, synthetic local media/frozen fixtures, maximum24 inference calls/15minutes, zero API spend, no downloads/cloud fallback.",
+  "limits": {
+    "max_inference_attempts": 24,
+    "max_elapsed_seconds": 900,
+    "max_output_tokens": 1536,
+    "requested_num_ctx": 16384,
+    "temperature": 0,
+    "retries": 0
+  },
+  "runtime": {},
+  "cases": [],
+  "logical_calls": [],
+  "transport_attempts": [],
+  "repository_api_spend_usd": 0,
+  "host_agent_review_usage_cost_usd": null,
+  "no_downloads": true,
+  "cloud_fallback": false,
+  "defaults_changed": false,
+  "status": "stopped",
+  "error_type": "OSError",
+  "completed_at": "2026-10-26T00:15:23.145374+00:00",
+  "elapsed_seconds": 0.105
+}
