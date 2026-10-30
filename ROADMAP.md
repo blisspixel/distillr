@@ -103,13 +103,13 @@ and a scope; they are not schedule promises.
 | Order | Version | State | Outcome | Required exit evidence |
 |---|---|---|---|---|
 | 1 | `0.19.74` | Shipped | Release the optional OpenRouter route and Python 3.15 readiness watch with complete provider, billing, privacy, configuration, and operator truth | Package and generated distribution versions aligned; live OpenRouter doctor receipt recorded under a `$20` hard cap; full CI and security gates, exact-wheel installation, `.env.example`, no-metered refusal, release artifacts, and notes verified |
-| 2 | `0.20.0` | Released | Add the requested private editorial consumer and optional standalone skill without changing corpus truth or default research routes | Weekly budget and crash/concurrency tests; independent paid rewrite and receipt checks; model comparison; Markdown/DOCX sample; portable packages; CI and package publication; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.0) |
-| 3 | `0.20.1` | Shipped | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.1) |
-| 4 | `0.20.2` | Shipped | Register frontier models, OpenRouter DeepSeek routing, and fallback workflow budgets | Verified pricing for Gemini 3.8 Flash, Claude Fable 5.1/Mythos 5.1, and OpenRouter DeepSeek models; default OpenRouter model selection and catalog; global workflow budget fallback; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.2) |
+| 2 | `0.20.0` | Released | Add the requested private editorial consumer and optional standalone skill without changing corpus truth or default research routes | Weekly budget and crash/concurrency tests; independent paid rewrite and receipt checks; model comparison; Markdown/DOCX sample; portable packages; CI and package publication; see [release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.0) |
+| 3 | `0.20.1` | Shipped | Close local-inference billing and runtime compatibility blockers, with bounded arXiv request pacing | Ollama daemon/model proof and refusal before prompt transmission; modern and genuine legacy MCP stdio receipts; Agent Plugins schema and archives; pacing and retry tests; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.1) |
+| 4 | `0.20.2` | Shipped | Register frontier models, OpenRouter DeepSeek routing, and fallback workflow budgets | Verified pricing for Gemini 3.8 Flash, Claude Fable 5.1/Mythos 5.1, and OpenRouter DeepSeek models; default OpenRouter model selection and catalog; global workflow budget fallback; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts; see [release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.2) |
 | 5 | `0.20.3` | Shipped | Expand strict type checking, decouple near-limit modules, elevate unit test coverage, and refine persistent agent instructions | Seven core subpackages promoted to strict Pyright with zero errors/warnings (64.7% of codebase); anti-god file decompositions for commands and worker tasks keeping all files under 915 lines; combined coverage with branch measurement raised to 95.43%; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
 | 6 | `0.20.4` | Shipped | Make site capture account for every URL it visits, and clear a critical dependency vulnerability | Typed per-URL capture receipts reaching the manifest, run summary, and status line; whole-seed budget and worker failures recorded rather than returned as an empty crawl; observed network quiescence in place of a fixed post-load wait; receipt URLs redacted at the persistence boundary; `anyio` security floor with clean `pip-audit`; full CI, exact-wheel smoke, and matching GitHub/PyPI artifacts |
 | 7 | `0.20.5` | Shipped | Close current API, billing, and dependency security defects | Dated primary-source pricing and model audit; compatible SDK requests; routed price and ledger regressions; unchanged budget refusal, retries, and local transport boundaries; clean dependency audit; full CI, exact-wheel smoke, aligned skill archives, and matching GitHub/PyPI artifacts |
-| 8 | `0.20.6` | Shipped | Repair first-run setup, exact preview replay, and bounded capture fallbacks | No-metered setup and bench refusal; shortlist replay; closed-deadline socket regression; bounded system-browser and static-HTTP fallbacks; full CI and published [maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6) |
+| 8 | `0.20.6` | Shipped | Repair first-run setup, exact preview replay, and bounded capture fallbacks | No-metered setup and bench refusal; shortlist replay; closed-deadline socket regression; bounded system-browser and static-HTTP fallbacks; full CI and published [maintenance release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.6) |
 | 9 | `0.20.7` | Shipped | Correct evidence currency and origin, then resolve the requested provider, toolchain, and interface defects in issues #40 through #57 | Generation and zero-claim retirement; honest discovery/revision/freshness and verification coverage; exact citation origin; current provider billing and toolchain checks; accessible terminal and web behavior; local zero-dollar journey receipts; full CI and release artifacts; [execution plan](docs/design/open-issue-execution-2026-10-17.md) |
 | 10 | `0.20.8` | Shipped | Refresh emSign-affected trust material and the optional Transformers advisories, and return snapshot-bound MCP evidence identity | Runtime certifi floor, uv 0.13.5, development pip floor, and the repaired publish action; transformers >=5.17 with the custom-generation non-use check; clean default and entailment-export audits; additive find/read evidence and expected-digest conflicts; full CI and published release artifacts |
 | 11 | `0.20.9` | Queued | Establish the research-desk evaluation baseline before changing discovery or synthesis defaults | Expert-reviewed mature, fast-moving, and contested-field fixtures; separate retrieval and synthesis tracks; per-criterion verdicts and judge calibration; deterministic aggregation and receipts; published baseline before default-route changes |
@@ -119,24 +119,24 @@ and a scope; they are not schedule promises.
 | 15 | `1.0.0` | Gated | Publish the stability commitment | Every 1.0 gate below closed; release candidate evidence still valid for the final commit; signed/tagged artifacts, provenance, SBOM, changelog, compatibility statement, and installed-wheel smoke all agree |
 
 The shipped rows name published release boundaries; publication receipts
-live in the changelog and [releases](https://github.com/blisspixel/distillr/releases).
+live in the changelog and [releases](https://github.com/pueo-labs/distillr/releases).
 `0.20.4` closed site-capture accounting and a critical TLS dependency defect.
 `0.20.5` is inserted under the release-blocker rule for provider-specific
 underpricing, SDK compatibility, and dependency security defects found in the
 [October 6 API audit](docs/research/api-models-2026-10-06.md). The subsequent
 `0.20.6` maintenance release repairs setup, shortlist replay,
-and capture failures. Its [published notes](https://github.com/blisspixel/distillr/releases/tag/v0.20.6)
+and capture failures. Its [published notes](https://github.com/pueo-labs/distillr/releases/tag/v0.20.6)
 record that scope. The remaining rows move down one place again, preserving
 their outcomes and exit evidence. Model candidates are current;
 default routes remain pinned until the `0.20.9` research-quality evaluation gate.
 
 Published `0.20.7` corrects active-generation, discovery, revision, freshness
 and derived-origin evidence, and closes issues #40 through #57. See the
-[release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7) and
+[release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.7) and
 [publication receipt](docs/research/evidence/2026-10-17/publication.json).
 Published `0.20.8` refreshes the trust bundle and optional checker advisories,
 and exposes snapshot-bound MCP evidence identity. See the
-[release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8) and
+[release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.8) and
 [publication receipt](docs/research/evidence/2026-10-24/publication.json).
 Next is `0.20.9`: the research-quality baseline, with its acceptance gate
 unchanged. A structural checker, frozen cases, and an offline receipt now

@@ -59,7 +59,7 @@ uv run python -m benchmarks.live_journey validate \
   --receipt .release-evidence/videos-50.json \
   --receipt .release-evidence/site-batch-5.json \
   --output-dir .release-evidence/bundle \
-  --repository blisspixel/distillr \
+  --repository pueo-labs/distillr \
   --commit-sha <exact-lowercase-commit-sha>
 ```
 

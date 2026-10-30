@@ -9,6 +9,14 @@ from distill.ingestors.sites.records import SitePage, SiteSeed
 from distill.ingestors.sites.scraper import SiteCrawlResult, crawl_site_with_receipts
 
 
+@pytest.fixture(autouse=True)
+def _public_fixture_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "distill.ingestors.net.is_public_web_url",
+        lambda url: url == "https://example.com/docs",
+    )
+
+
 def _page(url: str) -> SitePage:
     return SitePage(
         url=url,

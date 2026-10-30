@@ -9,7 +9,7 @@ Status: binding policy for freeze-ready covered surfaces. Complements
 |---------|------|-------|
 | CLI commands | `distill`, `distill-mcp` | Public argv contracts |
 | PyPI distribution | `distillr` | Import package remains `distill` |
-| GitHub repository | `blisspixel/distillr` | |
+| GitHub repository | `pueo-labs/distillr` | |
 
 The rename window for these names closes at 1.0. Do not introduce a second
 public brand without a major-version migration plan.

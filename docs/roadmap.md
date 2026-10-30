@@ -34,15 +34,15 @@ does not independently schedule releases.
 - `0.20.5` shipped API, routed billing, SDK compatibility, and dependency
   security repairs. See the [dated audit](research/api-models-2026-10-06.md).
 - `0.20.6` shipped first-run setup, exact preview replay, and bounded capture
-  fallbacks. See the [published maintenance release](https://github.com/blisspixel/distillr/releases/tag/v0.20.6).
+  fallbacks. See the [published maintenance release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.6).
   This inserts another maintenance boundary; the remaining rows move down one
   place with their outcomes and exit evidence unchanged.
 - `0.20.7` shipped claim-generation retirement, derived-origin preservation
   and all 18 requested maintenance issues. See the
-  [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.7).
+  [release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.7).
 - `0.20.8` shipped the emSign trust-bundle refresh, the optional Transformers
   floors, and snapshot-bound MCP evidence identity. See the
-  [release](https://github.com/blisspixel/distillr/releases/tag/v0.20.8).
+  [release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.8).
 - `0.20.9` owns the research-desk evaluation baseline.
 - `0.20.10` owns operator, accessibility, and performance evidence.
 - `0.20.11` owns remaining strict-boundary and freeze-time security evidence.

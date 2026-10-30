@@ -7,7 +7,7 @@ Thanks for your interest. This document covers the bare minimum needed to get a 
 distillr uses [uv](https://docs.astral.sh/uv/) as its sole toolchain (package manager, virtualenv, and Python-version manager). Install uv once, then:
 
 ```bash
-git clone https://github.com/blisspixel/distillr.git
+git clone https://github.com/pueo-labs/distillr.git
 cd distillr
 uv sync                            # creates .venv from uv.lock; installs distill (editable) + dev tools
 uv run distill init                # guided setup: creates .env, validates your key, installs the browser

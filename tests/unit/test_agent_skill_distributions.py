@@ -109,6 +109,12 @@ def test_generated_plugin_contains_exact_canonical_skill() -> None:
 def test_portable_plugin_manifest_targets_agent_plugins_v1() -> None:
     expected = GENERATOR.expected_tracked_files(ROOT)
     manifest = json.loads(expected[PurePosixPath("plugins/distill-corpus/plugin.json")])
+    marketplace = json.loads(expected[PurePosixPath(".claude-plugin/marketplace.json")])
+
+    assert marketplace["owner"] == {
+        "name": "Pueo Labs",
+        "url": "https://github.com/pueo-labs",
+    }
 
     assert manifest == {
         "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
@@ -119,8 +125,8 @@ def test_portable_plugin_manifest_targets_agent_plugins_v1() -> None:
             "name": "Nick Seal",
             "url": "https://github.com/blisspixel",
         },
-        "homepage": "https://github.com/blisspixel/distillr",
-        "repository": "https://github.com/blisspixel/distillr",
+        "homepage": "https://github.com/pueo-labs/distillr",
+        "repository": "https://github.com/pueo-labs/distillr",
         "license": "Apache-2.0",
         "keywords": ["research", "corpus", "verification", "distill"],
     }

@@ -393,12 +393,12 @@ def test_fetch_with_urllib_uses_response_body(monkeypatch):
         def read(self, size=-1):
             return b"<html>body</html>"
 
-    # safe_urlopen now SSRF-guards the host and fetches via a validating opener,
-    # so patch those net internals rather than urllib.request.urlopen.
-    from distill.ingestors import net
-
-    monkeypatch.setattr(net, "is_public_web_url", lambda url: True)
-    monkeypatch.setattr(net._SSRF_SAFE_OPENER, "open", lambda req, timeout=30: FakeResponse())
+    # This tests response consumption, not the separately tested DNS/pinning
+    # boundary. Mock the fetch seam instead of depending on public DNS.
+    monkeypatch.setattr(
+        "distill.ingestors.youtube.browser_search.safe_urlopen",
+        lambda req: FakeResponse(),
+    )
 
     from distill.ingestors.youtube.browser_search import _fetch_with_urllib
 

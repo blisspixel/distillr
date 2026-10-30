@@ -32,6 +32,8 @@ dependencies = [
     "openai>=3.26.0,<4",
     "google-genai>=2.28.0,<3",
     "typer>=0.9.0",
+    # Self-update uses PEP 440 comparisons in clean tool installs too.
+    "packaging>=26.3",
     "pydantic>=2.0",
     "pydantic>=2.14.1; python_version >= '3.15'",
     "pydantic-settings>=2.14.2",
@@ -125,7 +127,8 @@ dev = [
     "bandit[toml]>=1.7",
     "pip-audit>=2.7",
     "pip-api>=0.0.35",
-    "msgpack>=1.2.1",
+    # The dev audit cache must include the CVE-2026-114613 fix.
+    "msgpack>=1.2.3",
     "pre-commit>=3.5",
     # pre-commit uses virtualenv; refuse vulnerable activation scripts.
     # 21.14.9 is the highest fix among the activation-script advisories.
@@ -277,9 +280,9 @@ extend-immutable-calls = [
 known-first-party = ["distill"]
 
 [project.urls]
-Homepage = "https://github.com/blisspixel/distillr"
-Repository = "https://github.com/blisspixel/distillr"
-Issues = "https://github.com/blisspixel/distillr/issues"
+Homepage = "https://github.com/pueo-labs/distillr"
+Repository = "https://github.com/pueo-labs/distillr"
+Issues = "https://github.com/pueo-labs/distillr/issues"
 
 [tool.bandit]
 # Exclude test/archive directories from security scans.

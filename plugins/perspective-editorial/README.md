@@ -38,4 +38,4 @@ edit skills/perspective-editorial and run:
     uv run python -m scripts.editorial_skill_distributions --write
 
 Installation guidance and dated interoperability research:
-https://github.com/blisspixel/distillr/blob/main/docs/portable-editorial-skill.md
+https://github.com/pueo-labs/distillr/blob/main/docs/portable-editorial-skill.md

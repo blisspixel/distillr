@@ -47,6 +47,7 @@ def test_preflight_ytdlp_warns_when_stale(monkeypatch, tmp_path):
     monkeypatch.delenv("DISTILL_NO_PREFLIGHT", raising=False)
     monkeypatch.setattr(preflight, "get_ytdlp_version", lambda: "2026.1.1")
     monkeypatch.setattr(preflight, "ytdlp_age_days", lambda now=None: 30)
+    monkeypatch.setattr(preflight, "ytdlp_update_available", lambda _version: None)
     console = _RecordingConsole()
     preflight.preflight_ytdlp(console, library_dir=tmp_path)
 

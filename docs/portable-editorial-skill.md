@@ -23,7 +23,7 @@ uv run python -m scripts.editorial_skill_distributions --build
 The `agent-dist/` outputs are self-contained. Using them does not require Python,
 this repository, or a Distill installation.
 Prebuilt packages are attached to the
-[v0.20.0 release](https://github.com/blisspixel/distillr/releases/tag/v0.20.0).
+[v0.20.0 release](https://github.com/pueo-labs/distillr/releases/tag/v0.20.0).
 
 | Artifact | Use |
 | --- | --- |

@@ -714,14 +714,14 @@ def native_client_guidance(client: str, scope: str) -> dict[str, object]:
     gemini_scope = "workspace" if scope == "project" else "user"
     guidance: dict[str, tuple[str | None, str | None, str | None, str]] = {
         "codex": (
-            "codex plugin marketplace add blisspixel/distillr --sparse .agents/plugins "
+            "codex plugin marketplace add pueo-labs/distillr --sparse .agents/plugins "
             "--sparse plugins/distill-corpus && codex plugin add distill-corpus@distillr",
             "codex plugin marketplace upgrade distillr",
             "codex plugin remove distill-corpus@distillr",
             "Native plugin install preserves marketplace provenance and versioned caching.",
         ),
         "claude": (
-            f"claude plugin marketplace add blisspixel/distillr --scope {claude_scope} "
+            f"claude plugin marketplace add pueo-labs/distillr --scope {claude_scope} "
             "--sparse .claude-plugin plugins/distill-corpus && "
             f"claude plugin install distill-corpus@distillr --scope {claude_scope}",
             f"claude plugin update distill-corpus@distillr --scope {claude_scope}",
@@ -729,14 +729,14 @@ def native_client_guidance(client: str, scope: str) -> dict[str, object]:
             "Native plugin install provides updates and the bundled behavioral eval suite.",
         ),
         "gemini": (
-            "gemini skills install https://github.com/blisspixel/distillr.git "
+            "gemini skills install https://github.com/pueo-labs/distillr.git "
             f"--path skills/distill-corpus --scope {gemini_scope}",
             None,
             f"gemini skills uninstall distill-corpus --scope {gemini_scope}",
             "Gemini has native skill provenance; reinstall explicitly when updating.",
         ),
         "grok": (
-            "grok plugin install blisspixel/distillr#plugins/distill-corpus",
+            "grok plugin install pueo-labs/distillr#plugins/distill-corpus",
             "grok plugin update distill-corpus",
             "grok plugin uninstall distill-corpus",
             "Grok consumes the self-contained Claude-compatible plugin directly.",

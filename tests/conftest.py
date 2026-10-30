@@ -98,6 +98,12 @@ def _enforce_default_test_boundaries(monkeypatch, request):
         return
     for name in _CLOUD_CREDENTIAL_ENV_VARS:
         monkeypatch.setenv(name, _INERT_TEST_CREDENTIAL)
+    # A loopback proxy can forward to a public service despite the socket
+    # guard below. Offline tests must not inherit developer proxy settings.
+    # urllib also recognizes prefixed variables such as BUNDLE_HTTPS_PROXY.
+    for name in tuple(os.environ):
+        if name.upper().endswith("_PROXY"):
+            monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(
         socket.socket,
         "connect",

@@ -176,6 +176,10 @@ def test_pdf_attachment_rejects_private_url_before_request(monkeypatch, tmp_path
 
 
 def test_pdf_attachment_reports_rejected_redirect_targets(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.is_public_web_url",
+        lambda url: url == "https://example.com/guide.pdf",
+    )
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
     attachment = collect_page_attachments(
@@ -215,6 +219,10 @@ def test_pdf_attachment_reports_rejected_redirect_targets(monkeypatch, tmp_path)
 
 
 def test_private_attachment_helpers_cover_failure_paths(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "distill.ingestors.sites.attachments.is_public_web_url",
+        lambda url: url == "https://example.com/guide.pdf",
+    )
     config = DistillConfig(xai_api_key="test-key", distill_output_dir=tmp_path / "lib")
     attachments_dir = tmp_path / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
