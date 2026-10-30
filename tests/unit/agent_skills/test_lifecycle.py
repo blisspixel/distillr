@@ -225,6 +225,15 @@ def test_native_guidance_is_client_specific_and_does_not_prove_auth(
         native_client_guidance("codex", "system")
 
 
+@pytest.mark.parametrize("client", ["codex", "claude", "gemini", "grok"])
+@pytest.mark.parametrize("scope", ["project", "user"])
+def test_native_install_guidance_uses_transferred_repository(client: str, scope: str) -> None:
+    install = str(native_client_guidance(client, scope)["preferred_install"])
+
+    assert "pueo-labs/distillr" in install
+    assert "blisspixel/distillr" not in install
+
+
 @pytest.mark.parametrize(
     ("value", "message"),
     [

@@ -81,12 +81,15 @@ def test_manifests_and_archive_roots(source: Path, tmp_path: Path) -> None:
         manifest = json.loads(portable.read("plugin.json"))
         Draft202012Validator(schema).validate(manifest)
         assert manifest["version"] == "0.1.0"
+        assert manifest["repository"] == "https://github.com/pueo-labs/distillr"
+        assert manifest["author"] == {"name": "Nick Seal"}
         assert "skills/perspective-editorial/SKILL.md" in portable.namelist()
         assert not any(name.startswith((".", "evals/")) for name in portable.namelist())
         for wrapper in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
             wrapped = json.loads(native.read(wrapper))
             assert wrapped["name"] == manifest["name"]
             assert wrapped["version"] == manifest["version"]
+            assert wrapped["repository"] == manifest["repository"]
             assert not {"mcpServers", "hooks", "apps"}.intersection(wrapped)
         assert not {"mcp.json", ".mcp.json"}.intersection(native.namelist())
 

@@ -215,6 +215,8 @@ jobs:
               raise SystemExit("wheel metadata is missing the pypdf floor")
           if not any(line.startswith("Requires-Dist: opentelemetry-api>=") for line in requires):
               raise SystemExit("wheel metadata is missing the opentelemetry-api floor")
+          if not any(line.startswith("Requires-Dist: packaging>=") for line in requires):
+              raise SystemExit("wheel metadata is missing the self-update version parser")
           pip_runtime = [
               line
               for line in requires
@@ -234,6 +236,7 @@ jobs:
           whl=$(ls dist/*.whl)
           uv venv .wheel-smoke
           uv pip install --python .wheel-smoke/bin/python "$whl"
+          .wheel-smoke/bin/python -I -c "from distill.update import latest_is_newer; assert latest_is_newer('0.20.7', '0.20.8'); assert not latest_is_newer('0.20.8', '0.20.8')"
           .wheel-smoke/bin/python -I -c "from distill.agent_skills.bundle import load_bundled_skill; print(load_bundled_skill().version)"
           .wheel-smoke/bin/python -I -c "from distill.web.theme import load_themes; themes = load_themes(); assert len(themes.themes) == 12; assert not themes.notices"
           .wheel-smoke/bin/python -I -c "from pathlib import Path; from tempfile import TemporaryDirectory; from distill.editorial.perspective import init_perspective, load_perspective; temp = TemporaryDirectory(); brief = load_perspective(init_perspective(Path(temp.name) / 'perspective.toml')); assert not brief.budget.allow_metered; temp.cleanup()"

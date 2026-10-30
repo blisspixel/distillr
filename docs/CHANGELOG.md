@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Repository migration
+
+- Point package project URLs, repository installers, contributor and disclosure
+  links, and native agent installation guidance at `pueo-labs/distillr`.
+  Regenerate corpus and editorial plugin metadata from the canonical builders;
+  preserve author attribution and dated publication and benchmark receipts.
+- Document how existing checkouts can update their remote without changing the
+  `distillr` package or CLI names. Remove the shell installer's UTF-8 byte-order
+  mark so Bash recognizes its first line without a command-not-found error.
+  No package version is bumped or release published as part of this migration.
+- Declare the PEP 440 `packaging` parser as a runtime dependency. Clean tool
+  installations previously could report an older release as already current
+  because only development dependencies supplied the parser. Installed-wheel
+  CI now exercises version comparisons without development dependencies.
+- Raise the development-only `msgpack` floor to 1.2.3 after the dependency
+  audit flagged CVE-2026-114613. The upstream
+  [advisory](https://github.com/msgpack/msgpack-python/security/advisories/GHSA-j586-36cw-2gc2)
+  identifies 1.2.3 as the fix; `msgpack` is not a Distillr runtime dependency.
+- Keep the default test suite offline even with a developer's loopback proxy
+  configured, and update mocked crawl, attachment, search, and preflight
+  fixtures to avoid relying on live DNS or PyPI while verifying this migration.
+
 ### Added
 
 - Third-trial receipts retain 29 attempts, $0.112788 reported API cost,

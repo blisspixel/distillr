@@ -5,7 +5,7 @@
 If you discover a security vulnerability in distill - particularly anything involving API key handling, file-path escapes, command injection, credential leakage via logs or cost artifacts, or the MCP server - please **do not open a public GitHub issue**.
 
 Instead, use the repo's [private GitHub security advisory
-flow](https://github.com/blisspixel/distillr/security/advisories/new). If that
+flow](https://github.com/pueo-labs/distillr/security/advisories/new). If that
 is unavailable, open an issue titled "Security - please contact me privately"
 with no details, and a maintainer will reach out.
 

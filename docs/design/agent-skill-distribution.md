@@ -70,10 +70,10 @@ packaging is a thin distribution layer around it:
 | Surface | Preferred unit | Install or load path | Validation |
 |---|---|---|---|
 | Agent Plugins 1.0.0 clients | Strict portable plugin | Install `distill-corpus-agent-plugin-<version>.zip` | Locked root manifest schema, fixed skill discovery, and drift check |
-| Codex CLI and app | Repository plugin | Add `blisspixel/distillr` as marketplace `distillr`, then install `distill-corpus@distillr` | Codex plugin validator plus drift check |
-| Claude Code | Repository plugin | Add marketplace `blisspixel/distillr`, then install `distill-corpus@distillr` | `claude plugin validate --strict` |
+| Codex CLI and app | Repository plugin | Add `pueo-labs/distillr` as marketplace `distillr`, then install `distill-corpus@distillr` | Codex plugin validator plus drift check |
+| Claude Code | Repository plugin | Add marketplace `pueo-labs/distillr`, then install `distill-corpus@distillr` | `claude plugin validate --strict` |
 | Grok Build | Claude-compatible plugin | Use the repository marketplace or load `plugins/distill-corpus` with `--plugin-dir` | Same generated plugin and skill checks |
-| Gemini CLI | Repository extension | `gemini extensions install https://github.com/blisspixel/distillr`; use `gemini extensions update distillr` later | Root and universal-plugin manifests pass `gemini extensions validate` |
+| Gemini CLI | Repository extension | `gemini extensions install https://github.com/pueo-labs/distillr`; use `gemini extensions update distillr` later | Root and universal-plugin manifests pass `gemini extensions validate` |
 | Antigravity | Canonical skill | Place the folder at `.agents/skills/distill-corpus`, or use a compatible Agent Skills installer | Skill validator and exact-copy check |
 | claude.ai | Versioned ZIP | Upload `distill-corpus-<version>.zip` from the matching GitHub release | ZIP inventory, fixed root, checksum |
 | Generic Agent Skills clients | Canonical skill or `.skill` | Install the folder or matching release archive | Agent Skills validator and checksum |

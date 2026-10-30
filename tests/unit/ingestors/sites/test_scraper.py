@@ -798,6 +798,10 @@ def _install_fake_playwright(monkeypatch, fake_extract, *, is_public=None, obser
         is_public or (lambda url: url.startswith("https://example.com")),
     )
     monkeypatch.setattr(
+        "distill.ingestors.sites._site_urls.is_public_web_url",
+        is_public or (lambda url: url.startswith("https://example.com")),
+    )
+    monkeypatch.setattr(
         "distill.ingestors.sites.scraper.PinnedBrowserProxy",
         lambda: contextlib.nullcontext("http://127.0.0.1:43123"),
     )

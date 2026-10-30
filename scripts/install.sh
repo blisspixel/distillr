@@ -1,7 +1,7 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Easy one-line installer for distillr (macOS / Linux)
 # Usage (recommended):
-#   curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/pueo-labs/distillr/main/scripts/install.sh | bash
 
 set -euo pipefail
 
@@ -101,7 +101,7 @@ echo "  $CLI update            # upgrade in place"
 echo "  $CLI update --check    # just check for a newer version"
 echo ""
 echo "For development / editable install from source:"
-echo "  git clone https://github.com/blisspixel/distillr.git"
+echo "  git clone https://github.com/pueo-labs/distillr.git"
 echo "  cd distillr"
 echo "  uv tool install -e .    # or: pipx install -e ."
 echo ""

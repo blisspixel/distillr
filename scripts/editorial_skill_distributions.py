@@ -78,7 +78,7 @@ edit skills/perspective-editorial and run:
     uv run python -m scripts.editorial_skill_distributions --write
 
 Installation guidance and dated interoperability research:
-https://github.com/blisspixel/distillr/blob/main/docs/portable-editorial-skill.md
+https://github.com/pueo-labs/distillr/blob/main/docs/portable-editorial-skill.md
 """.encode()
 
 
@@ -92,7 +92,7 @@ def expected_files(root: Path) -> dict[PurePosixPath, bytes]:
         "description": DESCRIPTION,
         "author": {"name": "Nick Seal"},
         "license": "Apache-2.0",
-        "repository": "https://github.com/blisspixel/distillr",
+        "repository": "https://github.com/pueo-labs/distillr",
     }
     codex = {
         **manifest,

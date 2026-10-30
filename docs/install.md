@@ -53,13 +53,13 @@ route only when you are ready to commit the run.
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/pueo-labs/distillr/main/scripts/install.ps1 | iex"
 ```
 
 macOS / Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pueo-labs/distillr/main/scripts/install.sh | bash
 ```
 
 These commands download and execute the current installer from this repository.
@@ -312,11 +312,44 @@ the CPU index masking a patched dependency on PyPI.
 See [PyTorch's platform selector](https://pytorch.org/get-started/locally/) and
 the [measured CPU validation](research/maintenance-2026-10-17.md).
 
+## Repository move
+
+The canonical repository is now [`pueo-labs/distillr`](https://github.com/pueo-labs/distillr).
+The PyPI package is still `distillr`, and the commands remain `distill` and
+`distill-mcp`. Existing package installations need no package-name migration;
+use the update commands below. This repository change does not itself publish
+a new package version or replace metadata on an already published wheel.
+
+For a checkout of this repository, inspect its current remote before changing
+it. Change `origin` only if it points to the former `blisspixel/distillr`
+repository, not to a fork or another project:
+
+```bash
+git remote -v
+git remote set-url origin https://github.com/pueo-labs/distillr.git
+git remote -v
+```
+
+Existing corpus files, settings, and author identities are unchanged. Dated
+publication and benchmark receipts retain the repository identity recorded
+when they were captured.
+
 ## Updates
 
 ```bash
 distill update            # upgrade in place (uv tool / pipx / pip)
 distill update --check    # report only
+```
+
+Published releases through `0.20.8` can incorrectly report "already latest" in
+a clean installation without the `packaging` version parser. Use the package
+manager directly if a newer release exists but the self-update command does
+not recognize it:
+
+```bash
+uv tool upgrade distillr            # uv tool installation
+pipx upgrade distillr               # pipx installation
+python -m pip install -U distillr   # use the Python for your pip installation
 ```
 
 Distill also prints a one-line nudge when a new release is published (cached

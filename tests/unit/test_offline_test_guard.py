@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import socket
 
 import pytest
+
+
+@pytest.mark.parametrize("name", ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"])
+def test_default_suite_does_not_inherit_forwarding_proxies(name: str) -> None:
+    assert name not in os.environ
+    assert name.lower() not in os.environ
+
+
+def test_default_suite_also_removes_prefixed_proxy_variables() -> None:
+    assert not any(name.upper().endswith("_PROXY") for name in os.environ)
 
 
 @pytest.mark.parametrize("method", ["connect", "connect_ex"])

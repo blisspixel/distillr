@@ -1,6 +1,6 @@
 ﻿# Easy one-line installer for distillr (Windows PowerShell)
 # Usage (recommended):
-#   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/distillr/main/scripts/install.ps1 | iex"
+#   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/pueo-labs/distillr/main/scripts/install.ps1 | iex"
 
 $ErrorActionPreference = "Stop"
 
@@ -115,7 +115,7 @@ Write-Host "  $Cli update            # upgrade in place"
 Write-Host "  $Cli update --check    # just check for a newer version"
 Write-Host ""
 Write-Host "For development / editable install from source:"
-Write-Host "  git clone https://github.com/blisspixel/distillr.git"
+Write-Host "  git clone https://github.com/pueo-labs/distillr.git"
 Write-Host "  cd distillr"
 Write-Host "  uv tool install -e .   # or: pipx install -e . / venv instructions in README"
 Write-Host ""
